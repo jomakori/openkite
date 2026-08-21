@@ -8,8 +8,10 @@
 //!
 //! # Semver policy
 //!
-//! - **Patch** (`0.x.0`): bug fixes that don't change the public API.
-//! - **Minor** (`0.0.x`): additive, non-breaking API (new methods, new types).
+//! - **Patch** (`0.0.x`): bug fixes and additive, non-breaking additions
+//!   (new methods, new types). Plugins keep working unchanged.
+//! - **Minor** (`0.x.0`): new features and, while pre-1.0, breaking changes —
+//!   documented in release notes.
 //! - **Major** (`x.0.0`): breaking change — removed/renamed items or changed
 //!   signatures. All plugins must be recompiled against the new SDK.
 //!
