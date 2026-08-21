@@ -16,6 +16,10 @@ pub struct PluginRegistry {
     plugins: Vec<Box<dyn OpenKitePlugin>>,
 }
 
+/// The lifecycle/query API is consumed by later tickets (OKT-6 cluster
+/// connect, OKT-7 sidebar/routes, OKT-19 plugin manager). Until those land
+/// it is exercised only by unit tests, so silence dead_code.
+#[allow(dead_code)]
 impl PluginRegistry {
     /// Empty registry.
     pub fn new() -> Self {
@@ -26,7 +30,6 @@ impl PluginRegistry {
 
     /// Append a plugin.
     /// Consumed by `load_static` (Phase 2) and the plugin manager UI (OKT-19).
-    #[allow(dead_code)]
     pub fn register(&mut self, plugin: Box<dyn OpenKitePlugin>) {
         self.plugins.push(plugin);
     }
@@ -198,6 +201,8 @@ mod tests {
     /// Lazy client — points at a non-existent cluster but never connects
     /// (mirrors the SDK's own test).
     fn test_context() -> PluginContext {
+        // kube's rustls-tls feature needs a crypto provider installed.
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let url: http::Uri = "http://127.0.0.1:1".parse().expect("uri");
         let config = kube::Config::new(url);
         let client = kube::Client::try_from(config).expect("client");
