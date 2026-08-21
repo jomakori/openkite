@@ -1,5 +1,4 @@
 /target
 /dist
-/dev/*
-!/dev/Dockerfile
+/dev/.kube
 .opencode/local

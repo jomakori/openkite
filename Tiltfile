@@ -1,9 +1,9 @@
 # OpenKite dev loop — `tilt up` on a machine with Docker + Tilt installed.
 #
-# `cargo-check` compiles the workspace inside the `openkite-dev` container
-# and re-runs on every source change. The cargo registry and target dir are
-# cached in named volumes, so only the first run downloads dependencies.
+# Prereqs: create the cluster first — `./dev/k3d-create.sh`, then
+# `KUBECONFIG=dev/.kube/config tilt up`.
 
+# --- Rust dev image (toolchain + Dioxus-desktop system deps) ---
 docker_build(
     'openkite-dev',
     'dev',
@@ -11,6 +11,7 @@ docker_build(
     only=['dev/Dockerfile'],
 )
 
+# --- Compile-check in a container; re-runs on source change ---
 local_resource(
     'cargo-check',
     cmd='docker run --rm '
@@ -21,3 +22,11 @@ local_resource(
     deps=['Cargo.toml', 'Cargo.lock', 'src', 'crates'],
     resource_deps=['openkite-dev'],
 )
+
+# --- Sample workloads, deployed to the cluster Tilt is connected to ---
+# (nginx, podinfo, crashloop) — what the OpenKite UI renders against.
+k8s_yaml([
+    'dev/manifests/nginx-deployment.yaml',
+    'dev/manifests/podinfo.yaml',
+    'dev/manifests/crashloop-pod.yaml',
+])
