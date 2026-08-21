@@ -1,0 +1,28 @@
+[workspace]
+members = [".", "crates/*"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+[package]
+name = "openkite"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "OpenKite — Kubernetes from above. Pure Rust K8s IDE (Dioxus 0.7 + kube-rs)."
+
+[dependencies]
+dioxus = { version = "0.7", features = ["desktop", "router"] }
+openkite-plugin-sdk = { path = "crates/plugin-sdk" }
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+# kube-rs / k8s-openapi: VERIFY version resolution before first full build.
+# Spec pins kube v4 + k8s-openapi 0.28 — confirm `cargo add kube@4` resolves
+# (ticket OKT-3). Wired in the kube client factory ticket (OKT-5).
+# kube = { version = "4", features = ["runtime", "derive", "oidc", "ws", "rustls-tls"] }
+# k8s-openapi = { version = "0.28", features = ["latest"] }
