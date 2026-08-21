@@ -10,5 +10,6 @@ dioxus = { version = "0.7" }
 tokio = { version = "1", features = ["rt"] }
 anyhow = "1"
 
-# VERIFY: kube v4 + the Discovery module path (kube::discovery) before first build.
-kube = { version = "4", features = ["runtime", "derive", "client"] }
+# Library crate: do NOT enable a k8s-openapi version feature here.
+# The binary crate (openkite) selects the Kubernetes version via k8s-openapi.
+kube = { version = "4", default-features = false, features = ["client", "runtime", "derive", "rustls-tls"] }

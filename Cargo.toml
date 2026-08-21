@@ -21,8 +21,7 @@ tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = "0.3"
 
-# kube-rs / k8s-openapi: VERIFY version resolution before first full build.
-# Spec pins kube v4 + k8s-openapi 0.28 — confirm `cargo add kube@4` resolves
-# (ticket OKT-3). Wired in the kube client factory ticket (OKT-5).
+# Binary crate: select the Kubernetes version here (k8s-openapi "latest").
+k8s-openapi = { version = "0.28", features = ["latest"] }
+# kube-rs: wired in the kube client factory ticket (OKT-5); spec pins kube v4.
 # kube = { version = "4", features = ["runtime", "derive", "oidc", "ws", "rustls-tls"] }
-# k8s-openapi = { version = "0.28", features = ["latest"] }
