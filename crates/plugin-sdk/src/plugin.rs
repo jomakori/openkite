@@ -27,3 +27,57 @@ pub trait OpenKitePlugin: Send + Sync {
     /// Called on app shutdown. Final cleanup.
     fn on_unload(&mut self);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct MockPlugin {
+        connects: usize,
+        unloads: usize,
+    }
+
+    impl OpenKitePlugin for MockPlugin {
+        fn metadata(&self) -> PluginMeta {
+            PluginMeta {
+                name: "mock".into(),
+                display_name: "Mock".into(),
+                version: "0.0.0".into(),
+                author: "test".into(),
+                icon: crate::PluginIcon::BuiltIn("cube"),
+                accent_color: None,
+            }
+        }
+        fn on_cluster_connect(&mut self, _ctx: &PluginContext) -> anyhow::Result<()> {
+            self.connects += 1;
+            Ok(())
+        }
+        fn on_cluster_disconnect(&mut self) {}
+        fn sidebar_entries(&self) -> Vec<SidebarSection> {
+            vec![]
+        }
+        fn routes(&self) -> Vec<PluginRoute> {
+            vec![]
+        }
+        fn on_unload(&mut self) {
+            self.unloads += 1;
+        }
+    }
+
+    #[test]
+    fn trait_object_construction() {
+        let mut plugin: Box<dyn OpenKitePlugin> = Box::new(MockPlugin {
+            connects: 0,
+            unloads: 0,
+        });
+
+        // Stateless methods work without a PluginContext.
+        assert_eq!(plugin.metadata().name, "mock");
+        assert!(plugin.sidebar_entries().is_empty());
+        assert!(plugin.routes().is_empty());
+
+        // Lifecycle methods can be invoked through the trait object.
+        plugin.on_cluster_disconnect();
+        plugin.on_unload();
+    }
+}

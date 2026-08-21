@@ -13,3 +13,7 @@ anyhow = "1"
 # Library crate: do NOT enable a k8s-openapi version feature here.
 # The binary crate (openkite) selects the Kubernetes version via k8s-openapi.
 kube = { version = "4", default-features = false, features = ["client", "runtime", "derive", "rustls-tls"] }
+
+[dev-dependencies]
+http = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

@@ -43,3 +43,35 @@ impl PluginUiHandle {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn constructs_with_runtime_handle() {
+        let handle = tokio::runtime::Handle::current();
+
+        // Lazy client — points at a non-existent cluster but never connects.
+        let url: http::Uri = "http://127.0.0.1:1".parse().expect("uri");
+        let config = kube::Config::new(url);
+        let client = kube::Client::try_from(config).expect("client");
+        let discovery = kube::discovery::Discovery::new(client.clone());
+
+        let ctx = PluginContext {
+            kube_client: client,
+            discovery,
+            theme: ThemeReadHandle {
+                values: std::collections::HashMap::new(),
+            },
+            ui: PluginUiHandle { toast_tx: None },
+            runtime: handle.clone(),
+        };
+
+        // Runtime handle is usable.
+        let _guard = handle.spawn(async { 1 });
+
+        assert_eq!(ctx.theme.get("--bg-0"), None);
+        assert!(ctx.ui.toast_tx.is_none());
+    }
+}
