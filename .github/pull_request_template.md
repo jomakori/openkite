@@ -19,7 +19,7 @@
 - [ ] Refactor (no behavior change)
 - [ ] CI / Tooling (workflows, dev environment)
 - [ ] Docs / Chore
-- [ ] Version bump (SDK / release, per VERSIONING.md)
+- [ ] Version bump (SDK / release)
 
 ## ✅ Checklist
 
@@ -28,6 +28,6 @@
 - [ ] CI green: `cargo fmt`, `cargo clippy -- -D warnings`, `cargo test`, `cargo build --release`
 - [ ] Unit tests added/updated for the change
 - [ ] Conventional commit message: `feat|fix|refactor|docs|ci|chore(<scope>): <message>`
-- [ ] SDK version bumped per VERSIONING.md if the public API changed
+- [ ] SDK version bumped if the public API changed
 - [ ] No secrets in code (pass them in via environment / Doppler)
 - [ ] Plane ticket moved across the board (Todo → In Progress → Done)

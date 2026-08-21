@@ -22,8 +22,8 @@
 - Commits: `feat|fix|refactor|docs|ci|chore(<scope>): <message>`
   (e.g. `feat(plugin-sdk): add loader`).
 - PRs: use `.github/pull_request_template.md`.
-- SDK changes: bump the version per `VERSIONING.md`; never change the SDK's
-  public API without a bump.
+- SDK changes: bump the SDK version when its public API changes; never
+  change the SDK's public API without a bump.
 - Secrets: env vars / Doppler only — never commit credentials.
 - Panics must never cross the plugin boundary (see `PluginRegistry`).
 
