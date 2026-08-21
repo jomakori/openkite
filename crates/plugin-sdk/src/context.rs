@@ -44,6 +44,54 @@ impl PluginUiHandle {
     }
 }
 
+impl PluginContext {
+    /// Build a context for a plugin lifecycle call. Core constructs this at
+    /// cluster connect; plugins receive it read-only.
+    pub fn new(
+        kube_client: Client,
+        discovery: kube::discovery::Discovery,
+        theme: ThemeReadHandle,
+        ui: PluginUiHandle,
+        runtime: tokio::runtime::Handle,
+    ) -> Self {
+        Self {
+            kube_client,
+            discovery,
+            theme,
+            ui,
+            runtime,
+        }
+    }
+}
+
+impl ThemeReadHandle {
+    /// Empty theme handle (no theme loaded yet).
+    pub fn new() -> Self {
+        Self {
+            values: std::collections::HashMap::new(),
+        }
+    }
+}
+
+impl Default for ThemeReadHandle {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl PluginUiHandle {
+    /// Build a UI handle; pass `Some(tx)` once the host wires a toast sink.
+    pub fn new(toast_tx: Option<tokio::sync::mpsc::UnboundedSender<String>>) -> Self {
+        Self { toast_tx }
+    }
+}
+
+impl Default for PluginUiHandle {
+    fn default() -> Self {
+        Self::new(None)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
