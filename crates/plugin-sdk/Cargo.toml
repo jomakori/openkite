@@ -1,0 +1,14 @@
+[package]
+name = "openkite-plugin-sdk"
+version = "0.1.0"
+edition = "2021"
+description = "Plugin SDK for OpenKite — the stable contract between core and plugins."
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+dioxus = { version = "0.7" }
+tokio = { version = "1", features = ["rt"] }
+anyhow = "1"
+
+# VERIFY: kube v4 + the Discovery module path (kube::discovery) before first build.
+kube = { version = "4", features = ["runtime", "derive", "client"] }

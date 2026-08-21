@@ -1,0 +1,45 @@
+use kube::Client;
+
+/// Context handed to plugins on cluster connect. `kube_client` is the same
+/// client the core app uses — plugins get direct K8s access scoped to RBAC.
+pub struct PluginContext {
+    pub kube_client: Client,
+    /// API discovery — used to probe CRDs (e.g. `argoproj.io`).
+    pub discovery: kube::discovery::Discovery,
+    /// Read the active theme's CSS variables.
+    pub theme: ThemeReadHandle,
+    /// UI affordances: toast notifications, modals.
+    pub ui: PluginUiHandle,
+    /// Spawn async work (tonic clients, watchers). Plugins own their task
+    /// handles and MUST abort them in `on_cluster_disconnect`.
+    pub runtime: tokio::runtime::Handle,
+}
+
+/// Read-only view of the current theme.
+#[derive(Clone)]
+pub struct ThemeReadHandle {
+    // Filled in by core during PluginContext construction.
+    pub(crate) values: std::collections::HashMap<String, String>,
+}
+
+impl ThemeReadHandle {
+    pub fn get(&self, var: &str) -> Option<&str> {
+        self.values.get(var).map(|s| s.as_str())
+    }
+}
+
+/// Host UI affordances for plugins.
+#[derive(Clone)]
+pub struct PluginUiHandle {
+    // Filled in by core (toast/notification sink).
+    pub(crate) toast_tx: Option<tokio::sync::mpsc::UnboundedSender<String>>,
+}
+
+impl PluginUiHandle {
+    /// Surface a toast notification in the host UI.
+    pub fn toast(&self, msg: &str) {
+        if let Some(tx) = &self.toast_tx {
+            let _ = tx.send(msg.to_string());
+        }
+    }
+}
