@@ -1,4 +1,5 @@
 /target
 /dist
-/dev
+/dev/*
+!/dev/Dockerfile
 .opencode/local
