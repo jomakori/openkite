@@ -32,3 +32,5 @@ k3d kubeconfig merge "${CLUSTER}" -d -o dev/.kube/config
 echo
 echo "==> Ready. Start the dev loop with:"
 echo "    KUBECONFIG=dev/.kube/config tilt up"
+echo
+echo "    When done: tilt down && ./dev/k3d-down.sh"
