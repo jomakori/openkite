@@ -50,6 +50,7 @@ mod tests {
 
     #[tokio::test]
     async fn constructs_with_runtime_handle() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let handle = tokio::runtime::Handle::current();
 
         // Lazy client — points at a non-existent cluster but never connects.

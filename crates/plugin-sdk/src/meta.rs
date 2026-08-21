@@ -45,7 +45,10 @@ mod tests {
     #[test]
     fn icon_variants() {
         assert_eq!(PluginIcon::BuiltIn("cube"), PluginIcon::BuiltIn("cube"));
-        assert_eq!(PluginIcon::Svg("<svg/>".into()), PluginIcon::Svg("<svg/>".into()));
+        assert_eq!(
+            PluginIcon::Svg("<svg/>".into()),
+            PluginIcon::Svg("<svg/>".into())
+        );
         assert_ne!(PluginIcon::BuiltIn("a"), PluginIcon::BuiltIn("b"));
     }
 }
