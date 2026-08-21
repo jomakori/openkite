@@ -19,22 +19,16 @@ pub struct PluginRegistry {
 impl PluginRegistry {
     /// Empty registry.
     pub fn new() -> Self {
-        Self { plugins: Vec::new() }
+        Self {
+            plugins: Vec::new(),
+        }
     }
 
     /// Append a plugin.
+    /// Consumed by `load_static` (Phase 2) and the plugin manager UI (OKT-19).
+    #[allow(dead_code)]
     pub fn register(&mut self, plugin: Box<dyn OpenKitePlugin>) {
         self.plugins.push(plugin);
-    }
-
-    /// Number of registered plugins.
-    pub fn len(&self) -> usize {
-        self.plugins.len()
-    }
-
-    /// Whether no plugins are registered.
-    pub fn is_empty(&self) -> bool {
-        self.plugins.is_empty()
     }
 
     /// Immutable view of the registered plugins.
@@ -153,7 +147,10 @@ mod tests {
         }
 
         fn record(&self, event: &str) {
-            self.log.lock().unwrap().push(format!("{}-{}", self.name, event));
+            self.log
+                .lock()
+                .unwrap()
+                .push(format!("{}-{}", self.name, event));
         }
     }
 
@@ -282,6 +279,9 @@ mod tests {
         assert!(routes.is_empty());
 
         let events = log.lock().unwrap().clone();
-        assert_eq!(events, vec!["a-sidebar".to_string(), "b-sidebar".to_string()]);
+        assert_eq!(
+            events,
+            vec!["a-sidebar".to_string(), "b-sidebar".to_string()]
+        );
     }
 }

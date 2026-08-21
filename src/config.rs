@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 /// Local OpenKite configuration. Currently holds the plugin enable/disable
 /// state; theme + settings grow this in their own tickets (OKT-17/OKT-19).
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct OpenKiteConfig {
     /// Explicitly enabled plugin names. Empty = all plugins enabled.
     pub enabled_plugins: Vec<String>,
@@ -29,11 +29,14 @@ impl OpenKiteConfig {
     }
 
     /// Persist to `~/.openkite/config.toml`, creating the directory if needed.
+    /// Consumed by the plugin manager UI (OKT-19) once toggles exist.
+    #[allow(dead_code)]
     pub fn save(&self) -> anyhow::Result<()> {
         self.save_to(&Self::path())
     }
 
     /// Persist to a specific file (testable).
+    #[allow(dead_code)]
     pub fn save_to(&self, path: &Path) -> anyhow::Result<()> {
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir)?;
@@ -46,12 +49,12 @@ impl OpenKiteConfig {
     /// Whether a plugin is enabled. Explicitly disabled wins; otherwise a
     /// non-empty `enabled_plugins` acts as an allowlist, and an empty list
     /// means "all enabled".
+    #[allow(dead_code)]
     pub fn is_enabled(&self, name: &str) -> bool {
         if self.disabled_plugins.iter().any(|n| n.as_str() == name) {
             return false;
         }
-        self.enabled_plugins.is_empty()
-            || self.enabled_plugins.iter().any(|n| n.as_str() == name)
+        self.enabled_plugins.is_empty() || self.enabled_plugins.iter().any(|n| n.as_str() == name)
     }
 
     fn path() -> PathBuf {
@@ -88,7 +91,10 @@ mod tests {
     fn missing_file_loads_default() {
         let missing = std::env::temp_dir().join(format!("openkite-missing-{}", std::process::id()));
         let _ = std::fs::remove_file(&missing);
-        assert_eq!(OpenKiteConfig::load_from(&missing), OpenKiteConfig::default());
+        assert_eq!(
+            OpenKiteConfig::load_from(&missing),
+            OpenKiteConfig::default()
+        );
     }
 
     #[test]
