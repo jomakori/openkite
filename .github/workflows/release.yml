@@ -1,0 +1,42 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  bundle:
+    name: Bundle desktop app
+    strategy:
+      matrix:
+        os: [macos-14, ubuntu-22.04, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache cargo registry
+        uses: Swatinem/rust-cache@v2
+      - name: Install Dioxus CLI
+        run: cargo install dioxus-cli --locked
+      - name: Build release bundle
+        run: dx bundle --release
+      - name: Stage release assets
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          if [ -d dist ]; then cp -r dist/* release-assets/ 2>/dev/null || true; fi
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            cp target/release/openkite.exe release-assets/openkite-windows.exe 2>/dev/null || true
+          else
+            cp target/release/openkite "release-assets/openkite-$(echo "$RUNNER_OS" | tr '[:upper:]' '[:lower:]')" 2>/dev/null || true
+          fi
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          generate_release_notes: true
