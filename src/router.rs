@@ -8,11 +8,11 @@ use openkite_plugin_sdk::{SidebarEntry, SidebarSection};
 use std::collections::HashMap;
 
 /// Plugin sidebar sections, populated from the registry at startup.
-static PLUGIN_SECTIONS: GlobalSignal<Vec<SidebarSection>> = Signal::global(|| Vec::new());
+static PLUGIN_SECTIONS: GlobalSignal<Vec<SidebarSection>> = Signal::global(Vec::new);
 
 /// Plugin route table keyed by full path, populated at startup.
 static ROUTE_TABLE: GlobalSignal<HashMap<String, fn() -> Element>> =
-    Signal::global(|| HashMap::new());
+    Signal::global(HashMap::new);
 
 /// Install plugin navigation + routes from the registry (once, in `main`).
 pub fn install_plugins(sections: Vec<SidebarSection>, routes: HashMap<String, fn() -> Element>) {
