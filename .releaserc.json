@@ -5,7 +5,8 @@
     "@semantic-release/release-notes-generator",
     ["semantic-release-cargo", {
       "publish": false,
-      "alwaysVerifyToken": false
+      "alwaysVerifyToken": false,
+      "check": false
     }],
     ["@semantic-release/github", {
       "assets": []
