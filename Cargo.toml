@@ -39,7 +39,7 @@ rustls = { version = "0.23", features = ["ring"] }
 name = "openkite"
 product-name = "OpenKite"
 identifier = "com.openkite.app"
-icons = ["icons/icon.png"]
+icons = ["icons/icon.icns", "icons/icon.ico", "icons/icon.png"]
 binaries = [{ path = "openkite", main = true }]
 
 # AppImage: bundle webkit runtime + gtk plugin. Unsandboxed → full host access
