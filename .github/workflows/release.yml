@@ -36,10 +36,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   # Stage 2: cross-platform artifacts — 3 OS x 2 arch, native hosts where
-  # GitHub provides them. cargo-packager orchestrates the macOS DMG and Linux
-  # AppImage (compilation mapping, profiles, bundling). Windows ships a bare
-  # .exe — cargo-packager's Windows formats are NSIS/MSI installers only, so
-  # Windows uses a direct cargo build (no archive, per requirement).
+  # GitHub provides them. cargo-packager is the single build tool for all
+  # platforms: macOS DMG, Linux AppImage, Windows MSI (MSI chosen over a bare
+  # .exe so one crate builds everything).
   build-artifacts:
     name: openkite_${{ matrix.package_os }}_${{ matrix.package_arch }}
     needs: analyze
@@ -75,19 +74,20 @@ jobs:
             formats: dmg
             ext: dmg
           # Windows — native AMD64; ARM64 cross-compiled from the x64 host
-          # (aarch64-pc-windows-msvc — no GitHub-hosted Windows ARM64 runner)
+          # (aarch64-pc-windows-msvc — no GitHub-hosted Windows ARM64 runner).
+          # MSI keeps cargo-packager as the single build tool for every OS.
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             package_os: windows
             package_arch: amd64
-            formats: ""
-            ext: exe
+            formats: msi
+            ext: msi
           - os: windows-latest
             target: aarch64-pc-windows-msvc
             package_os: windows
             package_arch: arm64
-            formats: ""
-            ext: exe
+            formats: msi
+            ext: msi
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout tagged ref
@@ -115,20 +115,11 @@ jobs:
         run: cargo install cargo-packager --locked
       - name: Build release binary
         run: cargo build --release --target ${{ matrix.target }}
-      - name: Package (macOS DMG / Linux AppImage via cargo-packager)
-        if: matrix.package_os != 'windows'
+      - name: Package via cargo-packager (DMG / AppImage / MSI)
         run: |
           cargo packager --release --target ${{ matrix.target }} \
             --formats ${{ matrix.formats }} --out-dir dist
-      - name: Package (Windows — bare .exe, no archive)
-        if: matrix.package_os == 'windows'
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force dist | Out-Null
-          Copy-Item "target/${{ matrix.target }}/release/openkite.exe" \
-            "dist/openkite_${{ needs.analyze.outputs.new_release_version }}_${{ matrix.package_os }}_${{ matrix.package_arch }}.${{ matrix.ext }}"
       - name: Rename to openkite_<semver>_<os>_<arch>.<ext>
-        if: matrix.package_os != 'windows'
         shell: bash
         run: |
           version="${{ needs.analyze.outputs.new_release_version }}"
