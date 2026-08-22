@@ -1,10 +1,14 @@
 ## 📚 Description
 
-<!-- Summary of the changes and the related Plane ticket (e.g. OKT-6). -->
+This pull request introduces <!-- high-level paragraph: what the change does and why it is necessary -->.
 
-<!-- Explain why this change is necessary and what problem it solves. -->
+### <!-- Topic 1 -->
 
-*
+- <!-- detailed summary bullet points -->
+
+### <!-- Topic 2 -->
+
+- <!-- bullet points -->
 
 ### Relevant Plane Tickets:
 
