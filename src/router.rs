@@ -11,7 +11,8 @@ use std::collections::HashMap;
 static PLUGIN_SECTIONS: GlobalSignal<Vec<SidebarSection>> = Signal::global(|| Vec::new());
 
 /// Plugin route table keyed by full path, populated at startup.
-static ROUTE_TABLE: GlobalSignal<HashMap<String, fn() -> Element>> = Signal::global(|| HashMap::new());
+static ROUTE_TABLE: GlobalSignal<HashMap<String, fn() -> Element>> =
+    Signal::global(|| HashMap::new());
 
 /// Install plugin navigation + routes from the registry (once, in `main`).
 pub fn install_plugins(sections: Vec<SidebarSection>, routes: HashMap<String, fn() -> Element>) {
@@ -78,9 +79,9 @@ fn Sidebar() -> Element {
             h1 { class: "brand", "OpenKite" }
             span { class: "tagline", "Kubernetes from above." }
             nav { class: "nav",
-                NavItem { label: "Cluster".into(), to: Route::Cluster {} }
-                NavItem { label: "Workloads".into(), to: Route::Workloads {} }
-                NavItem { label: "Config".into(), to: Route::Config {} }
+                NavItem { label: "Cluster", to: Route::Cluster {} }
+                NavItem { label: "Workloads", to: Route::Workloads {} }
+                NavItem { label: "Config", to: Route::Config {} }
                 if !sections.is_empty() {
                     div { class: "nav-divider" }
                     for section in sections.iter() {
