@@ -59,13 +59,7 @@ jobs:
             package_arch: arm64
             formats: appimage
             ext: AppImage
-          # macOS — native Intel (macos-13) + Apple Silicon (macos-14)
-          - os: macos-13
-            target: x86_64-apple-darwin
-            package_os: macos
-            package_arch: amd64
-            formats: dmg
-            ext: dmg
+          # macOS — Apple Silicon only (macos-13 Intel runner retired)
           - os: macos-14
             target: aarch64-apple-darwin
             package_os: macos
@@ -113,6 +107,7 @@ jobs:
       - name: Build release binary
         run: cargo build --release --target ${{ matrix.target }}
       - name: Package via cargo-packager (DMG / AppImage / MSI)
+        shell: bash
         run: |
           cargo packager --release --target ${{ matrix.target }} \
             --formats ${{ matrix.formats }} --out-dir dist
