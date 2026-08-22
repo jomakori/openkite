@@ -1,42 +1,134 @@
-name: release
-
+name: Release
 on:
   push:
-    tags: ['v*']
-
-env:
-  CARGO_TERM_COLOR: always
-
+    branches:
+      - main
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
 jobs:
-  bundle:
-    name: Bundle desktop app
-    strategy:
-      matrix:
-        os: [macos-14, ubuntu-22.04, windows-latest]
-    runs-on: ${{ matrix.os }}
+  analyze:
+    name: Version + release
+    runs-on: ubuntu-latest
+    outputs:
+      new_release_published: ${{ steps.semantic.outputs.new_release_published }}
+      new_release_version: ${{ steps.semantic.outputs.new_release_version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Configure git
+        run: |
+          git config user.name "semantic-release-bot"
+          git config user.email "semantic-release-bot@users.noreply.github.com"
+      - name: Run semantic-release
+        id: semantic
+        uses: cycjimmy/semantic-release-action@v4
+        with:
+          extra_plugins: |
+            @semantic-release/commit-analyzer
+            @semantic-release/release-notes-generator
+            @semantic-release/github
+            semantic-release-cargo
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  build-artifacts:
+    name: openkite_${{ matrix.package_os }}_${{ matrix.package_arch }}
+    needs: analyze
+    if: needs.analyze.outputs.new_release_published == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux — native amd64 + arm64 (GH ARM64 VMs)
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            package_os: linux
+            package_arch: amd64
+            formats: appimage
+            ext: AppImage
+          - os: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            package_os: linux
+            package_arch: arm64
+            formats: appimage
+            ext: AppImage
+          # macOS — native Intel (macos-13) + Apple Silicon (macos-14)
+          - os: macos-13
+            target: x86_64-apple-darwin
+            package_os: macos
+            package_arch: amd64
+            formats: dmg
+            ext: dmg
+          - os: macos-14
+            target: aarch64-apple-darwin
+            package_os: macos
+            package_arch: arm64
+            formats: dmg
+            ext: dmg
+          # no GH windows-arm runner → cross-compile on amd64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            package_os: windows
+            package_arch: amd64
+            formats: msi
+            ext: msi
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            package_os: windows
+            package_arch: arm64
+            formats: msi
+            ext: msi
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout tagged ref
+        uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.analyze.outputs.new_release_version }}
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-      - name: Cache cargo registry
+        with:
+          targets: ${{ matrix.target }}
+      - name: Cache cargo
         uses: Swatinem/rust-cache@v2
-      - name: Install Dioxus CLI
-        run: cargo install dioxus-cli --locked
-      - name: Build release bundle
-        run: dx bundle --release
-      - name: Stage release assets
+        with:
+          workspaces: "."
+          key: ${{ matrix.target }}
+      - name: Install Linux system deps (Dioxus desktop)
+        if: matrix.package_os == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libglib2.0-dev \
+            libayatana-appindicator3-dev librsvg2-dev libxdo-dev \
+            libssl-dev libfuse2
+      - name: Install cargo-packager
+        run: cargo install cargo-packager --locked
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }}
+      - name: Package via cargo-packager (DMG / AppImage / MSI)
+        run: |
+          cargo packager --release --target ${{ matrix.target }} \
+            --formats ${{ matrix.formats }} --out-dir dist
+      - name: Rename to openkite_<semver>_<os>_<arch>.<ext>
         shell: bash
         run: |
-          mkdir -p release-assets
-          if [ -d dist ]; then cp -r dist/* release-assets/ 2>/dev/null || true; fi
-          if [ "$RUNNER_OS" = "Windows" ]; then
-            cp target/release/openkite.exe release-assets/openkite-windows.exe 2>/dev/null || true
-          else
-            cp target/release/openkite "release-assets/openkite-$(echo "$RUNNER_OS" | tr '[:upper:]' '[:lower:]')" 2>/dev/null || true
-          fi
-      - name: Publish GitHub release
+          version="${{ needs.analyze.outputs.new_release_version }}"
+          artifact="$(find dist -maxdepth 1 -name '*.${{ matrix.ext }}' | head -1)"
+          test -n "$artifact" || { echo "no .${{ matrix.ext }} artifact produced"; exit 1; }
+          mv "$artifact" "dist/openkite_${version}_${{ matrix.package_os }}_${{ matrix.package_arch }}.${{ matrix.ext }}"
+          chmod +x "dist/openkite_${version}_${{ matrix.package_os }}_${{ matrix.package_arch }}.${{ matrix.ext }}"
+      - name: Verify AppImage
+        if: matrix.package_os == 'linux'
+        run: |
+          file dist/openkite_*_${{ matrix.package_arch }}.AppImage
+          test -x dist/openkite_*_${{ matrix.package_arch }}.AppImage
+      - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: release-assets/*
-          generate_release_notes: true
+          tag_name: v${{ needs.analyze.outputs.new_release_version }}
+          files: dist/openkite_*_${{ matrix.package_os }}_${{ matrix.package_arch }}.${{ matrix.ext }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

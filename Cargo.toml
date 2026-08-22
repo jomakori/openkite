@@ -12,6 +12,7 @@ name = "openkite"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+publish = false
 description = "OpenKite — Kubernetes from above. Pure Rust K8s IDE (Dioxus 0.7 + kube-rs)."
 
 [dependencies]
@@ -33,3 +34,27 @@ k8s-openapi = { version = "0.28", features = ["latest"] }
 http = "1"
 kube = { version = "4", default-features = false, features = ["client"] }
 rustls = { version = "0.23", features = ["ring"] }
+
+[package.metadata.packager]
+name = "openkite"
+product-name = "OpenKite"
+identifier = "com.openkite.app"
+icons = ["icons/icon.png"]
+binaries = [{ path = "openkite", main = true }]
+
+# AppImage: bundle webkit runtime + gtk plugin. Unsandboxed → full host access
+# (kubeconfig, CLIs, scripts). FUSE-less: APPIMAGE_EXTRACT_AND_RUN=1
+[package.metadata.packager.appimage]
+libs = [
+  "WebKitNetworkProcess",
+  "WebKitWebProcess",
+  "libwebkit2gtkinjectedbundle.so",
+]
+linuxdeploy-plugins = { gtk = "https://raw.githubusercontent.com/tauri-apps/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh" }
+
+# NOTE: panic stays "unwind" — plugin containment needs catch_unwind
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
