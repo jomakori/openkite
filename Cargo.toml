@@ -35,7 +35,6 @@ http = "1"
 kube = { version = "4", default-features = false, features = ["client"] }
 rustls = { version = "0.23", features = ["ring"] }
 
-# cargo-packager config — version derived from [package] (tracks semantic-release)
 [package.metadata.packager]
 name = "openkite"
 product-name = "OpenKite"
