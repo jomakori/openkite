@@ -34,3 +34,36 @@ k8s-openapi = { version = "0.28", features = ["latest"] }
 http = "1"
 kube = { version = "4", default-features = false, features = ["client"] }
 rustls = { version = "0.23", features = ["ring"] }
+
+# --- cargo-packager (release packaging) -------------------------------------
+# Config lives in Cargo.toml so it stays in sync with the [package] version
+# (bumped by semantic-release-cargo on every release).
+[package.metadata.packager]
+name = "openkite"
+product-name = "OpenKite"
+identifier = "com.openkite.app"
+icons = ["icons/icon.png"]
+binaries = [{ path = "openkite", main = true }]
+
+# Linux AppImage: bundle the webkit2gtk runtime bits so the image is portable
+# across distros; the gtk linuxdeploy plugin pulls the correct GTK stack.
+# AppImages are NOT sandboxed — the app runs with the user's full host
+# permissions (kubeconfig, host CLIs, custom scripts). On FUSE-less hosts:
+#   APPIMAGE_EXTRACT_AND_RUN=1 openkite.AppImage
+# or: openkite.AppImage --appimage-extract-and-run
+[package.metadata.packager.appimage]
+libs = [
+  "WebKitNetworkProcess",
+  "WebKitWebProcess",
+  "libwebkit2gtkinjectedbundle.so",
+]
+linuxdeploy-plugins = { gtk = "https://raw.githubusercontent.com/tauri-apps/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh" }
+
+# Release profile for shipped binaries (used by the CI artifact matrix).
+# NOTE: panic stays "unwind" — PluginRegistry relies on catch_unwind for
+# plugin panic containment; panic = "abort" would silently break it.
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = "symbols"

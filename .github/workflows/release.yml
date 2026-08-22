@@ -35,27 +35,59 @@ jobs:
             semantic-release-cargo
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  # Stage 2: cross-platform binary build + attach to the release
+  # Stage 2: cross-platform artifacts — 3 OS x 2 arch, native hosts where
+  # GitHub provides them. cargo-packager orchestrates the macOS DMG and Linux
+  # AppImage (compilation mapping, profiles, bundling). Windows ships a bare
+  # .exe — cargo-packager's Windows formats are NSIS/MSI installers only, so
+  # Windows uses a direct cargo build (no archive, per requirement).
   build-artifacts:
-    name: Build ${{ matrix.asset_name }}
+    name: openkite_${{ matrix.package_os }}_${{ matrix.package_arch }}
     needs: analyze
     if: needs.analyze.outputs.new_release_published == 'true'
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          # Linux — native AMD64 + ARM64 (GitHub-hosted ARM64 VMs)
+          - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
-            asset_name: openkite-linux-x86_64.tar.gz
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            asset_name: openkite-macos-aarch64.tar.gz
-          - os: macos-latest
+            package_os: linux
+            package_arch: amd64
+            formats: appimage
+            ext: AppImage
+          - os: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            package_os: linux
+            package_arch: arm64
+            formats: appimage
+            ext: AppImage
+          # macOS — native Intel (macos-13) + Apple Silicon (macos-14)
+          - os: macos-13
             target: x86_64-apple-darwin
-            asset_name: openkite-macos-x86_64.tar.gz
+            package_os: macos
+            package_arch: amd64
+            formats: dmg
+            ext: dmg
+          - os: macos-14
+            target: aarch64-apple-darwin
+            package_os: macos
+            package_arch: arm64
+            formats: dmg
+            ext: dmg
+          # Windows — native AMD64; ARM64 cross-compiled from the x64 host
+          # (aarch64-pc-windows-msvc — no GitHub-hosted Windows ARM64 runner)
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            asset_name: openkite-windows-x86_64.zip
+            package_os: windows
+            package_arch: amd64
+            formats: ""
+            ext: exe
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            package_os: windows
+            package_arch: arm64
+            formats: ""
+            ext: exe
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout tagged ref
@@ -66,28 +98,53 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "."
+          key: ${{ matrix.target }}
       - name: Install Linux system deps (Dioxus desktop)
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.package_os == 'linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libglib2.0-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libglib2.0-dev \
+            libayatana-appindicator3-dev librsvg2-dev libxdo-dev \
+            libssl-dev libfuse2
+      - name: Install cargo-packager
+        run: cargo install cargo-packager --locked
       - name: Build release binary
         run: cargo build --release --target ${{ matrix.target }}
-      - name: Package artifact (Unix)
-        if: matrix.os != 'windows-latest'
+      - name: Package (macOS DMG / Linux AppImage via cargo-packager)
+        if: matrix.package_os != 'windows'
         run: |
-          cd target/${{ matrix.target }}/release
-          tar -czf ../../../${{ matrix.asset_name }} openkite
-          cd ../../..
-      - name: Package artifact (Windows)
-        if: matrix.os == 'windows-latest'
+          cargo packager --release --target ${{ matrix.target }} \
+            --formats ${{ matrix.formats }} --out-dir dist
+      - name: Package (Windows — bare .exe, no archive)
+        if: matrix.package_os == 'windows'
         shell: pwsh
         run: |
-          Compress-Archive -Path target/${{ matrix.target }}/release/openkite.exe -DestinationPath ${{ matrix.asset_name }}
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item "target/${{ matrix.target }}/release/openkite.exe" \
+            "dist/openkite_${{ needs.analyze.outputs.new_release_version }}_${{ matrix.package_os }}_${{ matrix.package_arch }}.${{ matrix.ext }}"
+      - name: Rename to openkite_<semver>_<os>_<arch>.<ext>
+        if: matrix.package_os != 'windows'
+        shell: bash
+        run: |
+          version="${{ needs.analyze.outputs.new_release_version }}"
+          artifact="$(find dist -maxdepth 1 -name '*.${{ matrix.ext }}' | head -1)"
+          test -n "$artifact" || { echo "no .${{ matrix.ext }} artifact produced"; exit 1; }
+          mv "$artifact" "dist/openkite_${version}_${{ matrix.package_os }}_${{ matrix.package_arch }}.${{ matrix.ext }}"
+          chmod +x "dist/openkite_${version}_${{ matrix.package_os }}_${{ matrix.package_arch }}.${{ matrix.ext }}"
+      - name: Verify Linux AppImage (ELF, executable, unsandboxed by design)
+        if: matrix.package_os == 'linux'
+        run: |
+          file dist/openkite_*_${{ matrix.package_arch }}.AppImage
+          test -x dist/openkite_*_${{ matrix.package_arch }}.AppImage
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ needs.analyze.outputs.new_release_version }}
-          files: ${{ matrix.asset_name }}
+          files: dist/openkite_*_${{ matrix.package_os }}_${{ matrix.package_arch }}.${{ matrix.ext }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
