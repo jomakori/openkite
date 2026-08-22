@@ -80,8 +80,8 @@ jobs:
             target: aarch64-pc-windows-msvc
             package_os: windows
             package_arch: arm64
-            formats: wix
-            ext: msi
+            formats: nsis
+            ext: exe
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
