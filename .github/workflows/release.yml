@@ -128,7 +128,7 @@ jobs:
   publish:
     name: Publish release
     runs-on: ubuntu-latest
-    needs: build-artifacts
+    needs: [analyze, build-artifacts]
     if: needs.analyze.outputs.new_release_published == 'true'
     steps:
       - name: Checkout
