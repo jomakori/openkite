@@ -12,6 +12,7 @@ name = "openkite"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+publish = false
 description = "OpenKite — Kubernetes from above. Pure Rust K8s IDE (Dioxus 0.7 + kube-rs)."
 
 [dependencies]

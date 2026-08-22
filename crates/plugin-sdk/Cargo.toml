@@ -2,6 +2,7 @@
 name = "openkite-plugin-sdk"
 version = "0.0.0"
 edition = "2021"
+publish = false
 description = "Plugin SDK for OpenKite — the stable contract between core and plugins."
 license = "MIT OR Apache-2.0"
 

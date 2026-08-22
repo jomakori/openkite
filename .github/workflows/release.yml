@@ -1,42 +1,90 @@
-name: release
-
+name: Release
 on:
   push:
-    tags: ['v*']
-
-env:
-  CARGO_TERM_COLOR: always
-
+    branches:
+      - main
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
 jobs:
-  bundle:
-    name: Bundle desktop app
-    strategy:
-      matrix:
-        os: [macos-14, ubuntu-22.04, windows-latest]
-    runs-on: ${{ matrix.os }}
+  # Stage 1: version calculation, Cargo.toml bump, tag + release creation
+  analyze:
+    name: Version + release
+    runs-on: ubuntu-latest
+    outputs:
+      new_release_published: ${{ steps.semantic.outputs.new_release_published }}
+      new_release_version: ${{ steps.semantic.outputs.new_release_version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Configure git
+        run: |
+          git config user.name "semantic-release-bot"
+          git config user.email "semantic-release-bot@users.noreply.github.com"
+      - name: Run semantic-release
+        id: semantic
+        uses: cycjimmy/semantic-release-action@v4
+        with:
+          extra_plugins: |
+            semantic-release-cargo
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  # Stage 2: cross-platform binary build + attach to the release
+  build-artifacts:
+    name: Build ${{ matrix.asset_name }}
+    needs: analyze
+    if: needs.analyze.outputs.new_release_published == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            asset_name: openkite-linux-x86_64.tar.gz
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            asset_name: openkite-macos-aarch64.tar.gz
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            asset_name: openkite-macos-x86_64.tar.gz
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            asset_name: openkite-windows-x86_64.zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout tagged ref
+        uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.analyze.outputs.new_release_version }}
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-      - name: Cache cargo registry
-        uses: Swatinem/rust-cache@v2
-      - name: Install Dioxus CLI
-        run: cargo install dioxus-cli --locked
-      - name: Build release bundle
-        run: dx bundle --release
-      - name: Stage release assets
-        shell: bash
+        with:
+          targets: ${{ matrix.target }}
+      - name: Install Linux system deps (Dioxus desktop)
+        if: matrix.os == 'ubuntu-latest'
         run: |
-          mkdir -p release-assets
-          if [ -d dist ]; then cp -r dist/* release-assets/ 2>/dev/null || true; fi
-          if [ "$RUNNER_OS" = "Windows" ]; then
-            cp target/release/openkite.exe release-assets/openkite-windows.exe 2>/dev/null || true
-          else
-            cp target/release/openkite "release-assets/openkite-$(echo "$RUNNER_OS" | tr '[:upper:]' '[:lower:]')" 2>/dev/null || true
-          fi
-      - name: Publish GitHub release
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libglib2.0-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }}
+      - name: Package artifact (Unix)
+        if: matrix.os != 'windows-latest'
+        run: |
+          cd target/${{ matrix.target }}/release
+          tar -czf ../../../${{ matrix.asset_name }} openkite
+          cd ../../..
+      - name: Package artifact (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path target/${{ matrix.target }}/release/openkite.exe -DestinationPath ${{ matrix.asset_name }}
+      - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: release-assets/*
-          generate_release_notes: true
+          tag_name: v${{ needs.analyze.outputs.new_release_version }}
+          files: ${{ matrix.asset_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
