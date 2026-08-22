@@ -1,7 +1,7 @@
 use crate::meta::PluginIcon;
 
 /// A named group of sidebar entries (e.g. "Argo CD").
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SidebarSection {
     pub label: String,
     pub icon: PluginIcon,
@@ -10,7 +10,7 @@ pub struct SidebarSection {
 }
 
 /// A single clickable sidebar entry, mapped to a plugin route.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SidebarEntry {
     pub label: String,
     pub icon: PluginIcon,
