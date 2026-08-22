@@ -8,7 +8,7 @@ permissions:
   issues: write
   pull-requests: write
 jobs:
-  # Stage 1: version calculation, Cargo.toml bump, tag + release creation
+  # Stage 1: version + release (semantic-release)
   analyze:
     name: Version + release
     runs-on: ubuntu-latest
@@ -35,10 +35,7 @@ jobs:
             semantic-release-cargo
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  # Stage 2: cross-platform artifacts — 3 OS x 2 arch, native hosts where
-  # GitHub provides them. cargo-packager is the single build tool for all
-  # platforms: macOS DMG, Linux AppImage, Windows MSI (MSI chosen over a bare
-  # .exe so one crate builds everything).
+  # Stage 2: artifacts — cargo-packager builds all 6 targets (DMG/AppImage/MSI)
   build-artifacts:
     name: openkite_${{ matrix.package_os }}_${{ matrix.package_arch }}
     needs: analyze
@@ -47,7 +44,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Linux — native AMD64 + ARM64 (GitHub-hosted ARM64 VMs)
+          # Linux — native amd64 + arm64 (GH ARM64 VMs)
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             package_os: linux
@@ -73,9 +70,7 @@ jobs:
             package_arch: arm64
             formats: dmg
             ext: dmg
-          # Windows — native AMD64; ARM64 cross-compiled from the x64 host
-          # (aarch64-pc-windows-msvc — no GitHub-hosted Windows ARM64 runner).
-          # MSI keeps cargo-packager as the single build tool for every OS.
+          # Windows — native amd64; arm64 cross-compiled (no GH windows-arm runner)
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             package_os: windows
@@ -127,7 +122,7 @@ jobs:
           test -n "$artifact" || { echo "no .${{ matrix.ext }} artifact produced"; exit 1; }
           mv "$artifact" "dist/openkite_${version}_${{ matrix.package_os }}_${{ matrix.package_arch }}.${{ matrix.ext }}"
           chmod +x "dist/openkite_${version}_${{ matrix.package_os }}_${{ matrix.package_arch }}.${{ matrix.ext }}"
-      - name: Verify Linux AppImage (ELF, executable, unsandboxed by design)
+      - name: Verify AppImage
         if: matrix.package_os == 'linux'
         run: |
           file dist/openkite_*_${{ matrix.package_arch }}.AppImage

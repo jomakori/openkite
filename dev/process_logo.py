@@ -1,26 +1,18 @@
 #!/usr/bin/env python3
-"""Process the OpenKite logo into a 1024x1024 app icon.
-
-- decode PNG (RGBA, 8-bit, filters 0-4)
-- flood-fill near-white background -> transparent (from borders; the logo's
-  internal white X-strokes are enclosed by teal and stay opaque)
-- halo pass: light pixels bordering transparency become transparent
-- content bbox -> square crop -> nearest-neighbor upscale to 1024
-"""
+"""Square-crop the OpenKite logo to a 1024x1024 white-bg app icon."""
 import struct
 import zlib
 
 SRC = "/opt/data/cache/images/img_3ec06bef3764.png"
 OUT = "icons/icon.png"
 SIZE = 1024
-FILL_T = 230   # near-white threshold for background flood-fill
-HALO_T = 200   # light pixels next to transparency become transparent
+PAD = 0.08
+WHITE_T = 230
 
 
 def decode_png(path):
     with open(path, "rb") as f:
         data = f.read()
-    assert data[:8] == b"\x89PNG\r\n\x1a\n"
     pos, idat, w, h, depth, ctype = 8, b"", 0, 0, 0, 0
     while pos < len(data):
         (ln,) = struct.unpack(">I", data[pos : pos + 4])
@@ -31,134 +23,68 @@ def decode_png(path):
         elif tag == b"IDAT":
             idat += body
         pos += 12 + ln
-    assert depth == 8 and ctype == 6, f"unsupported {depth}/{ctype}"
+    assert depth == 8 and ctype == 6
     raw = zlib.decompress(idat)
     stride = w * 4
-    rows = []
-    p, prev = 0, bytearray(stride)
+    rows, prev, p = [], bytearray(stride), 0
     for _ in range(h):
         ftype = raw[p]
         p += 1
         line = bytearray(raw[p : p + stride])
         p += stride
-        if ftype == 1:  # Sub
+        if ftype == 1:  # PNG filter: sub
             for i in range(4, stride):
                 line[i] = (line[i] + line[i - 4]) & 0xFF
-        elif ftype == 2:  # Up
+        elif ftype == 2:  # up
             for i in range(stride):
                 line[i] = (line[i] + prev[i]) & 0xFF
-        elif ftype == 3:  # Average
+        elif ftype == 3:  # average
             for i in range(stride):
                 a = line[i - 4] if i >= 4 else 0
                 line[i] = (line[i] + ((a + prev[i]) >> 1)) & 0xFF
-        elif ftype == 4:  # Paeth
+        elif ftype == 4:  # paeth
             for i in range(stride):
                 a = line[i - 4] if i >= 4 else 0
                 b = prev[i]
                 c = prev[i - 4] if i >= 4 else 0
                 pa, pb, pc = abs(b - c), abs(a - c), abs(a + b - 2 * c)
-                pred = a if (pa <= pb and pa <= pc) else (b if pb <= pc else c)
-                line[i] = (line[i] + pred) & 0xFF
+                line[i] = (line[i] + (a if (pa <= pb and pa <= pc) else (b if pb <= pc else c))) & 0xFF
         rows.append(bytes(line))
         prev = line
     return w, h, rows
 
 
-def near_white(px):
-    return px[0] >= FILL_T and px[1] >= FILL_T and px[2] >= FILL_T
-
-
 def process(w, h, rows):
-    px = [[(rows[y][x * 4], rows[y][x * 4 + 1], rows[y][x * 4 + 2], rows[y][x * 4 + 3]) for x in range(w)] for y in range(h)]
-
-    # flood-fill background from the border
-    seen = [[False] * w for _ in range(h)]
-    stack = []
-    for x in range(w):
-        for y in (0, h - 1):
-            if near_white(px[y][x]):
-                stack.append((x, y))
-    for y in range(h):
-        for x in (0, w - 1):
-            if near_white(px[y][x]):
-                stack.append((x, y))
-    while stack:
-        x, y = stack.pop()
-        if seen[y][x] or not near_white(px[y][x]):
-            continue
-        seen[y][x] = True
-        for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
-            if 0 <= nx < w and 0 <= ny < h and not seen[ny][nx]:
-                stack.append((nx, ny))
-    for y in range(h):
-        for x in range(w):
-            if seen[y][x]:
-                px[y][x] = (0, 0, 0, 0)
-
-    # halo pass: light pixels touching transparency become transparent
-    for y in range(h):
-        for x in range(w):
-            r, g, b, a = px[y][x]
-            if a and r >= HALO_T and g >= HALO_T and b >= HALO_T:
-                for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
-                    if 0 <= nx < w and 0 <= ny < h and px[ny][nx][3] == 0:
-                        px[y][x] = (0, 0, 0, 0)
-                        break
-
-    # content bbox
-    xs = [x for y in range(h) for x in range(w) if px[y][x][3]]
-    if not xs:
-        raise SystemExit("no content found")
-    minx, maxx = min(xs), max(xs)
-    ys = [y for y in range(h) for x in range(w) if px[y][x][3]]
-    miny, maxy = min(ys), max(ys)
-    cw, ch = maxx - minx + 1, maxy - miny + 1
-    side = max(cw, ch)
-    # crop + center into a square
-    ox, oy = minx + (cw - side) // 2, miny + (ch - side) // 2
-    sq = [[(0, 0, 0, 0)] * side for _ in range(side)]
-    for y in range(side):
-        for x in range(side):
-            sx, sy = ox + x, oy + y
-            if 0 <= sx < w and 0 <= sy < h:
-                sq[y][x] = px[sy][sx]
-
-    # nearest-neighbor upscale with 4% padding
-    pad = int(side * 0.04)
-    inner = side - 2 * pad
-    out = [[(0, 0, 0, 0)] * SIZE for _ in range(SIZE)]
-    for y in range(SIZE):
-        src_y = min(pad + (y * inner // SIZE), inner - 1)
-        for x in range(SIZE):
-            src_x = min(pad + (x * inner // SIZE), inner - 1)
-            out[y][x] = sq[src_y][src_x]
+    # content = non-white pixels (internal white X is enclosed by teal)
+    pts = [(x, y) for y in range(h) for x in range(w) if min(rows[y][x * 4 : x * 4 + 3]) < WHITE_T]
+    xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+    minx, maxx, miny, maxy = min(xs), max(xs), min(ys), max(ys)
+    cx, cy = (minx + maxx) / 2, (miny + maxy) / 2
+    side = int(max(maxx - minx, maxy - miny) / (1 - 2 * PAD)) + 1
+    x0, y0 = max(0, int(cx - side / 2)), max(0, int(cy - side / 2))
+    x1, y1 = min(w, x0 + side), min(h, y0 + side)
+    sq = [[(255, 255, 255, 255)] * side for _ in range(side)]
+    for y in range(y0, y1):
+        for x in range(x0, x1):
+            sq[y - y0][x - x0] = rows[y][x * 4 : x * 4 + 4]
+    out = [[sq[min(y * side // SIZE, side - 1)][min(x * side // SIZE, side - 1)] for x in range(SIZE)] for y in range(SIZE)]
     return out, (minx, miny, maxx, maxy)
 
 
 def encode_png(px, w, h):
-    rows = []
-    for y in range(h):
-        row = bytearray([0])
-        for x in range(w):
-            row += bytes(px[y][x])
-        rows.append(bytes(row))
-
     def chunk(tag, data):
         body = tag + data
         return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body) & 0xFFFFFFFF)
 
+    rows = [bytes([0]) + b"".join(bytes(p) for p in row) for row in px]
     png = b"\x89PNG\r\n\x1a\n"
     png += chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 6, 0, 0, 0))
     png += chunk(b"IDAT", zlib.compress(b"".join(rows), 9))
-    png += chunk(b"IEND", b"")
-    return png
+    return png + chunk(b"IEND", b"")
 
 
 w, h, rows = decode_png(SRC)
-print(f"decoded {w}x{h}")
 icon, bbox = process(w, h, rows)
-print(f"content bbox: {bbox}")
-png = encode_png(icon, SIZE, SIZE)
 with open(OUT, "wb") as f:
-    f.write(png)
-print(f"wrote {OUT} ({len(png)} bytes)")
+    f.write(encode_png(icon, SIZE, SIZE))
+print(f"{OUT}: {SIZE}x{SIZE} (content bbox {bbox})")
