@@ -229,8 +229,10 @@ pub fn ResourceTable(
                 return rsx! { div { class: "table-state table-empty", "{message}" } };
             }
 
-            let mut namespaces: Vec<String> =
-                rows.iter().filter_map(|row| row.namespace.clone()).collect();
+            let mut namespaces: Vec<String> = rows
+                .iter()
+                .filter_map(|row| row.namespace.clone())
+                .collect();
             namespaces.sort();
             namespaces.dedup();
 
@@ -401,11 +403,17 @@ mod tests {
     #[test]
     fn compare_sort_keys_is_case_insensitive() {
         assert_eq!(
-            compare_sort_keys(&SortKey::Text("apple".into()), &SortKey::Text("APPLE".into())),
+            compare_sort_keys(
+                &SortKey::Text("apple".into()),
+                &SortKey::Text("APPLE".into())
+            ),
             Ordering::Equal
         );
         assert_eq!(
-            compare_sort_keys(&SortKey::Text("Apple".into()), &SortKey::Text("banana".into())),
+            compare_sort_keys(
+                &SortKey::Text("Apple".into()),
+                &SortKey::Text("banana".into())
+            ),
             Ordering::Less
         );
     }
@@ -418,15 +426,38 @@ mod tests {
             cpu: f64,
         }
         let mut rows = vec![
-            Item { name: "b", cpu: 2.0 },
-            Item { name: "a", cpu: 1.0 },
-            Item { name: "c", cpu: 3.0 },
+            Item {
+                name: "b",
+                cpu: 2.0,
+            },
+            Item {
+                name: "a",
+                cpu: 1.0,
+            },
+            Item {
+                name: "c",
+                cpu: 3.0,
+            },
         ];
-        sort_by_key(&mut rows, |item| SortKey::Number(item.cpu), SortDirection::Ascending);
-        assert_eq!(rows.iter().map(|i| i.name).collect::<Vec<_>>(), ["a", "b", "c"]);
+        sort_by_key(
+            &mut rows,
+            |item| SortKey::Number(item.cpu),
+            SortDirection::Ascending,
+        );
+        assert_eq!(
+            rows.iter().map(|i| i.name).collect::<Vec<_>>(),
+            ["a", "b", "c"]
+        );
 
-        sort_by_key(&mut rows, |item| SortKey::Number(item.cpu), SortDirection::Descending);
-        assert_eq!(rows.iter().map(|i| i.name).collect::<Vec<_>>(), ["c", "b", "a"]);
+        sort_by_key(
+            &mut rows,
+            |item| SortKey::Number(item.cpu),
+            SortDirection::Descending,
+        );
+        assert_eq!(
+            rows.iter().map(|i| i.name).collect::<Vec<_>>(),
+            ["c", "b", "a"]
+        );
     }
 
     #[test]
@@ -502,7 +533,10 @@ mod tests {
         let row = ResourceRow {
             id: "1".into(),
             namespace: Some("default".into()),
-            cells: vec![Cell::text("nginx"), Cell::status("Running", StatusKind::Running)],
+            cells: vec![
+                Cell::text("nginx"),
+                Cell::status("Running", StatusKind::Running),
+            ],
         };
         let haystack = row.search_text();
         assert!(haystack.contains("default"));
