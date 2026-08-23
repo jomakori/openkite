@@ -10,7 +10,7 @@ use std::hash::Hash;
 use std::sync::Arc;
 
 use dioxus::prelude::*;
-use futures::StreamExt;
+use futures::{Stream, StreamExt};
 use kube::api::Api;
 use kube::runtime::reflector::{self, store, Store};
 use kube::runtime::{watcher, WatchStreamExt};
