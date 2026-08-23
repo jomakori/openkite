@@ -5,6 +5,7 @@ mod components;
 mod config;
 mod plugin_host;
 mod router;
+mod state;
 
 fn main() {
     tracing_subscriber::fmt::init();
