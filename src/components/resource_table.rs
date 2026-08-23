@@ -199,9 +199,9 @@ pub fn ResourceTable(
     #[props(default)] row_actions: Option<RowActions>,
     #[props(default = 600.0)] height: f64,
 ) -> Element {
-    let mut sort = use_signal(|| None::<(usize, SortDirection)>);
+    let sort = use_signal(|| None::<(usize, SortDirection)>);
     let mut query = use_signal(String::new);
-    let mut namespace = use_signal(|| None::<String>);
+    let namespace = use_signal(|| None::<String>);
 
     match status {
         TableStatus::Loading => rsx! { div { class: "table-state", "Loading…" } },
@@ -310,6 +310,7 @@ fn namespace_chip(label: String, active: bool, namespace: Signal<Option<String>>
             key: "{label}",
             class: if active { "ns-chip active" } else { "ns-chip" },
             onclick: move |_| {
+                let mut namespace = namespace;
                 let selected = namespace().as_deref() == Some(label_for_click.as_str());
                 namespace.set(if selected { None } else { Some(label_for_click.clone()) });
             },
