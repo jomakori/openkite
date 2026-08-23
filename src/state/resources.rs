@@ -11,7 +11,7 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::sync::Arc;
 
-use dioxus::prelude::{Signal, SyncStorage};
+use dioxus::prelude::*;
 use futures::StreamExt;
 use kube::api::Api;
 use kube::runtime::reflector::{self, store, Store};
