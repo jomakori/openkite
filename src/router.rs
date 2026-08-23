@@ -154,7 +154,7 @@ fn Cluster() -> Element {
 
 #[component]
 fn Workloads() -> Element {
-    rsx! { h2 { "Workloads" } p { "Workload views land in a later ticket." } }
+    rsx! { crate::workloads::WorkloadView {} }
 }
 
 #[component]
