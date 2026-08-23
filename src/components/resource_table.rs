@@ -424,7 +424,7 @@ fn render_action_button(
     handler: &EventHandler<String>,
 ) -> Element {
     let id = row_id.to_string();
-    let handler = (*handler).clone();
+    let handler = *handler;
     rsx! {
         button {
             class: "{class}",
