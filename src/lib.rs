@@ -9,6 +9,7 @@ pub mod router;
 pub mod secrets;
 pub mod state;
 pub mod theme;
+pub mod workloads;
 
 /// Bootstrap OpenKite: load config, plugins, and kubeconfig, then launch the UI.
 pub fn run() {
