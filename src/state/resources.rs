@@ -104,7 +104,7 @@ pub async fn drive_reflector<T, W, F>(
     writer: store::Writer<T>,
     stream: W,
     store: Store<T>,
-    on_snapshot: F,
+    mut on_snapshot: F,
 ) where
     T: Resource + Clone + DeserializeOwned + Debug + Send + Sync + 'static,
     T::DynamicType: Eq + Hash + Clone + Default,
