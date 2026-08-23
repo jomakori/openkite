@@ -181,7 +181,7 @@ pub struct RowActions {
 }
 
 /// Flip sort state when a (sortable) column header is clicked.
-fn toggle_sort(sort: Signal<Option<(usize, SortDirection)>>, column: usize) {
+fn toggle_sort(mut sort: Signal<Option<(usize, SortDirection)>>, column: usize) {
     let next = match sort() {
         Some((active, direction)) if active == column => (column, direction.toggle()),
         _ => (column, SortDirection::Ascending),
@@ -235,6 +235,10 @@ pub fn ResourceTable(
                 .collect();
             namespaces.sort();
             namespaces.dedup();
+            let chips: Vec<(String, bool)> = namespaces
+                .iter()
+                .map(|ns| (ns.clone(), namespace().as_deref() == Some(ns.as_str())))
+                .collect();
 
             rsx! {
                 div { class: "resource-table",
@@ -245,43 +249,13 @@ pub fn ResourceTable(
                             value: "{query}",
                             oninput: move |event| query.set(event.value()),
                         }
-                        for ns in namespaces.iter() {
-                            let ns = ns.clone();
-                            let active = namespace().as_deref() == Some(ns.as_str());
-                            button {
-                                key: "{ns}",
-                                class: if active { "ns-chip active" } else { "ns-chip" },
-                                onclick: move |_| {
-                                    let selected = namespace().as_deref() == Some(ns.as_str());
-                                    namespace.set(if selected { None } else { Some(ns.clone()) });
-                                },
-                                "{ns}"
-                            }
+                        for (label, active) in chips.into_iter() {
+                            { namespace_chip(label, active, namespace) }
                         }
                     }
                     div { class: "table-header table-row",
                         for (i, column) in columns.iter().enumerate() {
-                            let sortable = column.sortable;
-                            let label = column.label;
-                            div {
-                                key: "{column.key}",
-                                class: "table-cell",
-                                style: column.width.map(|w| format!("width: {w}px")).unwrap_or_default(),
-                                onclick: move |_| {
-                                    if sortable {
-                                        toggle_sort(sort, i);
-                                    }
-                                },
-                                span { "{label}" }
-                                if let Some((active, direction)) = sort() {
-                                    if active == i {
-                                        span {
-                                            class: "sort-indicator",
-                                            if direction == SortDirection::Ascending { "▲" } else { "▼" }
-                                        }
-                                    }
-                                }
-                            }
+                            { header_cell(i, column, sort) }
                         }
                     }
                     TableBody {
@@ -292,6 +266,54 @@ pub fn ResourceTable(
                     }
                 }
             }
+        }
+    }
+}
+
+/// Render a single column header cell (with sort toggle + indicator).
+fn header_cell(
+    index: usize,
+    column: &ColumnDef,
+    sort: Signal<Option<(usize, SortDirection)>>,
+) -> Element {
+    let key = column.key;
+    let label = column.label;
+    let width = column.width;
+    let sortable = column.sortable;
+    let direction = sort().and_then(|(active, dir)| (active == index).then_some(dir));
+    rsx! {
+        div {
+            key: "{key}",
+            class: "table-cell",
+            style: width.map(|w| format!("width: {w}px")).unwrap_or_default(),
+            onclick: move |_| {
+                if sortable {
+                    toggle_sort(sort, index);
+                }
+            },
+            span { "{label}" }
+            if let Some(dir) = direction {
+                span {
+                    class: "sort-indicator",
+                    if dir == SortDirection::Ascending { "▲" } else { "▼" }
+                }
+            }
+        }
+    }
+}
+
+/// Render a namespace filter chip.
+fn namespace_chip(label: String, active: bool, namespace: Signal<Option<String>>) -> Element {
+    let label_for_click = label.clone();
+    rsx! {
+        button {
+            key: "{label}",
+            class: if active { "ns-chip active" } else { "ns-chip" },
+            onclick: move |_| {
+                let selected = namespace().as_deref() == Some(label_for_click.as_str());
+                namespace.set(if selected { None } else { Some(label_for_click.clone()) });
+            },
+            "{label}"
         }
     }
 }
@@ -312,6 +334,7 @@ fn TableBody(
     let start = range.start;
     let slice = &view[range];
     let total_height = total as f64 * ROW_HEIGHT;
+    let widths: Vec<Option<u32>> = columns.iter().map(|column| column.width).collect();
 
     rsx! {
         div {
@@ -320,56 +343,92 @@ fn TableBody(
             onscroll: move |event| scroll_top.set(event.scroll_top()),
             div { style: "height: {total_height}px; position: relative;",
                 for (offset, row) in slice.iter().enumerate() {
-                    let top = (start + offset) as f64 * ROW_HEIGHT;
-                    let row_id = row.id.clone();
-                    div {
-                        key: "{row_id}",
-                        class: "table-row",
-                        style: "position: absolute; top: {top}px; height: {ROW_HEIGHT}px; left: 0; right: 0;",
-                        for (i, cell) in row.cells.iter().enumerate() {
-                            let width = columns.get(i).and_then(|c| c.width);
-                            div {
-                                key: "{i}",
-                                class: "table-cell",
-                                style: width.map(|w| format!("width: {w}px")).unwrap_or_default(),
-                                if let Some(kind) = cell.status {
-                                    StatusBadge { status: kind }
-                                } else {
-                                    span { "{cell.text}" }
-                                }
-                            }
-                        }
-                        if let Some(actions) = &row_actions {
-                            div { class: "table-cell table-actions",
-                                if let Some(delete) = &actions.on_delete {
-                                    let id = row_id.clone();
-                                    button {
-                                        class: "row-action danger",
-                                        onclick: move |_| delete.call(id.clone()),
-                                        "Delete"
-                                    }
-                                }
-                                if let Some(edit) = &actions.on_edit {
-                                    let id = row_id.clone();
-                                    button {
-                                        class: "row-action",
-                                        onclick: move |_| edit.call(id.clone()),
-                                        "Edit"
-                                    }
-                                }
-                                if let Some(scale) = &actions.on_scale {
-                                    let id = row_id.clone();
-                                    button {
-                                        class: "row-action",
-                                        onclick: move |_| scale.call(id.clone()),
-                                        "Scale"
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    { render_table_row(row, offset, start, &widths, row_actions.clone()) }
                 }
             }
+        }
+    }
+}
+
+/// Render a single virtualized table row (absolute-positioned).
+fn render_table_row(
+    row: &ResourceRow,
+    offset: usize,
+    start: usize,
+    widths: &[Option<u32>],
+    row_actions: Option<RowActions>,
+) -> Element {
+    let top = (start + offset) as f64 * ROW_HEIGHT;
+    let row_id = row.id.clone();
+    rsx! {
+        div {
+            key: "{row_id}",
+            class: "table-row",
+            style: "position: absolute; top: {top}px; height: {ROW_HEIGHT}px; left: 0; right: 0;",
+            for (i, cell) in row.cells.iter().enumerate() {
+                { render_table_cell(cell, i, widths.get(i).copied().flatten()) }
+            }
+            if let Some(actions) = row_actions {
+                { render_row_actions(&row_id, &actions) }
+            }
+        }
+    }
+}
+
+/// Render a single table cell (plain text or status badge).
+fn render_table_cell(cell: &Cell, index: usize, width: Option<u32>) -> Element {
+    let style = width.map(|w| format!("width: {w}px")).unwrap_or_default();
+    match cell.status {
+        Some(kind) => rsx! {
+            div {
+                key: "{index}",
+                class: "table-cell",
+                style: "{style}",
+                StatusBadge { status: kind }
+            }
+        },
+        None => rsx! {
+            div {
+                key: "{index}",
+                class: "table-cell",
+                style: "{style}",
+                span { "{cell.text}" }
+            }
+        },
+    }
+}
+
+/// Render the per-row action buttons (delete/edit/scale) when wired.
+fn render_row_actions(row_id: &str, actions: &RowActions) -> Element {
+    rsx! {
+        div { class: "table-cell table-actions",
+            if let Some(handler) = &actions.on_delete {
+                { render_action_button("Delete", "row-action danger", row_id, handler) }
+            }
+            if let Some(handler) = &actions.on_edit {
+                { render_action_button("Edit", "row-action", row_id, handler) }
+            }
+            if let Some(handler) = &actions.on_scale {
+                { render_action_button("Scale", "row-action", row_id, handler) }
+            }
+        }
+    }
+}
+
+/// Render a single row-action button with its callback.
+fn render_action_button(
+    label: &'static str,
+    class: &'static str,
+    row_id: &str,
+    handler: &EventHandler<String>,
+) -> Element {
+    let id = row_id.to_string();
+    let handler = (*handler).clone();
+    rsx! {
+        button {
+            class: "{class}",
+            onclick: move |_| handler.call(id.clone()),
+            "{label}"
         }
     }
 }
