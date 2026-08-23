@@ -17,6 +17,9 @@ description = "OpenKite — Kubernetes from above. Pure Rust K8s IDE (Dioxus 0.7
 
 [dependencies]
 dioxus = { version = "0.7", features = ["desktop", "router"] }
+# Direct dep so the `rsx!` macro's generated `dioxus_signals::…` paths resolve
+# without the prelude glob (which pulls in Option/Result method collisions).
+dioxus-signals = "0.7"
 openkite-plugin-sdk = { path = "crates/plugin-sdk" }
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
