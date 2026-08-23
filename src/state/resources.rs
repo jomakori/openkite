@@ -23,6 +23,7 @@ use serde::de::DeserializeOwned;
 pub struct ResourceState<T>
 where
     T: Resource + Clone + DeserializeOwned + Debug + Send + Sync + 'static,
+    T::DynamicType: Eq + Hash + Clone + Default,
 {
     store: Store<T>,
     snapshot: Signal<Vec<Arc<T>>, SyncStorage>,
@@ -34,15 +35,10 @@ where
     T: Resource + Clone + DeserializeOwned + Debug + Send + Sync + 'static,
     T::DynamicType: Eq + Hash + Clone + Default,
 {
-    /// Start watching `T` and keep the snapshot live.
-    ///
-    /// `namespace`: watch a single namespace, or all namespaces when `None`.
-    pub fn start(client: Client, namespace: Option<String>) -> Self {
-        let api: Api<T> = match namespace {
-            Some(namespace) => Api::namespaced(client, &namespace),
-            None => Api::all(client),
-        };
-        Self::watch(api)
+    /// Start watching `T` across all namespaces (namespaced kinds) or the
+    /// whole cluster (cluster-scoped kinds).
+    pub fn start(client: Client) -> Self {
+        Self::watch(Api::all(client))
     }
 
     /// Start watching an explicit [`Api`] (lets callers attach list/field
@@ -59,7 +55,8 @@ where
         let store_task = store.clone();
 
         let task = tokio::spawn(async move {
-            let mut stream = reflector::reflector(writer, stream);
+            let stream = reflector::reflector(writer, stream);
+            let mut stream = Box::pin(stream);
             while let Some(event) = stream.next().await {
                 match event {
                     Ok(_) => snapshot_task.set(store_task.state()),
@@ -131,7 +128,8 @@ mod tests {
             Ok(watcher::Event::Apply(config_map("a"))),
             Ok(watcher::Event::Apply(config_map("b"))),
         ]);
-        let mut stream = reflector::reflector(writer, events);
+        let stream = reflector::reflector(writer, events);
+        let mut stream = Box::pin(stream);
         while let Some(event) = stream.next().await {
             assert!(event.is_ok());
         }
