@@ -3,9 +3,12 @@
 pub mod cluster;
 pub mod components;
 pub mod config;
+pub mod logs;
 pub mod plugin_host;
 pub mod router;
+pub mod secrets;
 pub mod state;
+pub mod theme;
 
 /// Bootstrap OpenKite: load config, plugins, and kubeconfig, then launch the UI.
 pub fn run() {
