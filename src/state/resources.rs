@@ -1,11 +1,9 @@
-//! Live resource state — kube reflector store wrapped in a Dioxus signal (OKT-9).
+//! Live resource state — kube reflector store wrapped in a Dioxus signal.
 //!
 //! A background task runs the kube watcher (auto-reconnecting with backoff) and
-//! pushes a fresh snapshot into a sync Dioxus signal on every event, so views
+//! republishes a fresh snapshot into a sync signal after every event, so views
 //! re-render without manual refresh. [`ResourceState::stop`] tears the watcher
-//! down on cluster disconnect; the caller rebuilds one on context switch.
-
-#![allow(dead_code)] // consumed by OKT-10 workload/config views
+//! down; the caller rebuilds one on context switch.
 
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -20,6 +18,12 @@ use kube::{Client, Resource};
 use serde::de::DeserializeOwned;
 
 /// Live, reflector-backed state for a single resource kind `T`.
+///
+/// The watcher task applies each event to the backing [`Store`] and pushes the
+/// resulting snapshot into a sync signal, so any view reading [`signal`] re-
+/// renders as objects are added, modified, or deleted.
+///
+/// [`signal`]: ResourceState::signal
 pub struct ResourceState<T>
 where
     T: Resource + Clone + DeserializeOwned + Debug + Send + Sync + 'static,
@@ -35,35 +39,25 @@ where
     T: Resource + Clone + DeserializeOwned + Debug + Send + Sync + 'static,
     T::DynamicType: Eq + Hash + Clone + Default,
 {
-    /// Start watching `T` across all namespaces (namespaced kinds) or the
-    /// whole cluster (cluster-scoped kinds).
+    /// Start watching `T` across all namespaces (namespaced kinds) or the whole
+    /// cluster (cluster-scoped kinds).
     pub fn start(client: Client) -> Self {
         Self::watch(Api::all(client))
     }
 
-    /// Start watching an explicit [`Api`] (lets callers attach list/field
-    /// selectors before handing it over).
+    /// Start watching an explicit [`Api`], letting callers attach list/field
+    /// selectors before handing it over.
     pub fn watch(api: Api<T>) -> Self {
         let (store, writer) = store::<T>();
-        // kube 4.x has no `resync_period`; consistency comes from the watch
-        // timeout + `default_backoff` re-list on error.
-        let config = watcher::Config::default();
-        let stream = watcher(api, config).default_backoff();
+        let stream = watcher(api, watcher::Config::default()).default_backoff();
 
         let snapshot: Signal<Vec<Arc<T>>, SyncStorage> = Signal::new_maybe_sync(Vec::new());
         let mut snapshot_task = snapshot;
         let store_task = store.clone();
 
-        let task = tokio::spawn(async move {
-            let stream = reflector::reflector(writer, stream);
-            let mut stream = Box::pin(stream);
-            while let Some(event) = stream.next().await {
-                match event {
-                    Ok(_) => snapshot_task.set(store_task.state()),
-                    Err(err) => tracing::warn!(error = ?err, "reflector watch error"),
-                }
-            }
-        });
+        let task = tokio::spawn(drive_reflector(writer, stream, store_task, move |rows| {
+            snapshot_task.set(rows)
+        }));
 
         Self {
             store,
@@ -100,40 +94,29 @@ where
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use k8s_openapi::api::core::v1::ConfigMap;
-    use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
-
-    fn config_map(name: &str) -> ConfigMap {
-        ConfigMap {
-            metadata: ObjectMeta {
-                name: Some(name.to_string()),
-                ..Default::default()
-            },
-            ..Default::default()
+/// Drive a reflector to completion: apply each stream event to `store` and
+/// invoke `on_snapshot` with the fresh snapshot after every event.
+///
+/// Extracted as a free function so the wiring can be exercised with a mock
+/// stream; [`ResourceState`] wraps it with a signal-backed callback. The stream
+/// is expected to already carry backoff (see [`WatchStreamExt::default_backoff`]).
+pub async fn drive_reflector<T, W, F>(
+    writer: store::Writer<T>,
+    stream: W,
+    store: Store<T>,
+    on_snapshot: F,
+) where
+    T: Resource + Clone + DeserializeOwned + Debug + Send + Sync + 'static,
+    T::DynamicType: Eq + Hash + Clone + Default,
+    W: Stream<Item = watcher::Result<watcher::Event<T>>>,
+    F: Fn(Vec<Arc<T>>),
+{
+    let stream = reflector::reflector(writer, stream);
+    let mut stream = Box::pin(stream);
+    while let Some(event) = stream.next().await {
+        match event {
+            Ok(_) => on_snapshot(store.state()),
+            Err(err) => tracing::warn!(error = ?err, "reflector watch error"),
         }
-    }
-
-    #[test]
-    fn store_starts_empty() {
-        let (store, _writer) = store::<ConfigMap>();
-        assert!(store.state().is_empty());
-    }
-
-    #[tokio::test]
-    async fn reflector_applies_apply_events() {
-        let (store, writer) = store::<ConfigMap>();
-        let events = futures::stream::iter(vec![
-            Ok(watcher::Event::Apply(config_map("a"))),
-            Ok(watcher::Event::Apply(config_map("b"))),
-        ]);
-        let stream = reflector::reflector(writer, events);
-        let mut stream = Box::pin(stream);
-        while let Some(event) = stream.next().await {
-            assert!(event.is_ok());
-        }
-        assert_eq!(store.state().len(), 2);
     }
 }
