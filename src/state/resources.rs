@@ -52,7 +52,7 @@ where
         let stream = watcher(api, watcher::Config::default()).default_backoff();
 
         let snapshot: Signal<Vec<Arc<T>>, SyncStorage> = Signal::new_maybe_sync(Vec::new());
-        let snapshot_task = snapshot;
+        let mut snapshot_task = snapshot;
         let store_task = store.clone();
 
         let task = tokio::spawn(drive_reflector(writer, stream, store_task, move |rows| {
