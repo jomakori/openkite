@@ -93,6 +93,7 @@ where
 impl<T> Drop for ResourceState<T>
 where
     T: Resource + Clone + DeserializeOwned + Debug + Send + Sync + 'static,
+    T::DynamicType: Eq + Hash + Clone + Default,
 {
     fn drop(&mut self) {
         self.stop();
