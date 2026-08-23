@@ -1,6 +1,7 @@
 #![allow(non_snake_case)]
 
 mod cluster;
+mod components;
 mod config;
 mod plugin_host;
 mod router;
