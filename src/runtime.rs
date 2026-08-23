@@ -5,7 +5,7 @@ use kube::Client;
 
 /// The active cluster client, published by `run()` after connect and read by
 /// views that need a live `Api`.
-pub static CLIENT: GlobalSignal<Option<Client>> = Signal::global(None);
+pub static CLIENT: GlobalSignal<Option<Client>> = Signal::global(|| None);
 
 /// Publish the active client (or `None` when disconnected).
 pub fn set_client(client: Option<Client>) {

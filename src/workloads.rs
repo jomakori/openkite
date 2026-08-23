@@ -4,7 +4,7 @@
 //! derivation — that the Workloads view feeds into the resource table. Keeping
 //! it free of Dioxus makes it testable in isolation.
 
-use dioxus::prelude::*;
+use dioxus::prelude::{component, rsx, use_effect, use_signal, use_signal_sync, Element};
 use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet};
 use k8s_openapi::api::batch::v1::{CronJob, Job};
 use k8s_openapi::api::core::v1::Pod;
@@ -435,7 +435,7 @@ macro_rules! workload_table {
     ($name:ident, $ty:path, $columns:path, $mapper:path) => {
         #[component]
         fn $name() -> Element {
-            let mut rows = use_signal_sync(Vec::<ResourceRow>::new);
+            let rows = use_signal_sync(Vec::<ResourceRow>::new);
 
             use_effect(move || {
                 let Some(client) = crate::runtime::client() else {
