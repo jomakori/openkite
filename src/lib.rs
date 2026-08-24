@@ -8,6 +8,7 @@ pub mod fuzzy;
 pub mod logs;
 pub mod metrics;
 pub mod network;
+pub mod plugin_api;
 pub mod plugin_host;
 pub mod plugin_js;
 pub mod pod;
