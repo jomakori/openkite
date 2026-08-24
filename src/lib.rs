@@ -6,6 +6,7 @@ pub mod config;
 pub mod fuzzy;
 pub mod logs;
 pub mod metrics;
+pub mod network;
 pub mod plugin_host;
 pub mod pod;
 pub mod prometheus;
