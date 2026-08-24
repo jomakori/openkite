@@ -48,11 +48,11 @@ pub fn ThemeSelector(current: String, on_select: EventHandler<String>) -> Elemen
         div { class: "theme-selector",
             div { class: "theme-group", "Defaults" }
             for entry in &defaults {
-                ThemeRow { entry: entry.clone(), current: current.clone(), on_select: on_select.clone() }
+                ThemeRow { entry: entry.clone(), current: current.clone(), on_select }
             }
             div { class: "theme-group", "Store ({store.len()})" }
             for entry in &store {
-                ThemeRow { entry: entry.clone(), current: current.clone(), on_select: on_select.clone() }
+                ThemeRow { entry: entry.clone(), current: current.clone(), on_select }
             }
         }
     }
