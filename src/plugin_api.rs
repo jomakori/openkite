@@ -127,14 +127,14 @@ impl ApiRequest {
     }
 }
 
-/// A bridge response: the kube result or an error string.
+/// A bridge response: tagged ok/error so the wire format is unambiguous.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(untagged)]
+#[serde(tag = "status", rename_all = "snake_case")]
 pub enum ApiResponse {
     /// Structured payload (JSON of the resource/list).
-    Ok(serde_json::Value),
+    Ok { result: serde_json::Value },
     /// Human-readable failure.
-    Err(String),
+    Err { error: String },
 }
 
 /// Envelope exchanged over the ipc channel: `{channel: "openkite", id,
@@ -340,13 +340,24 @@ mod tests {
         let back: BridgeRequest = serde_json::from_str(&json).unwrap();
         assert_eq!(back, envelope);
     }
-
     #[test]
-    fn api_response_untagged_ok_and_err() {
-        let ok: ApiResponse = serde_json::from_str(r#"{"items":[]}"#).unwrap();
-        assert_eq!(ok, ApiResponse::Ok(serde_json::json!({"items": []})));
-        let err: ApiResponse = serde_json::from_str(r#""no such pod""#).unwrap();
-        assert_eq!(err, ApiResponse::Err("no such pod".into()));
+    fn api_response_tagged_ok_and_err() {
+        let ok: ApiResponse =
+            serde_json::from_str(r#"{"status":"ok","result":{"items":[]}}"#).unwrap();
+        assert_eq!(
+            ok,
+            ApiResponse::Ok {
+                result: serde_json::json!({"items": []})
+            }
+        );
+        let err: ApiResponse =
+            serde_json::from_str(r#"{"status":"error","error":"no such pod"}"#).unwrap();
+        assert_eq!(
+            err,
+            ApiResponse::Err {
+                error: "no such pod".into()
+            }
+        );
     }
 
     #[test]
@@ -370,11 +381,12 @@ mod tests {
             "registerSidebar",
             "registerRoute",
             "registerStatusItem",
-            "api.list",
-            "api.get",
-            "api.watch",
-            "api.logs",
-            "api.exec",
+            "api: {",
+            "list: (kind, ns)",
+            "get: (kind, ns, name)",
+            "watch: (kind, ns)",
+            "logs: (name, ns, container)",
+            "exec: (name, ns, container, cmd)",
             "window.ipc.postMessage",
             "__openkite_plugin",
         ] {
