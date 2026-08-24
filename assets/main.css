@@ -85,3 +85,20 @@ body {
 }
 
 .not-found { text-align: center; padding: 48px; color: var(--fg-2); }
+
+/* Theme selector (OKT-42): omarchy-style picker. Frost card, token-driven. */
+.theme-selector { display: flex; flex-direction: column; gap: 4px; }
+.theme-group { color: var(--fg-2); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; margin: 12px 0 4px; }
+.theme-row {
+  display: flex; align-items: center; gap: 10px; padding: 6px 10px;
+  background: color-mix(in srgb, var(--bg-1) 85%, transparent);
+  border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
+  backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px);
+  color: var(--fg-0); font: inherit; text-align: left; transition: border-color 0.15s, background 0.15s;
+}
+.theme-row:hover { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); }
+.theme-row-active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.theme-swatch { display: flex; gap: 3px; }
+.swatch-chip { width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--border); }
+.theme-name { flex: 1; font-size: 13px; }
+.theme-variant { font-size: 11px; color: var(--fg-2); }

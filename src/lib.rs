@@ -18,6 +18,7 @@ pub mod secrets;
 pub mod state;
 pub mod terminal;
 pub mod theme;
+pub mod theme_catalog;
 pub mod theme_opaline;
 pub mod views;
 pub mod workloads;
