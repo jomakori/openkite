@@ -104,5 +104,13 @@ Dylib loading is experimental and opt-in; WASM is the v2 candidate.
   feature) are in progress; the terminal is not yet wired into a view.
 - **Metrics** require a cluster with `metrics-server` (T1) / Prometheus (T2);
   absence is detected and rendered as a clean empty state.
+- **Webview RAM floor** — the WebKitGTK webview carries a ~200 MB baseline per
+  window; this is a Dioxus-desktop cost, not app state.
+- **Eval-bridge throughput** — the Dioxus↔JS eval bridge used for the terminal
+  (xterm.js) is chatty; high-volume terminal output must be chunked (~8 KB) and
+  coalesced (~16 ms) to stay smooth.
+- **Reflector memory** — every watched resource kind holds its full object state
+  in memory; very large clusters (tens of thousands of objects) scale RAM
+  proportionally.
 - **CI is the compiler of record** — local cargo builds are not run in the
   containerized dev loop; validation is push → GitHub Actions logs.
