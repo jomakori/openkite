@@ -15,6 +15,13 @@ permissions:
   issues: write
   pull-requests: write
 
+# Serialize release runs: rapid consecutive merges race the checkout and
+# semantic-release skips publishing ("local branch main is behind the remote"),
+# producing missing/empty releases. Queued runs publish in order instead.
+concurrency:
+  group: openkite-release
+  cancel-in-progress: false
+
 jobs:
   analyze:
     name: Determine version
@@ -135,6 +142,10 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # Check out the live tip of main, not the triggering commit: with
+          # rapid consecutive merges the trigger commit can be behind origin/main
+          # and semantic-release refuses to publish (empty release bodies).
+          ref: main
       - name: Configure git
         run: |
           git config user.name "semantic-release-bot"
