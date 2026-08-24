@@ -16,6 +16,7 @@ pub mod state;
 pub mod theme;
 pub mod views;
 pub mod workloads;
+pub mod yaml;
 
 /// Bootstrap OpenKite: load config, plugins, and kubeconfig, then launch the UI.
 pub fn run() {
