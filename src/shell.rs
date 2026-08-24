@@ -175,7 +175,7 @@ pub fn nav_item_from_plugin(plugin: &str, item: &SidebarItem) -> ShellNavItem {
 }
 
 /// Convenience: status items contributed by a plugin.
-pub fn status_items_of(store: &RegistrationStore, plugin: &str) -> Vec<&StatusItem> {
+pub fn status_items_of<'a>(store: &'a RegistrationStore, plugin: &str) -> Vec<&'a StatusItem> {
     store
         .get(plugin)
         .map(|reg| reg.status.iter().collect())
