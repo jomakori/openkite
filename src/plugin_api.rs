@@ -134,7 +134,7 @@ pub enum ApiResponse {
     /// Structured payload (JSON of the resource/list).
     Ok { result: serde_json::Value },
     /// Human-readable failure.
-    Err { error: String },
+    Error { error: String },
 }
 
 /// Envelope exchanged over the ipc channel: `{channel: "openkite", id,
@@ -354,7 +354,7 @@ mod tests {
             serde_json::from_str(r#"{"status":"error","error":"no such pod"}"#).unwrap();
         assert_eq!(
             err,
-            ApiResponse::Err {
+            ApiResponse::Error {
                 error: "no such pod".into()
             }
         );
