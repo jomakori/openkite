@@ -20,7 +20,7 @@ fn pod(name: &str, namespace: &str, phase: &str, ready: usize, total: usize, res
         .map(|i| ContainerStatus {
             name: format!("c{i}"),
             ready: i < ready,
-            restart_count: restarts,
+            restart_count: if i == 0 { restarts } else { 0 },
             ..Default::default()
         })
         .collect();
