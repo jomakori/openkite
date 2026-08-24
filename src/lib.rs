@@ -5,6 +5,7 @@ pub mod components;
 pub mod config;
 pub mod logs;
 pub mod metrics;
+pub mod network;
 pub mod plugin_host;
 pub mod prometheus;
 pub mod router;
