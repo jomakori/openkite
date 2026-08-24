@@ -118,7 +118,7 @@ impl ShellState {
     /// selection is missing (cluster switched), fall back to `"default"`.
     /// Returns the effective namespace.
     pub fn ensure_namespace(&mut self, namespaces: &[String]) -> &str {
-        if namespaces.iter().any(|ns| *ns == self.namespace) {
+        if namespaces.contains(&self.namespace) {
             return &self.namespace;
         }
         self.namespace = "default".into();
