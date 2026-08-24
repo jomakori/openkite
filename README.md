@@ -1,43 +1,62 @@
-# OpenKite
+<div align="center">
+  <h1>OpenKite</h1>
+  <p><em>Kubernetes from above.</em></p>
 
-**Kubernetes from above.**
+  <p align="center">
+    <img src="https://img.shields.io/github/actions/workflow/status/jomakori/openkite/lint-test.yml?logo=githubactions&logoColor=white&label=CI" alt="CI">
+    <img src="https://img.shields.io/github/license/jomakori/openkite?logo=opensourceinitiative&logoColor=white&label=License" alt="License">
+    <img src="https://img.shields.io/github/stars/jomakori/openkite?logo=github&logoColor=white&label=Stars" alt="Stars">
+    <img src="https://img.shields.io/github/last-commit/jomakori/openkite?logo=git&logoColor=white&label=Last%20commit" alt="Last commit">
+  </p>
+</div>
 
-An open-source Kubernetes IDE. Pure Rust — Dioxus 0.7 (desktop) + kube-rs.
-Single language. Single binary. Desktop-first; web and mobile are
-architecture-aware but not built yet.
+## Quick Links
 
-## Status
+- [What is it?](#what-is-it) · [Features](#features) · [Quickstart](#quickstart) · [Documentation](#documentation) · [Contributing](#contributing)
 
-Phase 1 (core dashboard + plugin system) — in development. See the
-[spec](https://docs.google.com/document/d/1u8GwBW2lEYW1lhJVKS5uKD9tWNetBJtS9fWdgQK2D38/edit)
-and the [OpenKite board](https://plane.maklab.net/maklab/projects/71ba0e95-7c1a-4ea6-a50a-c42b0591492f).
+## What is it?
 
-## Features (target)
+OpenKite is an open-source Kubernetes IDE in pure Rust — Dioxus 0.7 (desktop)
+with kube-rs 4. One language, one binary, desktop-first.
 
-- Cluster connect via kubeconfig, multi-context switching
-- Resource views: Pods, Deployments, Services, ConfigMaps, Secrets, DaemonSets, StatefulSets, ReplicaSets, Jobs, CronJobs
-- Virtualized resource tables, log viewer, YAML editor (CodeMirror 6), embedded terminal (portable-pty + xterm.js)
-- Metrics: metrics-server (Tier 1) + auto-detected Prometheus (Tier 2)
-- Plugin system via `openkite-plugin-sdk` (static-first; dylib experimental)
-- Theme engine: 5 built-in themes + Zed theme JSON import
+## Features
 
-## Prerequisites
+- **Cluster connect** — kubeconfig loading, multi-context switching
+- **Resource views** — Pods, Deployments, Services, ConfigMaps, Secrets, DaemonSets, StatefulSets, ReplicaSets, Jobs, CronJobs
+- **Virtualized tables** — sortable, filterable, windowed (reflector-backed live state)
+- **Pod detail** — containers, status, events
+- **Log viewer** — follow/pause, capped buffer
+- **Secret redaction** — masked by default, explicit reveal
+- **Theme engine** — 5 built-in themes + Zed JSON import
+- **Command palette** — fuzzy matcher (Cmd+K)
+- **Metrics** — sparklines (metrics-server) + auto-detected Prometheus
+- **Plugin system** — `openkite-plugin-sdk`, static-first (dylib experimental)
 
-- Rust toolchain (rustup)
-- Dioxus CLI: `cargo install dioxus-cli`
-- Tilt: `curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh | bash`
-- A local K8s cluster: k3d (OrbStack/Docker)
-- `helm` on PATH (for Helm operations inside the app)
+> YAML editor (CodeMirror 6) and embedded terminal (portable-pty + xterm.js)
+> are in progress — see the [board](https://plane.maklab.net/maklab/projects/71ba0e95-7c1a-4ea6-a50a-c42b0591492f).
 
-## Development
+## Quickstart
 
-```bash
+```sh
+# Desktop dev loop (hot reload)
+cargo install dioxus-cli
+dx serve
+
+# Or via Tilt + ephemeral k3d cluster
 k3d cluster create openkite-dev --registry-create openkite-registry:5050
-tilt up        # Tilt UI at localhost:10350
+tilt up
+
+# Plain build
+cargo build --release
 ```
 
-Desktop-only loop: `dx serve` (subsecond hot reload).
+## Documentation
+
+- [Architecture](docs/architecture.md)
+- [Plugin development](docs/plugin-development.md)
+- [Theming](docs/theming.md)
+- [Contributing](CONTRIBUTING.md)
 
 ## License
 
-MIT + Apache-2.0 (dual).
+MIT + Apache-2.0 (dual) — see `LICENSE-MIT` and `LICENSE-APACHE`.
