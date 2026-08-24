@@ -302,12 +302,14 @@ pub fn watch_plugins(
     root: &Path,
     tx: std::sync::mpsc::Sender<PluginChange>,
 ) -> Result<notify::RecommendedWatcher, notify::Error> {
+    // The notify callback is `'static` — capture an owned copy of the root.
+    let root_owned = root.to_path_buf();
     let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
         let Ok(event) = res else {
             return;
         };
         for path in event.paths {
-            let Ok(rel) = path.strip_prefix(root) else {
+            let Ok(rel) = path.strip_prefix(&root_owned) else {
                 continue;
             };
             let Some(name) = rel.components().next().and_then(|c| c.as_os_str().to_str()) else {
