@@ -30,6 +30,8 @@ anyhow = "1"
 futures = "0.3"
 # Opaline token theme engine as a theme source (OKT-30): 39 builtin themes.
 opaline = { version = "0.4", default-features = false, features = ["builtin-themes"] }
+# JS plugin host hot-reload watcher (OKT-45): plugins dir change events.
+notify = "8"
 
 # Binary crate: select the Kubernetes version here (k8s-openapi "latest").
 k8s-openapi = { version = "0.28", features = ["latest"] }
@@ -43,6 +45,7 @@ http = "1"
 kube = { version = "4", default-features = false, features = ["client"] }
 rustls = { version = "0.23", features = ["ring"] }
 jiff = "0.2"
+tempfile = "3"
 
 [package.metadata.packager]
 name = "openkite"

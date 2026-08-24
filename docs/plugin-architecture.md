@@ -90,3 +90,24 @@ needed until third-party plugin demand exists.
 - Adding/removing plugins requires a rebuild (v1).
 - Experimental dylib path is fragile by nature and may be dropped.
 - WASM v2 requires an SDK capability redesign; budget accordingly if adopted.
+
+## v2 — JS plugins in the webview (decision 2026-08-24, OKT-28)
+
+Research (Lens/Freelens + Headlamp) → decision: **external plugins are JS
+bundles evaluated in the wry webview** (Headlamp model, adapted). The Rust
+SDK + static registry remain for native plugins; the dylib path stays
+experimental. See `src/plugin_js.rs` (OKT-45) for the loader foundation.
+
+- Plugin = `~/.openkite/plugins/<name>/` containing `manifest.json`
+  (name/version/entry/author/sidebar) + one entry `.js`.
+- Load: host scans + validates manifests, evaluates bundles in the webview;
+  plugins register UI via the eval bridge (`openkite.register*` + `openkite.api.*`,
+  OKT-46) proxied to kube-rs (RBAC-scoped).
+- **Hot reload**: the host watches the plugins dir (`notify`), rescans, and
+  diffs (`scan_and_reconcile`) — Added/Removed/Changed plugins are re-evaluated
+  and re-rendered **without a restart** (exceeds Headlamp/Freelens, which cap
+  production reload at app restart).
+- Trust: plugins run in the app's JS context — same trust model as Headlamp;
+  Settings (OKT-42) will offer enable/disable + allowlist.
+- Trade-off accepted: plugin code is JS. Revisit WASM if third-party demand
+  justifies an SDK capability redesign.
