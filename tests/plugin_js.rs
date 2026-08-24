@@ -23,7 +23,7 @@ fn write_plugin(dir: &std::path::Path, name: &str, version: &str) {
     fs::create_dir_all(&d).unwrap();
     fs::write(
         d.join("manifest.json"),
-        format!(r#"{{"name":"{name}","version":"{version}","entry":"main.js","author":"t"}}"#),
+        format!(r#"{{"name":"{name}","version":"{version}","entry":"main.js"}}"#),
     )
     .unwrap();
     fs::write(d.join("main.js"), "// noop").unwrap();
@@ -90,7 +90,7 @@ fn discover_loads_valid_plugins_and_reports_broken_ones() {
 
 #[test]
 fn discover_on_missing_root_reports_an_error_not_a_panic() {
-    let (loaded, errors) = discover_plugins(&std::path::Path::new("/nonexistent/okt45"));
+    let (loaded, errors) = discover_plugins(std::path::Path::new("/nonexistent/okt45"));
     assert!(loaded.is_empty());
     assert!(!errors.is_empty());
 }
