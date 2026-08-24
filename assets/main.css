@@ -14,6 +14,22 @@
   --violet: #8b5cf6;
   --term-bg: #1e2024;
   --term-fg: #abb2bf;
+  --term-black: #282c34;
+  --term-red: #e06c75;
+  --term-green: #98c379;
+  --term-yellow: #e5c07b;
+  --term-blue: #61afef;
+  --term-magenta: #c678dd;
+  --term-cyan: #56b6c2;
+  --term-white: #abb2bf;
+  --term-bright-black: #5c6370;
+  --term-bright-red: #e06c75;
+  --term-bright-green: #98c379;
+  --term-bright-yellow: #e5c07b;
+  --term-bright-blue: #61afef;
+  --term-bright-magenta: #c678dd;
+  --term-bright-cyan: #56b6c2;
+  --term-bright-white: #ffffff;
 }
 
 html, body { margin: 0; height: 100%; }
