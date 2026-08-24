@@ -252,6 +252,18 @@ pub fn builtins() -> Vec<(&'static str, Theme)> {
     ]
 }
 
+/// Resolve a theme by display name, falling back to the default (GPUI Dark).
+pub fn resolve(name: Option<&str>) -> Theme {
+    match name {
+        Some(name) => builtins()
+            .into_iter()
+            .find(|(display, _)| *display == name)
+            .map(|(_, theme)| theme)
+            .unwrap_or_else(gpui_dark),
+        None => gpui_dark(),
+    }
+}
+
 /// Map a flattened Zed theme key to its OpenKite CSS variable.
 fn zed_key(key: &str) -> Option<&'static str> {
     Some(match key {

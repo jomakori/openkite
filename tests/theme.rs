@@ -1,6 +1,6 @@
 //! Integration tests for the theme engine.
 
-use openkite::theme::{builtins, import_zed, Theme, CSS_VARS};
+use openkite::theme::{builtins, gpui_dark, import_zed, resolve, Theme, CSS_VARS};
 
 #[test]
 fn builtins_include_five_themes() {
@@ -63,4 +63,20 @@ fn theme_roundtrips_through_json() {
     let loaded = Theme::load(&path).unwrap();
     assert_eq!(theme, loaded);
     let _ = std::fs::remove_file(&path);
+}
+
+#[test]
+fn resolve_returns_named_theme() {
+    let t = resolve(Some("Tokyo Night"));
+    assert_eq!(t.get("--bg-0"), Some("#1a1b26"));
+}
+
+#[test]
+fn resolve_unknown_name_falls_back_to_default() {
+    assert_eq!(resolve(Some("nope")), gpui_dark());
+}
+
+#[test]
+fn resolve_none_uses_default() {
+    assert_eq!(resolve(None), gpui_dark());
 }
