@@ -7,13 +7,9 @@
 use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet};
 use k8s_openapi::api::batch::v1::{CronJob, Job};
 use k8s_openapi::api::core::v1::Pod;
-use kube::api::Api;
-use kube::runtime::reflector::store;
-use kube::runtime::{watcher, WatchStreamExt};
 
-use crate::components::resource_table::{Cell, ColumnDef, ResourceRow, ResourceTable};
+use crate::components::resource_table::{Cell, ColumnDef, ResourceRow};
 use crate::components::status_badge::StatusKind;
-use crate::state::resources::drive_reflector;
 
 /// The seven workload kinds the Workloads view lists.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -404,12 +400,8 @@ pub fn cron_job_columns() -> Vec<ColumnDef> {
 pub fn cron_job_row(cj: &CronJob) -> ResourceRow {
     let name = cj.metadata.name.clone().unwrap_or_default();
     let namespace = cj.metadata.namespace.clone();
-    let schedule = cj
-        .spec
-        .as_ref()
-        .map(|s| s.schedule.clone())
-        .unwrap_or_default();
-    let suspended = cj.spec.as_ref().and_then(|s| s.suspend).unwrap_or(false);
+    let schedule = cj.spec.schedule.clone();
+    let suspended = cj.spec.suspend.unwrap_or(false);
     let (label, kind) = if suspended {
         ("Suspended".to_string(), StatusKind::Suspended)
     } else {
