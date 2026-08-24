@@ -7,6 +7,7 @@ pub mod fuzzy;
 pub mod logs;
 pub mod metrics;
 pub mod plugin_host;
+pub mod pod;
 pub mod prometheus;
 pub mod router;
 pub mod runtime;

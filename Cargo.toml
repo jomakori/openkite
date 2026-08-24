@@ -39,6 +39,7 @@ kube = { version = "4", features = ["runtime", "derive", "oidc", "ws", "rustls-t
 http = "1"
 kube = { version = "4", default-features = false, features = ["client"] }
 rustls = { version = "0.23", features = ["ring"] }
+jiff = "0.2"
 
 [package.metadata.packager]
 name = "openkite"
