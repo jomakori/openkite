@@ -41,29 +41,17 @@ fn ThemeRow(entry: ThemeEntry, current: String, on_select: EventHandler<String>)
 /// The full picker: defaults group, then the store group.
 #[component]
 pub fn ThemeSelector(current: String, on_select: EventHandler<String>) -> Element {
-    let entries = use_memo(|_| theme_catalog::catalog());
-    let defaults = use_memo(move |_| {
-        entries()
-            .iter()
-            .filter(|e| e.is_default)
-            .cloned()
-            .collect::<Vec<_>>()
-    });
-    let store = use_memo(move |_| {
-        entries()
-            .iter()
-            .filter(|e| !e.is_default)
-            .cloned()
-            .collect::<Vec<_>>()
-    });
+    let all = theme_catalog::catalog();
+    let defaults: Vec<ThemeEntry> = all.iter().filter(|e| e.is_default).cloned().collect();
+    let store: Vec<ThemeEntry> = all.iter().filter(|e| !e.is_default).cloned().collect();
     rsx! {
         div { class: "theme-selector",
             div { class: "theme-group", "Defaults" }
-            for entry in defaults() {
+            for entry in &defaults {
                 ThemeRow { entry: entry.clone(), current: current.clone(), on_select: on_select.clone() }
             }
-            div { class: "theme-group", "Store ({store().len()})" }
-            for entry in store() {
+            div { class: "theme-group", "Store ({store.len()})" }
+            for entry in &store {
                 ThemeRow { entry: entry.clone(), current: current.clone(), on_select: on_select.clone() }
             }
         }

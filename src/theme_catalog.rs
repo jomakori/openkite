@@ -142,8 +142,8 @@ mod tests {
 
     #[test]
     fn catalog_ids_are_unique() {
-        let ids: std::collections::HashSet<&str> =
-            catalog().iter().map(|e| e.id.as_str()).collect();
+        let catalog = catalog();
+        let ids: std::collections::HashSet<&str> = catalog.iter().map(|e| e.id.as_str()).collect();
         assert_eq!(ids.len(), 39);
     }
 }
