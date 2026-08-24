@@ -4,6 +4,7 @@ pub mod cluster;
 pub mod components;
 pub mod config;
 pub mod logs;
+pub mod metrics;
 pub mod plugin_host;
 pub mod router;
 pub mod runtime;
