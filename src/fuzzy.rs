@@ -74,6 +74,6 @@ where
         .into_iter()
         .filter_map(|(candidate, item)| fuzzy_match(query, candidate).map(|m| (m, item)))
         .collect();
-    scored.sort_by(|(a, _), (b, _)| b.score.cmp(&a.score));
+    scored.sort_by_key(|(m, _)| std::cmp::Reverse(m.score));
     scored
 }
