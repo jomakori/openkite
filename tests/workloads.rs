@@ -65,7 +65,6 @@ fn deployment_row_ready_replicas_maps_to_ready_status() {
             ready_replicas: Some(3),
             ..Default::default()
         }),
-        ..Default::default()
     };
     let row = deployment_row(&d);
     assert_eq!(row.cells[1].status, Some(StatusKind::Ready));
@@ -84,7 +83,6 @@ fn deployment_row_partial_replicas_maps_to_degraded_status() {
             ready_replicas: Some(1),
             ..Default::default()
         }),
-        ..Default::default()
     };
     let row = deployment_row(&d);
     assert_eq!(row.cells[1].status, Some(StatusKind::Degraded));
