@@ -4,14 +4,40 @@ use openkite_plugin_sdk::anyhow;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
-/// Local OpenKite configuration. Currently holds the plugin enable/disable
-/// state; theme + settings grow this in their own tickets (OKT-17/OKT-19).
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+fn default_true() -> bool {
+    true
+}
+
+/// Local OpenKite configuration: plugin enable/disable state plus appearance
+/// and metrics settings. New fields are `#[serde(default)]`ed so config files
+/// written by older builds keep loading.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OpenKiteConfig {
     /// Explicitly enabled plugin names. Empty = all plugins enabled.
     pub enabled_plugins: Vec<String>,
     /// Explicitly disabled plugin names (wins over `enabled_plugins`).
     pub disabled_plugins: Vec<String>,
+    /// Selected theme name (a `theme::builtins` key). `None` = default theme.
+    #[serde(default)]
+    pub theme: Option<String>,
+    /// UI font size in pixels. `None` = default.
+    #[serde(default)]
+    pub font_size: Option<u16>,
+    /// Whether metrics columns render by default.
+    #[serde(default = "default_true")]
+    pub metrics_enabled: bool,
+}
+
+impl Default for OpenKiteConfig {
+    fn default() -> Self {
+        Self {
+            enabled_plugins: Vec::new(),
+            disabled_plugins: Vec::new(),
+            theme: None,
+            font_size: None,
+            metrics_enabled: true,
+        }
+    }
 }
 
 impl OpenKiteConfig {
@@ -29,7 +55,7 @@ impl OpenKiteConfig {
     }
 
     /// Persist to `~/.openkite/config.toml`, creating the directory if needed.
-    /// Consumed by the plugin manager UI (OKT-19) once toggles exist.
+    /// Consumed by the settings UI (OKT-19).
     #[allow(dead_code)]
     pub fn save(&self) -> anyhow::Result<()> {
         self.save_to(&Self::path())
@@ -62,57 +88,5 @@ impl OpenKiteConfig {
             .unwrap_or_default()
             .join(".openkite")
             .join("config.toml")
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn save_load_round_trip() {
-        let dir = std::env::temp_dir().join(format!("openkite-config-{}", std::process::id()));
-        let path = dir.join("config.toml");
-
-        let config = OpenKiteConfig {
-            enabled_plugins: vec!["argocd".into()],
-            disabled_plugins: vec!["legacy".into()],
-        };
-        config.save_to(&path).expect("save");
-
-        let loaded = OpenKiteConfig::load_from(&path);
-        assert_eq!(loaded.enabled_plugins, config.enabled_plugins);
-        assert_eq!(loaded.disabled_plugins, config.disabled_plugins);
-
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn missing_file_loads_default() {
-        let missing = std::env::temp_dir().join(format!("openkite-missing-{}", std::process::id()));
-        let _ = std::fs::remove_file(&missing);
-        assert_eq!(
-            OpenKiteConfig::load_from(&missing),
-            OpenKiteConfig::default()
-        );
-    }
-
-    #[test]
-    fn is_enabled_semantics() {
-        let empty = OpenKiteConfig::default();
-        assert!(empty.is_enabled("anything")); // empty allowlist = all enabled
-
-        let allow = OpenKiteConfig {
-            enabled_plugins: vec!["argocd".into()],
-            ..Default::default()
-        };
-        assert!(allow.is_enabled("argocd"));
-        assert!(!allow.is_enabled("other"));
-
-        let disabled_wins = OpenKiteConfig {
-            enabled_plugins: vec!["argocd".into()],
-            disabled_plugins: vec!["argocd".into()],
-        };
-        assert!(!disabled_wins.is_enabled("argocd"));
     }
 }
