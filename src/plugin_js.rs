@@ -15,6 +15,9 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+// `watch()`/`unwatch()` are inherent to the `Watcher` trait — must be in scope.
+use notify::Watcher;
+
 /// A plugin's `manifest.json` — the contract a JS plugin must declare.
 ///
 /// Minimal example:
