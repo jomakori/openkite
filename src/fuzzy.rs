@@ -18,7 +18,7 @@ fn is_boundary(c: char) -> bool {
 ///
 /// A fuzzy match requires the query characters to appear in `candidate` as a
 /// subsequence (case-insensitive). Scoring rewards word-boundary and
-/// consecutive matches and lightly penalises long candidates and gaps.
+/// consecutive matches and penalises gaps and long candidates.
 /// Returns `None` when `query` is not a subsequence of `candidate`.
 pub fn fuzzy_match(query: &str, candidate: &str) -> Option<FuzzyMatch> {
     if query.is_empty() {
@@ -44,13 +44,17 @@ pub fn fuzzy_match(query: &str, candidate: &str) -> Option<FuzzyMatch> {
             continue;
         }
         positions.push(ci);
+        score += 1; // base match
+        if prev.is_none() {
+            score += 4; // query start
+        }
         if ci == 0 || is_boundary(haystack[ci - 1]) {
-            score += 8;
+            score += 4; // word boundary
         }
         match prev {
-            Some(pi) if pi + 1 == ci => score += 5,
-            Some(_) => score -= 1,
-            None => score += 4,
+            Some(pi) if pi + 1 == ci => score += 6,        // consecutive
+            Some(pi) => score -= 3 * (ci - pi - 1) as i64, // gap penalty
+            None => {}
         }
         prev = Some(ci);
         qi += 1;
