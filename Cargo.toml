@@ -28,6 +28,8 @@ toml = "0.8"
 dirs = "5"
 anyhow = "1"
 futures = "0.3"
+# Opaline token theme engine as a theme source (OKT-30): 39 builtin themes.
+opaline = { version = "0.4", default-features = false, features = ["builtin-themes"] }
 
 # Binary crate: select the Kubernetes version here (k8s-openapi "latest").
 k8s-openapi = { version = "0.28", features = ["latest"] }
