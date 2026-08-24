@@ -6,6 +6,7 @@ pub mod config;
 pub mod logs;
 pub mod metrics;
 pub mod plugin_host;
+pub mod prometheus;
 pub mod router;
 pub mod runtime;
 pub mod secrets;
