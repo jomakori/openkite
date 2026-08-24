@@ -16,35 +16,38 @@ Declared in `src/theme.rs` (`CSS_VARS`), defaulted in `assets/main.css`:
 | Status | `--green` `--yellow` `--red` `--violet` |
 | Terminal (xterm-256 base 16) | `--term-black` … `--term-white`, `--term-bright-black` … `--term-bright-white` |
 
-## Built-in themes
+## Theme source: opaline (OKT-30)
 
-`Theme::builtins()` returns five:
+Theming is provided by the [opaline](https://crates.io/crates/opaline) token
+engine — **39 builtin themes** across 17 families (SilkCircuit, Catppuccin,
+GitHub, Monokai Pro, Ayu, Night Owl, Flexoki, Palenight, Dracula, Nord,
+Rose Pine, Gruvbox, Solarized, Tokyo Night, Kanagawa, Everforest, One
+Dark/Light). The hand-rolled 5 defaults and the Zed importer were replaced by
+opaline (it ships those families natively).
 
-- GPUI Light / GPUI Dark
-- Catppuccin Mocha
-- Tokyo Night
-- Rosé Pine
+- `src/theme_opaline.rs` maps opaline's semantic tokens onto the contract:
+  `--bg-0 ← bg.base`, `--accent ← accent.primary`, `--green/--yellow/--red ←
+  success/warning/error`, with palette fallbacks; `--term-bright-*` are derived
+  by lightening (opaline themes carry no ANSI brights).
+- `theme::resolve(name)` loads an opaline theme by kebab id
+  (`"catppuccin-mocha"`, `"default"` → SilkCircuit Neon); unknown ids and
+  `None` fall back to the default.
+- The theme picker (Settings, OKT-42) lists `theme_opaline::list_opaline_themes()`.
 
-Each covers the full `CSS_VARS` contract. `Theme` is an ordered map
-(`BTreeMap<String, String>`) with `serde` transparent serialization, so it
-round-trips as a flat JSON object.
+## Frost/glass layering
+
+Opaline supplies **colors**; the glass/frost **chrome** lives in the design
+system (`assets/main.css`, OKT-29) on top of the variables: frost cards are
+`var(--bg-1)` at ~85% opacity + `backdrop-filter: blur(40px)`, elevation via
+the shadow system. Tokens are the single source of truth — the chrome never
+hardcodes colors.
 
 ## Adding a theme
 
-1. Add a `pub fn my_theme() -> Theme` using the `theme!` macro + `with_term` in
-   `src/theme.rs`.
-2. Register it in `builtins()`.
-3. Extend `tests/theme.rs` if there's new behavior worth pinning.
-
-```rust
-pub fn my_theme() -> Theme {
-    with_term(theme! {
-        "--bg-0" => "#1e1e2e",
-        "--bg-1" => "#181825",
-        // … remaining core vars …
-    })
-}
-```
+1. Contribute a theme TOML upstream to opaline (palette → token → style
+   pipeline), or
+2. Drop a theme TOML into the user theme dir (opaline `discovery` — enabled
+   once OKT-30 follow-up lands) — it appears in the picker automatically.
 
 ## Serialization
 
@@ -53,33 +56,3 @@ theme.to_css_vars()   // "--bg-0: #1e1e2e;\n--bg-1: #181825;\n…"
 theme.save(path)      // pretty JSON to ~/.openkite/theme.json
 Theme::load(path)     // read back
 ```
-
-## Zed theme import
-
-`import_zed(json)` accepts a JSON object — flat or nested — and maps Zed keys to
-OpenKite variables:
-
-```json
-{
-  "background": "#1e1e1e",
-  "foreground": "#f5f5f0",
-  "accent": "#0070f3",
-  "terminal": { "ansi": { "black": "#282c34", "white": "#ffffff" } }
-}
-```
-
-| Zed key | OpenKite var |
-|---|---|
-| `background` | `--bg-0` |
-| `foreground` | `--fg-0` |
-| `border` | `--border` |
-| `accent` | `--accent` |
-| `terminal.ansi.*` | `--term-*` |
-
-Unknown keys and malformed input are rejected with `ThemeError` (a loud error
-rather than a silently broken theme).
-
-## Typography
-
-`assets/main.css` sets the IBM Plex Sans (UI) and IBM Plex Mono (code/terminal)
-font stacks.

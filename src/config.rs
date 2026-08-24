@@ -17,7 +17,7 @@ pub struct OpenKiteConfig {
     pub enabled_plugins: Vec<String>,
     /// Explicitly disabled plugin names (wins over `enabled_plugins`).
     pub disabled_plugins: Vec<String>,
-    /// Selected theme name (a `theme::builtins` key). `None` = default theme.
+    /// Selected theme name (an opaline theme id, kebab-case). `None` = default theme.
     #[serde(default)]
     pub theme: Option<String>,
     /// UI font size in pixels. `None` = default.
