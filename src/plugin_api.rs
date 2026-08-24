@@ -197,6 +197,19 @@ impl RegistrationStore {
     pub fn is_empty(&self) -> bool {
         self.by_plugin.is_empty()
     }
+
+    /// Plugin names with registrations, sorted (stable iteration order).
+    pub fn plugins(&self) -> Vec<String> {
+        self.by_plugin.keys().cloned().collect()
+    }
+
+    /// All registered status items across plugins (for the status bar).
+    pub fn all_status_items(&self) -> Vec<(&str, &StatusItem)> {
+        self.by_plugin
+            .iter()
+            .flat_map(|(plugin, reg)| reg.status.iter().map(move |item| (plugin.as_str(), item)))
+            .collect()
+    }
 }
 
 /// The injected bootstrap: defines `window.openkite` (register* + api.*) with

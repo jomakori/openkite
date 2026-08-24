@@ -16,6 +16,7 @@ pub mod prometheus;
 pub mod router;
 pub mod runtime;
 pub mod secrets;
+pub mod shell;
 pub mod state;
 pub mod terminal;
 pub mod theme;
