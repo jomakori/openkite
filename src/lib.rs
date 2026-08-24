@@ -6,9 +6,12 @@ pub mod config;
 pub mod logs;
 pub mod plugin_host;
 pub mod router;
+pub mod runtime;
 pub mod secrets;
 pub mod state;
 pub mod theme;
+pub mod views;
+pub mod workloads;
 
 /// Bootstrap OpenKite: load config, plugins, and kubeconfig, then launch the UI.
 pub fn run() {
@@ -50,6 +53,9 @@ pub fn run() {
             Err(err) => tracing::error!(context = %active, error = ?err, "cluster connect failed"),
         }
     }
+
+    // Publish the active client to the UI before launching.
+    crate::runtime::set_client(cluster.client().cloned());
 
     dioxus::launch(router::app);
 }
