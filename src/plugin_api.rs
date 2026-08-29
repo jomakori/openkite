@@ -347,7 +347,7 @@ mod tests {
         )
         .unwrap();
         assert!(matches!(
-            req,
+            &req,
             ApiRequest::Register { kind, .. } if kind == "sidebar"
         ));
         assert_eq!(req.describe(), "register sidebar");
