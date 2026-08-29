@@ -11,10 +11,11 @@
 //!   ([`BridgeRequest`]).
 //! - [`OPENKITE_BRIDGE_JS`] — the injected bootstrap that defines the
 //!   `window.openkite` global (register* + api.* with promise plumbing over
-//!   wry's `window.ipc.postMessage`).
+//!   same-origin `fetch` POSTs to the `/openkite` asset handler).
 //!
-//! The runtime wiring (ipc handler → kube dispatch → eval) is the interactive
-//! remainder, wired when the app shell lands (OKT-31).
+//! The runtime wiring lives in [`crate::bridge`] ([`crate::bridge::Bridge::handle_post`]
+//! → registration store / kube dispatch); mounting the handler into the app
+//! shell is the interactive remainder (OKT-31).
 
 use std::collections::BTreeMap;
 
@@ -87,6 +88,11 @@ impl PluginRegistration {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum ApiRequest {
+    /// Register a UI contribution (`kind`: `sidebar` | `route` | `status`).
+    Register {
+        kind: String,
+        payload: serde_json::Value,
+    },
     /// List a resource kind, optionally namespaced (`ns: null` = all).
     List { kind: String, ns: Option<String> },
     /// Fetch one resource.
@@ -118,6 +124,7 @@ impl ApiRequest {
     /// A short human-readable label for logs/debugging (e.g. `list pods`).
     pub fn describe(&self) -> String {
         match self {
+            ApiRequest::Register { kind, .. } => format!("register {kind}"),
             ApiRequest::List { kind, .. } => format!("list {kind}"),
             ApiRequest::Get { kind, name, .. } => format!("get {kind}/{name}"),
             ApiRequest::Watch { kind, .. } => format!("watch {kind}"),
@@ -213,35 +220,32 @@ impl RegistrationStore {
 }
 
 /// The injected bootstrap: defines `window.openkite` (register* + api.*) with
-/// promise plumbing over wry's ipc channel. The host sets
-/// `window.__openkite_plugin` to the evaluating plugin's manifest name before
-/// each bundle, then evaluates the bundle (hot reload = re-evaluate).
+/// promise plumbing over same-origin `fetch` POSTs to the `/openkite` asset
+/// handler (dioxus-desktop's asset-handler registry — see
+/// `docs/plugin-architecture.md` for why the ipc channel was replaced). The
+/// host sets `window.__openkite_plugin` to the evaluating plugin's manifest
+/// name before each bundle, then evaluates the bundle (hot reload =
+/// re-evaluate).
 pub const OPENKITE_BRIDGE_JS: &str = r##"(() => {
   if (window.openkite) return;
-  const pending = new Map();
   let nextId = 1;
   const plugin = () => window.__openkite_plugin || "unknown";
-  window.addEventListener("message", (ev) => {
-    const msg = ev.data;
-    if (msg && msg.channel === "openkite") {
-      const p = pending.get(msg.id);
-      if (p) {
-        pending.delete(msg.id);
-        msg.error ? p.reject(new Error(msg.error)) : p.resolve(msg.result);
-      }
-    }
-  });
-  function call(request) {
-    return new Promise((resolve, reject) => {
-      const id = nextId++;
-      pending.set(id, { resolve, reject });
-      window.ipc.postMessage(JSON.stringify({
-        channel: "openkite", id, plugin: plugin(), request
-      }));
+  async function call(request) {
+    const id = nextId++;
+    const res = await fetch("/openkite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, plugin: plugin(), request })
     });
+    if (!res.ok) throw new Error("bridge HTTP " + res.status);
+    const body = await res.json();
+    if (body.status === "error") throw new Error(body.error);
+    return body.result;
   }
   function register(kind, payload) {
-    call({ op: "register", kind, payload }).catch(() => {});
+    call({ op: "register", kind, payload }).catch((err) =>
+      console.warn("openkite register " + kind + " failed:", err)
+    );
   }
   window.openkite = {
     registerSidebar: (item) => register("sidebar", item),
@@ -337,6 +341,24 @@ mod tests {
     }
 
     #[test]
+    fn register_request_round_trips_with_json_payload() {
+        let req: ApiRequest = serde_json::from_str(
+            r#"{"op":"register","kind":"sidebar","payload":{"label":"Applications"}}"#,
+        )
+        .unwrap();
+        assert!(matches!(
+            req,
+            ApiRequest::Register { kind, .. } if kind == "sidebar"
+        ));
+        assert_eq!(req.describe(), "register sidebar");
+        let json = serde_json::to_string(&req).unwrap();
+        assert!(json.contains(r#""op":"register""#));
+        // And the payload survives.
+        let back: ApiRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, req);
+    }
+
+    #[test]
     fn bridge_request_envelope_round_trips() {
         let envelope = BridgeRequest {
             id: 7,
@@ -400,7 +422,8 @@ mod tests {
             "watch: (kind, ns)",
             "logs: (name, ns, container)",
             "exec: (name, ns, container, cmd)",
-            "window.ipc.postMessage",
+            r#"fetch("/openkite""#,
+            "op: \"register\"",
             "__openkite_plugin",
         ] {
             assert!(js.contains(needle), "bridge JS missing {needle}");

@@ -111,3 +111,38 @@ experimental. See `src/plugin_js.rs` (OKT-45) for the loader foundation.
   Settings (OKT-42) will offer enable/disable + allowlist.
 - Trade-off accepted: plugin code is JS. Revisit WASM if third-party demand
   justifies an SDK capability redesign.
+
+## Transport — bridge runtime (OKT-46, decision 2026-08-29)
+
+The OKT-46 spike wired the JS bridge over wry's `window.ipc.postMessage`.
+That channel is **dead for custom messages in dioxus-desktop 0.7.10**:
+
+- inbound ipc must parse as `{method, params}` (`IpcMessage`), so the
+  bridge's `{channel, id, plugin, request}` envelope is dropped as
+  unparseable before dispatch even fires;
+- well-formed but unknown methods hit `IpcMethod::Other(_) => {}` —
+  silently discarded with no host hook (`launch.rs`).
+
+Replacement (locked): **same-origin `fetch` POST to `/openkite`**,
+dispatched by the dioxus-desktop asset-handler registry
+(`DesktopContext::register_asset_handler` / `use_asset_handler`; the first
+URI path segment names the handler, dispatch precedes filesystem fallback,
+POST bodies arrive intact). This is the sanctioned desktop custom-protocol
+transport — the same seam Tauri v2's `invoke` uses. The handler runs on the
+GLib main thread (`Callback` is `!Send`); kube work is spawned onto the
+tokio runtime and the answer flows back through wry's `RequestAsyncResponder`
+(`Send`), so long kube calls never block the UI thread.
+
+Runtime shape (`src/bridge.rs`):
+
+- `Bridge::handle_post` maps `{id, plugin, request}` to a response; errors
+  are always answered, never dropped.
+- `register` ops merge into the shared `RegistrationStore` (appends — the
+  host clears a plugin's entry before re-evaluating it on hot reload).
+- kube ops (`list`/`get`/`watch`/`logs`) run with the app's client and the
+  user's RBAC. Bare kind strings ("pods") resolve via full `Discovery`
+  (group-preferred version; core group first). `watch` returns a snapshot
+  until reflector-backed plugin views land. `logs` go through the typed
+  `Api<Pod>` (the `Log` marker is pod-only). `exec` is deferred (PTY later).
+- Mounting into the shell (`use_asset_handler` + eval bootstrap) is the
+  OKT-31 remainder; until then the bridge runs headless in tests.

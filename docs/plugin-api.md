@@ -3,8 +3,9 @@
 External OpenKite plugins are **JS bundles** in `~/.openkite/plugins/<name>/`
 (see `plugin-architecture.md` for the v2 decision). The host injects the
 `window.openkite` global before evaluating a bundle; plugins register UI and
-call the cluster through it. Everything is promise-based and rides wry's ipc
-channel (`window.ipc.postMessage`).
+call the cluster through it. Everything is promise-based: each call is a
+same-origin `fetch` POST to `/openkite`, served by the bridge runtime
+(`src/bridge.rs`, OKT-46).
 
 ## Manifest
 
@@ -50,10 +51,14 @@ RBAC: calls execute with the app's kube client and the user's
 
 ## Envelope
 
-Inbound from JS: `{channel: "openkite", id, plugin, request: {op, …}}` — the
-host stamps `plugin` from `window.__openkite_plugin` (set before each eval).
-Outbound: `{channel: "openkite", id, result}` or `{channel: "openkite", id,
-error}`. `op` values: `list`, `get`, `watch`, `logs`, `exec`.
+Transport: same-origin `fetch("POST /openkite")` handled by the dioxus
+asset-handler registry (see `plugin-architecture.md`; the wry ipc channel
+cannot carry custom methods in dioxus 0.7.x). POST body:
+`{id, plugin, request: {op, …}}` — the bridge reads `plugin` from
+`window.__openkite_plugin` (set by the host before each eval). Response:
+`{status: "ok", result}` or `{status: "error", error}`. `op` values:
+`register`, `list`, `get`, `watch`, `logs`, `exec` (`exec` is deferred —
+calls reject with a clear error until it lands).
 
 ## Example
 

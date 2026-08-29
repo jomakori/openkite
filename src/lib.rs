@@ -1,5 +1,6 @@
 #![allow(non_snake_case)]
 
+pub mod bridge;
 pub mod cluster;
 pub mod components;
 pub mod config;
