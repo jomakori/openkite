@@ -54,7 +54,8 @@ fn old_config_without_new_fields_still_loads() {
     let loaded = OpenKiteConfig::load_from(&path);
     assert_eq!(loaded.enabled_plugins, vec!["argocd".to_string()]);
     assert!(loaded.theme.is_none());
-    assert!(loaded.metrics_enabled); // defaulted to true
+    // `metrics_enabled` is unset in the fixture; the default is true.
+    assert!(loaded.metrics_enabled);
 
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -62,7 +63,8 @@ fn old_config_without_new_fields_still_loads() {
 #[test]
 fn is_enabled_semantics() {
     let empty = OpenKiteConfig::default();
-    assert!(empty.is_enabled("anything")); // empty allowlist = all enabled
+    // An empty allowlist enables every plugin.
+    assert!(empty.is_enabled("anything"));
 
     let allow = OpenKiteConfig {
         enabled_plugins: vec!["argocd".into()],

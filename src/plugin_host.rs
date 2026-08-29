@@ -16,9 +16,9 @@ pub struct PluginRegistry {
     plugins: Vec<Box<dyn OpenKitePlugin>>,
 }
 
-/// The lifecycle/query API is consumed by later tickets (OKT-6 cluster
-/// connect, OKT-7 sidebar/routes, OKT-19 plugin manager). Until those land
-/// it is exercised only by unit tests, so silence dead_code.
+/// The lifecycle/query API has no live consumer yet (OKT-6 cluster connect,
+/// OKT-7 sidebar/routes, OKT-19 plugin manager); it is exercised only by
+/// unit tests, so silence dead_code.
 #[allow(dead_code)]
 impl PluginRegistry {
     /// Empty registry.
@@ -256,7 +256,8 @@ mod tests {
         registry.register(Box::new(MockPlugin::new("ok", log.clone())));
 
         let ctx = test_context();
-        registry.on_cluster_connect(&ctx); // must not unwind
+        // The registry must contain a panicking plugin without unwinding.
+        registry.on_cluster_connect(&ctx);
 
         let events = log.lock().unwrap().clone();
         assert_eq!(

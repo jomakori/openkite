@@ -5,7 +5,8 @@
 //! the theme engine makes switching a CSS variable swap, so the picker row's
 //! preview is exactly what the app becomes.
 
-#![allow(dead_code)] // consumed by the settings view (OKT-42)
+// No live consumer yet; the settings view is the intended entry point (OKT-42).
+#![allow(dead_code)]
 #![allow(non_snake_case)]
 
 use dioxus::prelude::*;

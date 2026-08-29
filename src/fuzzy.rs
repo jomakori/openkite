@@ -44,16 +44,16 @@ pub fn fuzzy_match(query: &str, candidate: &str) -> Option<FuzzyMatch> {
             continue;
         }
         positions.push(ci);
-        score += 1; // base match
+        score += 1;
         if prev.is_none() {
-            score += 4; // query start
+            score += 4;
         }
         if ci == 0 || is_boundary(haystack[ci - 1]) {
-            score += 4; // word boundary
+            score += 4;
         }
         match prev {
-            Some(pi) if pi + 1 == ci => score += 6,        // consecutive
-            Some(pi) => score -= 3 * (ci - pi - 1) as i64, // gap penalty
+            Some(pi) if pi + 1 == ci => score += 6,
+            Some(pi) => score -= 3 * (ci - pi - 1) as i64,
             None => {}
         }
         prev = Some(ci);

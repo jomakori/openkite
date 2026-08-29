@@ -9,9 +9,10 @@
 use crate::theme_opaline::{list_opaline_themes, load_and_map};
 
 /// The 5 curated defaults (the original defaults, mapped to opaline ids).
+/// `one-light`/`one-dark` ship the GPUI Light/Dark families.
 pub const DEFAULT_THEME_IDS: &[&str] = &[
-    "one-light", // GPUI Light family
-    "one-dark",  // GPUI Dark family
+    "one-light",
+    "one-dark",
     "catppuccin-mocha",
     "tokyo-night",
     "rose-pine",

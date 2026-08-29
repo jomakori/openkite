@@ -23,9 +23,8 @@ pub struct ClusterState {
     clients: HashMap<String, Client>,
 }
 
-/// The query/switching API (`contexts`, `discovery`, `invalidate`,
-/// `disconnect`, `ping`) is consumed by later tickets (OKT-7 context
-/// switcher, OKT-9 reflector teardown). Silence dead_code until then.
+/// The query/switching API has no live consumer yet (OKT-7 context switcher,
+/// OKT-9 reflector teardown); silence dead_code.
 #[allow(dead_code)]
 impl ClusterState {
     /// Load the default kubeconfig (`KUBECONFIG` env, else `~/.kube/config`).
