@@ -14,8 +14,8 @@
 //!   same-origin `fetch` POSTs to the `/openkite` asset handler).
 //!
 //! The runtime wiring lives in [`crate::bridge`] ([`crate::bridge::Bridge::handle_post`]
-//! → registration store / kube dispatch); mounting the handler into the app
-//! shell is the interactive remainder (OKT-31).
+//! → registration store / kube dispatch); the app shell mounts the handler
+//! (see [`crate::router`]).
 
 use std::collections::BTreeMap;
 

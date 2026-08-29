@@ -115,8 +115,8 @@ impl Bridge {
                 Some(client) => list_resource(&client, &kind, ns.as_deref()).await,
                 None => Err(NO_CLUSTER.into()),
             },
-            // Snapshot until reflector-backed plugin views land; the wire
-            // contract (promise resolving once) stays the same either way.
+            // Watch serves a snapshot (no live reflector yet); the wire
+            // contract (promise resolving once) is unchanged either way.
             ApiRequest::Watch { kind, ns } => match self.client.clone() {
                 Some(client) => list_resource(&client, &kind, ns.as_deref()).await,
                 None => Err(NO_CLUSTER.into()),

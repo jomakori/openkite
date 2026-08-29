@@ -63,7 +63,8 @@ fn service_ports_extract_name_and_target() {
     assert_eq!(ports[0].target_port, "8080");
     assert_eq!(ports[0].protocol, "TCP");
     assert_eq!(ports[1].target_port, "https");
-    assert_eq!(ports[1].protocol, "TCP"); // defaulted
+    // `protocol: None` defaults to TCP.
+    assert_eq!(ports[1].protocol, "TCP");
     assert_eq!(ports[1].node_port, Some(30443));
 }
 

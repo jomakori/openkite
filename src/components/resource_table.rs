@@ -1,10 +1,12 @@
 //! Virtualized, sortable, filterable resource table (OKT-8).
 //!
 //! Split into pure logic (sort / filter / windowing) — generic and unit-tested —
-//! and the Dioxus components that wrap it. The whole module is consumed by the
-//! workload/config views (OKT-10+); silence `dead_code` until then.
+//! and the Dioxus components that wrap it. The workload view consumes
+//! `ResourceRow`/`ResourceTable`; the remaining exports are shared building
+//! blocks.
 
-#![allow(dead_code)] // consumed by OKT-10 workload views (first real consumer)
+// Several building blocks have no consumer yet.
+#![allow(dead_code)]
 #![allow(non_snake_case)]
 
 use std::cmp::Ordering;

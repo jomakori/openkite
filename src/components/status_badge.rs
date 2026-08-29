@@ -1,6 +1,7 @@
 //! Status badge — semantic pill for resource status (OKT-8).
 
-#![allow(dead_code)] // consumed by resource_table (OKT-8) and the views (OKT-10+)
+// Some `StatusKind` variants have no consumer yet.
+#![allow(dead_code)]
 #![allow(non_snake_case)]
 
 use dioxus::prelude::*;

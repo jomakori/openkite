@@ -54,11 +54,12 @@ fn mapped_theme_covers_the_full_contract() {
 #[test]
 fn catppuccin_mocha_resolves_known_hexes() {
     let theme = load_and_map("catppuccin-mocha").unwrap();
-    assert_eq!(theme.get("--bg-0"), Some("#11111b")); // crust
-    assert_eq!(theme.get("--accent"), Some("#cba6f7")); // mauve
+    // Expected hexes are the catppuccin-mocha roles crust, mauve, and text.
+    assert_eq!(theme.get("--bg-0"), Some("#11111b"));
+    assert_eq!(theme.get("--accent"), Some("#cba6f7"));
     assert_eq!(theme.get("--green"), Some("#a6e3a1"));
     assert_eq!(theme.get("--red"), Some("#f38ba8"));
-    assert_eq!(theme.get("--fg-0"), Some("#cdd6f4")); // text
+    assert_eq!(theme.get("--fg-0"), Some("#cdd6f4"));
 }
 
 #[test]
