@@ -81,6 +81,12 @@ impl Bridge {
         self.store.clone()
     }
 
+    /// A point-in-time copy of the registration store, for views that render
+    /// from it without holding the lock across render (OKT-31).
+    pub fn snapshot(&self) -> RegistrationStore {
+        self.store.lock().expect("registration store lock").clone()
+    }
+
     /// Handle one raw POST body from the webview: parse the envelope, then
     /// execute the request. Always answers (never panics) — the fetch side
     /// of the JS bridge turns the response into reject/resolve.

@@ -54,6 +54,16 @@ pub fn core_sections() -> Vec<ShellSection> {
 /// registration order). Plugins without sidebar items contribute no section.
 pub fn sidebar_model(store: &RegistrationStore) -> Vec<ShellSection> {
     let mut sections = core_sections();
+    sections.extend(plugin_sections(store));
+    sections
+}
+
+/// The plugin-added sidebar sections only — what the interactive shell
+/// (OKT-31) appends after the core nav when rendering the bridge's
+/// registration mirror. Same ordering rules as [`sidebar_model`]; plugins
+/// without sidebar items contribute no section.
+pub fn plugin_sections(store: &RegistrationStore) -> Vec<ShellSection> {
+    let mut sections = Vec::new();
     for plugin in store.plugins() {
         let items: Vec<ShellNavItem> = store
             .get(&plugin)
@@ -70,7 +80,7 @@ pub fn sidebar_model(store: &RegistrationStore) -> Vec<ShellSection> {
             .unwrap_or_default();
         if !items.is_empty() {
             sections.push(ShellSection {
-                label: plugin.clone(),
+                label: plugin,
                 items,
             });
         }
@@ -180,6 +190,40 @@ pub fn status_items_of<'a>(store: &'a RegistrationStore, plugin: &str) -> Vec<&'
         .get(plugin)
         .map(|reg| reg.status.iter().collect())
         .unwrap_or_default()
+}
+
+/// Map a status-item color to a CSS `background` value for the status dot.
+///
+/// Known keywords map to theme variables; anything else must look like a
+/// plain CSS color (`#hex` or a color function) — arbitrary strings fall
+/// back to the muted default, so a plugin cannot smuggle extra CSS
+/// declarations (or a `url()` beacon) through an inline style.
+pub fn status_dot_color(color: &str) -> String {
+    let trimmed = color.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    match lower.as_str() {
+        "green" | "ok" | "healthy" => "var(--green)".into(),
+        "yellow" | "warn" | "progressing" => "var(--yellow)".into(),
+        "red" | "error" | "critical" => "var(--red)".into(),
+        "blue" | "info" => "var(--accent)".into(),
+        other if is_css_color(other) => other.to_string(),
+        _ => "var(--fg-2)".into(),
+    }
+}
+
+/// A conservative CSS color check: short hex or one of a few color
+/// functions, with no characters that could break out of the value.
+fn is_css_color(s: &str) -> bool {
+    if let Some(hex) = s.strip_prefix('#') {
+        return (s.len() <= 9) && hex.bytes().all(|b| b.is_ascii_hexdigit());
+    }
+    if !s.ends_with(')') || s.contains([';', '{', '}', '"', '\'', '<']) {
+        return false;
+    }
+    match s.split_once('(') {
+        Some((func, _)) => matches!(func, "rgb" | "rgba" | "hsl" | "hsla" | "oklch"),
+        None => false,
+    }
 }
 
 #[cfg(test)]
@@ -302,5 +346,30 @@ mod tests {
         assert_eq!(nav.route, "/argocd/apps");
         assert_eq!(status_items_of(&store, "argocd").len(), 1);
         assert!(status_items_of(&store, "missing").is_empty());
+    }
+
+    #[test]
+    fn status_dot_color_maps_keywords_and_plain_colors() {
+        assert_eq!(status_dot_color("green"), "var(--green)");
+        assert_eq!(status_dot_color(" Healthy "), "var(--green)");
+        assert_eq!(status_dot_color("error"), "var(--red)");
+        assert_eq!(status_dot_color("BLUE"), "var(--accent)");
+        assert_eq!(status_dot_color("#0d9488"), "#0d9488");
+        assert_eq!(status_dot_color("rgb(13,148,136)"), "rgb(13,148,136)");
+        assert_eq!(status_dot_color("oklch(66% 0.1 180)"), "oklch(66% 0.1 180)");
+    }
+
+    #[test]
+    fn status_dot_color_rejects_non_color_strings() {
+        // Unknown words, empty values, and anything that could escape the
+        // inline style fall back to the muted default.
+        assert_eq!(status_dot_color(""), "var(--fg-2)");
+        assert_eq!(status_dot_color("orange"), "var(--fg-2)");
+        assert_eq!(status_dot_color("red;} *{display:none"), "var(--fg-2)");
+        assert_eq!(status_dot_color("url(https://evil.test/x)"), "var(--fg-2)");
+        assert_eq!(
+            status_dot_color("var(--green)\",background:url(a)"),
+            "var(--fg-2)"
+        );
     }
 }
