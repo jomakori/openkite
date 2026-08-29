@@ -1,4 +1,4 @@
-//! Bridge runtime (OKT-46): webview ⇄ kube dispatch core.
+//! Bridge runtime: webview ⇄ kube dispatch core.
 //!
 //! The headless half of the plugin bridge. [`OPENKITE_BRIDGE_JS`](crate::plugin_api::OPENKITE_BRIDGE_JS)
 //! turns `openkite.api.*` / `openkite.register*` calls into same-origin
@@ -15,8 +15,7 @@
 //! Transport decision + the dioxus 0.7.10 ipc limitation: see
 //! `docs/plugin-architecture.md`. The static Rust plugin registry
 //! (`plugin_host`) and the on-disk JS host half (`plugin_js.rs`) are
-//! unchanged; mounting this behind the shell view's asset handler is the
-//! interactive remainder (OKT-31).
+//! unchanged; the shell view mounts this behind its asset handler.
 
 use std::sync::{Arc, Mutex};
 
@@ -36,7 +35,7 @@ const NO_CLUSTER: &str = "no cluster connected";
 /// The shared plugin bridge: optional kube client + plugin UI registrations.
 ///
 /// Built at bootstrap; the shell view captures it behind an `Arc` and mounts
-/// the `/openkite` asset handler fronting [`Bridge::handle_post`] (OKT-31).
+/// the `/openkite` asset handler fronting [`Bridge::handle_post`].
 /// The [`RegistrationStore`] is shared so views render registrations live.
 pub struct Bridge {
     client: Option<Client>,
@@ -82,7 +81,7 @@ impl Bridge {
     }
 
     /// A point-in-time copy of the registration store, for views that render
-    /// from it without holding the lock across render (OKT-31).
+    /// from it without holding the lock across render.
     pub fn snapshot(&self) -> RegistrationStore {
         self.store.lock().expect("registration store lock").clone()
     }

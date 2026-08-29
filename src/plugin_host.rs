@@ -16,9 +16,9 @@ pub struct PluginRegistry {
     plugins: Vec<Box<dyn OpenKitePlugin>>,
 }
 
-/// The lifecycle/query API has no live consumer yet (OKT-6 cluster connect,
-/// OKT-7 sidebar/routes, OKT-19 plugin manager); it is exercised only by
-/// unit tests, so silence dead_code.
+/// The lifecycle/query API has no live consumer yet (cluster connect,
+/// sidebar/routes, plugin manager); it is exercised only by unit tests, so
+/// silence dead_code.
 #[allow(dead_code)]
 impl PluginRegistry {
     /// Empty registry.
@@ -29,7 +29,7 @@ impl PluginRegistry {
     }
 
     /// Append a plugin.
-    /// Consumed by `load_static` (Phase 2) and the plugin manager UI (OKT-19).
+    /// Consumed by `load_static` (Phase 2) and the plugin manager UI.
     pub fn register(&mut self, plugin: Box<dyn OpenKitePlugin>) {
         self.plugins.push(plugin);
     }

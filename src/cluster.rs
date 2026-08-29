@@ -1,5 +1,5 @@
 //! Kubernetes client factory — kubeconfig loading, per-context client cache,
-//! and live context switching (OKT-6).
+//! and live context switching.
 
 use anyhow::{Context as _, Result};
 use kube::config::{KubeConfigOptions, Kubeconfig};
@@ -23,8 +23,8 @@ pub struct ClusterState {
     clients: HashMap<String, Client>,
 }
 
-/// The query/switching API has no live consumer yet (OKT-7 context switcher,
-/// OKT-9 reflector teardown); silence dead_code.
+/// The query/switching API has no live consumer yet (context switcher,
+/// reflector teardown); silence dead_code.
 #[allow(dead_code)]
 impl ClusterState {
     /// Load the default kubeconfig (`KUBECONFIG` env, else `~/.kube/config`).

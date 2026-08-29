@@ -1,4 +1,4 @@
-//! Router + navigation shell (OKT-7, OKT-31): core routes plus a root
+//! Router + navigation shell: core routes plus a root
 //! wildcard that dispatches unknown paths through the plugin route table;
 //! the app shell chrome (sidebar + status footer); the `/openkite` bridge
 //! asset handler; and one-time JS plugin bundle evaluation.
@@ -73,7 +73,7 @@ enum Route {
 
 #[component]
 fn AppShell() -> Element {
-    // Mount the `/openkite` bridge endpoint (OKT-31). The webview's fetch
+    // Mount the `/openkite` bridge endpoint. The webview's fetch
     // POSTs (plugin `register` calls + `openkite.api.*` requests) dispatch on
     // the first URL path segment, so the handler name `openkite` is the route.
     // The shared bridge lives in a process-wide `OnceLock` (set in `run`
@@ -309,7 +309,7 @@ fn ShellNavItemView(item: crate::shell::ShellNavItem) -> Element {
     }
 }
 
-/// Status footer (OKT-31): cluster · connection dot + app version + plugin
+/// Status footer: cluster · connection dot + app version + plugin
 /// status items — the mockup's bottom bar. Renders from the same model the
 /// pure shell module exposes.
 #[component]

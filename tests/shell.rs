@@ -1,4 +1,4 @@
-//! Shell model integration (OKT-31): the pure-logic sidebar/status model
+//! Shell model integration: the pure-logic sidebar/status model
 //! the app shell renders from, exercised through the public crate API.
 
 use openkite::plugin_api::{

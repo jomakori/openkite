@@ -1,4 +1,4 @@
-//! Status badge — semantic pill for resource status (OKT-8).
+//! Status badge — semantic pill for resource status.
 
 // Some `StatusKind` variants have no consumer yet.
 #![allow(dead_code)]

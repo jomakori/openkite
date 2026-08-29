@@ -1,9 +1,9 @@
 //! JS plugin host — manifest, discovery, registry, and hot-reload watcher.
 //!
-//! Decision (OKT-28, see `docs/plugin-architecture.md`): external plugins are
+//! Decision (see `docs/plugin-architecture.md`): external plugins are
 //! JS bundles dropped into `~/.openkite/plugins/<name>/` as
 //! `manifest.json` + an entry `.js`. The webview evaluates the bundle and the
-//! plugin registers UI through the eval bridge (OKT-46). This module owns the
+//! plugin registers UI through the eval bridge. This module owns the
 //! on-disk + registry half: manifest parsing/validation, directory discovery,
 //! tracking loaded plugins, and the **hot-reload diff** — watching the plugins
 //! dir and reconciling the registry so added/removed/updated plugins take
@@ -37,7 +37,7 @@ pub struct PluginManifest {
     #[serde(default)]
     pub author: String,
     /// Statically-declared sidebar entries. Plugins may also register UI at
-    /// runtime through the eval bridge (OKT-46); these are the load-time set.
+    /// runtime through the eval bridge; these are the load-time set.
     #[serde(default)]
     pub sidebar: Vec<SidebarEntry>,
 }
@@ -330,7 +330,7 @@ pub fn watch_plugins(
     Ok(watcher)
 }
 
-/// An eval-ready JS plugin bundle (OKT-31): plugin name + entry-file path.
+/// An eval-ready JS plugin bundle: plugin name + entry-file path.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JsBundle {
     pub name: String,

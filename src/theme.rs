@@ -1,6 +1,6 @@
 //! Theme engine: CSS variable contract + opaline-backed resolution.
 //!
-//! Theming is provided by the [`opaline`] token engine (OKT-30): its 39
+//! Theming is provided by the [`opaline`] token engine: its 39
 //! builtin themes are mapped onto the CSS variable contract below via
 //! [`crate::theme_opaline`]. [`Theme`] is the resolved output surface the UI
 //! consumes — switching themes is an instant variable swap, no re-render.

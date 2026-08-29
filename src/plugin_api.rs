@@ -1,4 +1,4 @@
-//! Plugin API bridge (OKT-46): the JS surface plugins call.
+//! Plugin API bridge: the JS surface plugins call.
 //!
 //! External plugins are JS bundles evaluated in the wry webview. This module
 //! owns the testable half of the bridge:

@@ -55,7 +55,7 @@ impl OpenKiteConfig {
     }
 
     /// Persist to `~/.openkite/config.toml`, creating the directory if needed.
-    /// Consumed by the settings UI (OKT-19).
+    /// Consumed by the settings UI.
     #[allow(dead_code)]
     pub fn save(&self) -> anyhow::Result<()> {
         self.save_to(&Self::path())
