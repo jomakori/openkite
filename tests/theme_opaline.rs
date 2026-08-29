@@ -1,4 +1,4 @@
-//! Integration tests for the opaline theme source (OKT-30).
+//! Integration tests for the opaline theme source.
 
 use openkite::theme::CSS_VARS;
 use openkite::theme_opaline::{

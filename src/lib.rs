@@ -74,7 +74,7 @@ pub fn run() {
         crate::runtime::set_context(Some(active));
     }
 
-    // Install the plugin bridge (OKT-31) before launch: the app shell's
+    // Install the plugin bridge before launch: the app shell's
     // `/openkite` asset handler reads it via `runtime::bridge()`.
     let bridge = match cluster.client() {
         Some(client) => crate::bridge::Bridge::connected(client.clone()),

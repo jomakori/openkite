@@ -13,14 +13,14 @@ pub static CLIENT: GlobalSignal<Option<Client>> = Signal::global(|| None);
 /// The active context name, published by `run()` (status bar/footer).
 pub static CONTEXT: GlobalSignal<Option<String>> = Signal::global(|| None);
 
-/// Mirror of the bridge's registration store (OKT-31): refreshed by the
+/// Mirror of the bridge's registration store: refreshed by the
 /// `/openkite` asset handler after register POSTs; the sidebar and status
 /// footer render from it.
 pub static REGISTRATIONS: GlobalSignal<crate::plugin_api::RegistrationStore> =
     Signal::global(crate::plugin_api::RegistrationStore::new);
 
 /// The plugin bridge, shared between bootstrap and the app shell's asset
-/// handler (OKT-31). `OnceLock`: set once before launch, read from the
+/// handler. `OnceLock`: set once before launch, read from the
 /// handler thread and the UI alike; never swapped in place.
 static BRIDGE: OnceLock<Arc<Bridge>> = OnceLock::new();
 

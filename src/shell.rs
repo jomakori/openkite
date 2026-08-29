@@ -1,4 +1,4 @@
-//! App shell model (OKT-31): sidebar structure + cluster/namespace/status
+//! App shell model: sidebar structure + cluster/namespace/status
 //! state.
 //!
 //! The pure-logic half of the shell: the unified sidebar model (core
@@ -59,7 +59,7 @@ pub fn sidebar_model(store: &RegistrationStore) -> Vec<ShellSection> {
 }
 
 /// The plugin-added sidebar sections only — what the interactive shell
-/// (OKT-31) appends after the core nav when rendering the bridge's
+/// appends after the core nav when rendering the bridge's
 /// registration mirror. Same ordering rules as [`sidebar_model`]; plugins
 /// without sidebar items contribute no section.
 pub fn plugin_sections(store: &RegistrationStore) -> Vec<ShellSection> {

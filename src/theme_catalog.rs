@@ -1,4 +1,4 @@
-//! Theme catalog (OKT-42): curated defaults + the full opaline store.
+//! Theme catalog: curated defaults + the full opaline store.
 //!
 //! The picker (and future command palette) lists the catalog: the 5 curated
 //! defaults the app starts with, followed by the remaining opaline builtins

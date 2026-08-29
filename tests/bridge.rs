@@ -1,4 +1,4 @@
-//! Integration tests for the bridge runtime (OKT-46): envelope parsing,
+//! Integration tests for the bridge runtime: envelope parsing,
 //! registration merging, and the headless error paths. kube dispatch needs
 //! a live apiserver; the wire contract here pins what the shell mounts.
 

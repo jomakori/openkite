@@ -1,4 +1,4 @@
-//! Virtualized, sortable, filterable resource table (OKT-8).
+//! Virtualized, sortable, filterable resource table.
 //!
 //! Split into pure logic (sort / filter / windowing) — generic and unit-tested —
 //! and the Dioxus components that wrap it. The workload view consumes
@@ -172,7 +172,7 @@ pub enum TableStatus {
     Error(String),
 }
 
-/// Per-row action callbacks, wired by the consuming view (OKT-25 CRUD).
+/// Per-row action callbacks, wired by the consuming view.
 /// `EventHandler` does not implement `Debug`, so this stays `Clone + PartialEq`
 /// only — exactly what Dioxus props require.
 #[derive(Clone, PartialEq, Default)]

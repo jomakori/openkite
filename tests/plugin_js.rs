@@ -1,4 +1,4 @@
-//! Integration tests for the JS plugin host (OKT-45).
+//! Integration tests for the JS plugin host.
 
 use openkite::plugin_js::{
     coalesce, discover_plugins, load_manifest, scan_and_reconcile, JsPluginRegistry, PluginAction,

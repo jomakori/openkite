@@ -1,4 +1,4 @@
-//! Opaline theme source (OKT-30).
+//! Opaline theme source.
 //!
 //! Adopts the [`opaline`](https://crates.io/crates/opaline) token-based theme
 //! engine as a theme source: its 39 builtin themes (Catppuccin, Rose Pine,

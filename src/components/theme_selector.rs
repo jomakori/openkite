@@ -1,11 +1,11 @@
-//! Theme selector (OKT-42) — omarchy-style picker.
+//! Theme selector — omarchy-style picker.
 //!
 //! Live swatch preview per theme (bg/fg/accent chips), curated defaults
 //! section first, then the full 39-theme store. Click applies instantly —
 //! the theme engine makes switching a CSS variable swap, so the picker row's
 //! preview is exactly what the app becomes.
 
-// No live consumer yet; the settings view is the intended entry point (OKT-42).
+// No live consumer yet; the settings view is the intended entry point.
 #![allow(dead_code)]
 #![allow(non_snake_case)]
 

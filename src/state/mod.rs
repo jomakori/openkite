@@ -1,3 +1,3 @@
-//! Reactive application state shared across views (OKT-9+).
+//! Reactive application state shared across views.
 
 pub mod resources;

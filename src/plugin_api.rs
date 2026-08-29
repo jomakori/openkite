@@ -1,4 +1,4 @@
-//! Plugin API bridge (OKT-46): the JS surface plugins call.
+//! Plugin API bridge: the JS surface plugins call.
 //!
 //! External plugins are JS bundles evaluated in the wry webview. This module
 //! owns the testable half of the bridge:
@@ -161,6 +161,7 @@ pub struct RegistrationStore {
 }
 
 impl RegistrationStore {
+    /// An empty registration store.
     pub fn new() -> Self {
         Self::default()
     }
@@ -201,6 +202,7 @@ impl RegistrationStore {
         self.by_plugin.len()
     }
 
+    /// Whether no plugins have registrations.
     pub fn is_empty(&self) -> bool {
         self.by_plugin.is_empty()
     }
