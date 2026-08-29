@@ -329,3 +329,36 @@ pub fn watch_plugins(
     watcher.watch(root, notify::RecursiveMode::Recursive)?;
     Ok(watcher)
 }
+
+/// An eval-ready JS plugin bundle (OKT-31): plugin name + entry-file path.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JsBundle {
+    pub name: String,
+    pub entry: PathBuf,
+}
+
+/// Discover plugins under `root` and keep the enabled ones' bundles.
+///
+/// Broken siblings never block discovery: manifests that fail validation
+/// surface in `errors`; the enabled predicate runs on the parsed name.
+pub fn collect_bundles(
+    root: &Path,
+    enabled: impl Fn(&str) -> bool,
+) -> (Vec<JsBundle>, Vec<String>) {
+    let (discovered, errors) = discover_plugins(root);
+    let bundles = discovered
+        .into_iter()
+        .filter(|(name, _)| enabled(name))
+        .map(|(name, manifest)| JsBundle {
+            entry: root.join(&name).join(&manifest.entry),
+            name,
+        })
+        .collect();
+    (bundles, errors)
+}
+
+/// Read a bundle's source text for eval.
+pub fn load_source(bundle: &JsBundle) -> Result<String, String> {
+    fs::read_to_string(&bundle.entry)
+        .map_err(|err| format!("read {}: {err}", bundle.entry.display()))
+}

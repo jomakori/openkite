@@ -68,8 +68,39 @@ pub fn run() {
         }
     }
 
-    // Publish the active client to the UI before launching.
+    // Publish the active client + context name to the UI before launching.
     crate::runtime::set_client(cluster.client().cloned());
+    if let Some(active) = cluster.active().map(str::to_string) {
+        crate::runtime::set_context(Some(active));
+    }
 
-    dioxus::launch(router::app);
+    // Install the plugin bridge (OKT-31) before launch: the app shell's
+    // `/openkite` asset handler reads it via `runtime::bridge()`.
+    let bridge = match cluster.client() {
+        Some(client) => crate::bridge::Bridge::connected(client.clone()),
+        None => crate::bridge::Bridge::new(),
+    };
+    crate::runtime::set_bridge(bridge);
+
+    // Discover JS plugins; the shell evals their bundles after mount and
+    // their `register` POSTs flow back through the bridge at runtime.
+    let root = plugin_js::plugins_dir();
+    let (bundles, errors) = plugin_js::collect_bundles(&root, |name| config.is_enabled(name));
+    for error in &errors {
+        tracing::warn!(error = %error, "js plugin discovery failed");
+    }
+    tracing::info!(count = bundles.len(), "js plugins discovered");
+    crate::runtime::set_js_plugins(bundles);
+
+    // Launch with the bridge bootstrap injected into the page head: the
+    // inline style loads the shell chrome, the script defines `window.openkite`
+    // before any plugin bundle evaluates.
+    let head = format!(
+        "<style>{}</style>\n<script>{}</script>",
+        include_str!("../assets/main.css"),
+        plugin_api::OPENKITE_BRIDGE_JS,
+    );
+    dioxus::LaunchBuilder::new()
+        .with_cfg(dioxus::desktop::Config::new().with_custom_head(head))
+        .launch(router::app);
 }

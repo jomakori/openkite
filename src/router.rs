@@ -1,17 +1,30 @@
-//! Router + navigation shell (OKT-7). Static core routes plus a root wildcard
-//! that dispatches unknown paths through the plugin route table.
+//! Router + navigation shell (OKT-7, OKT-31): core routes plus a root
+//! wildcard that dispatches unknown paths through the plugin route table;
+//! the app shell chrome (sidebar + status footer); the `/openkite` bridge
+//! asset handler; and one-time JS plugin bundle evaluation.
 
 #![allow(non_snake_case)]
 
+use crate::bridge::Bridge;
+use crate::plugin_api::ApiResponse;
+use crate::runtime::{bridge as shared_bridge, js_plugins, REGISTRATIONS};
+use dioxus::desktop::wry;
+use dioxus::desktop::wry::http::Response as AssetHttpResponse;
+use dioxus::desktop::{use_asset_handler, AssetRequest, RequestAsyncResponder};
 use dioxus::prelude::*;
 use openkite_plugin_sdk::{SidebarEntry, SidebarSection};
 use std::collections::HashMap;
+use std::sync::{Arc, OnceLock};
 
-/// Plugin sidebar sections, populated from the registry at startup.
+/// Plugin sidebar sections (static Rust SDK plugins), populated at startup.
 static PLUGIN_SECTIONS: GlobalSignal<Vec<SidebarSection>> = Signal::global(Vec::new);
 
 /// Plugin route table keyed by full path, populated at startup.
 static ROUTE_TABLE: GlobalSignal<HashMap<String, fn() -> Element>> = Signal::global(HashMap::new);
+
+/// Evaluated-plugin guard: JS bundles eval exactly once per process, on the
+/// first AppShell mount (after the asset handler is registered).
+static EVALUATED_JS_PLUGINS: OnceLock<()> = OnceLock::new();
 
 /// Install plugin navigation + routes from the registry (once, in `main`).
 pub fn install_plugins(sections: Vec<SidebarSection>, routes: HashMap<String, fn() -> Element>) {
@@ -42,7 +55,7 @@ fn full_path(path: &[String]) -> String {
 }
 
 /// The `#[layout(AppShell)]` stays open for every route that follows, so the
-/// sidebar wraps core routes and the plugin catch-all alike.
+/// sidebar + status footer wrap core routes and the plugin catch-all alike.
 #[derive(Routable, Clone, Debug, PartialEq)]
 enum Route {
     #[layout(AppShell)]
@@ -60,19 +73,139 @@ enum Route {
 
 #[component]
 fn AppShell() -> Element {
+    // Mount the `/openkite` bridge endpoint (OKT-31). The webview's fetch
+    // POSTs (plugin `register` calls + `openkite.api.*` requests) dispatch on
+    // the first URL path segment, so the handler name `openkite` is the route.
+    // The shared bridge lives in a process-wide `OnceLock` (set in `run`
+    // before launch), so re-renders never re-mount or race it.
+    use_asset_handler(
+        "openkite",
+        |req: AssetRequest, responder: RequestAsyncResponder| {
+            dispatch_bridge_post(req, responder);
+        },
+    );
+
+    // Evaluate every discovered JS plugin bundle exactly once per process:
+    // the first AppShell mount, after the asset handler is registered and
+    // the bootstrap script (`window.openkite`, injected in the page head by
+    // `run`) is live. Register POSTs from the bundles then flow through the
+    // asset handler, which refreshes the `REGISTRATIONS` mirror — the
+    // sidebar and status footer re-render.
+    use_effect(move || {
+        if EVALUATED_JS_PLUGINS.set(()).is_ok() {
+            for bundle in js_plugins() {
+                match crate::plugin_js::load_source(&bundle) {
+                    Ok(source) => {
+                        tracing::info!(plugin = %bundle.name, "evaluating js plugin bundle");
+                        // Stamp the plugin identity for the envelope `plugin`
+                        // field; clear it so stray calls can't masquerade.
+                        let wrapped = format!(
+                            "window.__openkite_plugin = {:?};\n{}\nwindow.__openkite_plugin = null;",
+                            bundle.name, source,
+                        );
+                        document::eval(&wrapped);
+                    }
+                    Err(error) => {
+                        tracing::warn!(plugin = %bundle.name, %error, "js plugin bundle load failed");
+                    }
+                }
+            }
+        }
+    });
+
     rsx! {
         div { class: "app-shell",
             Sidebar {}
-            main { class: "content",
-                Outlet::<Route> {}
+            div { class: "main-col",
+                main { class: "content",
+                    Outlet::<Route> {}
+                }
+                StatusFooter {}
             }
         }
     }
 }
 
+/// Dispatch one bridge POST from the webview.
+///
+/// Non-POST requests and a missing bridge answer immediately with an error
+/// envelope; real work runs on the ambient tokio runtime (the same runtime
+/// dioxus uses for its own protocol handlers) and answers through the async
+/// responder, keeping the UI thread free.
+fn dispatch_bridge_post(req: AssetRequest, responder: RequestAsyncResponder) {
+    if req.method() != wry::http::Method::POST {
+        responder.respond(json_response(ApiResponse::Error {
+            error: "method not allowed: bridge requests must be POST".into(),
+        }));
+        return;
+    }
+    let Some(bridge) = shared_bridge() else {
+        responder.respond(json_response(ApiResponse::Error {
+            error: "bridge not installed".into(),
+        }));
+        return;
+    };
+    let Ok(text) = std::str::from_utf8(req.body()) else {
+        responder.respond(json_response(ApiResponse::Error {
+            error: "request body is not utf-8".into(),
+        }));
+        return;
+    };
+    let text = text.to_string();
+    tokio::spawn(async move {
+        let resp = bridge.handle_post(&text).await;
+        refresh_registrations(&bridge);
+        responder.respond(json_response(resp));
+    });
+}
+
+/// Mirror the bridge's registration store into the reactive `REGISTRATIONS`
+/// signal; the sidebar + status footer render from the mirror.
+///
+/// A failed borrow just means a render holds the signal right now — safe to
+/// skip, the next register POST re-mirrors.
+fn refresh_registrations(bridge: &Arc<Bridge>) {
+    match REGISTRATIONS.try_write_unchecked() {
+        Ok(mut mirror) => *mirror = bridge.snapshot(),
+        Err(_) => {
+            tracing::warn!("registration mirror busy; sidebar refresh deferred to next register")
+        }
+    }
+}
+
+/// Serialize an [`ApiResponse`] into a JSON HTTP response for the webview.
+fn json_response(resp: ApiResponse) -> AssetHttpResponse<Vec<u8>> {
+    let body = serde_json::to_vec(&resp).unwrap_or_else(|err| {
+        serde_json::to_vec(&ApiResponse::Error {
+            error: format!("serialize response: {err}"),
+        })
+        .expect("serializing an error fallback cannot fail")
+    });
+    AssetHttpResponse::builder()
+        .header("Content-Type", "application/json")
+        .body(body)
+        .expect("static response parts")
+}
+
+/// One status-bar slot: precomputed label + dot style (pure render data).
+fn status_rows(entries: &[crate::shell::StatusBarEntry]) -> Vec<(String, String)> {
+    entries
+        .iter()
+        .map(|entry| {
+            let dot = match entry.color.as_deref() {
+                Some(color) => format!("background: {}", crate::shell::status_dot_color(color)),
+                None => "display: none".into(),
+            };
+            (entry.label.clone(), dot)
+        })
+        .collect()
+}
+
 #[component]
 fn Sidebar() -> Element {
     let sections = PLUGIN_SECTIONS.read();
+    let registrations = REGISTRATIONS.read();
+    let js_sections = crate::shell::plugin_sections(&registrations);
     rsx! {
         aside { class: "sidebar",
             h1 { class: "brand", "OpenKite" }
@@ -85,6 +218,12 @@ fn Sidebar() -> Element {
                     div { class: "nav-divider" }
                     for section in sections.iter() {
                         SectionView { section: section.clone() }
+                    }
+                }
+                if !js_sections.is_empty() {
+                    div { class: "nav-divider" }
+                    for section in js_sections.iter() {
+                        ShellSectionView { section: section.clone() }
                     }
                 }
             }
@@ -135,6 +274,64 @@ fn PluginNavItem(entry: SidebarEntry, accent: String) -> Element {
             class: if active { "nav-item plugin active" } else { "nav-item plugin" },
             style: "color: {accent}",
             "{entry.label}"
+        }
+    }
+}
+
+/// A sidebar section contributed by a JS plugin at runtime (rendered from the
+/// `REGISTRATIONS` mirror, not the static SDK registry).
+#[component]
+fn ShellSectionView(section: crate::shell::ShellSection) -> Element {
+    rsx! {
+        div { class: "nav-section",
+            div { class: "nav-section-label", "{section.label}" }
+            for item in section.items.iter() {
+                ShellNavItemView { item: item.clone() }
+            }
+        }
+    }
+}
+
+#[component]
+fn ShellNavItemView(item: crate::shell::ShellNavItem) -> Element {
+    let current = use_route::<Route>();
+    let target = plugin_route(&item.route);
+    let active = match &current {
+        Route::Plugin { path } => full_path(path) == item.route,
+        _ => false,
+    };
+    rsx! {
+        Link {
+            to: target,
+            class: if active { "nav-item plugin active" } else { "nav-item plugin" },
+            "{item.label}"
+        }
+    }
+}
+
+/// Status footer (OKT-31): cluster · connection dot + app version + plugin
+/// status items — the mockup's bottom bar. Renders from the same model the
+/// pure shell module exposes.
+#[component]
+fn StatusFooter() -> Element {
+    let context = crate::runtime::CONTEXT.read();
+    let connected = crate::runtime::CLIENT.read().is_some();
+    let registrations = REGISTRATIONS.read();
+    let state = crate::shell::ShellState {
+        cluster: context.clone(),
+        namespace: "default".into(),
+        connected,
+    };
+    let entries = crate::shell::status_bar_model(&state, &registrations, env!("CARGO_PKG_VERSION"));
+    let rows = status_rows(&entries);
+    rsx! {
+        footer { class: "status",
+            for (label, dot) in rows {
+                span { class: "status-entry",
+                    span { class: "status-dot", style: "{dot}" }
+                    "{label}"
+                }
+            }
         }
     }
 }
@@ -206,5 +403,26 @@ mod tests {
             panic!("expected Plugin variant");
         };
         assert_eq!(full_path(&path), "/argocd/apps");
+    }
+
+    #[test]
+    fn status_rows_maps_colors_and_hides_undotted_entries() {
+        let entries = vec![
+            crate::shell::StatusBarEntry {
+                label: "prod · Connected".into(),
+                color: Some("green".into()),
+                plugin: None,
+            },
+            crate::shell::StatusBarEntry {
+                label: "v0.0.0".into(),
+                color: None,
+                plugin: None,
+            },
+        ];
+        let rows = status_rows(&entries);
+        assert_eq!(rows[0].0, "prod · Connected");
+        assert_eq!(rows[0].1, "background: var(--green)");
+        assert_eq!(rows[1].0, "v0.0.0");
+        assert_eq!(rows[1].1, "display: none");
     }
 }
