@@ -2,6 +2,11 @@ name: lint-test
 
 on:
   pull_request:
+  # Main-scoped cache saves: rust-cache stores per-run caches, and PR-only
+  # runs never populate the default branch's cache, so fresh PR branches
+  # restore cold. A push run after each merge keeps `main` warm.
+  push:
+    branches: [main]
 
 env:
   CARGO_TERM_COLOR: always
