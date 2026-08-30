@@ -5,6 +5,7 @@ pub mod cluster;
 pub mod components;
 pub mod config;
 pub mod crud;
+pub mod design;
 pub mod fuzzy;
 pub mod logs;
 pub mod metrics;
