@@ -260,9 +260,8 @@ fn TopBar() -> Element {
             }
             div { class: "ns-chips",
                 for ns in namespaces.iter() {
-                    let active_ns = selected.iter().any(|s| s == ns);
                     button {
-                        class: if active_ns { "ns-chip active" } else { "ns-chip" },
+                        class: if selected.iter().any(|s| s == ns) { "ns-chip active" } else { "ns-chip" },
                         onclick: move |_| crate::runtime::toggle_namespace(ns.clone()),
                         "{ns}"
                     }
