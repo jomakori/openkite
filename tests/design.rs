@@ -61,6 +61,7 @@ const REQUIRED_CLASSES: &[&str] = &[
     ".dot.ok",
     ".dot.warn",
     ".dot.err",
+    ".sort-indicator",
 ];
 
 /// Properties the opaline theme contract already provides — must not be

@@ -14,7 +14,7 @@ use std::ops::Range;
 
 use dioxus::prelude::*;
 
-use crate::components::status_badge::{StatusBadge, StatusKind};
+use crate::components::status_badge::{StatusKind, StatusPill};
 
 /// Fixed row height for virtualization, in pixels.
 pub const ROW_HEIGHT: f64 = 36.0;
@@ -109,7 +109,7 @@ impl Cell {
         }
     }
 
-    /// Status cell rendered as a badge; sorts by its label.
+    /// Status cell rendered as a pill; sorts by its label.
     pub fn status(label: &str, kind: StatusKind) -> Self {
         let text = label.to_string();
         let sort = SortKey::Text(text.clone());
@@ -199,6 +199,7 @@ pub fn ResourceTable(
     #[props(default)] status: TableStatus,
     #[props(default)] empty_message: Option<String>,
     #[props(default)] row_actions: Option<RowActions>,
+    #[props(default)] on_row_click: Option<EventHandler<ResourceRow>>,
     #[props(default = 600.0)] height: f64,
 ) -> Element {
     let sort = use_signal(|| None::<(usize, SortDirection)>);
@@ -243,28 +244,35 @@ pub fn ResourceTable(
                 .collect();
 
             rsx! {
-                div { class: "resource-table",
-                    div { class: "table-toolbar",
-                        input {
-                            class: "table-filter",
-                            placeholder: "Filter…",
-                            value: "{query}",
-                            oninput: move |event| query.set(event.value()),
+                div { class: "panel",
+                    div { class: "table-wrap",
+                        div { class: "resource-table",
+                            div { class: "table-toolbar",
+                                div { class: "search-field",
+                                    input {
+                                        class: "table-filter",
+                                        placeholder: "Filter…",
+                                        value: "{query}",
+                                        oninput: move |event| query.set(event.value()),
+                                    }
+                                }
+                                for (label, active) in chips.into_iter() {
+                                    { namespace_chip(label, active, namespace) }
+                                }
+                            }
+                            div { class: "table-header table-row",
+                                for (i, column) in columns.iter().enumerate() {
+                                    { header_cell(i, column, sort) }
+                                }
+                            }
+                            TableBody {
+                                view,
+                                columns: columns.clone(),
+                                row_actions: row_actions.clone(),
+                                on_row_click: on_row_click.clone(),
+                                height,
+                            }
                         }
-                        for (label, active) in chips.into_iter() {
-                            { namespace_chip(label, active, namespace) }
-                        }
-                    }
-                    div { class: "table-header table-row",
-                        for (i, column) in columns.iter().enumerate() {
-                            { header_cell(i, column, sort) }
-                        }
-                    }
-                    TableBody {
-                        view,
-                        columns: columns.clone(),
-                        row_actions: row_actions.clone(),
-                        height,
                     }
                 }
             }
@@ -328,6 +336,7 @@ fn TableBody(
     view: Vec<ResourceRow>,
     columns: Vec<ColumnDef>,
     row_actions: Option<RowActions>,
+    on_row_click: Option<EventHandler<ResourceRow>>,
     height: f64,
 ) -> Element {
     let mut scroll_top = use_signal(|| 0.0f64);
@@ -346,7 +355,16 @@ fn TableBody(
             onscroll: move |event| scroll_top.set(event.scroll_top()),
             div { style: "height: {total_height}px; position: relative;",
                 for (offset, row) in slice.iter().enumerate() {
-                    { render_table_row(row, offset, start, &widths, row_actions.clone()) }
+                    {
+                        render_table_row(
+                            row,
+                            offset,
+                            start,
+                            &widths,
+                            row_actions.clone(),
+                            on_row_click,
+                        )
+                    }
                 }
             }
         }
@@ -360,14 +378,22 @@ fn render_table_row(
     start: usize,
     widths: &[Option<u32>],
     row_actions: Option<RowActions>,
+    on_row_click: Option<EventHandler<ResourceRow>>,
 ) -> Element {
     let top = (start + offset) as f64 * ROW_HEIGHT;
     let row_id = row.id.clone();
+    let row_for_click = row.clone();
+    let handler = on_row_click;
     rsx! {
         div {
             key: "{row_id}",
             class: "table-row",
             style: "position: absolute; top: {top}px; height: {ROW_HEIGHT}px; left: 0; right: 0;",
+            onclick: move |_| {
+                if let Some(h) = handler {
+                    h.call(row_for_click.clone());
+                }
+            },
             for (i, cell) in row.cells.iter().enumerate() {
                 { render_table_cell(cell, i, widths.get(i).copied().flatten()) }
             }
@@ -378,7 +404,7 @@ fn render_table_row(
     }
 }
 
-/// Render a single table cell (plain text or status badge).
+/// Render a single table cell (plain text or status pill).
 fn render_table_cell(cell: &Cell, index: usize, width: Option<u32>) -> Element {
     let style = width.map(|w| format!("width: {w}px")).unwrap_or_default();
     match cell.status {
@@ -387,7 +413,7 @@ fn render_table_cell(cell: &Cell, index: usize, width: Option<u32>) -> Element {
                 key: "{index}",
                 class: "table-cell",
                 style: "{style}",
-                StatusBadge { status: kind }
+                StatusPill { status: kind }
             }
         },
         None => rsx! {
@@ -432,6 +458,23 @@ fn render_action_button(
             class: "{class}",
             onclick: move |_| handler.call(id.clone()),
             "{label}"
+        }
+    }
+}
+
+/// Inline readiness indicator: a row of small dots (`.health-dots` /
+/// `.dot.ok` / `.dot.err`) for the per-instance status column. The first
+/// `ready` dots are green; the rest are red.
+#[component]
+pub fn HealthDots(ready: u32, total: u32) -> Element {
+    let dots: Vec<&'static str> = (0..total)
+        .map(|i| if i < ready { "ok" } else { "err" })
+        .collect();
+    rsx! {
+        div { class: "health-dots",
+            for cls in dots {
+                span { class: "dot {cls}" }
+            }
         }
     }
 }
