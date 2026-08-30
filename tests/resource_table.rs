@@ -3,11 +3,14 @@
 //! Re-asserts the pure-logic helpers (`sort_by_key`, `compare_sort_keys`,
 //! `visible_range`, `matches_query`, `Cell`, `ResourceRow::search_text`)
 //! from the public API and pins the `StatusKind::pill_class` mapping
-//! added by the design-system re-skin.
+//! added by the design-system re-skin. The `namespace_filter` tests pin
+//! the multi-select namespace chip semantics.
+
+use std::collections::HashSet;
 
 use openkite::components::resource_table::{
-    compare_sort_keys, matches_query, sort_by_key, visible_range, Cell, ResourceRow, SortDirection,
-    SortKey, OVERSCAN, ROW_HEIGHT,
+    compare_sort_keys, matches_query, namespace_filter, sort_by_key, visible_range, Cell,
+    ResourceRow, SortDirection, SortKey, OVERSCAN, ROW_HEIGHT,
 };
 use openkite::components::status_badge::StatusKind;
 
@@ -17,6 +20,18 @@ fn row_with_namespace(namespace: Option<&str>, cells: Vec<Cell>) -> ResourceRow 
         namespace: namespace.map(str::to_string),
         cells,
     }
+}
+
+fn ns_row(id: &str, namespace: Option<&str>) -> ResourceRow {
+    ResourceRow {
+        id: id.into(),
+        namespace: namespace.map(str::to_string),
+        cells: vec![Cell::text(id)],
+    }
+}
+
+fn ns_set(names: &[&str]) -> HashSet<String> {
+    names.iter().map(|n| n.to_string()).collect()
 }
 
 #[test]
@@ -130,6 +145,21 @@ fn cell_constructors_set_expected_sort_keys() {
 }
 
 #[test]
+fn health_dots_cell_text_and_sort_key() {
+    use openkite::components::resource_table::{CellExtras, HealthDot};
+
+    let cell = Cell::health_dots(vec![HealthDot::Ok, HealthDot::Ok, HealthDot::Err]);
+    assert_eq!(cell.text, "2/3");
+    assert_eq!(cell.sort, SortKey::Number(2.0));
+    assert!(matches!(cell.extras, CellExtras::HealthDots(_)));
+
+    let empty = Cell::health_dots(Vec::new());
+    assert_eq!(empty.text, "—");
+    assert_eq!(empty.sort, SortKey::Number(0.0));
+    assert!(matches!(empty.extras, CellExtras::HealthDots(ref dots) if dots.is_empty()));
+}
+
+#[test]
 fn search_text_includes_namespace_and_cells() {
     let row = row_with_namespace(
         Some("default"),
@@ -194,4 +224,72 @@ fn pill_class_mapping_matches_legacy_class() {
     assert_eq!(StatusKind::Pending.class(), "status-warn");
     assert_eq!(StatusKind::Failed.class(), "status-err");
     assert_eq!(StatusKind::Unknown.class(), "status-muted");
+}
+
+#[test]
+fn namespace_filter_empty_selection_keeps_every_row() {
+    let rows = vec![
+        ns_row("a", Some("default")),
+        ns_row("b", Some("kube-system")),
+        ns_row("c", None),
+    ];
+    let filtered = namespace_filter(&rows, &HashSet::new());
+    assert_eq!(filtered.len(), 3);
+}
+
+#[test]
+fn namespace_filter_single_selection_narrows_to_that_namespace() {
+    let rows = vec![
+        ns_row("a", Some("default")),
+        ns_row("b", Some("kube-system")),
+        ns_row("c", Some("default")),
+    ];
+    let filtered = namespace_filter(&rows, &ns_set(&["default"]));
+    assert_eq!(filtered.len(), 2);
+    assert!(filtered
+        .iter()
+        .all(|r| r.namespace.as_deref() == Some("default")));
+}
+
+#[test]
+fn namespace_filter_multi_selection_unions_namespaces() {
+    let rows = vec![
+        ns_row("a", Some("default")),
+        ns_row("b", Some("kube-system")),
+        ns_row("c", Some("monitoring")),
+    ];
+    let filtered = namespace_filter(&rows, &ns_set(&["default", "kube-system"]));
+    assert_eq!(filtered.len(), 2);
+    assert_eq!(filtered[0].id, "a");
+    assert_eq!(filtered[1].id, "b");
+}
+
+#[test]
+fn namespace_filter_unknown_selection_returns_no_rows() {
+    let rows = vec![ns_row("a", Some("default"))];
+    let filtered = namespace_filter(&rows, &ns_set(&["ghost"]));
+    assert!(filtered.is_empty());
+}
+
+#[test]
+fn namespace_filter_keeps_cluster_scoped_rows_only_without_selection() {
+    let rows = vec![ns_row("cluster-a", None), ns_row("pod-a", Some("default"))];
+    // No selection → everything visible, including cluster-scoped rows.
+    assert_eq!(namespace_filter(&rows, &HashSet::new()).len(), 2);
+    // Any active selection → cluster-scoped rows drop out.
+    let filtered = namespace_filter(&rows, &ns_set(&["default"]));
+    assert_eq!(filtered.len(), 1);
+    assert_eq!(filtered[0].id, "pod-a");
+}
+
+#[test]
+fn namespace_filter_does_not_collapse_duplicate_namespace_rows() {
+    let rows = vec![
+        ns_row("pod-1", Some("default")),
+        ns_row("pod-2", Some("default")),
+    ];
+    let filtered = namespace_filter(&rows, &ns_set(&["default"]));
+    assert_eq!(filtered.len(), 2);
+    assert_eq!(filtered[0].id, "pod-1");
+    assert_eq!(filtered[1].id, "pod-2");
 }
