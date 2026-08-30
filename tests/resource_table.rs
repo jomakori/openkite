@@ -146,8 +146,9 @@ fn search_text_includes_namespace_and_cells() {
 
 #[test]
 fn row_height_is_a_positive_constant() {
-    assert!(ROW_HEIGHT > 0.0);
-    assert_eq!(OVERSCAN, 8);
+    // Compile-time invariants, kept here so a failure points at this test.
+    const _: () = assert!(ROW_HEIGHT > 0.0);
+    const _: () = assert!(OVERSCAN == 8);
 }
 
 #[test]
