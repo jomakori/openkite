@@ -115,6 +115,8 @@ fn AppShell() -> Element {
 
     rsx! {
         div { class: "app-shell",
+            SwitcherKeybind {}
+            ClusterSwitcher {}
             Sidebar {}
             div { class: "main-col",
                 main { class: "content",

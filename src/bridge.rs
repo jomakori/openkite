@@ -23,6 +23,8 @@ use k8s_openapi::api::core::v1::Pod;
 use kube::api::LogParams;
 use kube::core::DynamicObject;
 use kube::discovery::{ApiResource, Discovery, Scope};
+use std::sync::{Arc, Mutex, RwLock};
+
 use kube::{Api, Client};
 use serde_json::{json, Value};
 
@@ -38,14 +40,14 @@ const NO_CLUSTER: &str = "no cluster connected";
 /// the `/openkite` asset handler fronting [`Bridge::handle_post`].
 /// The [`RegistrationStore`] is shared so views render registrations live.
 pub struct Bridge {
-    client: Option<Client>,
+    client: RwLock<Option<Client>>,
     store: Arc<Mutex<RegistrationStore>>,
 }
 
 impl Default for Bridge {
     fn default() -> Self {
         Self {
-            client: None,
+            client: RwLock::new(None),
             store: Arc::new(Mutex::new(RegistrationStore::new())),
         }
     }
@@ -59,20 +61,20 @@ impl Bridge {
 
     /// Connected bridge over the app's kube client.
     pub fn connected(client: Client) -> Self {
-        Self {
-            client: Some(client),
-            ..Self::default()
-        }
+        let bridge = Self::default();
+        *bridge.client.write().expect("bridge client lock") = Some(client);
+        bridge
     }
 
     /// Swap the kube client (cluster switch / disconnect).
-    pub fn set_client(&mut self, client: Option<Client>) {
-        self.client = client;
+    /// Interior-mutable: safe through the shared `Arc<Bridge>`.
+    pub fn set_client(&self, client: Option<Client>) {
+        *self.client.write().expect("bridge client lock") = client;
     }
 
-    /// The active kube client, if connected.
-    pub fn client(&self) -> Option<&Client> {
-        self.client.as_ref()
+    /// A clone of the active kube client, if connected.
+    pub fn client(&self) -> Option<Client> {
+        self.client.read().expect("bridge client lock").clone()
     }
 
     /// Shared handle to the UI registration store (shell views read this).
@@ -110,17 +112,17 @@ impl Bridge {
                 let mut store = self.store.lock().expect("registration store lock");
                 apply_register(&mut store, plugin, &kind, payload)
             }
-            ApiRequest::List { kind, ns } => match self.client.clone() {
+            ApiRequest::List { kind, ns } => match self.client() {
                 Some(client) => list_resource(&client, &kind, ns.as_deref()).await,
                 None => Err(NO_CLUSTER.into()),
             },
             // Watch serves a snapshot (no live reflector yet); the wire
             // contract (promise resolving once) is unchanged either way.
-            ApiRequest::Watch { kind, ns } => match self.client.clone() {
+            ApiRequest::Watch { kind, ns } => match self.client() {
                 Some(client) => list_resource(&client, &kind, ns.as_deref()).await,
                 None => Err(NO_CLUSTER.into()),
             },
-            ApiRequest::Get { kind, ns, name } => match self.client.clone() {
+            ApiRequest::Get { kind, ns, name } => match self.client() {
                 Some(client) => get_resource(&client, &kind, &ns, &name).await,
                 None => Err(NO_CLUSTER.into()),
             },
@@ -128,7 +130,7 @@ impl Bridge {
                 name,
                 ns,
                 container,
-            } => match self.client.clone() {
+            } => match self.client() {
                 Some(client) => pod_logs(&client, &name, &ns, container).await,
                 None => Err(NO_CLUSTER.into()),
             },

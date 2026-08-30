@@ -13,6 +13,9 @@ pub static CLIENT: GlobalSignal<Option<Client>> = Signal::global(|| None);
 /// The active context name, published by `run()` (status bar/footer).
 pub static CONTEXT: GlobalSignal<Option<String>> = Signal::global(|| None);
 
+/// All kubeconfig context names, published by `run()` (switcher overlay).
+pub static CONTEXTS: GlobalSignal<Vec<String>> = Signal::global(Vec::new);
+
 /// Mirror of the bridge's registration store: refreshed by the
 /// `/openkite` asset handler after register POSTs; the sidebar and status
 /// footer render from it.
@@ -32,6 +35,11 @@ pub fn set_client(client: Option<Client>) {
 /// Publish the active context name (or `None` when disconnected).
 pub fn set_context(name: Option<String>) {
     *CONTEXT.write() = name;
+}
+
+/// Publish the kubeconfig context list (ctrl-tab switcher).
+pub fn set_contexts(names: Vec<String>) {
+    *CONTEXTS.write() = names;
 }
 
 /// The current client, if connected.
