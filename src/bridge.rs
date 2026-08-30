@@ -17,13 +17,12 @@
 //! (`plugin_host`) and the on-disk JS host half (`plugin_js.rs`) are
 //! unchanged; the shell view mounts this behind its asset handler.
 
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 
 use k8s_openapi::api::core::v1::Pod;
 use kube::api::LogParams;
 use kube::core::DynamicObject;
 use kube::discovery::{ApiResource, Discovery, Scope};
-use std::sync::{Arc, Mutex, RwLock};
 
 use kube::{Api, Client};
 use serde_json::{json, Value};
