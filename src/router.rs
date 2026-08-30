@@ -117,6 +117,7 @@ fn AppShell() -> Element {
         div { class: "app-shell",
             Sidebar {}
             div { class: "main-col",
+                TopBar {}
                 main { class: "content",
                     Outlet::<Route> {}
                 }
@@ -231,6 +232,46 @@ fn Sidebar() -> Element {
     }
 }
 
+/// Top bar: multi-context cluster selector + namespace multi-select chips.
+///
+/// The cluster `<select>` lists every kubeconfig context; changing it
+/// reconnects through [`crate::runtime::switch_context`]. Namespace chips
+/// toggle membership in the selected set — views read
+/// [`crate::runtime::SELECTED_NAMESPACES`] to scope their queries.
+#[component]
+fn TopBar() -> Element {
+    let contexts = crate::runtime::CONTEXTS.read();
+    let active = crate::runtime::CONTEXT.read();
+    let namespaces = crate::runtime::NAMESPACES.read();
+    let selected = crate::runtime::SELECTED_NAMESPACES.read();
+
+    let active_value = active.clone().unwrap_or_default();
+    let context_options: Vec<String> = contexts.clone();
+
+    rsx! {
+        header { class: "topbar",
+            select {
+                class: "cluster-select",
+                value: "{active_value}",
+                oninput: move |event| crate::runtime::switch_context(event.value()),
+                for context in context_options.iter() {
+                    option { value: "{context}", "{context}" }
+                }
+            }
+            div { class: "ns-chips",
+                for ns in namespaces.iter() {
+                    let active_ns = selected.iter().any(|s| s == ns);
+                    button {
+                        class: if active_ns { "ns-chip active" } else { "ns-chip" },
+                        onclick: move |_| crate::runtime::toggle_namespace(ns.clone()),
+                        "{ns}"
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[component]
 fn NavItem(label: String, to: Route) -> Element {
     let current = use_route::<Route>();
@@ -316,11 +357,13 @@ fn ShellNavItemView(item: crate::shell::ShellNavItem) -> Element {
 fn StatusFooter() -> Element {
     let context = crate::runtime::CONTEXT.read();
     let connected = crate::runtime::CLIENT.read().is_some();
+    let prometheus = crate::runtime::PROMETHEUS.read();
     let registrations = REGISTRATIONS.read();
     let state = crate::shell::ShellState {
         cluster: context.clone(),
         namespace: "default".into(),
         connected,
+        prometheus: prometheus.clone(),
     };
     let entries = crate::shell::status_bar_model(&state, &registrations, env!("CARGO_PKG_VERSION"));
     let rows = status_rows(&entries);

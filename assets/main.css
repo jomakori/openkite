@@ -117,3 +117,26 @@ body {
 
 .status-entry { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--fg-2); display: inline-block; }
+
+/* Top bar: cluster selector + namespace chips. */
+.topbar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 16px; box-sizing: border-box;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-1) 85%, transparent);
+}
+.cluster-select {
+  font: inherit; font-size: 13px; color: var(--fg-0);
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 4px 8px; outline: none;
+}
+.cluster-select:focus { border-color: var(--accent); }
+.ns-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ns-chip {
+  font: inherit; font-size: 12px; color: var(--fg-1);
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: 999px; padding: 3px 10px; cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.ns-chip:hover { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); }
+.ns-chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }

@@ -97,6 +97,8 @@ pub struct ShellState {
     pub namespace: String,
     /// Whether a kube client is connected.
     pub connected: bool,
+    /// Detected Prometheus service name, if any (status-bar indicator).
+    pub prometheus: Option<String>,
 }
 
 impl Default for ShellState {
@@ -105,6 +107,7 @@ impl Default for ShellState {
             cluster: None,
             namespace: "default".into(),
             connected: false,
+            prometheus: None,
         }
     }
 }
@@ -136,6 +139,17 @@ impl ShellState {
     }
 }
 
+/// Prune a multi-select namespace set to the available list: drop namespaces
+/// that no longer exist (cluster switched), and fall back to `["default"]`
+/// when the set empties out. Pure — the namespace-chip row and the runtime
+/// refresh both call this.
+pub fn prune_namespaces(selected: &mut Vec<String>, available: &[String]) {
+    selected.retain(|ns| available.contains(ns));
+    if selected.is_empty() {
+        selected.push("default".into());
+    }
+}
+
 /// One status-bar slot: core (`cluster`/`connection`/`version`) or a plugin
 /// status item (label + color).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -145,8 +159,8 @@ pub struct StatusBarEntry {
     pub plugin: Option<String>,
 }
 
-/// The status-bar model: cluster, connection, version, then plugin status
-/// items in plugin order.
+/// The status-bar model: cluster, connection, version, Prometheus (when
+/// detected), then plugin status items in plugin order.
 pub fn status_bar_model(
     state: &ShellState,
     store: &RegistrationStore,
@@ -164,6 +178,13 @@ pub fn status_bar_model(
             plugin: None,
         },
     ];
+    if let Some(prometheus) = &state.prometheus {
+        entries.push(StatusBarEntry {
+            label: format!("Prometheus · {prometheus}"),
+            color: Some("green".into()),
+            plugin: None,
+        });
+    }
     for (plugin, item) in store.all_status_items() {
         entries.push(StatusBarEntry {
             label: item.label.clone(),
@@ -316,6 +337,22 @@ mod tests {
     }
 
     #[test]
+    fn prune_namespaces_drops_missing_and_defaults_when_empty() {
+        let mut selected = vec!["team-a".to_string(), "ghost".to_string()];
+        let available = vec!["default".to_string(), "team-a".to_string()];
+        prune_namespaces(&mut selected, &available);
+        assert_eq!(selected, vec!["team-a".to_string()]);
+
+        let mut selected = vec!["ghost".to_string()];
+        prune_namespaces(&mut selected, &available);
+        assert_eq!(selected, vec!["default".to_string()]);
+
+        let mut selected = vec!["team-a".to_string()];
+        prune_namespaces(&mut selected, &available);
+        assert_eq!(selected, vec!["team-a".to_string()]);
+    }
+
+    #[test]
     fn status_bar_model_merges_core_and_plugin_entries() {
         let mut store = RegistrationStore::new();
         store.upsert(
@@ -334,6 +371,23 @@ mod tests {
         assert_eq!(entries[1].label, "v0.8.0");
         assert_eq!(entries[2].label, "argocd: ok");
         assert_eq!(entries[2].plugin.as_deref(), Some("argocd"));
+    }
+
+    #[test]
+    fn status_bar_model_includes_prometheus_when_detected() {
+        let state = ShellState {
+            prometheus: Some("prometheus-operated".into()),
+            ..ShellState::default()
+        };
+        let entries = status_bar_model(&state, &RegistrationStore::new(), "0.8.0");
+        assert_eq!(entries.len(), 3);
+        assert_eq!(entries[2].label, "Prometheus · prometheus-operated");
+        assert_eq!(entries[2].color.as_deref(), Some("green"));
+        assert_eq!(entries[2].plugin, None);
+
+        // No Prometheus → no extra entry.
+        let entries = status_bar_model(&ShellState::default(), &RegistrationStore::new(), "0.8.0");
+        assert_eq!(entries.len(), 2);
     }
 
     #[test]

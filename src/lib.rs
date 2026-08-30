@@ -82,6 +82,13 @@ pub fn run() {
     };
     crate::runtime::set_bridge(bridge);
 
+    // Hand the cluster state to the runtime (multi-context selector) and
+    // refresh the initial namespace list + Prometheus detection.
+    crate::runtime::install_cluster(cluster);
+    if let Some(client) = crate::runtime::client() {
+        runtime.block_on(crate::runtime::refresh_cluster_meta(&client));
+    }
+
     // Discover JS plugins; the shell evals their bundles after mount and
     // their `register` POSTs flow back through the bridge at runtime.
     let root = plugin_js::plugins_dir();
