@@ -24,7 +24,7 @@ pub enum StatusKind {
 }
 
 impl StatusKind {
-    /// CSS class for the pill (semantic color).
+    /// CSS class for the legacy badge (semantic color).
     pub fn class(self) -> &'static str {
         match self {
             StatusKind::Running | StatusKind::Ready | StatusKind::Succeeded => "status-ok",
@@ -49,13 +49,33 @@ impl StatusKind {
             StatusKind::Suspended => "Suspended",
         }
     }
+
+    /// Design-system pill variant: maps the semantic status onto the
+    /// `.pill.success` / `.pill.warn` / `.pill.danger` / `.pill.muted`
+    /// classes from the design-system stylesheet.
+    pub fn pill_class(self) -> &'static str {
+        match self {
+            StatusKind::Running | StatusKind::Ready | StatusKind::Succeeded => "success",
+            StatusKind::Pending | StatusKind::OutOfSync => "warn",
+            StatusKind::Failed | StatusKind::CrashLoop | StatusKind::Degraded => "danger",
+            StatusKind::Unknown | StatusKind::Suspended => "muted",
+        }
+    }
 }
 
-/// A small colored pill denoting `status`.
+/// A small colored pill denoting `status` (legacy `.status-badge` styling).
 #[component]
 pub fn StatusBadge(status: StatusKind) -> Element {
     rsx! {
         span { class: "status-badge {status.class()}", "{status.label()}" }
+    }
+}
+
+/// A design-system status pill (`.pill` + semantic variant) denoting `status`.
+#[component]
+pub fn StatusPill(status: StatusKind) -> Element {
+    rsx! {
+        span { class: "pill {status.pill_class()}", "{status.label()}" }
     }
 }
 
@@ -88,5 +108,21 @@ mod tests {
         assert_eq!(StatusKind::Running.class(), StatusKind::Ready.class());
         assert_eq!(StatusKind::Failed.class(), StatusKind::CrashLoop.class());
         assert_ne!(StatusKind::Running.class(), StatusKind::Failed.class());
+    }
+
+    #[test]
+    fn pill_classes_group_by_severity() {
+        assert_eq!(
+            StatusKind::Running.pill_class(),
+            StatusKind::Ready.pill_class()
+        );
+        assert_eq!(
+            StatusKind::Failed.pill_class(),
+            StatusKind::CrashLoop.pill_class()
+        );
+        assert_ne!(
+            StatusKind::Running.pill_class(),
+            StatusKind::Failed.pill_class()
+        );
     }
 }

@@ -311,6 +311,12 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--r-md);
 }
+.sort-indicator {
+  font-size: 10px;
+  color: var(--fg-2);
+  margin-left: 4px;
+  user-select: none;
+}
 .resource-name {
   display: inline-flex; align-items: center; gap: 8px;
   font-family: var(--font-mono);
