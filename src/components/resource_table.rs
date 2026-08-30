@@ -269,7 +269,7 @@ pub fn ResourceTable(
                                 view,
                                 columns: columns.clone(),
                                 row_actions: row_actions.clone(),
-                                on_row_click: on_row_click.clone(),
+                                on_row_click,
                                 height,
                             }
                         }
