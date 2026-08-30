@@ -16,6 +16,8 @@ use openkite_plugin_sdk::{SidebarEntry, SidebarSection};
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
+use crate::switcher::{ClusterSwitcher, SwitcherKeybind};
+
 /// Plugin sidebar sections (static Rust SDK plugins), populated at startup.
 static PLUGIN_SECTIONS: GlobalSignal<Vec<SidebarSection>> = Signal::global(Vec::new);
 

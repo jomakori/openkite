@@ -21,9 +21,9 @@ pub static SWITCHER_ERROR: GlobalSignal<Option<String>> = Signal::global(|| None
 
 /// Close the overlay and reset its transient state.
 fn close_switcher() {
-    SWITCHER_OPEN.set(false);
-    SWITCHER_QUERY.set(String::new());
-    SWITCHER_ERROR.set(None);
+    *SWITCHER_OPEN.write() = false;
+    *SWITCHER_QUERY.write() = String::new();
+    *SWITCHER_ERROR.write() = None;
 }
 
 /// Filter context names by a case-insensitive substring query. A blank query
@@ -82,8 +82,8 @@ fn pick_context(context: String) {
     close_switcher();
     spawn(async move {
         if let Err(error) = select_context(context).await {
-            SWITCHER_ERROR.set(Some(error));
-            SWITCHER_OPEN.set(true);
+            *SWITCHER_ERROR.write() = Some(error);
+            *SWITCHER_OPEN.write() = true;
         }
     });
 }
@@ -119,8 +119,8 @@ pub fn SwitcherKeybind() -> Element {
                         if *SWITCHER_OPEN.read() {
                             close_switcher();
                         } else {
-                            SWITCHER_ERROR.set(None);
-                            SWITCHER_OPEN.set(true);
+                            *SWITCHER_ERROR.write() = None;
+                            *SWITCHER_OPEN.write() = true;
                         }
                     }
                     "close" => close_switcher(),
@@ -152,7 +152,7 @@ fn SwitcherPanel() -> Element {
     let error_line = SWITCHER_ERROR.read().clone().unwrap_or_default();
     let active = crate::runtime::context_name();
     let candidates = filter_contexts(&contexts, &query);
-    let selected = use_signal(|| 0usize);
+    let mut selected = use_signal(|| 0usize);
     // Clamp each render: a shrinking query can orphan the cursor.
     let cursor = (*selected.read()).min(candidates.len().saturating_sub(1));
 
@@ -170,7 +170,7 @@ fn SwitcherPanel() -> Element {
                     autofocus: true,
                     value: "{query}",
                     oninput: move |event| {
-                        SWITCHER_QUERY.set(event.value());
+                        *SWITCHER_QUERY.write() = event.value();
                         selected.set(0);
                     },
                     onkeydown: {

@@ -43,7 +43,7 @@ macro_rules! workload_table {
                         snapshot.iter().map(|item| $mapper(item.as_ref())).collect();
                     rows_for_task.set(mapped);
                 }));
-                *reflector_task.borrow_mut() = Some(task);
+                *reflector_task.write() = Some(task);
             });
 
             rsx! {
