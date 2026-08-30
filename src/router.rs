@@ -268,7 +268,7 @@ fn TopBar() -> Element {
                 for (ns, is_active) in chips.iter().cloned() {
                     button {
                         class: if is_active { "ns-chip active" } else { "ns-chip" },
-                        onclick: move |_| crate::runtime::toggle_namespace(ns),
+                        onclick: move |_| crate::runtime::toggle_namespace(ns.clone()),
                         "{ns}"
                     }
                 }
