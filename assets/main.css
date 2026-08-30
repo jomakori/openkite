@@ -30,12 +30,27 @@
   --term-bright-magenta: #c678dd;
   --term-bright-cyan: #56b6c2;
   --term-bright-white: #ffffff;
+
+  /* Design-system additions (Liquid Frost Glass). Reference opaline
+     tokens above for color; add brand-specific accents + structural
+     tokens that the theme engine does not carry. */
+  --brand: #0d9488;            /* kite mark teal */
+  --argo: #ef7b4d;             /* Argo CD orange (per-plugin accent zone) */
+  --on-accent: #1c2530;        /* text on bright fills */
+  --font-sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --shadow-rest: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.06);
+  --shadow-hover: 0 4px 16px rgba(0,0,0,0.08), 0 8px 24px rgba(0,0,0,0.06);
+  --shadow-terminal: 0 8px 32px rgba(0,0,0,0.12);
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-pill: 999px;
 }
 
 html, body { margin: 0; height: 100%; }
 
 body {
-  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--font-sans);
   font-size: 14px;
   background: var(--bg-0);
   color: var(--fg-0);
@@ -49,6 +64,8 @@ body {
   border-right: 1px solid var(--border);
   padding: 12px;
   box-sizing: border-box;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
 
 .brand { font-size: 18px; font-weight: 600; margin: 0 0 4px; }
@@ -76,12 +93,14 @@ body {
 
 .nav-divider { height: 1px; background: var(--border); margin: 8px 0; }
 
+.nav-section { display: flex; flex-direction: column; gap: 2px; margin: 6px 0; }
 .nav-section-label {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   padding: 4px 12px;
   font-weight: 600;
+  color: var(--fg-2);
 }
 
 .not-found { text-align: center; padding: 48px; color: var(--fg-2); }
@@ -112,8 +131,311 @@ body {
   padding: 6px 16px; min-height: 32px; box-sizing: border-box;
   border-top: 1px solid var(--border);
   background: color-mix(in srgb, var(--bg-1) 85%, transparent);
+  backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px);
   font-size: 12px; color: var(--fg-2);
 }
 
 .status-entry { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--fg-2); display: inline-block; }
+
+/* Top bar: cluster selector + namespace chips. */
+.topbar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 16px; box-sizing: border-box;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-1) 85%, transparent);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+}
+.cluster-select {
+  font: inherit; font-size: 13px; color: var(--fg-0);
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 4px 8px; outline: none;
+}
+.cluster-select:focus { border-color: var(--accent); }
+.ns-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ns-chip {
+  font: inherit; font-size: 12px; color: var(--fg-1);
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: 999px; padding: 3px 10px; cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.ns-chip:hover { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); }
+.ns-chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* ========================================================================
+   Liquid Frost Glass design system — primitive classes.
+
+   All surface treatments are token-driven so a theme switch flows
+   through automatically. Translucent everywhere except the terminal
+   anchor (.log-panel), per brand posture.
+   ======================================================================== */
+
+/* --- Frost surfaces --- */
+.panel {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-rest);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+/* --- Buttons --- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 44px;
+  padding: 0 16px;
+  font: inherit; font-size: 13px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-1);
+  color: var(--fg-0);
+  cursor: pointer;
+  text-decoration: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s, transform 0.05s;
+}
+.btn:hover { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); box-shadow: var(--shadow-hover); }
+.btn:active { transform: translateY(1px); }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.btn-primary:hover {
+  background: color-mix(in srgb, var(--accent) 90%, var(--fg-0));
+  border-color: color-mix(in srgb, var(--accent) 90%, var(--fg-0));
+}
+
+.btn-secondary {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+}
+
+/* --- Chips (namespace toggles, filter pills) --- */
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 44px;
+  padding: 0 14px;
+  font: inherit; font-size: 12px;
+  background: var(--bg-2);
+  color: var(--fg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.chip:hover { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); }
+.chip.active {
+  background: var(--fg-0);
+  color: #fff;
+  border-color: var(--fg-0);
+}
+
+/* --- Search field --- */
+.search-field {
+  position: relative;
+  display: flex; align-items: center;
+  min-height: 44px;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 0 12px;
+  box-sizing: border-box;
+}
+.search-field input {
+  flex: 1; min-width: 0;
+  font: inherit; font-size: 13px;
+  color: var(--fg-0);
+  background: transparent;
+  border: 0; outline: 0;
+  padding: 0 0 0 8px;
+}
+.search-field input::placeholder { color: var(--fg-2); }
+.search-field:focus-within { border-color: var(--accent); }
+
+/* --- Pills (semantic status badges) --- */
+.pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  font: inherit; font-size: 10.5px; font-weight: 600;
+  padding: 2px 10px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--fg-1);
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+.pill::before {
+  content: ""; width: 6px; height: 6px; border-radius: 50%;
+  background: currentColor; flex-shrink: 0;
+}
+.pill.success {
+  background: color-mix(in srgb, var(--green) 11%, white);
+  border-color: color-mix(in srgb, var(--green) 24%, var(--border));
+  color: color-mix(in srgb, var(--green) 62%, var(--fg-0));
+}
+.pill.warn {
+  background: color-mix(in srgb, var(--yellow) 11%, white);
+  border-color: color-mix(in srgb, var(--yellow) 24%, var(--border));
+  color: color-mix(in srgb, var(--yellow) 62%, var(--fg-0));
+}
+.pill.danger {
+  background: color-mix(in srgb, var(--red) 11%, white);
+  border-color: color-mix(in srgb, var(--red) 24%, var(--border));
+  color: color-mix(in srgb, var(--red) 62%, var(--fg-0));
+}
+.pill.muted {
+  background: var(--bg-2);
+  border-color: var(--border);
+  color: var(--fg-2);
+}
+
+/* --- Health dots (inline cell) --- */
+.health-dots { display: inline-flex; gap: 3px; align-items: center; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--fg-2); display: inline-block; }
+.dot.ok { background: var(--green); }
+.dot.warn { background: var(--yellow); }
+.dot.err { background: var(--red); }
+
+/* --- Table primitives --- */
+.table-wrap {
+  overflow-x: auto;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+.resource-name {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--fg-0);
+}
+.resource-name .icon { width: 14px; height: 14px; flex-shrink: 0; color: var(--fg-2); }
+.namespace {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--fg-2);
+}
+.restarts { font-variant-numeric: tabular-nums; color: var(--fg-1); }
+.restarts.warn { color: var(--yellow); font-weight: 600; }
+.controller { font-size: 12.5px; color: var(--fg-1); }
+.qos { font-size: 11px; color: var(--fg-2); text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* --- Log panel (the opaque terminal anchor) --- */
+.log-panel {
+  background: var(--term-bg);
+  color: var(--term-fg);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-terminal);
+  max-height: 268px;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.log-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--term-fg) 12%, transparent);
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--term-bright-white);
+}
+.log-handle { padding: 4px 12px; cursor: pointer; user-select: none; }
+.log-body { flex: 1; overflow: auto; padding: 6px 12px; }
+.log-line { display: flex; gap: 8px; align-items: baseline; }
+.log-time { color: var(--term-bright-black); flex-shrink: 0; }
+.log-level { font-weight: 600; flex-shrink: 0; }
+.log-level.warn { color: var(--term-yellow); }
+.log-level.error { color: var(--term-red); }
+.log-method { color: var(--term-cyan); flex-shrink: 0; }
+.log-msg { color: var(--term-fg); word-break: break-word; }
+.log-paused { font-size: 10.5px; color: var(--term-yellow); padding: 0 12px 4px; }
+
+/* --- Inspector (slide-over) --- */
+.inspector {
+  position: fixed; right: 0; top: 0; bottom: 0;
+  width: min(420px, 100%);
+  background: var(--bg-1);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-hover);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  transform: translateX(100%);
+  transition: transform 0.2s ease;
+  display: flex; flex-direction: column;
+  z-index: 50;
+  box-sizing: border-box;
+}
+.inspector.open { transform: translateX(0); }
+.inspector-header {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.inspector-eyebrow {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--fg-2);
+}
+.inspector-body { flex: 1; overflow: auto; padding: 16px; }
+.kv-list { display: flex; flex-direction: column; gap: 8px; }
+.kv-row { display: grid; grid-template-columns: 130px 1fr; gap: 8px; align-items: baseline; }
+.kv-row dt { color: var(--fg-2); font-size: 12px; margin: 0; }
+.kv-row dd { color: var(--fg-0); font-size: 13px; margin: 0; word-break: break-word; }
+.inspector-actions {
+  display: flex; gap: 8px; justify-content: flex-end;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+}
+
+/* --- Toast --- */
+.toast {
+  position: fixed; bottom: 80px; left: 50%;
+  transform: translateX(-50%);
+  min-width: 220px; max-width: 340px;
+  padding: 10px 16px;
+  background: var(--fg-0);
+  color: #fff;
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-hover);
+  font-size: 13px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 60;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+.toast.show { opacity: 1; }
+
+/* --- Responsive (tablet + mobile) --- */
+@media (max-width: 1024px) and (min-width: 768px) {
+  .content { padding: 16px; }
+  .inspector { width: min(360px, 100%); }
+}
+
+@media (max-width: 767px) {
+  .app-shell { flex-direction: column; }
+  .sidebar {
+    width: 100%; height: auto;
+    border-right: 0; border-bottom: 1px solid var(--border);
+    padding: 10px 12px;
+  }
+  .content { padding: 12px; }
+  .inspector { width: 100%; }
+  .panel { padding: 12px; }
+  .toast { bottom: 16px; max-width: calc(100% - 32px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.001ms !important;
+    animation-duration: 0.001ms !important;
+  }
+}
