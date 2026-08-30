@@ -247,6 +247,8 @@ fn TopBar() -> Element {
 
     let active_value = active.clone().unwrap_or_default();
     let context_options: Vec<String> = contexts.clone();
+    let ns_list: Vec<String> = namespaces.clone();
+    let selected: Vec<String> = selected.clone();
 
     rsx! {
         header { class: "topbar",
@@ -259,10 +261,12 @@ fn TopBar() -> Element {
                 }
             }
             div { class: "ns-chips",
-                for ns in namespaces.iter() {
+                for ns in ns_list.iter() {
+                    let ns = ns.clone();
+                    let is_active = selected.iter().any(|s| s == &ns);
                     button {
-                        class: if selected.iter().any(|s| s == ns) { "ns-chip active" } else { "ns-chip" },
-                        onclick: move |_| crate::runtime::toggle_namespace(ns.clone()),
+                        class: if is_active { "ns-chip active" } else { "ns-chip" },
+                        onclick: move |_| crate::runtime::toggle_namespace(ns),
                         "{ns}"
                     }
                 }
