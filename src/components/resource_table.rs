@@ -10,6 +10,7 @@
 #![allow(non_snake_case)]
 
 use std::cmp::Ordering;
+use std::collections::HashSet;
 use std::ops::Range;
 
 use dioxus::prelude::*;
@@ -71,10 +72,26 @@ where
     });
 }
 
-/// Case-insensitive substring match. A blank query matches everything.
+/// Case-insensitive substring match against a trimmed query.
 pub fn matches_query(text: &str, query: &str) -> bool {
     let needle = query.trim().to_lowercase();
     needle.is_empty() || text.to_lowercase().contains(&needle)
+}
+
+/// Multi-select namespace filter. An empty selection shows every row,
+/// cluster-scoped rows (no namespace) pass unless a filter is active.
+pub fn namespace_filter(rows: &[ResourceRow], selected: &HashSet<String>) -> Vec<ResourceRow> {
+    if selected.is_empty() {
+        return rows.to_vec();
+    }
+    rows.iter()
+        .filter(|row| {
+            row.namespace
+                .as_deref()
+                .is_some_and(|ns| selected.contains(ns))
+        })
+        .cloned()
+        .collect()
 }
 
 /// Visible index range of a virtualized list given the scroll offset.
@@ -95,6 +112,27 @@ pub struct Cell {
     pub text: String,
     pub status: Option<StatusKind>,
     pub sort: SortKey,
+    /// Per-cell rich render payload, e.g. the pod health-dot row. Empty means
+    /// plain text — `render_table_cell` falls back to text/status rendering.
+    pub extras: CellExtras,
+}
+
+/// Rich per-cell render payload. The health-dot row is the only shape so far;
+/// future kinds (sparkline, progress bar) extend this enum.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub enum CellExtras {
+    /// No extra rendering: plain text or a status pill.
+    #[default]
+    Plain,
+    /// One dot per container: green when the container is ready.
+    HealthDots(Vec<HealthDot>),
+}
+
+/// One container's readiness dot.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HealthDot {
+    Ok,
+    Err,
 }
 
 impl Cell {
@@ -106,6 +144,7 @@ impl Cell {
             text,
             sort,
             status: None,
+            extras: CellExtras::Plain,
         }
     }
 
@@ -117,6 +156,7 @@ impl Cell {
             text,
             sort,
             status: Some(kind),
+            extras: CellExtras::Plain,
         }
     }
 
@@ -126,6 +166,24 @@ impl Cell {
             text: text.into(),
             sort: SortKey::Number(value),
             status: None,
+            extras: CellExtras::Plain,
+        }
+    }
+
+    /// Container health-dot row; text carries "ready/total", or an em dash
+    /// when the pod has no container statuses to report.
+    pub fn health_dots(dots: Vec<HealthDot>) -> Self {
+        let ready = dots.iter().filter(|d| matches!(d, HealthDot::Ok)).count();
+        let text = if dots.is_empty() {
+            "—".to_string()
+        } else {
+            format!("{ready}/{}", dots.len())
+        };
+        Self {
+            text,
+            sort: SortKey::Number(ready as f64),
+            status: None,
+            extras: CellExtras::HealthDots(dots),
         }
     }
 }
@@ -204,7 +262,7 @@ pub fn ResourceTable(
 ) -> Element {
     let sort = use_signal(|| None::<(usize, SortDirection)>);
     let mut query = use_signal(String::new);
-    let namespace = use_signal(|| None::<String>);
+    let namespace = use_signal(|| HashSet::<String>::new);
 
     match status {
         TableStatus::Loading => rsx! { div { class: "table-state", "Loading…" } },
@@ -212,16 +270,10 @@ pub fn ResourceTable(
             rsx! { div { class: "table-state table-error", "{message}" } }
         }
         TableStatus::Ready => {
-            let mut view: Vec<ResourceRow> = rows
-                .iter()
-                .filter(|row| {
-                    let ns_ok = match namespace() {
-                        Some(ns) => row.namespace.as_deref() == Some(ns.as_str()),
-                        None => true,
-                    };
-                    ns_ok && matches_query(&row.search_text(), &query())
-                })
-                .cloned()
+            let selected: HashSet<String> = namespace.read().clone();
+            let mut view: Vec<ResourceRow> = namespace_filter(&rows, &selected)
+                .into_iter()
+                .filter(|row| matches_query(&row.search_text(), &query()))
                 .collect();
             if let Some((column, direction)) = sort() {
                 sort_by_key(&mut view, |row| row.cells[column].sort.clone(), direction);
@@ -238,10 +290,13 @@ pub fn ResourceTable(
                 .collect();
             namespaces.sort();
             namespaces.dedup();
-            let chips: Vec<(String, bool)> = namespaces
-                .iter()
-                .map(|ns| (ns.clone(), namespace().as_deref() == Some(ns.as_str())))
-                .collect();
+            // "All" first; active when nothing is selected (the empty set also
+            // keeps cluster-scoped rows visible).
+            let mut chips: Vec<(String, bool)> = vec![("All".to_string(), selected.is_empty())];
+            chips.extend(namespaces.into_iter().map(|ns| {
+                let active = selected.contains(&ns);
+                (ns, active)
+            }));
 
             rsx! {
                 div { class: "panel",
@@ -312,17 +367,23 @@ fn header_cell(
     }
 }
 
-/// Render a namespace filter chip.
-fn namespace_chip(label: String, active: bool, namespace: Signal<Option<String>>) -> Element {
+/// Render a multi-select namespace chip. The synthetic "All" chip clears the
+/// selection so cluster-scoped rows (no namespace) reappear.
+fn namespace_chip(label: String, active: bool, mut namespace: Signal<HashSet<String>>) -> Element {
+    let is_all = label == "All";
     let label_for_click = label.clone();
     rsx! {
         button {
             key: "{label}",
-            class: if active { "ns-chip active" } else { "ns-chip" },
+            class: if active { "chip active" } else { "chip" },
             onclick: move |_| {
-                let mut namespace = namespace;
-                let selected = namespace().as_deref() == Some(label_for_click.as_str());
-                namespace.set(if selected { None } else { Some(label_for_click.clone()) });
+                if is_all {
+                    namespace.write().clear();
+                } else if namespace.read().contains(&label_for_click) {
+                    namespace.write().remove(&label_for_click);
+                } else {
+                    namespace.write().insert(label_for_click.clone());
+                }
             },
             "{label}"
         }
@@ -404,25 +465,53 @@ fn render_table_row(
     }
 }
 
-/// Render a single table cell (plain text or status pill).
+/// Render a single table cell (plain text, status pill, or rich extra).
 fn render_table_cell(cell: &Cell, index: usize, width: Option<u32>) -> Element {
     let style = width.map(|w| format!("width: {w}px")).unwrap_or_default();
-    match cell.status {
-        Some(kind) => rsx! {
+    // Precompute dot classes outside rsx! — the macro cannot parse a bare
+    // `match` expression as an element body.
+    let dot_classes: Vec<&'static str> = match &cell.extras {
+        CellExtras::HealthDots(dots) => dots
+            .iter()
+            .map(|dot| match dot {
+                HealthDot::Ok => "dot ok",
+                HealthDot::Err => "dot err",
+            })
+            .collect(),
+        CellExtras::Plain => Vec::new(),
+    };
+    match &cell.extras {
+        CellExtras::HealthDots(_) => rsx! {
             div {
                 key: "{index}",
-                class: "table-cell",
+                class: "table-cell health-dots",
                 style: "{style}",
-                StatusPill { status: kind }
+                if dot_classes.is_empty() {
+                    span { "—" }
+                } else {
+                    for class in dot_classes {
+                        span { class: "{class}" }
+                    }
+                }
             }
         },
-        None => rsx! {
-            div {
-                key: "{index}",
-                class: "table-cell",
-                style: "{style}",
-                span { "{cell.text}" }
-            }
+        CellExtras::Plain => match cell.status {
+            Some(kind) => rsx! {
+                div {
+                    key: "{index}",
+                    class: "table-cell",
+                    style: "{style}",
+                    StatusPill { status: kind }
+                }
+            },
+            None => rsx! {
+                div {
+                    key: "{index}",
+                    class: "table-cell",
+                    style: "{style}",
+                    span { "{cell.text}" }
+                }
+            },
         },
     }
 }
