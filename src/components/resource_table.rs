@@ -262,7 +262,7 @@ pub fn ResourceTable(
 ) -> Element {
     let sort = use_signal(|| None::<(usize, SortDirection)>);
     let mut query = use_signal(String::new);
-    let namespace = use_signal(|| HashSet::<String>::new);
+    let namespace = use_signal(HashSet::<String>::new);
 
     match status {
         TableStatus::Loading => rsx! { div { class: "table-state", "Loading…" } },
