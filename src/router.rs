@@ -355,6 +355,7 @@ fn StatusFooter() -> Element {
         cluster: context.clone(),
         namespace: "default".into(),
         connected,
+        prometheus: crate::runtime::PROMETHEUS.read().clone(),
     };
     let entries = crate::shell::status_bar_model(&state, &registrations, env!("CARGO_PKG_VERSION"));
     let rows = status_rows(&entries);
