@@ -1,13 +1,14 @@
 //! Standalone log viewer: pod/container picker, follow/pause state, and a
 //! streaming `LineBuffer` drained from a kube `log_stream`.
 //!
-////! The pure-logic helpers at the top of this file are testable without a
+//! The pure-logic helpers at the top of this file are testable without a
 //! Dioxus runtime; the `#[component]` lives at the bottom and depends on the
 //! `dioxus::prelude` glob (split per the openkite-dev skill
 //! §"Split pure logic from the Dioxus view"). Reuses the P1 surface in
 //! `crate::logs` (`LogOptions`, `LogStream`, `LineBuffer`, `FollowState`).
 
 use crate::logs::{FollowState, LineBuffer};
+use dioxus::prelude::*;
 
 /// The first non-empty container name, or `None` if the list is empty.
 ///
@@ -146,7 +147,6 @@ mod pure_logic_tests {
 #[component]
 pub fn LogsView() -> Element {
     use crate::logs::{LogOptions, LogStream};
-    use dioxus::prelude::*;
     use futures::{AsyncBufReadExt, StreamExt};
     use k8s_openapi::api::core::v1::Pod;
     use kube::Api;
@@ -287,7 +287,7 @@ pub fn LogsView() -> Element {
             }
         });
 
-        task_slot.write().set(Some(handle));
+        *task_slot.write() = Some(handle);
     });
 
     // Scroll listener: tiny JS handler writes a window-level flag on every
