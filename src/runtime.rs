@@ -36,6 +36,11 @@ pub static SELECTED_POD: GlobalSignal<Option<Pod>> = Signal::global(|| None);
 pub static REGISTRATIONS: GlobalSignal<crate::plugin_api::RegistrationStore> =
     Signal::global(crate::plugin_api::RegistrationStore::new);
 
+/// The current path the Dioxus router is rendering, published by the host
+/// when the route changes and read by JS-side consumers as a fallback when
+/// the `document::eval` for `_renderRoute` has not fired yet.
+pub static CURRENT_ROUTE: GlobalSignal<String> = Signal::global(String::new);
+
 /// The plugin bridge, shared between bootstrap and the app shell's asset
 /// handler. `OnceLock`: set once before launch, read from the
 /// handler thread and the UI alike; never swapped in place.
@@ -112,6 +117,16 @@ pub fn toggle_namespace(ns: String) {
     } else {
         selected.push(ns);
     }
+}
+
+/// Publish the current path the Dioxus router is rendering.
+pub fn set_current_route(path: String) {
+    *CURRENT_ROUTE.write() = path;
+}
+
+/// The current path, or `""` before the first route change.
+pub fn current_route() -> String {
+    CURRENT_ROUTE.read().clone()
 }
 
 /// Refresh cluster metadata: namespace list + Prometheus detection.

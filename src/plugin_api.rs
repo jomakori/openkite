@@ -47,6 +47,13 @@ pub struct StatusItem {
     pub color: String,
 }
 
+/// A renderer declaration: the plugin says "I render body content for this
+/// path" so the host's `Route::Plugin` wildcard can route into the JS slot.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RendererSpec {
+    pub path: String,
+}
+
 /// Everything a plugin registered, keyed by kind.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PluginRegistration {
@@ -56,11 +63,13 @@ pub struct PluginRegistration {
     pub routes: Vec<RouteSpec>,
     #[serde(default)]
     pub status: Vec<StatusItem>,
+    #[serde(default)]
+    pub renderers: Vec<RendererSpec>,
 }
 
 impl PluginRegistration {
-    /// Validate every entry: non-empty labels/titles, route paths start with
-    /// `/` and contain no spaces.
+    /// Validate every entry: non-empty labels/titles, route/renderer paths
+    /// start with `/` and contain no spaces.
     pub fn validate(&self) -> Result<(), String> {
         for item in &self.sidebar {
             if item.label.trim().is_empty() {
@@ -78,6 +87,14 @@ impl PluginRegistration {
         for item in &self.status {
             if item.label.trim().is_empty() {
                 return Err("status item label must not be empty".into());
+            }
+        }
+        for renderer in &self.renderers {
+            if !renderer.path.starts_with('/') || renderer.path.contains(' ') {
+                return Err(format!(
+                    "renderer path '{}' must start with / and have no spaces",
+                    renderer.path
+                ));
             }
         }
         Ok(())
@@ -219,6 +236,20 @@ impl RegistrationStore {
             .flat_map(|(plugin, reg)| reg.status.iter().map(move |item| (plugin.as_str(), item)))
             .collect()
     }
+
+    /// All registered renderer paths across plugins (for the router's
+    /// JS-route slot fallback): `(plugin, path)`. Order is stable
+    /// (BTreeMap by plugin name, then registration order).
+    pub fn all_renderer_paths(&self) -> Vec<(&str, &str)> {
+        self.by_plugin
+            .iter()
+            .flat_map(|(plugin, reg)| {
+                reg.renderers
+                    .iter()
+                    .map(move |renderer| (plugin.as_str(), renderer.path.as_str()))
+            })
+            .collect()
+    }
 }
 
 /// The injected bootstrap: defines `window.openkite` (register* + api.*) with
@@ -253,6 +284,14 @@ pub const OPENKITE_BRIDGE_JS: &str = r##"(() => {
     registerSidebar: (item) => register("sidebar", item),
     registerRoute: (route) => register("route", route),
     registerStatusItem: (item) => register("status", item),
+    registerRouteRenderer: (path) => register("route_renderer", { path }),
+    // Host invokes this on every route entry into a JS-owned path. The
+    // plugin mounts UI into `container` (the host's mount div) and returns
+    // an unmount fn; the host calls it on route exit / hot-reload.
+    _renderRoute: function (path, container) {
+      // Default noop so a missing implementation doesn't crash the host.
+      return function unmount() {};
+    },
     api: {
       list: (kind, ns) => call({ op: "list", kind, ns: ns || null }),
       get: (kind, ns, name) => call({ op: "get", kind, ns, name }),
@@ -283,6 +322,9 @@ mod tests {
                 label: "ArgoCD: Synced".into(),
                 color: "green".into(),
             }],
+            renderers: vec![RendererSpec {
+                path: "/argocd/apps".into(),
+            }],
         }
     }
 
@@ -305,6 +347,10 @@ mod tests {
         let mut bad_label = good.clone();
         bad_label.status[0].label = "  ".into();
         assert!(bad_label.validate().unwrap_err().contains("status"));
+
+        let mut bad_renderer = good.clone();
+        bad_renderer.renderers[0].path = "argocd".into();
+        assert!(bad_renderer.validate().unwrap_err().contains("renderer"));
     }
 
     #[test]
@@ -405,6 +451,7 @@ mod tests {
         assert_eq!(store.len(), 1);
         assert_eq!(store.all_sidebar_items().len(), 1);
         assert_eq!(store.all_routes().len(), 1);
+        assert_eq!(store.all_renderer_paths().len(), 1);
         assert!(store.remove("argocd"));
         assert!(store.is_empty());
         assert!(!store.remove("argocd"));
@@ -418,6 +465,8 @@ mod tests {
             "registerSidebar",
             "registerRoute",
             "registerStatusItem",
+            "registerRouteRenderer",
+            "_renderRoute",
             "api: {",
             "list: (kind, ns)",
             "get: (kind, ns, name)",

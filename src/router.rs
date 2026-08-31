@@ -396,21 +396,79 @@ fn Config() -> Element {
     rsx! { h2 { "Config" } p { "Config views land in a later ticket." } }
 }
 
-/// Wildcard dispatcher: reconstruct the path, look it up in the plugin route
-/// table, render the plugin component or the 404 fallback.
+/// Wildcard dispatcher: reconstruct the path, look it up in the static
+/// Rust SDK route table, then fall back to the JS-registered renderer
+/// paths. A JS match renders a `JsRouteSlot`; otherwise the 404 fallback.
 #[component]
 fn Plugin(path: Vec<String>) -> Element {
     let full = full_path(&path);
+
+    // Publish the current path for JS-side consumers that need to know
+    // the host's URL (e.g. plugins that want to read the current route
+    // without waiting for the next `_renderRoute` dispatch).
+    *crate::runtime::CURRENT_ROUTE.write() = full.clone();
+
     let table = ROUTE_TABLE.read();
-    match table.get(&full) {
-        Some(render) => (render)(),
-        None => rsx! {
-            div { class: "not-found",
-                h2 { "404" }
-                p { "No view for /{full}" }
-                Link { to: Route::Home {}, "Back home" }
-            }
-        },
+    if let Some(render) = table.get(&full) {
+        return (render)();
+    }
+    drop(table);
+
+    // Static table missed — try the JS-registered renderer paths. A path
+    // match here means a JS plugin declared "I render `<full>`" via
+    // `openkite.registerRouteRenderer`; the host's `Route::Plugin`
+    // wildcard has captured it, so render the slot.
+    let registrations = REGISTRATIONS.read();
+    let is_js_route = registrations
+        .all_renderer_paths()
+        .iter()
+        .any(|(_, p)| *p == full);
+    drop(registrations);
+    if is_js_route {
+        return rsx! { JsRouteSlot { path: full } };
+    }
+
+    rsx! {
+        div { class: "not-found",
+            h2 { "404" }
+            p { "No view for /{full}" }
+            Link { to: Route::Home {}, "Back home" }
+        }
+    }
+}
+
+/// Mount node for a JS-owned route. Renders a `<div
+/// data-js-route-mount={path}>` inside the host main outlet (NOT a
+/// `position: fixed` overlay), then dispatches
+/// `window.openkite._renderRoute(path, container)` via `document::eval`
+/// in a `use_effect` that re-runs on every path change. The plugin's
+/// render fn is responsible for idempotency (call the previous unmount
+/// before mounting new UI; storing the unmount on the container keeps
+/// re-runs cheap).
+#[component]
+fn JsRouteSlot(path: String) -> Element {
+    // Precompute the eval source outside `rsx!` and `use_effect` so the
+    // path is an owned `String` (the `&'static` requirement of
+    // `document::eval` is satisfied by the runtime-allocated literal
+    // inside the format!).
+    let source = format!(
+        r#"(function() {{
+          var el = document.querySelector('[data-js-route-mount="{}"]');
+          if (!el) return;
+          if (window.openkite && typeof window.openkite._renderRoute === 'function') {{
+            window.openkite._renderRoute('{}', el);
+          }}
+        }})();"#,
+        path.replace('\\', "\\\\").replace('\'', "\\'"),
+        path.replace('\\', "\\\\").replace('\'', "\\'")
+    );
+
+    use_effect(move || {
+        document::eval(&source);
+    });
+
+    rsx! {
+        div { class: "js-route-slot", "data-js-route-mount": "{path}" }
     }
 }
 
@@ -461,5 +519,22 @@ mod tests {
         assert_eq!(rows[0].1, "background: var(--green)");
         assert_eq!(rows[1].0, "v0.0.0");
         assert_eq!(rows[1].1, "display: none");
+    }
+
+    #[test]
+    fn registration_renderers_are_exposed_by_path() {
+        use crate::plugin_api::{PluginRegistration, RegistrationStore, RendererSpec};
+        let mut store = RegistrationStore::new();
+        store.upsert(
+            "argocd",
+            PluginRegistration {
+                renderers: vec![RendererSpec {
+                    path: "/argocd/apps".into(),
+                }],
+                ..PluginRegistration::default()
+            },
+        );
+        let renderers = store.all_renderer_paths();
+        assert_eq!(renderers, vec![("argocd", "/argocd/apps")]);
     }
 }
