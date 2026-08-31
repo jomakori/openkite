@@ -25,7 +25,7 @@ macro_rules! workload_table {
             // Slot for the running reflector task: aborted on re-run so a
             // switched client (ctrl-tab switcher) never leaves a stale
             // watcher racing writes into the same rows signal.
-            let reflector_task = use_hook(|| CopyValue::new(None::<tokio::task::JoinHandle<()>>));
+            let mut reflector_task = use_hook(|| CopyValue::new(None::<tokio::task::JoinHandle<()>>));
 
             use_effect(move || {
                 if let Some(task) = reflector_task.write().take() {
