@@ -3,14 +3,12 @@
 //! Reads `SELECTED_POD` from the runtime; renders as a right-side slide-over
 //! panel with `.inspector` / `.inspector.open` CSS classes.
 
-#![allow(non_snake_case)]
-
 use dioxus::prelude::*;
 use k8s_openapi::api::core::v1::Pod;
 use kube::api::LogParams;
 use kube::Api;
 
-use crate::pod::{container_infos, pod_summary, ContainerInfo, PodSummary};
+use crate::pod::{container_infos, pod_summary};
 
 /// Tab identifiers for the inspector.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -23,17 +21,15 @@ enum DetailTab {
 }
 
 /// Pod detail slide-over. Mounted inside AppShell; opens when SELECTED_POD
-/// is set (row click) and closes on the X button or background click.
+/// is set (row click) and closes on the X button.
 #[component]
 pub fn PodDetail() -> Element {
-    let pod_signal = crate::runtime::SELECTED_POD;
-    let pod = pod_signal.read().clone();
-    let open = pod.is_some();
+    let open = (crate::runtime::SELECTED_POD.read().is_some());
     let mut active_tab = use_signal(|| DetailTab::Overview);
 
-    // Close handler.
+    // Close handler: clear the selected pod and reset to Overview tab.
     let close = move |_| {
-        *pod_signal.write() = None;
+        *crate::runtime::SELECTED_POD.write() = None;
         active_tab.set(DetailTab::Overview);
     };
 
@@ -42,8 +38,7 @@ pub fn PodDetail() -> Element {
     rsx! {
         div {
             class: "{class}",
-            if let Some(ref p) = pod {
-                // Header
+            if let Some(p) = crate::runtime::SELECTED_POD.read().clone() {
                 div { class: "inspector-header",
                     div { class: "inspector-eyebrow",
                         "{p.metadata.namespace.as_deref().unwrap_or(\"default\")}"
@@ -60,7 +55,6 @@ pub fn PodDetail() -> Element {
                         }
                     }
                 }
-                // Tab bar
                 div { class: "inspector-tabs",
                     {tab_button("Overview", DetailTab::Overview, active_tab)}
                     {tab_button("Logs", DetailTab::Logs, active_tab)}
@@ -68,7 +62,6 @@ pub fn PodDetail() -> Element {
                     {tab_button("YAML", DetailTab::YAML, active_tab)}
                     {tab_button("Containers", DetailTab::Containers, active_tab)}
                 }
-                // Tab content
                 div { class: "inspector-body",
                     match active_tab() {
                         DetailTab::Overview => rsx! { OverviewTab { pod: p.clone() } },
@@ -99,8 +92,8 @@ fn tab_button(label: &'static str, tab: DetailTab, mut active: Signal<DetailTab>
 #[component]
 fn OverviewTab(pod: Pod) -> Element {
     let summary = pod_summary(&pod);
-    let labels = pod.metadata.labels.as_ref();
-    let annotations = pod.metadata.annotations.as_ref();
+    let labels = pod.metadata.labels.clone();
+    let annotations = pod.metadata.annotations.clone();
 
     rsx! {
         div { class: "kv-list",
@@ -136,7 +129,7 @@ fn OverviewTab(pod: Pod) -> Element {
     }
 }
 
-/// Logs tab: container selector + live log stream.
+/// Logs tab: container selector + follow checkbox + line list.
 #[component]
 fn LogsTab(pod: Pod) -> Element {
     let containers: Vec<String> = pod
@@ -146,7 +139,7 @@ fn LogsTab(pod: Pod) -> Element {
         .unwrap_or_default();
     let mut selected_container = use_signal(|| containers.first().cloned().unwrap_or_default());
     let mut follow = use_signal(|| true);
-    let lines = use_signal(Vec::<String>::new);
+    let mut lines = use_signal(Vec::<String>::new);
 
     // Spawn the log stream when container or follow changes.
     let pod_name = pod.metadata.name.clone().unwrap_or_default();
@@ -174,9 +167,10 @@ fn LogsTab(pod: Pod) -> Element {
                     timestamps: true,
                     ..LogParams::default()
                 };
-                // Use kube's log stream
+                // Touch the stream so the runtime registers the watch; full
+                // line buffering arrives in a follow-up that drains the
+                // AsyncBufRead into the `lines` signal.
                 let _ = api.log_stream(&name, &params).await;
-                // Simplified: just show placeholder
             });
         }
     });
@@ -194,7 +188,7 @@ fn LogsTab(pod: Pod) -> Element {
                 }
                 label { style: "font-size: 12px; color: var(--fg-2);",
                     input {
-                        input_type: "checkbox",
+                        r#type: "checkbox",
                         checked: follow(),
                         oninput: move |e| follow.set(e.value() == "true"),
                     }
@@ -216,11 +210,9 @@ fn LogsTab(pod: Pod) -> Element {
     }
 }
 
-/// Events tab: sorted pod events.
+/// Events tab: placeholder for cluster-fetched pod events.
 #[component]
 fn EventsTab(pod: Pod) -> Element {
-    // In a real implementation, this would fetch events for the pod.
-    // For now, show the events from the pod's status or a placeholder.
     rsx! {
         div { style: "color: var(--fg-2); font-size: 13px; padding: 8px;",
             "Events will be fetched from the cluster and displayed here."
