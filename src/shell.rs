@@ -269,6 +269,7 @@ mod tests {
                     label: format!("{plugin}: ok"),
                     color: "green".into(),
                 }],
+                renderers: Vec::new(),
             },
         )
     }

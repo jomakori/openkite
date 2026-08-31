@@ -7,7 +7,7 @@
 
 use crate::bridge::Bridge;
 use crate::plugin_api::ApiResponse;
-use crate::runtime::{bridge as shared_bridge, js_plugins, CURRENT_ROUTE, REGISTRATIONS};
+use crate::runtime::{bridge as shared_bridge, js_plugins, REGISTRATIONS};
 use dioxus::desktop::wry;
 use dioxus::desktop::wry::http::Response as AssetHttpResponse;
 use dioxus::desktop::{use_asset_handler, AssetRequest, RequestAsyncResponder};

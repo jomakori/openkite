@@ -24,6 +24,7 @@ fn argocd_registration() -> PluginRegistration {
             label: "ArgoCD: Synced".into(),
             color: "green".into(),
         }],
+        renderers: Vec::new(),
     }
 }
 
@@ -42,6 +43,7 @@ fn istio_registration() -> PluginRegistration {
             label: "Istio: Degraded".into(),
             color: "red".into(),
         }],
+        renderers: Vec::new(),
     }
 }
 
@@ -129,6 +131,7 @@ fn minimal_registration_contributes_no_extra_sections() {
                 label: "Metrics: Scraping".into(),
                 color: "blue".into(),
             }],
+            renderers: Vec::new(),
         },
     );
     assert!(plugin_sections(&store).is_empty());
