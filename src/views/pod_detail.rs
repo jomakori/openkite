@@ -16,7 +16,7 @@ enum DetailTab {
     Overview,
     Logs,
     Events,
-    YAML,
+    Yaml,
     Containers,
 }
 
@@ -24,7 +24,7 @@ enum DetailTab {
 /// is set (row click) and closes on the X button.
 #[component]
 pub fn PodDetail() -> Element {
-    let open = (crate::runtime::SELECTED_POD.read().is_some());
+    let open = crate::runtime::SELECTED_POD.read().is_some();
     let mut active_tab = use_signal(|| DetailTab::Overview);
 
     // Close handler: clear the selected pod and reset to Overview tab.
@@ -59,7 +59,7 @@ pub fn PodDetail() -> Element {
                     {tab_button("Overview", DetailTab::Overview, active_tab)}
                     {tab_button("Logs", DetailTab::Logs, active_tab)}
                     {tab_button("Events", DetailTab::Events, active_tab)}
-                    {tab_button("YAML", DetailTab::YAML, active_tab)}
+                    {tab_button("YAML", DetailTab::Yaml, active_tab)}
                     {tab_button("Containers", DetailTab::Containers, active_tab)}
                 }
                 div { class: "inspector-body",
@@ -67,7 +67,7 @@ pub fn PodDetail() -> Element {
                         DetailTab::Overview => rsx! { OverviewTab { pod: p.clone() } },
                         DetailTab::Logs => rsx! { LogsTab { pod: p.clone() } },
                         DetailTab::Events => rsx! { EventsTab { pod: p.clone() } },
-                        DetailTab::YAML => rsx! { YAMLTab { pod: p.clone() } },
+                        DetailTab::Yaml => rsx! { YamlTab { pod: p.clone() } },
                         DetailTab::Containers => rsx! { ContainersTab { pod: p.clone() } },
                     }
                 }
@@ -222,7 +222,7 @@ fn EventsTab(pod: Pod) -> Element {
 
 /// YAML tab: raw pod manifest as preformatted text.
 #[component]
-fn YAMLTab(pod: Pod) -> Element {
+fn YamlTab(pod: Pod) -> Element {
     let yaml = serde_saphyr::to_string(&pod).unwrap_or_else(|_| "Failed to serialize".into());
     rsx! {
         pre { style: "font-family: var(--font-mono); font-size: 12px; line-height: 1.4; overflow: auto; white-space: pre; color: var(--fg-0);",
