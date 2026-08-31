@@ -105,6 +105,11 @@ body {
 
 .not-found { text-align: center; padding: 48px; color: var(--fg-2); }
 
+/* Host-rendered mount node for JS plugin routes. `display: contents`
+   keeps the plugin's children in the host main outlet without an extra
+   box; the plugin's CSS handles its own layout. */
+.js-route-slot { display: contents; }
+
 /* Theme selector (OKT-42): omarchy-style picker. Frost card, token-driven. */
 .theme-selector { display: flex; flex-direction: column; gap: 4px; }
 .theme-group { color: var(--fg-2); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; margin: 12px 0 4px; }
