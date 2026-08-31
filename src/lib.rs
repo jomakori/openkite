@@ -84,6 +84,13 @@ pub fn run() {
     };
     crate::runtime::set_bridge(bridge);
 
+    // Refresh cluster metadata (namespace list + Prometheus detection)
+    // before launching the UI so the namespace chips and status bar are
+    // populated on first render.
+    if let Some(client) = crate::runtime::client() {
+        runtime.block_on(crate::runtime::refresh_cluster_meta(&client));
+    }
+
     // Hand the cluster registry to the UI: the ctrl-tab switcher connects
     // context switches through it, reusing cached clients per context.
     crate::runtime::set_contexts(cluster.contexts().to_vec());

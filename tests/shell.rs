@@ -74,6 +74,7 @@ fn status_bar_lists_connection_version_then_plugins() {
         cluster: Some("gke_prod".into()),
         namespace: "default".into(),
         connected: true,
+        prometheus: None,
     };
 
     let bar = status_bar_model(&state, &store, "1.2.3");
