@@ -121,10 +121,40 @@ fn AppShell() -> Element {
             ClusterSwitcher {}
             Sidebar {}
             div { class: "main-col",
+                TopBar {}
                 main { class: "content",
                     Outlet::<Route> {}
                 }
                 StatusFooter {}
+            }
+        }
+    }
+}
+
+/// Top bar: namespace multi-select chips.
+///
+/// The cluster switcher lives in the ctrl-tab overlay (OKT-51), so the top
+/// bar only shows namespace chips for scoping resource queries.
+#[component]
+fn TopBar() -> Element {
+    let namespaces = crate::runtime::NAMESPACES.read();
+    let selected = crate::runtime::SELECTED_NAMESPACES.read();
+    let ns_list: Vec<String> = namespaces.clone();
+    let chips: Vec<(String, bool)> = ns_list
+        .iter()
+        .map(|ns| (ns.clone(), selected.iter().any(|s| s == ns)))
+        .collect();
+
+    rsx! {
+        header { class: "topbar",
+            div { class: "ns-chips",
+                for (ns, is_active) in chips {
+                    button {
+                        class: if is_active { "ns-chip active" } else { "ns-chip" },
+                        onclick: move |_| crate::runtime::toggle_namespace(ns.clone()),
+                        "{ns}"
+                    }
+                }
             }
         }
     }
