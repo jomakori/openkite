@@ -17,6 +17,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
 use crate::switcher::{ClusterSwitcher, SwitcherKeybind};
+use crate::views::pod_detail::PodDetail;
 
 /// Plugin sidebar sections (static Rust SDK plugins), populated at startup.
 static PLUGIN_SECTIONS: GlobalSignal<Vec<SidebarSection>> = Signal::global(Vec::new);
@@ -119,6 +120,7 @@ fn AppShell() -> Element {
         div { class: "app-shell",
             SwitcherKeybind {}
             ClusterSwitcher {}
+            PodDetail {}
             Sidebar {}
             div { class: "main-col",
                 TopBar {}
