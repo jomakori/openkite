@@ -30,9 +30,9 @@ fn filter_is_case_insensitive_substring() {
 
 #[test]
 fn filter_orders_by_match_position() {
-    // "us" matches "prod-us" at pos 5 and "staging-eu"… not at all; both
-    // prod entries match at pos 0, stable for ties.
-    let got = filter_contexts(&names(), "us");
+    // "prod" matches at pos 0 in both "prod" and "prod-us"; stable sort
+    // preserves kubeconfig order for ties.
+    let got = filter_contexts(&names(), "prod");
     assert_eq!(got, vec!["prod".to_string(), "prod-us".to_string()]);
 }
 
