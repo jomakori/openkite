@@ -20,6 +20,7 @@ pub mod runtime;
 pub mod secrets;
 pub mod shell;
 pub mod state;
+pub mod switcher;
 pub mod terminal;
 pub mod theme;
 pub mod theme_catalog;
@@ -82,6 +83,11 @@ pub fn run() {
         None => crate::bridge::Bridge::new(),
     };
     crate::runtime::set_bridge(bridge);
+
+    // Hand the cluster registry to the UI: the ctrl-tab switcher connects
+    // context switches through it, reusing cached clients per context.
+    crate::runtime::set_contexts(cluster.contexts().to_vec());
+    let _ = cluster::SHARED.set(tokio::sync::Mutex::new(cluster));
 
     // Discover JS plugins; the shell evals their bundles after mount and
     // their `register` POSTs flow back through the bridge at runtime.

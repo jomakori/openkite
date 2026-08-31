@@ -7,6 +7,12 @@ use kube::{Client, Config};
 use openkite_plugin_sdk::{PluginContext, PluginUiHandle, ThemeReadHandle};
 use std::collections::HashMap;
 
+/// Process-global cluster registry, seeded by `run()` after bootstrapping
+/// the initial connection. The ctrl-tab switcher connects context switches
+/// through it so cached `Client`s survive re-switches.
+pub static SHARED: std::sync::OnceLock<tokio::sync::Mutex<ClusterState>> =
+    std::sync::OnceLock::new();
+
 /// Active cluster connection: the kubeconfig's context list, the active
 /// context, and a cached `kube::Client` per context.
 ///

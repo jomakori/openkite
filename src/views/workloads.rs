@@ -22,8 +22,16 @@ macro_rules! workload_table {
         #[component]
         fn $name() -> Element {
             let rows = use_signal_sync(Vec::<ResourceRow>::new);
+            // Slot for the running reflector task: aborted on re-run so a
+            // switched client (ctrl-tab switcher) never leaves a stale
+            // watcher racing writes into the same rows signal.
+            let mut reflector_task =
+                use_hook(|| CopyValue::new(None::<tokio::task::JoinHandle<()>>));
 
             use_effect(move || {
+                if let Some(task) = reflector_task.write().take() {
+                    task.abort();
+                }
                 let Some(client) = crate::runtime::client() else {
                     return;
                 };
@@ -31,11 +39,12 @@ macro_rules! workload_table {
                 let (store, writer) = store::<$ty>();
                 let stream = watcher(api, watcher::Config::default()).default_backoff();
                 let mut rows_for_task = rows;
-                tokio::spawn(drive_reflector(writer, stream, store, move |snapshot| {
+                let task = tokio::spawn(drive_reflector(writer, stream, store, move |snapshot| {
                     let mapped: Vec<ResourceRow> =
                         snapshot.iter().map(|item| $mapper(item.as_ref())).collect();
                     rows_for_task.set(mapped);
                 }));
+                *reflector_task.write() = Some(task);
             });
 
             rsx! {
