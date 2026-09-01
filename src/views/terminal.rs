@@ -96,7 +96,7 @@ pub fn TerminalView() -> Element {
 
     let mut phase = use_signal_sync(|| TerminalPhase::Disconnected);
     let mut container = use_signal_sync(|| default_container(&containers).unwrap_or_default());
-    let last_error = use_signal_sync(|| String::new());
+    let last_error = use_signal_sync(String::new);
 
     // Task slot: holds the in-flight exec fetch `Task` so re-runs (reconnect
     // click, container change) cancel the prior task before spawning fresh.
