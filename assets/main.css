@@ -110,6 +110,19 @@ body {
    box; the plugin's CSS handles its own layout. */
 .js-route-slot { display: contents; }
 
+/* CodeMirror 6 host surface (OKT-37). The vendored IIFE bundle injects
+   its own `.cm-editor` styles; the host only owns the wrapper chrome
+   and the diagnostics block. */
+.code-editor {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-1);
+  overflow: hidden;
+}
+.diagnostics { padding: 8px 12px; font-family: var(--font-mono); font-size: 11.5px; }
+.diagnostic-line { color: var(--red); padding: 2px 0; }
+.diagnostic-line .line-col { color: var(--fg-2); margin-right: 6px; }
+
 /* Theme selector (OKT-42): omarchy-style picker. Frost card, token-driven. */
 .theme-selector { display: flex; flex-direction: column; gap: 4px; }
 .theme-group { color: var(--fg-2); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; margin: 12px 0 4px; }

@@ -225,8 +225,10 @@ fn EventsTab(pod: Pod) -> Element {
 fn YamlTab(pod: Pod) -> Element {
     let yaml = serde_saphyr::to_string(&pod).unwrap_or_else(|_| "Failed to serialize".into());
     rsx! {
-        pre { style: "font-family: var(--font-mono); font-size: 12px; line-height: 1.4; overflow: auto; white-space: pre; color: var(--fg-0);",
-            "{yaml}"
+        crate::components::code_editor::CodeEditor {
+            text: yaml,
+            read_only: true,
+            diagnostics: Vec::new(),
         }
     }
 }
