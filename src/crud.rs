@@ -267,13 +267,13 @@ mod tests {
         // starting with the verb and the "cluster mutation lands in Phase 1"
         // suffix. When the Phase 1 follow-up lands, the test updates
         // in lockstep with the real implementation.
-        let client = Client::try_default().await.ok();
-        // Take the client once before the loop; the placeholder never
-        // sends a request, so an absent cluster still exercises the
-        // Phase-1 contract path for every variant.
-        let client = client
-            .as_ref()
-            .expect("client (placeholder needs no cluster)");
+        let client = {
+            // The placeholder never sends a request, so a client built
+            // from a fake http URI (no cluster, no kubeconfig) is
+            // sufficient — `try_default` would return None in CI.
+            let config = kube::Config::new("http://127.0.0.1:8080".parse().expect("valid uri"));
+            kube::Client::try_from(config).expect("client builds from config")
+        };
         let doc = pod_doc();
         for m in [
             Mutation::Create(doc.clone()),
