@@ -1,0 +1,61 @@
+/* OpenKite vendored CodeMirror 6 base theme. Bridges the @codemirror/view
+   default chrome (line numbers, gutters, caret, selection) onto the host's
+   Liquid Frost Glass tokens. The host's `.code-editor` block (in
+   `assets/main.css`) wraps the editor and supplies `--font-mono`, the
+   border, and the surface color; this file owns the CM6-internal classes. */
+
+.cm-editor {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--fg-0);
+  background: transparent;
+  height: 100%;
+}
+
+.cm-editor.cm-focused {
+  outline: none;
+}
+
+.cm-scroller {
+  font-family: var(--font-mono);
+}
+
+.cm-gutters {
+  background: var(--bg-2);
+  color: var(--fg-2);
+  border-right: 1px solid var(--border);
+}
+
+.cm-activeLine {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.cm-activeLineGutter {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--fg-0);
+}
+
+.cm-content {
+  caret-color: var(--accent);
+}
+
+.cm-cursor {
+  border-left-color: var(--accent);
+}
+
+.cm-selectionBackground,
+.cm-editor ::selection {
+  background: color-mix(in srgb, var(--accent) 30%, transparent) !important;
+}
+
+.cm-diagnostic-error {
+  border-left: 2px solid var(--red);
+}
+
+.cm-tooltip {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--fg-0);
+}
