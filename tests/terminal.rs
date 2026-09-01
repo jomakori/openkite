@@ -57,5 +57,6 @@ fn drain_output_buffer_round_trips_through_output_buffer() {
     assert_eq!(drain_output_buffer(&mut buf), b"abcdefgh");
     buf.push(b"ijkl");
     assert_eq!(drain_output_buffer(&mut buf), b"ijklmnop");
+    assert_eq!(drain_output_buffer(&mut buf), b"ijkl");
     assert!(drain_output_buffer(&mut buf).is_empty());
 }
