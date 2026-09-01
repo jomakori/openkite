@@ -6,16 +6,21 @@
 
 use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet};
 use k8s_openapi::api::batch::v1::{CronJob, Job};
-use k8s_openapi::api::core::v1::Pod;
+use k8s_openapi::api::core::v1::{Node, Pod};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{OwnerReference, Time};
 
 use crate::components::resource_table::{Cell, ColumnDef, HealthDot, ResourceRow};
 use crate::components::status_badge::StatusKind;
 
-/// The seven workload kinds the Workloads view lists.
+/// The workload kinds the Workloads view lists.
+///
+/// `Nodes` is the cluster-scoped sibling of the namespace-scoped kinds
+/// (`Pods` etc.); the row id is a bare name (no `default/` prefix) and the
+/// `Api::<Node>::all` reflector runs without a namespace filter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WorkloadKind {
     Pods,
+    Nodes,
     Deployments,
     StatefulSets,
     DaemonSets,
@@ -25,9 +30,12 @@ pub enum WorkloadKind {
 }
 
 impl WorkloadKind {
-    /// Every kind, in tab order.
-    pub const ALL: [WorkloadKind; 7] = [
+    /// Every kind, in tab order. `Nodes` sits between `Pods` and the
+    /// controller kinds so the Workloads sidebar reads "Pods / Nodes /
+    /// Deployments" — the same reading order the cluster overview uses.
+    pub const ALL: [WorkloadKind; 8] = [
         WorkloadKind::Pods,
+        WorkloadKind::Nodes,
         WorkloadKind::Deployments,
         WorkloadKind::StatefulSets,
         WorkloadKind::DaemonSets,
@@ -40,6 +48,7 @@ impl WorkloadKind {
     pub fn label(self) -> &'static str {
         match self {
             WorkloadKind::Pods => "Pods",
+            WorkloadKind::Nodes => "Nodes",
             WorkloadKind::Deployments => "Deployments",
             WorkloadKind::StatefulSets => "StatefulSets",
             WorkloadKind::DaemonSets => "DaemonSets",
@@ -54,6 +63,7 @@ impl WorkloadKind {
     pub fn kind_str(self) -> &'static str {
         match self {
             WorkloadKind::Pods => "Pod",
+            WorkloadKind::Nodes => "Node",
             WorkloadKind::Deployments => "Deployment",
             WorkloadKind::StatefulSets => "StatefulSet",
             WorkloadKind::DaemonSets => "DaemonSet",
@@ -66,7 +76,7 @@ impl WorkloadKind {
     /// `apiVersion` prefix for the CRUD modal's starter/Edit doc.
     pub fn api_version(self) -> &'static str {
         match self {
-            WorkloadKind::Pods => "v1",
+            WorkloadKind::Pods | WorkloadKind::Nodes => "v1",
             WorkloadKind::Jobs | WorkloadKind::CronJobs => "batch/v1",
             _ => "apps/v1",
         }
