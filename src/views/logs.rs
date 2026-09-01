@@ -184,11 +184,11 @@ pub fn LogsView() -> Element {
         .map(|s| s.containers.iter().map(|c| c.name.clone()).collect())
         .unwrap_or_default();
 
-    let mut container = use_signal(|| pick_default_container(&containers).unwrap_or_default());
-    let mut follow = use_signal(|| true);
-    let mut follow_state = use_signal(|| FollowState::Following);
-    let mut at_bottom = use_signal(|| true);
-    let mut lines = use_signal(LineBuffer::default);
+    let mut container = use_signal_sync(|| pick_default_container(&containers).unwrap_or_default());
+    let mut follow = use_signal_sync(|| true);
+    let mut follow_state = use_signal_sync(|| FollowState::Following);
+    let mut at_bottom = use_signal_sync(|| true);
+    let mut lines = use_signal_sync(LineBuffer::default);
 
     // Task slot: holds the in-flight drain `JoinHandle` so re-runs (container
     // change, follow toggle, pod change) abort the prior task before spawning
