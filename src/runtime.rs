@@ -3,6 +3,7 @@
 use dioxus::prelude::*;
 use k8s_openapi::api::core::v1::{Namespace, Pod, Service};
 use kube::{Api, Client};
+use serde_json::Value;
 use std::sync::{Arc, OnceLock};
 
 use crate::bridge::Bridge;
@@ -40,6 +41,76 @@ pub static REGISTRATIONS: GlobalSignal<crate::plugin_api::RegistrationStore> =
 /// when the route changes and read by JS-side consumers as a fallback when
 /// the `document::eval` for `_renderRoute` has not fired yet.
 pub static CURRENT_ROUTE: GlobalSignal<String> = Signal::global(String::new);
+
+/// The resource the CRUD overlay is currently showing, or `None` when the
+/// overlay is closed. Dispatched on by [`crate::components::crud_modal::CrudOverlay`].
+#[derive(Debug, Clone, PartialEq)]
+pub enum CrudTarget {
+    /// Edit a live resource; the editor round-trips through `ApiRequest::Get`
+    /// and pre-loads with the current manifest.
+    Edit { doc: Value, kind: String },
+    /// Destructive confirm modal (typed-name gate).
+    Delete {
+        kind: String,
+        namespace: Option<String>,
+        name: String,
+    },
+    /// Non-destructive scale confirm (number input + 2-button row).
+    Scale {
+        kind: String,
+        namespace: Option<String>,
+        name: String,
+        current_replicas: u32,
+    },
+    /// Create a new resource; the editor opens with a kind-specific starter.
+    New { kind: String },
+}
+
+pub static CRUD_TARGET: GlobalSignal<Option<CrudTarget>> = Signal::global(|| None);
+
+/// Open the overlay for one of the four CRUD operations. `None` closes it.
+pub fn set_crud_target(target: Option<CrudTarget>) {
+    *CRUD_TARGET.write() = target;
+}
+
+/// Close the overlay.
+pub fn clear_crud_target() {
+    set_crud_target(None);
+}
+
+/// Open the editor for an existing resource.
+pub fn open_editor_for(kind: String, doc: Value) {
+    set_crud_target(Some(CrudTarget::Edit { kind, doc }));
+}
+
+/// Open the destructive confirm modal.
+pub fn open_delete_for(kind: String, namespace: Option<String>, name: String) {
+    set_crud_target(Some(CrudTarget::Delete {
+        kind,
+        namespace,
+        name,
+    }));
+}
+
+/// Open the scale modal.
+pub fn open_scale_for(
+    kind: String,
+    namespace: Option<String>,
+    name: String,
+    current_replicas: u32,
+) {
+    set_crud_target(Some(CrudTarget::Scale {
+        kind,
+        namespace,
+        name,
+        current_replicas,
+    }));
+}
+
+/// Open the editor for a brand-new resource.
+pub fn open_new_for(kind: String) {
+    set_crud_target(Some(CrudTarget::New { kind }));
+}
 
 /// The plugin bridge, shared between bootstrap and the app shell's asset
 /// handler. `OnceLock`: set once before launch, read from the
