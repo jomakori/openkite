@@ -98,13 +98,17 @@ fn apply_mutation_returns_phase1_placeholder_error_today() {
     // drive it with a client built from a fake http URI (no cluster
     // behind it — the placeholder never sends a request). rustls 0.23
     // requires a process-level crypto provider; install ring once.
+    // The tower buffer service needs a live tokio runtime, so create
+    // the runtime FIRST and build the client inside it.
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let config = kube::Config::new("http://127.0.0.1:8080".parse().expect("valid uri"));
-    let dummy = kube::Client::try_from(config).expect("client builds from config");
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("current-thread tokio runtime");
+    let dummy = {
+        let config = kube::Config::new("http://127.0.0.1:8080".parse().expect("valid uri"));
+        rt.block_on(async { kube::Client::try_from(config).expect("client builds from config") })
+    };
     for m in cases {
         let err = rt.block_on(apply_mutation(&dummy, &m)).unwrap_err();
         assert!(
