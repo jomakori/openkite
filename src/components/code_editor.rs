@@ -90,11 +90,21 @@ pub fn CodeEditor(
     let data_attr_for_effect = data_attr.clone();
     let text_json = serde_json::to_string(&text).unwrap_or_else(|_| "\"\"".into());
     let read_only_js = if read_only { "true" } else { "false" };
-    // Precompute the first diagnostic as a `Copy` Option<&Diagnostic>
-    // so the bootstrap effect can capture it by move without taking
-    // ownership of the whole `Vec<Diagnostic>` prop (which is still
-    // borrowed by `diagnostics_rows(&diagnostics)` after the effect).
-    let first_diag: Option<&Diagnostic> = diagnostics.first();
+    // Precompute the diagnostics payload as an OWNED `String` (JSON)
+    // before the effect. The `diagnostics` prop is a temporary; a
+    // `Option<&Diagnostic>` borrow of it cannot be captured by the
+    // `use_effect(move || ...)` closure (E0716 — dangling reference
+    // after the temporary drops). Owned data moves into the closure
+    // safely.
+    let diag_json = match diagnostics.first() {
+        Some(d) => serde_json::to_string(&serde_json::json!({
+            "message": d.message,
+            "line": d.line,
+            "column": d.column,
+        }))
+        .unwrap_or_else(|_| "null".into()),
+        None => "null".to_string(),
+    };
 
     // Bootstrap effect: inject the vendored CSS once (guarded by an
     // <html> class), inject the vendored JS once (guarded by
@@ -123,16 +133,6 @@ pub fn CodeEditor(
             }}"#,
         );
         let _ = document::eval(&inject_js);
-        let diag = first_diag;
-        let diag_json = match diag {
-            Some(d) => serde_json::to_string(&serde_json::json!({
-                "message": d.message,
-                "line": d.line,
-                "column": d.column,
-            }))
-            .unwrap_or_else(|_| "null".into()),
-            None => "null".to_string(),
-        };
         let _ = document::eval(&format!("window.__openkite_yaml_diag = {diag_json};"));
     });
 
