@@ -80,11 +80,21 @@ pub fn CodeEditor(
         static COUNTER: AtomicU32 = AtomicU32::new(0);
         COUNTER.fetch_add(1, Ordering::Relaxed)
     });
-    let instance_id_str = instance_id.to_string();
     let cache_id = code_editor_path();
     let data_attr = format!("{cache_id}-{instance_id}");
+    // The mount effect below captures `data_attr` by move, but the
+    // `rsx!` after the effect also references it. Clone for the
+    // closure so the rsx! can keep the original (the effect runs on
+    // text/read_only prop changes, so the closure-captured value is
+    // the only one that mutates; the rsx! uses the outer one).
+    let data_attr_for_effect = data_attr.clone();
     let text_json = serde_json::to_string(&text).unwrap_or_else(|_| "\"\"".into());
     let read_only_js = if read_only { "true" } else { "false" };
+    // Precompute the first diagnostic as a `Copy` Option<&Diagnostic>
+    // so the bootstrap effect can capture it by move without taking
+    // ownership of the whole `Vec<Diagnostic>` prop (which is still
+    // borrowed by `diagnostics_rows(&diagnostics)` after the effect).
+    let first_diag: Option<&Diagnostic> = diagnostics.first();
 
     // Bootstrap effect: inject the vendored CSS once (guarded by an
     // <html> class), inject the vendored JS once (guarded by
@@ -113,7 +123,7 @@ pub fn CodeEditor(
             }}"#,
         );
         let _ = document::eval(&inject_js);
-        let diag = diagnostics.first();
+        let diag = first_diag;
         let diag_json = match diag {
             Some(d) => serde_json::to_string(&serde_json::json!({
                 "message": d.message,
@@ -134,7 +144,7 @@ pub fn CodeEditor(
         // Suppress the unused-warning on `on_change`: the prop is part
         // of the public surface; consumers wire it in OKT-43.
         let _ = on_change;
-        let selector = format!("[data-cm-host=\"{data_attr}\"]");
+        let selector = format!("[data-cm-host=\"{data_attr_for_effect}\"]");
         let mount = format!(
             r#"(function() {{
                 var sel = {selector:?};
