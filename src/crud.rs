@@ -271,6 +271,8 @@ mod tests {
             // The placeholder never sends a request, so a client built
             // from a fake http URI (no cluster, no kubeconfig) is
             // sufficient — `try_default` would return None in CI.
+            // rustls 0.23 requires a process-level crypto provider.
+            let _ = rustls::crypto::ring::default_provider().install_default();
             let config = kube::Config::new("http://127.0.0.1:8080".parse().expect("valid uri"));
             kube::Client::try_from(config).expect("client builds from config")
         };

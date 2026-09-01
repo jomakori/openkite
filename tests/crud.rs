@@ -96,7 +96,9 @@ fn apply_mutation_returns_phase1_placeholder_error_today() {
     ];
     // The placeholder signature takes &Client but never touches it;
     // drive it with a client built from a fake http URI (no cluster
-    // behind it — the placeholder never sends a request).
+    // behind it — the placeholder never sends a request). rustls 0.23
+    // requires a process-level crypto provider; install ring once.
+    let _ = rustls::crypto::ring::default_provider().install_default();
     let config = kube::Config::new("http://127.0.0.1:8080".parse().expect("valid uri"));
     let dummy = kube::Client::try_from(config).expect("client builds from config");
     let rt = tokio::runtime::Builder::new_current_thread()
