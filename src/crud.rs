@@ -51,16 +51,11 @@ pub fn validate_manifest(doc: &Value) -> Result<ManifestRef, String> {
 
 /// One propagation policy today: `Default` (kubectl foreground). Future
 /// variants (`Orphan`, `Foreground`, `Background`) are additive.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum PropagationPolicy {
+    #[default]
     Default,
-}
-
-impl Default for PropagationPolicy {
-    fn default() -> Self {
-        Self::Default
-    }
 }
 
 impl PropagationPolicy {
