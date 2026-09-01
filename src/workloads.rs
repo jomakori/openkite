@@ -48,6 +48,29 @@ impl WorkloadKind {
             WorkloadKind::CronJobs => "CronJobs",
         }
     }
+
+    /// Singular API kind string (matches the `kind` field of a manifest).
+    /// Used by the CRUD modal for the starter/Edit doc.
+    pub fn kind_str(self) -> &'static str {
+        match self {
+            WorkloadKind::Pods => "Pod",
+            WorkloadKind::Deployments => "Deployment",
+            WorkloadKind::StatefulSets => "StatefulSet",
+            WorkloadKind::DaemonSets => "DaemonSet",
+            WorkloadKind::ReplicaSets => "ReplicaSet",
+            WorkloadKind::Jobs => "Job",
+            WorkloadKind::CronJobs => "CronJob",
+        }
+    }
+
+    /// `apiVersion` prefix for the CRUD modal's starter/Edit doc.
+    pub fn api_version(self) -> &'static str {
+        match self {
+            WorkloadKind::Pods => "v1",
+            WorkloadKind::Jobs | WorkloadKind::CronJobs => "batch/v1",
+            _ => "apps/v1",
+        }
+    }
 }
 
 /// Column skeleton shared by every kind: Name leading, the kind-specific middle

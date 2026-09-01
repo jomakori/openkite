@@ -552,3 +552,131 @@ body {
   color: var(--fg-2);
 }
 
+/* CRUD modal + confirm dialogs (OKT-43). The destructive confirm is the
+   trust boundary: the red Delete button is disabled until the typed name
+   matches exactly, the body stop_propagation's so clicks inside never
+   dismiss, and the backdrop click cancels. All surface classes are
+   token-driven (--bg-1, --bg, --border, --r-md, --shadow-hover, --red);
+   no new :root properties. */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 18, 25, 0.45);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.modal {
+  width: 420px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 32px);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-hover);
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-eyebrow {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-2);
+}
+
+.modal-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--fg-0);
+}
+
+.modal-body {
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+}
+
+/* YAML editor surface inside the modal (plain textarea per OKT-43 plan). */
+.editor-textarea {
+  width: 100%;
+  min-height: 260px;
+  resize: vertical;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.5;
+  padding: 10px;
+  color: var(--fg-0);
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  outline: none;
+}
+.editor-textarea:focus {
+  border-color: var(--accent);
+}
+
+/* Form field label / helper / error triad. */
+.field-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--fg-1);
+}
+.field-helper {
+  font-size: 11.5px;
+  color: var(--fg-2);
+}
+.field-error {
+  font-size: 12px;
+  color: var(--red);
+}
+
+/* Destructive confirm copy. */
+.confirm-warning {
+  font-size: 13px;
+  color: var(--fg-1);
+  margin: 0;
+}
+
+/* Danger button — same shape as .btn-primary but with --red. */
+.btn-danger {
+  background: var(--red);
+  color: #fff;
+  border-color: var(--red);
+}
+.btn-danger:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+.btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Editor + confirm modals share the same surface; the variants only
+   differentiate width/alignment for the two use cases. */
+.modal-editor { width: 560px; }
+.modal-confirm { width: 380px; }
+

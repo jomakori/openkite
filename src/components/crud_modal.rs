@@ -16,7 +16,9 @@
 use dioxus::prelude::*;
 use serde_json::{json, Value};
 
-use crate::crud::{self, apply_mutation, validate_for_edit, validate_manifest, Mutation, PropagationPolicy};
+use crate::crud::{
+    self, apply_mutation, validate_for_edit, validate_manifest, Mutation, PropagationPolicy,
+};
 use crate::runtime::{self, CrudTarget, CRUD_TARGET};
 use crate::yaml::parse_yaml;
 
@@ -191,11 +193,7 @@ fn value_to_yaml(doc: &Value) -> String {
 /// additionally requires `metadata.resourceVersion` (the new
 /// `validate_for_edit` guard) so a patch cannot silently lose-update.
 #[component]
-pub fn CrudEditor(
-    initial_doc: Option<Value>,
-    target_kind: String,
-    mode: EditorMode,
-) -> Element {
+pub fn CrudEditor(initial_doc: Option<Value>, target_kind: String, mode: EditorMode) -> Element {
     let starter = initial_doc.unwrap_or_else(|| starter_for_kind(&target_kind));
     let initial_text = value_to_yaml(&starter);
 
@@ -250,12 +248,10 @@ pub fn CrudEditor(
                     None => Err("no cluster connected".into()),
                 };
                 let msg = match result {
-                    Ok(()) => format!(
-                        "applied {} {}",
-                        m.verb(),
-                        kind_for_toast
-                    ),
-                    Err(error) => format!("{} queued ({} — apply pending Phase 1)", m.verb(), error),
+                    Ok(()) => format!("applied {} {}", m.verb(), kind_for_toast),
+                    Err(error) => {
+                        format!("{} queued ({} — apply pending Phase 1)", m.verb(), error)
+                    }
                 };
                 toast.set(Some(msg));
                 pending.set(false);
@@ -349,10 +345,7 @@ pub fn ConfirmDelete(kind: String, namespace: Option<String>, name: String) -> E
                 };
                 let msg = match result {
                     Ok(()) => format!("deleted {} {}", kind_for_toast, name_for_toast),
-                    Err(error) => format!(
-                        "{} queued ({} — apply pending Phase 1)",
-                        verb, error
-                    ),
+                    Err(error) => format!("{} queued ({} — apply pending Phase 1)", verb, error),
                 };
                 toast.set(Some(msg));
                 pending.set(false);
@@ -465,11 +458,11 @@ pub fn ConfirmScale(
                     None => Err("no cluster connected".into()),
                 };
                 let msg = match result {
-                    Ok(()) => format!("scaled {} {} to {}", kind_for_toast, name_for_toast, replicas),
-                    Err(error) => format!(
-                        "{} queued ({} — apply pending Phase 1)",
-                        verb, error
+                    Ok(()) => format!(
+                        "scaled {} {} to {}",
+                        kind_for_toast, name_for_toast, replicas
                     ),
+                    Err(error) => format!("{} queued ({} — apply pending Phase 1)", verb, error),
                 };
                 toast.set(Some(msg));
                 pending.set(false);
@@ -566,15 +559,24 @@ mod tests {
             deploy.get("apiVersion").and_then(Value::as_str),
             Some("apps/v1")
         );
-        assert_eq!(deploy.get("kind").and_then(Value::as_str), Some("Deployment"));
+        assert_eq!(
+            deploy.get("kind").and_then(Value::as_str),
+            Some("Deployment")
+        );
         let unknown = starter_for_kind("Other");
         assert_eq!(unknown.get("kind").and_then(Value::as_str), Some("Other"));
     }
 
     #[test]
     fn format_resource_triple_includes_namespace_when_present() {
-        assert_eq!(format_resource_triple("Pod", Some("default"), "nginx"), "Pod · default/nginx");
-        assert_eq!(format_resource_triple("Node", None, "node-1"), "Node · node-1");
+        assert_eq!(
+            format_resource_triple("Pod", Some("default"), "nginx"),
+            "Pod · default/nginx"
+        );
+        assert_eq!(
+            format_resource_triple("Node", None, "node-1"),
+            "Node · node-1"
+        );
     }
 
     #[test]

@@ -8,7 +8,8 @@ use kube::api::Api;
 use kube::runtime::reflector::store;
 use kube::runtime::{watcher, WatchStreamExt};
 
-use crate::components::resource_table::{ResourceRow, ResourceTable};
+use crate::components::resource_table::{ResourceRow, ResourceTable, RowActions};
+use crate::runtime;
 use crate::state::resources::drive_reflector;
 use crate::workloads::{
     cron_job_columns, cron_job_row, daemon_set_columns, daemon_set_row, deployment_columns,
@@ -20,7 +21,7 @@ use crate::workloads::{
 macro_rules! workload_table {
     ($name:ident, $ty:path, $columns:path, $mapper:path) => {
         #[component]
-        fn $name() -> Element {
+        fn $name(row_actions: RowActions) -> Element {
             let rows = use_signal_sync(Vec::<ResourceRow>::new);
             // Slot for the running reflector task: aborted on re-run so a
             // switched client (ctrl-tab switcher) never leaves a stale
@@ -51,6 +52,7 @@ macro_rules! workload_table {
                 ResourceTable {
                     columns: $columns(),
                     rows: rows.read().clone(),
+                    row_actions: Some(row_actions),
                 }
             }
         }
@@ -85,10 +87,63 @@ workload_table!(
 workload_table!(JobsTable, Job, job_columns, job_row);
 workload_table!(CronJobsTable, CronJob, cron_job_columns, cron_job_row);
 
+/// Split a row id (the `object_id` format: `ns/name` or bare `name`) back
+/// into namespace + name for the CRUD modal targets.
+fn split_row_id(id: &str) -> (Option<String>, String) {
+    match id.split_once('/') {
+        Some((ns, name)) => (Some(ns.to_string()), name.to_string()),
+        None => (None, id.to_string()),
+    }
+}
+
 /// The Workloads view: a kind selector plus the live table for the selection.
 #[component]
 pub fn WorkloadView() -> Element {
     let mut kind = use_signal(|| WorkloadKind::Pods);
+
+    // Per-row CRUD actions. The handlers open the matching modal via the
+    // runtime CRUD_TARGET signal; the kube apply itself is Phase-1
+    // placeholder (see crate::crud::apply_mutation).
+    let row_actions = {
+        let active_kind = kind();
+        let kind_str = active_kind.kind_str().to_string();
+        let api_version = active_kind.api_version().to_string();
+        RowActions {
+            on_edit: {
+                let kind_str = kind_str.clone();
+                let api_version = api_version.clone();
+                Some(EventHandler::new(move |id: String| {
+                    let (ns, name) = split_row_id(&id);
+                    // Phase-1 placeholder doc: the editor pre-loads a minimal
+                    // manifest stub; a real cluster fetch replaces this when
+                    // the bridge mutation ops land.
+                    let doc = serde_json::json!({
+                        "apiVersion": api_version,
+                        "kind": kind_str.clone(),
+                        "metadata": {
+                            "name": name,
+                            "namespace": ns,
+                        },
+                    });
+                    runtime::open_editor_for(kind_str.clone(), doc);
+                }))
+            },
+            on_delete: {
+                let kind_str = kind_str.clone();
+                Some(EventHandler::new(move |id: String| {
+                    let (ns, name) = split_row_id(&id);
+                    runtime::open_delete_for(kind_str, ns, name);
+                }))
+            },
+            on_scale: {
+                let kind_str = kind_str.clone();
+                Some(EventHandler::new(move |id: String| {
+                    let (ns, name) = split_row_id(&id);
+                    runtime::open_scale_for(kind_str, ns, name, 1);
+                }))
+            },
+        }
+    };
 
     rsx! {
         div { class: "workloads",
@@ -100,15 +155,23 @@ pub fn WorkloadView() -> Element {
                         "{k.label()}"
                     }
                 }
+                button {
+                    class: "btn btn-primary new-resource",
+                    onclick: move |_| {
+                        let k = kind();
+                        runtime::open_new_for(k.kind_str().to_string());
+                    },
+                    "+ New"
+                }
             }
             match kind() {
-                WorkloadKind::Pods => rsx! { PodsTable {} },
-                WorkloadKind::Deployments => rsx! { DeploymentsTable {} },
-                WorkloadKind::StatefulSets => rsx! { StatefulSetsTable {} },
-                WorkloadKind::DaemonSets => rsx! { DaemonSetsTable {} },
-                WorkloadKind::ReplicaSets => rsx! { ReplicaSetsTable {} },
-                WorkloadKind::Jobs => rsx! { JobsTable {} },
-                WorkloadKind::CronJobs => rsx! { CronJobsTable {} },
+                WorkloadKind::Pods => rsx! { PodsTable { row_actions: row_actions.clone() } },
+                WorkloadKind::Deployments => rsx! { DeploymentsTable { row_actions: row_actions.clone() } },
+                WorkloadKind::StatefulSets => rsx! { StatefulSetsTable { row_actions: row_actions.clone() } },
+                WorkloadKind::DaemonSets => rsx! { DaemonSetsTable { row_actions: row_actions.clone() } },
+                WorkloadKind::ReplicaSets => rsx! { ReplicaSetsTable { row_actions: row_actions.clone() } },
+                WorkloadKind::Jobs => rsx! { JobsTable { row_actions: row_actions.clone() } },
+                WorkloadKind::CronJobs => rsx! { CronJobsTable { row_actions: row_actions.clone() } },
             }
         }
     }

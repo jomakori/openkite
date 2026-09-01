@@ -62,6 +62,22 @@ const REQUIRED_CLASSES: &[&str] = &[
     ".dot.warn",
     ".dot.err",
     ".sort-indicator",
+    // OKT-43 CRUD modal + confirm dialogs.
+    ".modal-backdrop",
+    ".modal",
+    ".modal-header",
+    ".modal-eyebrow",
+    ".modal-title",
+    ".modal-body",
+    ".modal-footer",
+    ".modal-editor",
+    ".modal-confirm",
+    ".editor-textarea",
+    ".field-label",
+    ".field-helper",
+    ".field-error",
+    ".confirm-warning",
+    ".btn-danger",
 ];
 
 /// Properties the opaline theme contract already provides — must not be
