@@ -96,7 +96,7 @@ pub fn TerminalView() -> Element {
 
     let mut phase = use_signal_sync(|| TerminalPhase::Disconnected);
     let mut container = use_signal_sync(|| default_container(&containers).unwrap_or_default());
-    let mut last_error = use_signal_sync(|| String::new());
+    let last_error = use_signal_sync(|| String::new());
 
     // Task slot: holds the in-flight exec fetch `Task` so re-runs (reconnect
     // click, container change) cancel the prior task before spawning fresh.
@@ -270,7 +270,9 @@ pub fn TerminalView() -> Element {
     // (mount / reset / writeln one-shots) — no spawned task needed.
     use_effect(move || {
         let current = phase();
-        let selector = selector_for_effect;
+        // `selector_for_effect` is captured by the FnMut closure; borrow it
+        // (E0507 — the String cannot be moved out of the capture on each run).
+        let selector = selector_for_effect.clone();
         match current {
             TerminalPhase::Disconnected => {
                 let _ = document::eval(&reset_js(&selector));

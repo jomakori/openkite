@@ -7,8 +7,6 @@
 //! text)`. The builders here are pure string functions so the selector
 //! plumbing is unit-testable without a Dioxus runtime.
 
-use dioxus::prelude::*;
-
 /// Cache-buster id for the vendored xterm bundle. Bump the `vN` suffix
 /// whenever the bundle in `assets/vendored/xterm/` is rebuilt (the
 /// `SOURCE.txt` in that directory records the rebuild command). The
