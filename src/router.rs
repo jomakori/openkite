@@ -123,6 +123,7 @@ fn AppShell() -> Element {
             SwitcherKeybind {}
             ClusterSwitcher {}
             PodDetail {}
+            crate::components::crud_modal::CrudOverlay {}
             Sidebar {}
             div { class: "main-col",
                 TopBar {}
