@@ -209,7 +209,9 @@ pub fn LogsView() -> Element {
         lines.write().clear();
 
         // Abort any prior drain task before spawning a replacement.
-        task_slot.write().take().map(|h| h.abort());
+        if let Some(handle) = task_slot.write().take() {
+            handle.abort();
+        }
 
         let Some(client) = crate::runtime::client() else {
             return;
@@ -229,7 +231,6 @@ pub fn LogsView() -> Element {
                 follow: should_follow,
                 tail_lines: Some(5000),
                 timestamps: true,
-                ..LogOptions::default()
             };
             let reader = match LogStream::new(api, name, opts).open().await {
                 Ok(r) => r,
