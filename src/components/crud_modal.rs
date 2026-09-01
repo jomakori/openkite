@@ -323,32 +323,39 @@ pub fn ConfirmDelete(kind: String, namespace: Option<String>, name: String) -> E
     let matches = crud::typed_name_matches(&typed.read(), &name);
     let can_confirm = matches && !pending();
 
-    let on_confirm: EventHandler<()> = EventHandler::new(move |()| {
-        pending.set(true);
-        let m = Mutation::Delete {
-            kind: kind.clone(),
-            namespace: namespace.clone(),
-            name: name.clone(),
-            propagation: PropagationPolicy::Default,
-        };
-        let verb = m.verb();
-        let kind_for_toast = kind.clone();
-        let name_for_toast = name.clone();
-        spawn(async move {
-            let result = match runtime::client() {
-                Some(client) => apply_mutation(&client, &m).await,
-                None => Err("no cluster connected".into()),
+    let on_confirm: EventHandler<()> = {
+        // Clone for the closure; the rsx below still reads `name` and
+        // `triple` from the original props.
+        let kind = kind.clone();
+        let namespace = namespace.clone();
+        let name_cl = name.clone();
+        EventHandler::new(move |()| {
+            pending.set(true);
+            let m = Mutation::Delete {
+                kind: kind.clone(),
+                namespace: namespace.clone(),
+                name: name_cl.clone(),
+                propagation: PropagationPolicy::Default,
             };
-            let msg = match result {
-                Ok(()) => format!("deleted {} {}", kind_for_toast, name_for_toast),
-                Err(error) => format!("{} queued ({} — apply pending Phase 1)", verb, error),
-            };
-            toast.set(Some(msg));
-            pending.set(false);
-            runtime::clear_crud_target();
-            spawn_dismiss_toast(toast);
-        });
-    });
+            let verb = m.verb();
+            let kind_for_toast = kind.clone();
+            let name_for_toast = name_cl.clone();
+            spawn(async move {
+                let result = match runtime::client() {
+                    Some(client) => apply_mutation(&client, &m).await,
+                    None => Err("no cluster connected".into()),
+                };
+                let msg = match result {
+                    Ok(()) => format!("deleted {} {}", kind_for_toast, name_for_toast),
+                    Err(error) => format!("{} queued ({} — apply pending Phase 1)", verb, error),
+                };
+                toast.set(Some(msg));
+                pending.set(false);
+                runtime::clear_crud_target();
+                spawn_dismiss_toast(toast);
+            });
+        })
+    };
 
     rsx! {
         div {
