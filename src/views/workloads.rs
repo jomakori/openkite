@@ -3,7 +3,7 @@
 use dioxus::prelude::*;
 use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet};
 use k8s_openapi::api::batch::v1::{CronJob, Job};
-use k8s_openapi::api::core::v1::Pod;
+use k8s_openapi::api::core::v1::{Pod, Secret};
 use kube::api::Api;
 use kube::runtime::reflector::store;
 use kube::runtime::{watcher, WatchStreamExt};
@@ -14,14 +14,20 @@ use crate::state::resources::drive_reflector;
 use crate::workloads::{
     cron_job_columns, cron_job_row, daemon_set_columns, daemon_set_row, deployment_columns,
     deployment_row, job_columns, job_row, pod_columns, pod_row, replica_set_columns,
-    replica_set_row, stateful_set_columns, stateful_set_row, WorkloadKind,
+    replica_set_row, secret_columns, secret_row, stateful_set_columns, stateful_set_row,
+    WorkloadKind,
 };
 
 /// Start a live reflector for one workload kind and render it as a table.
+/// `on_row_click` is optional; when supplied, the table exposes per-row
+/// click events so a slide-over (e.g. `SecretDetail`) can open.
 macro_rules! workload_table {
     ($name:ident, $ty:path, $columns:path, $mapper:path) => {
         #[component]
-        fn $name(row_actions: RowActions) -> Element {
+        fn $name(
+            row_actions: RowActions,
+            #[props(default)] on_row_click: Option<EventHandler<ResourceRow>>,
+        ) -> Element {
             let rows = use_signal_sync(Vec::<ResourceRow>::new);
             // Slot for the running reflector task: aborted on re-run so a
             // switched client (ctrl-tab switcher) never leaves a stale
@@ -53,6 +59,7 @@ macro_rules! workload_table {
                     columns: $columns(),
                     rows: rows.read().clone(),
                     row_actions: Some(row_actions),
+                    on_row_click,
                 }
             }
         }
