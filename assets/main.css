@@ -383,6 +383,17 @@ body {
 .log-msg { color: var(--term-fg); word-break: break-word; }
 .log-paused { font-size: 10.5px; color: var(--term-yellow); padding: 0 12px 4px; }
 
+/* --- Terminal view --- */
+.term-status {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--term-fg) 10%, transparent);
+  color: var(--term-fg);
+  border: 1px solid color-mix(in srgb, var(--term-fg) 18%, transparent);
+  font-family: var(--font-mono);
+}
+
 /* --- Inspector (slide-over) --- */
 .inspector {
   position: fixed; right: 0; top: 0; bottom: 0;

@@ -53,6 +53,7 @@ const REQUIRED_CLASSES: &[&str] = &[
     ".resource-name",
     ".log-panel",
     ".log-line",
+    ".term-status",
     ".inspector",
     ".kv-list",
     ".toast",

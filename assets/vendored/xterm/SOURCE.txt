@@ -1,0 +1,14 @@
+OpenKite vendored xterm.js bundle.
+
+Packages:
+  @xterm/xterm@5.5.0
+  esbuild@0.24.0 IIFE minified, es2020 target.
+
+Rebuild:
+  cd tools/build-xterm && npm install && node build.mjs ../../assets/vendored/xterm
+  # Then append the wrapper trailer (window.openkite._term_*) — see build.mjs
+  # comment block. The repo ships the trailer pre-baked; rebuild only when
+  # bumping @xterm/xterm or when the wrapper shape changes.
+
+Cache-buster id: xterm-bundle-v1 (bump on each rebuild; see
+crate::components::terminal::xterm_host_path).

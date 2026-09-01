@@ -2,3 +2,5 @@
 /dist
 /dev/.kube
 .opencode/local
+# Build-tool node_modules (vendored xterm, vendored codemirror).
+/tools/**/node_modules/

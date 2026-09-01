@@ -70,6 +70,8 @@ enum Route {
     Workloads {},
     #[route("/logs")]
     Logs {},
+    #[route("/terminal")]
+    Terminal {},
     #[route("/config")]
     Config {},
     #[route("/:..path")]
@@ -253,6 +255,7 @@ fn Sidebar() -> Element {
                 NavItem { label: "Cluster", to: Route::Cluster {} }
                 NavItem { label: "Workloads", to: Route::Workloads {} }
                 NavItem { label: "Logs", to: Route::Logs {} }
+                NavItem { label: "Terminal", to: Route::Terminal {} }
                 NavItem { label: "Config", to: Route::Config {} }
                 if !sections.is_empty() {
                     div { class: "nav-divider" }
@@ -398,6 +401,11 @@ fn Workloads() -> Element {
 #[component]
 fn Logs() -> Element {
     rsx! { crate::views::logs::LogsView {} }
+}
+
+#[component]
+fn Terminal() -> Element {
+    rsx! { crate::views::terminal::TerminalView {} }
 }
 
 #[component]
