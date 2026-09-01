@@ -291,7 +291,7 @@ mod tests {
                 replicas: 3,
             },
         ] {
-            let err = apply_mutation(client, &m).await.unwrap_err();
+            let err = apply_mutation(&client, &m).await.unwrap_err();
             let expected_verb = m.verb();
             assert!(
                 err.starts_with(expected_verb) && err.contains("Phase 1"),
