@@ -323,37 +323,32 @@ pub fn ConfirmDelete(kind: String, namespace: Option<String>, name: String) -> E
     let matches = crud::typed_name_matches(&typed.read(), &name);
     let can_confirm = matches && !pending();
 
-    let on_confirm = {
-        let kind = kind.clone();
-        let namespace = namespace.clone();
-        let name = name.clone();
-        move |_| {
-            pending.set(true);
-            let m = Mutation::Delete {
-                kind: kind.clone(),
-                namespace: namespace.clone(),
-                name: name.clone(),
-                propagation: PropagationPolicy::Default,
+    let on_confirm: EventHandler<()> = EventHandler::new(move |()| {
+        pending.set(true);
+        let m = Mutation::Delete {
+            kind: kind.clone(),
+            namespace: namespace.clone(),
+            name: name.clone(),
+            propagation: PropagationPolicy::Default,
+        };
+        let verb = m.verb();
+        let kind_for_toast = kind.clone();
+        let name_for_toast = name.clone();
+        spawn(async move {
+            let result = match runtime::client() {
+                Some(client) => apply_mutation(&client, &m).await,
+                None => Err("no cluster connected".into()),
             };
-            let verb = m.verb();
-            let kind_for_toast = kind.clone();
-            let name_for_toast = name.clone();
-            spawn(async move {
-                let result = match runtime::client() {
-                    Some(client) => apply_mutation(&client, &m).await,
-                    None => Err("no cluster connected".into()),
-                };
-                let msg = match result {
-                    Ok(()) => format!("deleted {} {}", kind_for_toast, name_for_toast),
-                    Err(error) => format!("{} queued ({} — apply pending Phase 1)", verb, error),
-                };
-                toast.set(Some(msg));
-                pending.set(false);
-                runtime::clear_crud_target();
-                spawn_dismiss_toast(toast);
-            });
-        }
-    };
+            let msg = match result {
+                Ok(()) => format!("deleted {} {}", kind_for_toast, name_for_toast),
+                Err(error) => format!("{} queued ({} — apply pending Phase 1)", verb, error),
+            };
+            toast.set(Some(msg));
+            pending.set(false);
+            runtime::clear_crud_target();
+            spawn_dismiss_toast(toast);
+        });
+    });
 
     rsx! {
         div {
@@ -388,7 +383,7 @@ pub fn ConfirmDelete(kind: String, namespace: Option<String>, name: String) -> E
                         oninput: move |event| typed.set(event.value()),
                         onkeydown: move |event| {
                             if event.key() == Key::Enter && can_confirm {
-                                on_confirm(());
+                                on_confirm.call(());
                             }
                         },
                     }
@@ -405,7 +400,7 @@ pub fn ConfirmDelete(kind: String, namespace: Option<String>, name: String) -> E
                     button {
                         class: "btn btn-danger",
                         disabled: !can_confirm,
-                        onclick: on_confirm,
+                        onclick: move |_| on_confirm.call(()),
                         "Delete"
                     }
                 }
@@ -434,43 +429,38 @@ pub fn ConfirmScale(
     let parsed_replicas: Option<u32> = replicas.read().trim().parse().ok();
     let can_confirm = parsed_replicas.is_some() && !pending();
 
-    let on_confirm = {
-        let kind = kind.clone();
-        let namespace = namespace.clone();
-        let name = name.clone();
-        move |_| {
-            let Some(replicas) = parsed_replicas else {
-                return;
+    let on_confirm: EventHandler<()> = EventHandler::new(move |()| {
+        let Some(replicas) = parsed_replicas else {
+            return;
+        };
+        pending.set(true);
+        let m = Mutation::Scale {
+            kind: kind.clone(),
+            namespace: namespace.clone(),
+            name: name.clone(),
+            replicas,
+        };
+        let verb = m.verb();
+        let kind_for_toast = kind.clone();
+        let name_for_toast = name.clone();
+        spawn(async move {
+            let result = match runtime::client() {
+                Some(client) => apply_mutation(&client, &m).await,
+                None => Err("no cluster connected".into()),
             };
-            pending.set(true);
-            let m = Mutation::Scale {
-                kind: kind.clone(),
-                namespace: namespace.clone(),
-                name: name.clone(),
-                replicas,
+            let msg = match result {
+                Ok(()) => format!(
+                    "scaled {} {} to {}",
+                    kind_for_toast, name_for_toast, replicas
+                ),
+                Err(error) => format!("{} queued ({} — apply pending Phase 1)", verb, error),
             };
-            let verb = m.verb();
-            let kind_for_toast = kind.clone();
-            let name_for_toast = name.clone();
-            spawn(async move {
-                let result = match runtime::client() {
-                    Some(client) => apply_mutation(&client, &m).await,
-                    None => Err("no cluster connected".into()),
-                };
-                let msg = match result {
-                    Ok(()) => format!(
-                        "scaled {} {} to {}",
-                        kind_for_toast, name_for_toast, replicas
-                    ),
-                    Err(error) => format!("{} queued ({} — apply pending Phase 1)", verb, error),
-                };
-                toast.set(Some(msg));
-                pending.set(false);
-                runtime::clear_crud_target();
-                spawn_dismiss_toast(toast);
-            });
-        }
-    };
+            toast.set(Some(msg));
+            pending.set(false);
+            runtime::clear_crud_target();
+            spawn_dismiss_toast(toast);
+        });
+    });
 
     rsx! {
         div {
@@ -496,7 +486,7 @@ pub fn ConfirmScale(
                         oninput: move |event| replicas.set(event.value()),
                         onkeydown: move |event| {
                             if event.key() == Key::Enter && can_confirm {
-                                on_confirm(());
+                                on_confirm.call(());
                             }
                         },
                     }
@@ -511,7 +501,7 @@ pub fn ConfirmScale(
                     button {
                         class: "btn btn-primary",
                         disabled: !can_confirm,
-                        onclick: on_confirm,
+                        onclick: move |_| on_confirm.call(()),
                         "Scale"
                     }
                 }

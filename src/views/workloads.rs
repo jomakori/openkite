@@ -132,14 +132,14 @@ pub fn WorkloadView() -> Element {
                 let kind_str = kind_str.clone();
                 Some(EventHandler::new(move |id: String| {
                     let (ns, name) = split_row_id(&id);
-                    runtime::open_delete_for(kind_str, ns, name);
+                    runtime::open_delete_for(kind_str.clone(), ns, name);
                 }))
             },
             on_scale: {
                 let kind_str = kind_str.clone();
                 Some(EventHandler::new(move |id: String| {
                     let (ns, name) = split_row_id(&id);
-                    runtime::open_scale_for(kind_str, ns, name, 1);
+                    runtime::open_scale_for(kind_str.clone(), ns, name, 1);
                 }))
             },
         }
