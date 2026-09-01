@@ -6,7 +6,7 @@
 
 use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet};
 use k8s_openapi::api::batch::v1::{CronJob, Job};
-use k8s_openapi::api::core::v1::Pod;
+use k8s_openapi::api::core::v1::{Pod, Secret};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{OwnerReference, Time};
 
 use crate::components::resource_table::{Cell, ColumnDef, HealthDot, ResourceRow};
@@ -17,6 +17,7 @@ use crate::components::status_badge::StatusKind;
 /// `Nodes` is the cluster-scoped sibling of the namespace-scoped kinds
 /// (`Pods` etc.); the row id is a bare name (no `default/` prefix) and the
 /// `Api::<Node>::all` reflector runs without a namespace filter.
+/// `Secrets` rides alongside Pods/Deployments as `core/v1` resources.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WorkloadKind {
     Pods,
@@ -27,13 +28,14 @@ pub enum WorkloadKind {
     ReplicaSets,
     Jobs,
     CronJobs,
+    Secrets,
 }
 
 impl WorkloadKind {
-    /// Every kind, in tab order. `Nodes` sits between `Pods` and the
+/// Every kind, in tab order. `Nodes` sits between `Pods` and the
     /// controller kinds so the Workloads sidebar reads "Pods / Nodes /
     /// Deployments" — the same reading order the cluster overview uses.
-    pub const ALL: [WorkloadKind; 8] = [
+    pub const ALL: [WorkloadKind; 9] = [
         WorkloadKind::Pods,
         WorkloadKind::Nodes,
         WorkloadKind::Deployments,
@@ -42,6 +44,7 @@ impl WorkloadKind {
         WorkloadKind::ReplicaSets,
         WorkloadKind::Jobs,
         WorkloadKind::CronJobs,
+        WorkloadKind::Secrets,
     ];
 
     /// Human-readable tab label.
@@ -55,6 +58,7 @@ impl WorkloadKind {
             WorkloadKind::ReplicaSets => "ReplicaSets",
             WorkloadKind::Jobs => "Jobs",
             WorkloadKind::CronJobs => "CronJobs",
+            WorkloadKind::Secrets => "Secrets",
         }
     }
 
@@ -70,13 +74,14 @@ impl WorkloadKind {
             WorkloadKind::ReplicaSets => "ReplicaSet",
             WorkloadKind::Jobs => "Job",
             WorkloadKind::CronJobs => "CronJob",
+            WorkloadKind::Secrets => "Secret",
         }
     }
 
     /// `apiVersion` prefix for the CRUD modal's starter/Edit doc.
     pub fn api_version(self) -> &'static str {
         match self {
-            WorkloadKind::Pods | WorkloadKind::Nodes => "v1",
+            WorkloadKind::Pods | WorkloadKind::Nodes | WorkloadKind::Secrets => "v1",
             WorkloadKind::Jobs | WorkloadKind::CronJobs => "batch/v1",
             _ => "apps/v1",
         }
@@ -782,5 +787,59 @@ pub fn cron_job_row(cj: &CronJob) -> ResourceRow {
             age_cell(&cj.metadata.creation_timestamp),
             Cell::status(&label, kind),
         ],
+    }
+}
+
+// --- Secrets ---
+
+/// Secret columns: name, type, keys (count only — never the key names —
+/// the names live in the slide-over), age, status.
+pub fn secret_columns() -> Vec<ColumnDef> {
+    kind_columns(&[
+        ColumnDef {
+            key: "type",
+            label: "Type",
+            width: Some(120),
+            sortable: true,
+        },
+        ColumnDef {
+            key: "keys",
+            label: "Keys",
+            width: Some(80),
+            sortable: true,
+        },
+    ])
+}
+
+/// Map a secret to a display row. Counts keys; the table does not surface
+/// the key names or the values (both live behind the slide-over).
+pub fn secret_row(secret: &Secret) -> ResourceRow {
+    let name = secret.metadata.name.clone().unwrap_or_default();
+    let namespace = secret.metadata.namespace.clone();
+    let key_count = crate::network::secret_keys(secret).len();
+    let kind_label = secret_kind_label(secret.type_.as_deref());
+    let status = (key_count.to_string(), StatusKind::Unknown);
+    ResourceRow {
+        id: object_id(namespace.as_deref(), &name),
+        namespace,
+        cells: vec![
+            Cell::text(name),
+            Cell::text(kind_label),
+            Cell::number(format!("{key_count} keys"), key_count as f64),
+            age_cell(&secret.metadata.creation_timestamp),
+            Cell::status(&status.0, status.1),
+        ],
+    }
+}
+
+/// Map a `Secret.type` string to a human label. Unknown kinds pass through
+/// unchanged so a CRD-defined type still surfaces in the table.
+fn secret_kind_label(kind: Option<&str>) -> &'static str {
+    match kind.unwrap_or("Opaque") {
+        "kubernetes.io/tls" => "TLS",
+        "kubernetes.io/dockerconfigjson" => "Docker config",
+        "kubernetes.io/service-account-token" => "Service account token",
+        "Opaque" | "" => "Opaque",
+        other => other,
     }
 }
