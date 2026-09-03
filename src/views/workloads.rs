@@ -61,6 +61,12 @@ macro_rules! workload_table {
 
 workload_table!(PodsTable, Pod, pod_columns, pod_row);
 workload_table!(
+    NodesTable,
+    k8s_openapi::api::core::v1::Node,
+    node_columns,
+    node_row
+);
+workload_table!(
     DeploymentsTable,
     Deployment,
     deployment_columns,
@@ -166,6 +172,7 @@ pub fn WorkloadView() -> Element {
             }
             match kind() {
                 WorkloadKind::Pods => rsx! { PodsTable { row_actions: row_actions.clone() } },
+                WorkloadKind::Nodes => rsx! { NodesTable { row_actions: row_actions.clone() } },
                 WorkloadKind::Deployments => rsx! { DeploymentsTable { row_actions: row_actions.clone() } },
                 WorkloadKind::StatefulSets => rsx! { StatefulSetsTable { row_actions: row_actions.clone() } },
                 WorkloadKind::DaemonSets => rsx! { DaemonSetsTable { row_actions: row_actions.clone() } },
