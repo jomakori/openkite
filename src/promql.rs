@@ -7,9 +7,7 @@
 use std::collections::BTreeMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use http::{Method, Request};
 use http_body_util::BodyExt;
-
 /// A single PromQL instant query.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PromQuery {
