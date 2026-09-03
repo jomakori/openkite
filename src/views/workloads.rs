@@ -13,8 +13,8 @@ use crate::runtime;
 use crate::state::resources::drive_reflector;
 use crate::workloads::{
     cron_job_columns, cron_job_row, daemon_set_columns, daemon_set_row, deployment_columns,
-    deployment_row, job_columns, job_row, pod_columns, pod_row, replica_set_columns,
-    replica_set_row, stateful_set_columns, stateful_set_row, WorkloadKind,
+    deployment_row, job_columns, job_row, node_columns, node_row, pod_columns, pod_row,
+    replica_set_columns, replica_set_row, stateful_set_columns, stateful_set_row, WorkloadKind,
 };
 
 /// Start a live reflector for one workload kind and render it as a table.
