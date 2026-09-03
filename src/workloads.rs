@@ -380,7 +380,11 @@ fn node_roles(node: &k8s_openapi::api::core::v1::Node) -> String {
                 .iter()
                 .filter_map(|(k, v)| {
                     if k.starts_with("node-role.kubernetes.io/") {
-                        Some(k.strip_prefix("node-role.kubernetes.io/").unwrap_or(k).to_string())
+                        Some(
+                            k.strip_prefix("node-role.kubernetes.io/")
+                                .unwrap_or(k)
+                                .to_string(),
+                        )
                     } else if k == "kubernetes.io/role" {
                         Some(v.clone())
                     } else {
@@ -400,7 +404,10 @@ fn node_status(node: &k8s_openapi::api::core::v1::Node) -> (String, StatusKind) 
         .as_ref()
         .and_then(|s| s.conditions.as_ref())
         .and_then(|conds| {
-            conds.iter().find(|c| c.type_ == "Ready").map(|c| c.status.as_str())
+            conds
+                .iter()
+                .find(|c| c.type_ == "Ready")
+                .map(|c| c.status.as_str())
         })
         .unwrap_or("Unknown");
     let kind = match ready {
