@@ -7,6 +7,9 @@
 use std::collections::BTreeMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use http::{Method, Request};
+use http_body_util::BodyExt;
+
 /// A single PromQL instant query.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PromQuery {
@@ -276,7 +279,7 @@ pub async fn query_instant(
     let request = http::Request::builder()
         .method(http::Method::GET)
         .uri(&url)
-        .body(Vec::new())
+        .body(kube::client::Body::empty())
         .map_err(|e| PromError::Parse(format!("build request: {e}")))?;
     let response = client
         .send(request)
@@ -308,7 +311,7 @@ pub async fn query_range(
     let request = http::Request::builder()
         .method(http::Method::GET)
         .uri(&url)
-        .body(Vec::new())
+        .body(kube::client::Body::empty())
         .map_err(|e| PromError::Parse(format!("build request: {e}")))?;
     let response = client
         .send(request)
