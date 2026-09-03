@@ -204,7 +204,7 @@ const KEYBIND_JS: &str = r#"
 if (!window.__openkite_palette_keys) {
   window.__openkite_palette_keys = true;
   document.addEventListener('keydown', (event) => {
-    if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key === 'k') {
+    if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key === 'p') {
       event.preventDefault();
       dioxus.send('toggle');
     } else if (event.key === 'Escape') {
