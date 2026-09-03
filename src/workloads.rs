@@ -399,10 +399,9 @@ fn node_status(node: &k8s_openapi::api::core::v1::Node) -> (String, StatusKind) 
         .status
         .as_ref()
         .and_then(|s| s.conditions.as_ref())
-        .map(|conds| {
+        .and_then(|conds| {
             conds.iter().find(|c| c.type_ == "Ready").map(|c| c.status.as_str())
         })
-        .flatten()
         .unwrap_or("Unknown");
     let kind = match ready {
         "True" => StatusKind::Running,
