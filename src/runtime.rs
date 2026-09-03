@@ -1,7 +1,7 @@
 //! Shared runtime state bridging `run()` (bootstrap) to the UI views.
 
 use dioxus::prelude::*;
-use k8s_openapi::api::core::v1::{Namespace, Pod, Service};
+use k8s_openapi::api::core::v1::{Namespace, Pod, Secret, Service};
 use kube::{Api, Client};
 use serde_json::Value;
 use std::sync::{Arc, OnceLock};
@@ -30,6 +30,9 @@ pub static PROMETHEUS: GlobalSignal<Option<String>> = Signal::global(|| None);
 
 /// The pod currently displayed in the detail slide-over (None = closed).
 pub static SELECTED_POD: GlobalSignal<Option<Pod>> = Signal::global(|| None);
+
+/// The secret currently displayed in the detail slide-over (None = closed).
+pub static SELECTED_SECRET: GlobalSignal<Option<Secret>> = Signal::global(|| None);
 
 /// Mirror of the bridge's registration store: refreshed by the
 /// `/openkite` asset handler after register POSTs; the sidebar and status

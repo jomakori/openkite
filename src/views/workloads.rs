@@ -14,14 +14,20 @@ use crate::state::resources::drive_reflector;
 use crate::workloads::{
     cron_job_columns, cron_job_row, daemon_set_columns, daemon_set_row, deployment_columns,
     deployment_row, job_columns, job_row, pod_columns, pod_row, replica_set_columns,
-    replica_set_row, stateful_set_columns, stateful_set_row, WorkloadKind,
+    replica_set_row, secret_columns, secret_row, stateful_set_columns, stateful_set_row,
+    WorkloadKind,
 };
 
 /// Start a live reflector for one workload kind and render it as a table.
+/// `on_row_click` is optional; when supplied, the table exposes per-row
+/// click events so a slide-over (e.g. `SecretDetail`) can open.
 macro_rules! workload_table {
     ($name:ident, $ty:path, $columns:path, $mapper:path) => {
         #[component]
-        fn $name(row_actions: RowActions) -> Element {
+        fn $name(
+            row_actions: RowActions,
+            #[props(default)] on_row_click: Option<EventHandler<ResourceRow>>,
+        ) -> Element {
             let rows = use_signal_sync(Vec::<ResourceRow>::new);
             // Slot for the running reflector task: aborted on re-run so a
             // switched client (ctrl-tab switcher) never leaves a stale
@@ -53,6 +59,7 @@ macro_rules! workload_table {
                     columns: $columns(),
                     rows: rows.read().clone(),
                     row_actions: Some(row_actions),
+                    on_row_click,
                 }
             }
         }
@@ -86,6 +93,7 @@ workload_table!(
 );
 workload_table!(JobsTable, Job, job_columns, job_row);
 workload_table!(CronJobsTable, CronJob, cron_job_columns, cron_job_row);
+workload_table!(SecretsTable, Secret, secret_columns, secret_row);
 
 /// Split a row id (the `object_id` format: `ns/name` or bare `name`) back
 /// into namespace + name for the CRUD modal targets.
@@ -172,6 +180,24 @@ pub fn WorkloadView() -> Element {
                 WorkloadKind::ReplicaSets => rsx! { ReplicaSetsTable { row_actions: row_actions.clone() } },
                 WorkloadKind::Jobs => rsx! { JobsTable { row_actions: row_actions.clone() } },
                 WorkloadKind::CronJobs => rsx! { CronJobsTable { row_actions: row_actions.clone() } },
+                WorkloadKind::Secrets => rsx! {
+                    SecretsTable {
+                        row_actions: row_actions.clone(),
+                        on_row_click: {
+                            EventHandler::new(move |row: crate::components::resource_table::ResourceRow| {
+                                // The reflector surfaces only the row projection;
+                                // the slide-over opens on a stub carrying the
+                                // row id. A real cluster fetch replaces this when
+                                // the bridge fetch ops land (Phase 1).
+                                let (ns, name) = split_row_id(&row.id);
+                                let mut secret = k8s_openapi::api::core::v1::Secret::default();
+                                secret.metadata.name = Some(name);
+                                secret.metadata.namespace = ns;
+                                *crate::runtime::SELECTED_SECRET.write() = Some(secret);
+                            })
+                        },
+                    }
+                },
             }
         }
     }
