@@ -3,7 +3,7 @@
 use dioxus::prelude::*;
 use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet};
 use k8s_openapi::api::batch::v1::{CronJob, Job};
-use k8s_openapi::api::core::v1::{Pod, Secret};
+use k8s_openapi::api::core::v1::Pod;
 use kube::api::Api;
 use kube::runtime::reflector::store;
 use kube::runtime::{watcher, WatchStreamExt};
@@ -93,6 +93,7 @@ workload_table!(
 );
 workload_table!(JobsTable, Job, job_columns, job_row);
 workload_table!(CronJobsTable, CronJob, cron_job_columns, cron_job_row);
+workload_table!(SecretsTable, Secret, secret_columns, secret_row);
 
 /// Split a row id (the `object_id` format: `ns/name` or bare `name`) back
 /// into namespace + name for the CRUD modal targets.
@@ -179,6 +180,24 @@ pub fn WorkloadView() -> Element {
                 WorkloadKind::ReplicaSets => rsx! { ReplicaSetsTable { row_actions: row_actions.clone() } },
                 WorkloadKind::Jobs => rsx! { JobsTable { row_actions: row_actions.clone() } },
                 WorkloadKind::CronJobs => rsx! { CronJobsTable { row_actions: row_actions.clone() } },
+                WorkloadKind::Secrets => rsx! {
+                    SecretsTable {
+                        row_actions: row_actions.clone(),
+                        on_row_click: {
+                            EventHandler::new(move |row: crate::components::resource_table::ResourceRow| {
+                                // The reflector surfaces only the row projection;
+                                // the slide-over opens on a stub carrying the
+                                // row id. A real cluster fetch replaces this when
+                                // the bridge fetch ops land (Phase 1).
+                                let (ns, name) = split_row_id(&row.id);
+                                let mut secret = k8s_openapi::api::core::v1::Secret::default();
+                                secret.metadata.name = Some(name);
+                                secret.metadata.namespace = ns;
+                                *crate::runtime::SELECTED_SECRET.write() = Some(secret);
+                            })
+                        },
+                    }
+                },
             }
         }
     }

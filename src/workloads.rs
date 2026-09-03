@@ -724,12 +724,12 @@ pub fn secret_row(secret: &Secret) -> ResourceRow {
 
 /// Map a `Secret.type` string to a human label. Unknown kinds pass through
 /// unchanged so a CRD-defined type still surfaces in the table.
-fn secret_kind_label(kind: Option<&str>) -> &'static str {
+fn secret_kind_label(kind: Option<&str>) -> String {
     match kind.unwrap_or("Opaque") {
-        "kubernetes.io/tls" => "TLS",
-        "kubernetes.io/dockerconfigjson" => "Docker config",
-        "kubernetes.io/service-account-token" => "Service account token",
-        "Opaque" | "" => "Opaque",
-        other => other,
+        "kubernetes.io/tls" => "TLS".into(),
+        "kubernetes.io/dockerconfigjson" => "Docker config".into(),
+        "kubernetes.io/service-account-token" => "Service account token".into(),
+        "Opaque" | "" => "Opaque".into(),
+        other => other.to_string(),
     }
 }
