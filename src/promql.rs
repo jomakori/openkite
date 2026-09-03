@@ -296,8 +296,8 @@ pub async fn query_instant(
     if !status.is_success() {
         return Err(PromError::Http(status.as_u16(), text));
     }
-    let json: serde_json::Value = serde_json::from_str(&text)
-        .map_err(|e| PromError::Parse(format!("json: {e}")))?;
+    let json: serde_json::Value =
+        serde_json::from_str(&text).map_err(|e| PromError::Parse(format!("json: {e}")))?;
     parse_instant_response(&json)
 }
 
@@ -328,8 +328,8 @@ pub async fn query_range(
     if !status.is_success() {
         return Err(PromError::Http(status.as_u16(), text));
     }
-    let json: serde_json::Value = serde_json::from_str(&text)
-        .map_err(|e| PromError::Parse(format!("json: {e}")))?;
+    let json: serde_json::Value =
+        serde_json::from_str(&text).map_err(|e| PromError::Parse(format!("json: {e}")))?;
     parse_range_response(&json)
 }
 
@@ -494,7 +494,10 @@ mod tests {
         let series = parse_range_response(&json).unwrap();
         assert_eq!(series.len(), 1);
         assert_eq!(series[0].metric.get("pod").map(String::as_str), Some("x"));
-        assert_eq!(series[0].metric.get("namespace").map(String::as_str), Some("default"));
+        assert_eq!(
+            series[0].metric.get("namespace").map(String::as_str),
+            Some("default")
+        );
         assert_eq!(series[0].values.len(), 2);
         assert!((series[0].values[0].1 - 0.1).abs() < 1e-9);
         assert!((series[0].values[1].1 - 0.2).abs() < 1e-9);
