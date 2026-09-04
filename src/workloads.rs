@@ -12,10 +12,15 @@ use k8s_openapi::apimachinery::pkg::apis::meta::v1::{OwnerReference, Time};
 use crate::components::resource_table::{Cell, ColumnDef, HealthDot, ResourceRow};
 use crate::components::status_badge::StatusKind;
 
-/// The seven workload kinds the Workloads view lists.
+/// The workload kinds the Workloads view lists.
+///
+/// `Nodes` is the cluster-scoped sibling of the namespace-scoped kinds
+/// (`Pods` etc.); the row id is a bare name (no `default/` prefix) and the
+/// `Api::<Node>::all` reflector runs without a namespace filter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WorkloadKind {
     Pods,
+    Nodes,
     Deployments,
     StatefulSets,
     DaemonSets,
@@ -25,9 +30,12 @@ pub enum WorkloadKind {
 }
 
 impl WorkloadKind {
-    /// Every kind, in tab order.
-    pub const ALL: [WorkloadKind; 7] = [
+    /// Every kind, in tab order. `Nodes` sits between `Pods` and the
+    /// controller kinds so the Workloads sidebar reads "Pods / Nodes /
+    /// Deployments" — the same reading order the cluster overview uses.
+    pub const ALL: [WorkloadKind; 8] = [
         WorkloadKind::Pods,
+        WorkloadKind::Nodes,
         WorkloadKind::Deployments,
         WorkloadKind::StatefulSets,
         WorkloadKind::DaemonSets,
@@ -40,6 +48,7 @@ impl WorkloadKind {
     pub fn label(self) -> &'static str {
         match self {
             WorkloadKind::Pods => "Pods",
+            WorkloadKind::Nodes => "Nodes",
             WorkloadKind::Deployments => "Deployments",
             WorkloadKind::StatefulSets => "StatefulSets",
             WorkloadKind::DaemonSets => "DaemonSets",
@@ -54,6 +63,7 @@ impl WorkloadKind {
     pub fn kind_str(self) -> &'static str {
         match self {
             WorkloadKind::Pods => "Pod",
+            WorkloadKind::Nodes => "Node",
             WorkloadKind::Deployments => "Deployment",
             WorkloadKind::StatefulSets => "StatefulSet",
             WorkloadKind::DaemonSets => "DaemonSet",
@@ -66,7 +76,7 @@ impl WorkloadKind {
     /// `apiVersion` prefix for the CRUD modal's starter/Edit doc.
     pub fn api_version(self) -> &'static str {
         match self {
-            WorkloadKind::Pods => "v1",
+            WorkloadKind::Pods | WorkloadKind::Nodes => "v1",
             WorkloadKind::Jobs | WorkloadKind::CronJobs => "batch/v1",
             _ => "apps/v1",
         }
@@ -320,6 +330,107 @@ fn pod_restarts(pod: &Pod) -> i32 {
         .and_then(|s| s.container_statuses.as_ref())
         .map(|list| list.iter().map(|c| c.restart_count).sum())
         .unwrap_or(0)
+}
+
+// --- Nodes ---
+
+/// Node columns: name, roles, status, age, conditions.
+pub fn node_columns() -> Vec<ColumnDef> {
+    kind_columns(&[
+        ColumnDef {
+            key: "roles",
+            label: "Roles",
+            width: Some(180),
+            sortable: true,
+        },
+        ColumnDef {
+            key: "conditions",
+            label: "Conditions",
+            width: Some(300),
+            sortable: false,
+        },
+    ])
+}
+
+/// Map a node to a display row.
+pub fn node_row(node: &k8s_openapi::api::core::v1::Node) -> ResourceRow {
+    let name = node.metadata.name.clone().unwrap_or_default();
+    let roles = node_roles(node);
+    let (label, kind) = node_status(node);
+    let conditions = node_conditions_cell(node);
+    ResourceRow {
+        id: name.clone(),
+        namespace: None,
+        cells: vec![
+            Cell::text(name),
+            Cell::text(roles),
+            Cell::status(&label, kind),
+            age_cell(&node.metadata.creation_timestamp),
+            conditions,
+        ],
+    }
+}
+
+fn node_roles(node: &k8s_openapi::api::core::v1::Node) -> String {
+    node.metadata
+        .labels
+        .as_ref()
+        .map(|labels| {
+            labels
+                .iter()
+                .filter_map(|(k, v)| {
+                    if k.starts_with("node-role.kubernetes.io/") {
+                        Some(
+                            k.strip_prefix("node-role.kubernetes.io/")
+                                .unwrap_or(k)
+                                .to_string(),
+                        )
+                    } else if k == "kubernetes.io/role" {
+                        Some(v.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(", ")
+        })
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "none".to_string())
+}
+
+fn node_status(node: &k8s_openapi::api::core::v1::Node) -> (String, StatusKind) {
+    let ready = node
+        .status
+        .as_ref()
+        .and_then(|s| s.conditions.as_ref())
+        .and_then(|conds| {
+            conds
+                .iter()
+                .find(|c| c.type_ == "Ready")
+                .map(|c| c.status.as_str())
+        })
+        .unwrap_or("Unknown");
+    let kind = match ready {
+        "True" => StatusKind::Running,
+        "False" => StatusKind::Failed,
+        _ => StatusKind::Unknown,
+    };
+    (ready.to_string(), kind)
+}
+
+fn node_conditions_cell(node: &k8s_openapi::api::core::v1::Node) -> Cell {
+    node.status
+        .as_ref()
+        .and_then(|s| s.conditions.as_ref())
+        .map(|conds| {
+            let s = conds
+                .iter()
+                .map(|c| format!("{}: {}", c.type_, c.status))
+                .collect::<Vec<_>>()
+                .join("; ");
+            Cell::text(s)
+        })
+        .unwrap_or(Cell::text("-"))
 }
 
 // --- Deployments ---
