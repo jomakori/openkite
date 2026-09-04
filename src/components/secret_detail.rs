@@ -71,7 +71,7 @@ use dioxus::prelude::*;
 /// never mutates the map (single-writer discipline).
 #[component]
 fn SecretValueRow(
-    key: String,
+    key_name: String,
     value: MaskedSecret,
     on_reveal: EventHandler<String>,
     on_hide: EventHandler<String>,
@@ -89,13 +89,13 @@ fn SecretValueRow(
                     button {
                         class: "btn btn-secondary reveal-btn",
                         style: "display: {if revealed { \"none\" } else { \"inline-flex\" }};",
-                        onclick: move |_| on_reveal.call(key.clone()),
+                        onclick: move |_| on_reveal.call(key_name.clone()),
                         "Reveal"
                     }
                     button {
                         class: "btn btn-secondary hide-btn",
                         style: "display: {if revealed { \"inline-flex\" } else { \"none\" }};",
-                        onclick: move |_| on_hide.call(key.clone()),
+                        onclick: move |_| on_hide.call(key_name.clone()),
                         "Hide"
                     }
                     button {
@@ -228,7 +228,11 @@ pub fn SecretDetail() -> Element {
         return rsx! {};
     };
     let name = secret.metadata.name.clone().unwrap_or_default();
-    let namespace = secret.metadata.namespace.clone().unwrap_or_else(|| "default".into());
+    let namespace = secret
+        .metadata
+        .namespace
+        .clone()
+        .unwrap_or_else(|| "default".into());
 
     // Precompute the key list so the rsx! loop has an owned Vec.
     let keys: Vec<String> = crate::network::secret_keys(&secret);
