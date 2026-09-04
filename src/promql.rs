@@ -353,7 +353,7 @@ mod tests {
 
     #[test]
     fn url_encode_query_escapes_spaces_and_quotes() {
-        let encoded = url_encode_query("up{job=\"prometheus\"}");
+        let encoded = url_encode_query("up{job=\"prometheus\"} and {foo=\"bar\"}");
         assert!(encoded.contains("%20"));
         assert!(encoded.contains("%22"));
     }
