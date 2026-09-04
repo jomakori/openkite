@@ -22,7 +22,7 @@ use crate::secrets::MaskedSecret;
 pub fn decoded_value_for_key(secret: &Secret, key: &str) -> String {
     if let Some(data) = &secret.data {
         if let Some(bytes) = data.get(key) {
-            return String::from_utf8_lossy(bytes).into_owned();
+            return String::from_utf8_lossy(&bytes.0).into_owned();
         }
     }
     if let Some(string_data) = &secret.string_data {
@@ -71,7 +71,7 @@ use dioxus::prelude::*;
 /// never mutates the map (single-writer discipline).
 #[component]
 fn SecretValueRow(
-    key: String,
+    key_name: String,
     value: MaskedSecret,
     on_reveal: EventHandler<String>,
     on_hide: EventHandler<String>,
@@ -88,19 +88,19 @@ fn SecretValueRow(
                 div { class: "value-actions",
                     button {
                         class: "btn btn-secondary reveal-btn",
-                        style: "display: {if revealed { \"none\" } else { \"inline-flex\" }};",
-                        onclick: move |_| on_reveal.call(key.clone()),
+                        style: if revealed { "display: none;" } else { "display: inline-flex;" },
+                        onclick: move |_| on_reveal.call(key_name.clone()),
                         "Reveal"
                     }
                     button {
                         class: "btn btn-secondary hide-btn",
-                        style: "display: {if revealed { \"inline-flex\" } else { \"none\" }};",
-                        onclick: move |_| on_hide.call(key.clone()),
+                        style: if revealed { "display: inline-flex;" } else { "display: none;" },
+                        onclick: move |_| on_hide.call(key_name.clone()),
                         "Hide"
                     }
                     button {
                         class: "btn btn-secondary copy-btn",
-                        style: "display: {if revealed { \"inline-flex\" } else { \"none\" }};",
+                        style: if revealed { "display: inline-flex;" } else { "display: none;" },
                         onclick: move |_| on_copy.call(value.value().to_string()),
                         "Copy"
                     }
@@ -228,7 +228,11 @@ pub fn SecretDetail() -> Element {
         return rsx! {};
     };
     let name = secret.metadata.name.clone().unwrap_or_default();
-    let namespace = secret.metadata.namespace.clone().unwrap_or_else(|| "default".into());
+    let namespace = secret
+        .metadata
+        .namespace
+        .clone()
+        .unwrap_or_else(|| "default".into());
 
     // Precompute the key list so the rsx! loop has an owned Vec.
     let keys: Vec<String> = crate::network::secret_keys(&secret);
@@ -259,10 +263,9 @@ pub fn SecretDetail() -> Element {
             }
             div { class: "kv-list",
                 for key in keys {
-                    let value = secrets_map.read().get(&key).cloned().unwrap_or_else(|| MaskedSecret::new(""));
                     SecretValueRow {
-                        key: key.clone(),
-                        value,
+                        key_name: key.clone(),
+                        value: secrets_map.read().get(&key).cloned().unwrap_or_else(|| MaskedSecret::new("")),
                         on_reveal: {
                             let key = key.clone();
                             EventHandler::new(move |_| {

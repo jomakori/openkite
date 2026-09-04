@@ -3,7 +3,7 @@
 use dioxus::prelude::*;
 use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet};
 use k8s_openapi::api::batch::v1::{CronJob, Job};
-use k8s_openapi::api::core::v1::Pod;
+use k8s_openapi::api::core::v1::{Pod, Secret};
 use kube::api::Api;
 use kube::runtime::reflector::store;
 use kube::runtime::{watcher, WatchStreamExt};

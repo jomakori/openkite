@@ -32,7 +32,7 @@ pub enum WorkloadKind {
 }
 
 impl WorkloadKind {
-/// Every kind, in tab order. `Nodes` sits between `Pods` and the
+    /// Every kind, in tab order. `Nodes` sits between `Pods` and the
     /// controller kinds so the Workloads sidebar reads "Pods / Nodes /
     /// Deployments" — the same reading order the cluster overview uses.
     pub const ALL: [WorkloadKind; 9] = [
