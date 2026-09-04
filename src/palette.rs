@@ -1,4 +1,4 @@
-//! Host command palette (Cmd+K / Ctrl+K overlay).
+//! Host command palette (Cmd+P / Ctrl+P overlay).
 //!
 //! A centered modal overlay that fuzzy-searches a static, host-defined
 //! list of commands and runs them with Enter or click. Reuses the P1
@@ -196,8 +196,8 @@ fn close_palette() {
     *PALETTE_QUERY.write() = String::new();
 }
 
-/// Keybind listener source: installs once per webview. Cmd+K (mac)
-/// or Ctrl+K (linux/win) toggles the palette (preventing the native
+/// Keybind listener source: installs once per webview. Cmd+P (mac)
+/// or Ctrl+P (linux/win) toggles the palette (preventing the native
 /// default), Escape closes it from anywhere — both flow back over the
 /// eval channel.
 const KEYBIND_JS: &str = r#"
@@ -214,7 +214,7 @@ if (!window.__openkite_palette_keys) {
 }
 "#;
 
-/// Webview-level Cmd+K / Escape keybind. Mounted once by the app
+/// Webview-level Cmd+P / Escape keybind. Mounted once by the app
 /// shell; the effect runs post-mount (DOM ready) and serves channel
 /// messages from a spawned task for the life of the process.
 #[component]
@@ -338,7 +338,7 @@ fn PalettePanel() -> Element {
                 input {
                     class: "palette-input",
                     r#type: "text",
-                    placeholder: "Type a command… (⌘K)",
+                    placeholder: "Type a command… (⌘P)",
                     autofocus: true,
                     value: "{query}",
                     oninput: move |event| {
