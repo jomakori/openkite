@@ -28,6 +28,9 @@ toml = "0.8"
 dirs = "5"
 anyhow = "1"
 futures = "0.3"
+http = "1"
+http-body-util = "0.1"
+
 # Opaline token theme engine as a theme source (OKT-30): 39 builtin themes.
 opaline = { version = "0.4", default-features = false, features = ["builtin-themes"] }
 # JS plugin host hot-reload watcher (OKT-45): plugins dir change events.
