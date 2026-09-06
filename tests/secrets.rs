@@ -47,7 +47,7 @@ fn mask_all_masks_values_keeps_keys() {
 #[test]
 fn masked_secret_state_is_independent_per_instance() {
     let mut a = MaskedSecret::new("value-a");
-    let mut b = MaskedSecret::new("value-b");
+    let b = MaskedSecret::new("value-b");
     a.reveal();
     assert!(a.is_revealed());
     assert!(!b.is_revealed());
