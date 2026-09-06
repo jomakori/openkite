@@ -36,10 +36,13 @@ fn selected_namespaces_default_and_toggle_semantics() {
     toggle_namespace("c".into());
     assert_eq!(
         &*SELECTED_NAMESPACES.read(),
-        &["a".into(), "b".into(), "c".into()]
+        &["a".to_string(), "b".to_string(), "c".to_string()]
     );
     toggle_namespace("a".into());
-    assert_eq!(&*SELECTED_NAMESPACES.read(), &["b".into(), "c".into()]);
+    assert_eq!(
+        &*SELECTED_NAMESPACES.read(),
+        &["b".to_string(), "c".to_string()]
+    );
     // Re-adding an already-present namespace removes it (idempotent toggle).
     toggle_namespace("c".into());
     assert_eq!(&*SELECTED_NAMESPACES.read(), &["b".into()]);
