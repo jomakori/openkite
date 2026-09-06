@@ -45,7 +45,7 @@ fn selected_namespaces_default_and_toggle_semantics() {
     );
     // Re-adding an already-present namespace removes it (idempotent toggle).
     toggle_namespace("c".into());
-    assert_eq!(&*SELECTED_NAMESPACES.read(), &["b".into()]);
+    assert_eq!(&*SELECTED_NAMESPACES.read(), &["b".to_string()]);
 }
 
 /// Owns `CRUD_TARGET`: the full open/clear state machine for every variant.
