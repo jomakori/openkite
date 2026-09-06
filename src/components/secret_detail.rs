@@ -80,6 +80,8 @@ fn SecretValueRow(
     let display = value.display().to_string();
     let revealed = value.is_revealed();
     let key_display = key_name.clone();
+    let key_for_reveal = key_name.clone();
+    let key_for_hide = key_name.clone();
     rsx! {
         div { class: "kv-row",
             dt { "{key_display}" }
@@ -89,14 +91,14 @@ fn SecretValueRow(
                 div { class: "value-actions",
                     button {
                         class: "btn btn-secondary reveal-btn",
-                        style: if revealed { "display: none;" } else { "display: inline-flex;" },
-                        onclick: move |_| on_reveal.call(key_name.clone()),
+                        style: if revealed { "display: none;"} else { "display: inline-flex;" },
+                        onclick: move |_| on_reveal.call(key_for_reveal.clone()),
                         "Reveal"
                     }
                     button {
                         class: "btn btn-secondary hide-btn",
                         style: if revealed { "display: inline-flex;" } else { "display: none;" },
-                        onclick: move |_| on_hide.call(key_name.clone()),
+                        onclick: move |_| on_hide.call(key_for_hide.clone()),
                         "Hide"
                     }
                     button {
