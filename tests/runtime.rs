@@ -132,7 +132,7 @@ fn contexts_list_round_trip() {
     set_contexts(vec!["prod".into(), "dev".into()]);
     assert_eq!(
         openkite::runtime::CONTEXTS.read().clone(),
-        vec!["prod".into(), "dev".into()]
+        vec!["prod".to_string(), "dev".to_string()]
     );
     set_contexts(Vec::new());
     assert!(openkite::runtime::CONTEXTS.read().is_empty());
@@ -144,7 +144,7 @@ fn namespaces_and_prometheus_round_trip() {
     set_namespaces(vec!["default".into(), "kube-system".into()]);
     assert_eq!(
         openkite::runtime::NAMESPACES.read().clone(),
-        vec!["default".into(), "kube-system".into()]
+        vec!["default".to_string(), "kube-system".to_string()]
     );
     set_namespaces(Vec::new());
     assert!(openkite::runtime::NAMESPACES.read().is_empty());
