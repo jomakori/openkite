@@ -10,10 +10,10 @@ use openkite_plugin_sdk::{
 };
 
 /// A route render stub: `PluginRoute.render` is a `fn() -> Element`, and in
-/// Dioxus 0.7 `Element` is `Result<VNode, RenderError>` — an empty node is a
-/// valid component result when never mounted.
+/// Dioxus 0.7 `Element` is `Result<VNode, RenderError>`. `VNode::empty()`
+/// already returns an `Element`, so a stub render fn is just that call.
 fn stub_render() -> dioxus::prelude::Element {
-    Ok(dioxus::prelude::VNode::empty())
+    dioxus::prelude::VNode::empty()
 }
 
 #[test]
