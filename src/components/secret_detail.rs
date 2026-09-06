@@ -81,7 +81,7 @@ fn SecretValueRow(
     let revealed = value.is_revealed();
     rsx! {
         div { class: "kv-row",
-            dt { "{key}" }
+            dt { "{key_name}" }
             dd {
                 class: if revealed { "value-revealed" } else { "value-masked" },
                 span { class: "value-mask", "{display}" }
