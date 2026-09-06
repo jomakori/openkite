@@ -16,10 +16,10 @@ use openkite::runtime::{
     set_namespaces, set_prometheus, set_selected_namespaces, toggle_namespace, CRUD_TARGET,
     SELECTED_NAMESPACES,
 };
-// `.read()` / `.write()` on the global signals come from these dioxus
-// traits; the lib imports them via `dioxus::prelude::*`, integration tests
-// must name them explicitly.
-use dioxus::prelude::{Readable, Writable};
+// `.read()` / `.write()` on the global signals come from the dioxus
+// prelude (ReadableExt/WritableExt + Deref on Global); glob-import it the
+// way the lib does so the method resolution matches exactly.
+use dioxus::prelude::*;
 
 fn crud_target() -> Option<CrudTarget> {
     CRUD_TARGET.read().clone()
