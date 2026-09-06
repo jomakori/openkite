@@ -107,7 +107,7 @@ pub fn run() {
     let _ = cluster::SHARED.set(tokio::sync::Mutex::new(cluster));
 
     let config = dioxus::desktop::Config::new().with_custom_head(head);
-    let mut vdom = dioxus::prelude::VirtualDom::new(router::app);
+    let vdom = dioxus::prelude::VirtualDom::new(router::app);
     vdom.in_runtime(|| {
         router::install_plugins(sections, routes);
         crate::runtime::set_client(client);
