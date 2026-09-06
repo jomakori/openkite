@@ -79,9 +79,10 @@ fn SecretValueRow(
 ) -> Element {
     let display = value.display().to_string();
     let revealed = value.is_revealed();
+    let key_display = key_name.clone();
     rsx! {
         div { class: "kv-row",
-            dt { "{key_name}" }
+            dt { "{key_display}" }
             dd {
                 class: if revealed { "value-revealed" } else { "value-masked" },
                 span { class: "value-mask", "{display}" }
