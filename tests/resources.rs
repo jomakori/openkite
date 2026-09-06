@@ -87,5 +87,9 @@ async fn empty_stream_never_fires_snapshot() {
     .await;
 
     assert!(store.state().is_empty());
-    assert_eq!(*snapshot_lens.lock().unwrap(), 0, "no events → no callbacks");
+    assert_eq!(
+        *snapshot_lens.lock().unwrap(),
+        0,
+        "no events → no callbacks"
+    );
 }
