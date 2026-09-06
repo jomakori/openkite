@@ -51,3 +51,41 @@ async fn apply_events_update_store_and_republish_snapshot() {
         "final snapshot reflects both objects"
     );
 }
+
+#[tokio::test]
+async fn delete_event_removes_from_store_and_republishes() {
+    let (store, writer) = store::<ConfigMap>();
+    let snapshot_lens = Arc::new(Mutex::new(Vec::<usize>::new()));
+
+    let events = futures::stream::iter(vec![
+        Ok(watcher::Event::Apply(config_map("a"))),
+        Ok(watcher::Event::Apply(config_map("b"))),
+        Ok(watcher::Event::Delete(config_map("a"))),
+    ]);
+
+    let captured = snapshot_lens.clone();
+    drive_reflector(writer, events, store.clone(), move |rows| {
+        captured.lock().unwrap().push(rows.len());
+    })
+    .await;
+
+    assert_eq!(store.state().len(), 1, "deleted object leaves the store");
+    let lens = snapshot_lens.lock().unwrap();
+    assert_eq!(*lens.last().unwrap(), 1, "final snapshot drops deleted row");
+}
+
+#[tokio::test]
+async fn empty_stream_never_fires_snapshot() {
+    let (store, writer) = store::<ConfigMap>();
+    let snapshot_lens = Arc::new(Mutex::new(0usize));
+    let events = futures::stream::iter(Vec::<watcher::Result<watcher::Event<ConfigMap>>>::new());
+
+    let captured = snapshot_lens.clone();
+    drive_reflector(writer, events, store.clone(), move |_rows| {
+        *captured.lock().unwrap() += 1;
+    })
+    .await;
+
+    assert!(store.state().is_empty());
+    assert_eq!(*snapshot_lens.lock().unwrap(), 0, "no events → no callbacks");
+}
