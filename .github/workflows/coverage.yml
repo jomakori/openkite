@@ -1,0 +1,52 @@
+name: coverage
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'crates/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'crates/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  coverage:
+    name: Coverage gate (≥80%)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libglib2.0-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-tarpaulin
+        run: cargo install cargo-tarpaulin --locked
+
+      - name: Measure line coverage
+        # --fail-under 80 enforces the Phase 2.5 gate: a PR that drops
+        # workspace line coverage below 80% fails this check.
+        run: cargo tarpaulin --workspace --out xml --output-dir coverage/ --fail-under 80
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: cobertura-coverage
+          path: coverage/cobertura.xml
+          retention-days: 14
