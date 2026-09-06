@@ -424,6 +424,16 @@ body {
 .kv-row { display: grid; grid-template-columns: 130px 1fr; gap: 8px; align-items: baseline; }
 .kv-row dt { color: var(--fg-2); font-size: 12px; margin: 0; }
 .kv-row dd { color: var(--fg-0); font-size: 13px; margin: 0; word-break: break-word; }
+
+/* Secret value masking: the masked placeholder is visually inert, a
+   revealed value gets a distinct foreground so the state change reads. */
+.value-mask { font-family: var(--font-mono); font-size: 12px; }
+.value-masked { color: var(--fg-2); }
+.value-revealed { color: var(--fg-0); }
+.value-actions { display: inline-flex; gap: 6px; margin-left: 12px; }
+.reveal-btn,
+.hide-btn,
+.copy-btn { padding: 2px 10px; font-size: 11px; }
 .inspector-actions {
   display: flex; gap: 8px; justify-content: flex-end;
   padding: 12px 16px;

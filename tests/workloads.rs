@@ -357,7 +357,7 @@ fn columns_match_row_layouts() {
 
 #[test]
 fn workload_kind_labels_match_mockup() {
-    assert_eq!(WorkloadKind::ALL.len(), 8);
+    assert_eq!(WorkloadKind::ALL.len(), 9);
     let labels = WorkloadKind::ALL.map(|kind| kind.label());
     assert_eq!(
         labels,
@@ -370,6 +370,7 @@ fn workload_kind_labels_match_mockup() {
             "ReplicaSets",
             "Jobs",
             "CronJobs",
+            "Secrets",
         ]
     );
 }
