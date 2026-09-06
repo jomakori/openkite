@@ -50,6 +50,10 @@ rustls = { version = "0.23", features = ["ring"] }
 jiff = "0.2"
 tempfile = "3"
 dioxus-ssr = "0.7"
+# rsx! in integration tests expands to dioxus_signals::/dioxus_core:: paths;
+# the test crate needs them as direct deps to resolve the macro output.
+dioxus-signals = "0.7"
+dioxus-core = "0.7"
 
 [package.metadata.packager]
 name = "openkite"
