@@ -9,10 +9,11 @@ use openkite_plugin_sdk::{
     SidebarSection,
 };
 
-/// A route render stub: `PluginRoute.render` is a `fn() -> Element`, and an
-/// empty `Element` (None) is a valid component result when never mounted.
+/// A route render stub: `PluginRoute.render` is a `fn() -> Element`, and in
+/// Dioxus 0.7 `Element` is `Result<VNode, RenderError>` — an empty node is a
+/// valid component result when never mounted.
 fn stub_render() -> dioxus::prelude::Element {
-    None
+    Ok(dioxus::prelude::VNode::empty())
 }
 
 #[test]
@@ -60,7 +61,7 @@ fn plugin_route_carries_path_and_render_fn() {
     };
     assert_eq!(route.path, "/argocd/apps/:name");
     // Calling the render fn headless must not panic and yields an empty node.
-    assert!(route.render().is_none());
+    assert!((route.render)().is_ok());
 }
 
 #[test]
