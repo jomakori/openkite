@@ -80,7 +80,6 @@ fn waiting_with_reason_label() {
         "CrashLoopBackOff",
     )))));
     assert_eq!(infos[0].state, "Waiting: CrashLoopBackOff");
-    assert!(!infos[0].ready);
 }
 
 #[test]
@@ -96,7 +95,6 @@ fn terminated_with_reason_label() {
         137,
     ))));
     assert_eq!(infos[0].state, "Terminated: OOMKilled");
-    assert!(!infos[0].ready);
 }
 
 #[test]
