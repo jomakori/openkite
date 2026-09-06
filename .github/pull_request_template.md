@@ -1,37 +1,55 @@
-## 📚 Description
+## Description
 
-This pull request introduces <!-- high-level paragraph: what the change does and why it is necessary -->.
+<!-- Why this change is necessary and what problem it solves -->
 
-### <!-- Topic 1 -->
+<!-- High-level bullet points of changes made. Add ### subheaders to categorize if needed. -->
 
-- <!-- detailed summary bullet points -->
+- 
+- 
 
-### <!-- Topic 2 -->
+### Visuals (if applicable)
 
-- <!-- bullet points -->
+<!-- Screenshots, GIFs, recordings — mobile & desktop. Before/after table. -->
 
-### Relevant Plane Tickets:
-
-* OKT-###
-
-## 🔍 Types of Changes
+## Type of Changes
 
 <!-- Check the type of change this PR introduces: -->
 
-- [ ] Feature (new functionality)
-- [ ] Fix (bug fix)
-- [ ] Refactor (no behavior change)
-- [ ] CI / Tooling (workflows, dev environment)
-- [ ] Docs / Chore
+- [ ] Add (new functionality)
+- [ ] Remove (delete functionality)
+- [ ] Change (modify existing functionality)
+- [ ] Chore (tooling, docs, dev environment, no behavior change)
 - [ ] Version bump (SDK / release)
 
-## ✅ Checklist
+## Related Links
 
-> If you're unsure about any of these, don't hesitate to ask.
+<!-- Deploy preview, Plane ticket, related PRs -->
+
+- Deploy preview:
+- Plane ticket:
+- Related PRs:
+
+## Testing
 
 - [ ] CI green: `cargo fmt`, `cargo clippy -- -D warnings`, `cargo test`, `cargo build --release`
 - [ ] Unit tests added/updated for the change
+- [ ] Manual tested (steps below)
+
+**Steps:**
+
+1.
+2.
+
+## Checklist
+
+> If you're unsure about any of these, don't hesitate to ask. We're here to help!
+
 - [ ] Conventional commit message: `feat|fix|refactor|docs|ci|chore(<scope>): <message>`
 - [ ] SDK version bumped if the public API changed
 - [ ] No secrets in code (pass them in via environment / Doppler)
 - [ ] Plane ticket moved across the board (Todo → In Progress → Done)
+- [ ] Post-deployment tasks documented (migrations, config changes, etc.)
+
+## Notes
+
+<!-- Known limitations, follow-ups, deployment risks -->
