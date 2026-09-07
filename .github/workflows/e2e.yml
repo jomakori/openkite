@@ -87,9 +87,10 @@ jobs:
         working-directory: e2e
         env:
           BIN: ../target/debug/openkite
+        # bats --tempdir refuses a pre-existing dir; use a fresh per-run
+        # dir (artifacts keep the last run for upload on failure).
         run: |
           rm -rf artifacts-dom
-          mkdir -p artifacts-dom
           bats --tempdir "$PWD/artifacts-dom" bridge_flows.bats
 
       - name: Upload DOM E2E artifacts
