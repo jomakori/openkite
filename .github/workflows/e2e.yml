@@ -90,13 +90,16 @@ jobs:
         working-directory: e2e
         env:
           BIN: ../target/debug/openkite
-        # JUnit output (bats --formatter junit, v1.8+) feeds the dorny
-        # report below, which lands in the GHA job summary. The bats run
-        # dir (--tempdir) and the JUnit dir are separate.
+        # Plain TAP (no junit formatter) so per-test progress streams to
+        # the live log — a wedge is diagnosable instead of buffered away.
         run: |
           rm -rf artifacts-junit artifacts-dom
-          bats --formatter junit --output "$PWD/artifacts-junit" \
+          bats --show-output-of-passing-tests \
             --tempdir "$PWD/artifacts-dom" bridge_flows.bats
+          status=$?
+          mkdir -p artifacts-junit
+          cp artifacts-dom/*.xml artifacts-junit/ 2>/dev/null || true
+          exit $status
 
       - name: Publish DOM E2E report
         if: always()
