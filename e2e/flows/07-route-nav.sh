@@ -35,6 +35,11 @@ xdotool type --delay 60 "go to home"
 sleep 2
 xdotool key --clearmodifiers Return
 sleep 3
+# Belt-and-braces: dismiss the palette if the Enter-run left it open
+# (focus can drift between sessions), so the restore shot is comparable
+# to the 01-home baseline.
+xdotool key --clearmodifiers Escape
+sleep 1
 shot "03-home-restored.png"
 assert_rendered "$ART/03-home-restored.png" "home-restored"
 assert_pixels_unchanged "$ART/01-home.png" "$ART/03-home-restored.png" "home-restored" 1000
