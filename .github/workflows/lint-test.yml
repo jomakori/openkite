@@ -126,9 +126,14 @@ jobs:
         # --fail-under 80 enforces the Phase 2.5 gate: a PR that drops
         # workspace line coverage below 80% fails this check. The summary
         # script appends % + verdict to the GHA job summary afterwards.
+        #
+        # --engine llvm: the default ptrace engine on x86_64 Linux builds
+        # with -C link-dead-code, which breaks pulp 0.22.3 (const-eval
+        # E0080 in scalar_simd — upstream sarah-quinones/pulp#33, unfixed).
+        # llvm skips link-dead-code and is tarpaulin's more accurate backend.
         run: |
           set +e
-          cargo tarpaulin --workspace --out xml --output-dir coverage/ --fail-under 80 2>&1 | tee coverage.log
+          cargo tarpaulin --workspace --engine llvm --out xml --output-dir coverage/ --fail-under 80 2>&1 | tee coverage.log
           status=${PIPESTATUS[0]}
           set -e
           python3 .github/scripts/coverage-summary.py coverage/cobertura.xml 80 || true
