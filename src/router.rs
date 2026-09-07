@@ -83,9 +83,11 @@ pub enum Route {
 /// Returns `VNode::empty()` in release builds (module cfg'd out) or when
 /// OPENKITE_TEST_PORT is unset (worker self-gates on `enabled()`).
 fn bridge_worker_mount() -> Element {
+    // In debug builds the module exists; render the worker. Release
+    // builds strip the module at lib.rs, so this arm yields nothing.
     #[cfg(debug_assertions)]
     {
-        return rsx! { crate::test_bridge::BridgeWorker {} };
+        rsx! { crate::test_bridge::BridgeWorker {} }
     }
     #[cfg(not(debug_assertions))]
     {

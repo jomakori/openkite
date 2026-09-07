@@ -55,6 +55,10 @@ use tokio::net::TcpListener;
 use tokio::sync::mpsc;
 
 /// One op forwarded from the HTTP listener to the UI-thread worker.
+type BridgeReply = tokio::sync::oneshot::Sender<String>;
+type BridgeInbox = mpsc::UnboundedSender<(Op, BridgeReply)>;
+type BridgeMail = (Op, BridgeReply);
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Op {
     pub selector: String,
@@ -70,17 +74,14 @@ pub struct Op {
 }
 
 /// Worker inbox (UI thread). The listener sends parsed ops here.
-static INBOX: std::sync::OnceLock<
-    mpsc::UnboundedSender<(Op, tokio::sync::oneshot::Sender<String>)>,
-> = std::sync::OnceLock::new();
+static INBOX: std::sync::OnceLock<BridgeInbox> = std::sync::OnceLock::new();
 
 /// Receiver half, claimed by the worker's `use_future` on first poll.
 /// Stored so the `FnMut` future initializer (re-run every render) does
 /// not try to move the receiver out of its own closure. `OnceLock` can't
 /// be used here: `take()` needs `&mut self`, impossible on a static.
-static INBOX_RX: std::sync::Mutex<
-    Option<mpsc::UnboundedReceiver<(Op, tokio::sync::oneshot::Sender<String>)>>,
-> = std::sync::Mutex::new(None);
+static INBOX_RX: std::sync::Mutex<Option<mpsc::UnboundedReceiver<BridgeMail>>> =
+    std::sync::Mutex::new(None);
 
 /// Port the bridge listens on, when enabled (0 = disabled).
 fn requested_port() -> Option<u16> {
@@ -255,7 +256,7 @@ fn op_js(op: &Op) -> Result<String, String> {
 pub fn BridgeWorker() -> Element {
     // Create the channel pair once (component re-renders re-run the
     // body, but the statics only store on the first call).
-    let (tx, rx) = mpsc::unbounded_channel::<(Op, tokio::sync::oneshot::Sender<String>)>();
+    let (tx, rx) = mpsc::unbounded_channel::<BridgeMail>();
     let _ = INBOX.set(tx);
     *INBOX_RX.lock().unwrap() = Some(rx);
 
