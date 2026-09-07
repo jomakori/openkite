@@ -1,16 +1,9 @@
-# cargo-nextest configuration.
-#
-# The `ci` profile is used by the test job in .github/workflows/lint-test.yml:
-# it runs the full workspace suite and writes a JUnit report that
-# EnricoMi/publish-unit-test-result-action renders into the GHA job summary
-# (plus check-run annotations and a PR comment on failure).
-#
+# Used by the test job in lint-test.yml (--profile ci): writes a JUnit
+# report that publish-unit-test-result-action renders into the job summary.
 # Docs: https://nexte.st/docs/configuration/
 
 [profile.ci]
-# Fail the run fast: stop scheduling new tests after the first failure.
 fail-fast = true
 
 [profile.ci.junit]
-# Written to target/nextest/ci/junit.xml relative to the workspace root.
 path = "junit.xml"
