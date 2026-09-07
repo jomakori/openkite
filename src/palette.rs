@@ -15,6 +15,7 @@
 //! chrome in `AppShell` (sibling to the cluster switcher).
 
 use crate::router::Route;
+use dioxus::router::navigator::Navigator;
 
 /// What running a [`Command`] does. Static-only, host-defined for v1.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -282,7 +283,7 @@ fn run_command(cmd: Command, nav: Navigator) {
 /// reloads; the eval sets `documentElement.style.cssText` until then.
 fn cycle_theme() {
     let mut config = crate::config::OpenKiteConfig::load();
-    let current = config.theme.as_deref();
+    let current = config.theme.as_deref().unwrap_or("default");
     let catalog = crate::theme_catalog::catalog();
     let next = catalog
         .iter()
