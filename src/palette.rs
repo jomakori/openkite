@@ -380,7 +380,6 @@ fn PalettePanel() -> Element {
                                     key: "{cmd.id}",
                                     cmd: cmd,
                                     is_selected: idx == cursor,
-                                    nav: nav,
                                 }
                             }
                         }
@@ -395,7 +394,11 @@ fn PalettePanel() -> Element {
 /// level) runs the command; the `title=` attribute surfaces the
 /// description as a v1 hover tooltip.
 #[component]
-fn PaletteRow(cmd: Command, is_selected: bool, nav: Navigator) -> Element {
+fn PaletteRow(cmd: Command, is_selected: bool) -> Element {
+    // Navigator is not PartialEq, so it cannot be a component prop (the
+    // `#[component]` macro compares props for change detection). Grab it
+    // from context inside the component instead.
+    let nav = use_navigator();
     let row_class = if is_selected {
         "palette-row selected"
     } else {
