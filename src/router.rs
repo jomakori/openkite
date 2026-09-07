@@ -79,6 +79,20 @@ pub enum Route {
     Plugin { path: Vec<String> },
 }
 
+/// Mount the OKT-64 test-bridge worker when it exists in this build.
+/// Returns `VNode::empty()` in release builds (module cfg'd out) or when
+/// OPENKITE_TEST_PORT is unset (worker self-gates on `enabled()`).
+fn bridge_worker_mount() -> Element {
+    #[cfg(debug_assertions)]
+    {
+        return rsx! { crate::test_bridge::BridgeWorker {} };
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        VNode::empty()
+    }
+}
+
 #[component]
 fn AppShell() -> Element {
     // Mount the `/openkite` bridge endpoint. The webview's fetch
@@ -100,11 +114,8 @@ fn AppShell() -> Element {
     // asset handler, which refreshes the `REGISTRATIONS` mirror — the
     // sidebar and status footer re-render.
     use_effect(move || {
-        // Test-only DOM bridge worker (OKT-64): forwards HTTP requests
-        // from the listener to the in-webview dispatcher. No-op unless
-        // OPENKITE_TEST_PORT is set. Must run on this (UI) thread.
-        #[cfg(debug_assertions)]
-        crate::test_bridge::spawn_bridge_worker();
+        // Test-only DOM bridge worker (OKT-64) mounts as a component so
+        // its use_future runs on the UI thread (document::eval context).
 
         if EVALUATED_JS_PLUGINS.set(()).is_ok() {
             for bundle in js_plugins() {
@@ -129,6 +140,10 @@ fn AppShell() -> Element {
 
     rsx! {
         div { class: "app-shell",
+            // Test-only DOM bridge worker (OKT-64). No-op unless
+            // OPENKITE_TEST_PORT is set. The module is cfg'd out of
+            // release builds at lib.rs; this element mirrors that gate.
+            {bridge_worker_mount()}
             SwitcherKeybind {}
             PaletteKeybind {}
             ClusterSwitcher {}
