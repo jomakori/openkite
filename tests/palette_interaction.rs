@@ -16,6 +16,10 @@ use openkite::palette::{
     advance_cursor, commands, filter_commands, CommandAction, PALETTE_OPEN, PALETTE_QUERY,
 };
 use openkite::router::Route;
+// `.read()` / `.write()` on Global signals come from the dioxus prelude
+// (ReadableExt/WritableExt + Deref on Global); glob-import it the way
+// tests/runtime.rs does so method resolution matches the lib exactly.
+use dioxus::prelude::*;
 
 // ─────────────────────────────────────────────────────────────
 // Pure surface (no runtime needed)
@@ -128,10 +132,10 @@ fn advance_cursor_wraps_and_clamps() {
 // ─────────────────────────────────────────────────────────────
 
 fn with_runtime<O>(f: impl FnOnce() -> O) -> O {
-    fn stub() -> dioxus::prelude::Element {
-        dioxus::prelude::rsx! { div {} }
+    fn stub() -> Element {
+        rsx! { div {} }
     }
-    let vdom = dioxus::prelude::VirtualDom::new(stub);
+    let vdom = VirtualDom::new(stub);
     vdom.in_runtime(f)
 }
 
