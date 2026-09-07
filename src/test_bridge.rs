@@ -74,6 +74,13 @@ static INBOX: std::sync::OnceLock<
     mpsc::UnboundedSender<(Op, tokio::sync::oneshot::Sender<String>)>,
 > = std::sync::OnceLock::new();
 
+/// Receiver half, claimed by the worker's `use_future` on first poll.
+/// Stored so the `FnMut` future initializer (re-run every render) does
+/// not try to move the receiver out of its own closure.
+static INBOX_RX: std::sync::OnceLock<
+    mpsc::UnboundedReceiver<(Op, tokio::sync::oneshot::Sender<String>)>,
+> = std::sync::OnceLock::new();
+
 /// Port the bridge listens on, when enabled (0 = disabled).
 fn requested_port() -> Option<u16> {
     let raw = std::env::var("OPENKITE_TEST_PORT").ok()?;
@@ -245,13 +252,18 @@ fn op_js(op: &Op) -> Result<String, String> {
 /// Each request runs one fresh eval and joins its value.
 #[component]
 pub fn BridgeWorker() -> Element {
-    // Register the inbox when the component first mounts. The listener
-    // may bind before first render, but HTTP requests can only arrive
-    // after the webview is up, which is after this mount.
-    let (tx, mut rx) = mpsc::unbounded_channel::<(Op, tokio::sync::oneshot::Sender<String>)>();
+    // Create the channel pair once (component re-renders re-run the
+    // body, but OnceLock::set only succeeds on the first call).
+    let (tx, rx) = mpsc::unbounded_channel::<(Op, tokio::sync::oneshot::Sender<String>)>();
     let _ = INBOX.set(tx);
+    let _ = INBOX_RX.set(rx);
 
     use_future(move || async move {
+        // Claim the receiver on first poll. The future initializer may
+        // run on later renders too; take() makes the claim idempotent.
+        let Some(mut rx) = INBOX_RX.take() else {
+            return;
+        };
         while let Some((op, reply)) = rx.recv().await {
             let js = match op_js(&op) {
                 Ok(js) => js,
@@ -290,7 +302,6 @@ pub fn BridgeWorker() -> Element {
 
     VNode::empty()
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
