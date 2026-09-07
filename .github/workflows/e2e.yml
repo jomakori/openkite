@@ -14,6 +14,13 @@ on:
       - 'src/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
+  workflow_dispatch:
+    inputs:
+      capture_baselines:
+        description: 'Capture baselines (upload as artifact for commit)'
+        required: false
+        default: 'false'
+        type: boolean
 
 env:
   CARGO_TERM_COLOR: always
@@ -177,4 +184,108 @@ jobs:
         with:
           name: desktop-e2e-connected-artifacts
           path: e2e/artifacts-connected/
+          retention-days: 7
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Visual regression: capture 10 baseline screenshots, then pixel-diff
+  # fresh runs against committed baselines (OKT-62).
+  #
+  # capture-baselines: runs on workflow_dispatch (capture once, download
+  #   the artifact, commit PNGs to e2e/baselines/). NOT a gate — it's the
+  #   one-time golden capture.
+  #
+  # visual-regression: runs on PR/push. Re-captures all 10 surfaces fresh
+  #   and compares against committed baselines with ImageMagick compare
+  #   (AE metric, ~1% tolerance for WebKit font/antialias nondeterminism).
+  #   This IS the gate.
+  # ─────────────────────────────────────────────────────────────────────
+
+  capture-baselines:
+    name: Capture visual baselines
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.capture_baselines }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libglib2.0-dev \
+            libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev \
+            xvfb xdotool imagemagick dbus-x11 openbox
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: '. -> target'
+
+      - name: Build desktop binary
+        run: cargo build --workspace
+
+      - name: Capture 10 baseline screenshots
+        working-directory: e2e
+        run: |
+          mkdir -p baselines
+          ./capture-baselines.sh ../target/debug/openkite baselines
+
+      - name: Upload baselines artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-baselines
+          path: e2e/baselines/*.png
+          retention-days: 30
+
+  visual-regression:
+    name: Visual regression gate (10 baselines)
+    runs-on: ubuntu-latest
+    if: ${{ !cancelled() }}
+    needs: desktop-e2e
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libglib2.0-dev \
+            libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev \
+            xvfb xdotool imagemagick dbus-x11 openbox
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: '. -> target'
+
+      - name: Build desktop binary
+        run: cargo build --workspace
+
+      - name: Check baselines exist
+        id: check-baselines
+        run: |
+          if [ -d "e2e/baselines" ] && ls e2e/baselines/*.png >/dev/null 2>&1; then
+            count=$(ls e2e/baselines/*.png | wc -l)
+            echo "baseline_count=$count" >> "$GITHUB_OUTPUT"
+            echo "have_baselines=true" >> "$GITHUB_OUTPUT"
+            echo "Found $count committed baselines"
+          else
+            echo "have_baselines=false" >> "$GITHUB_OUTPUT"
+            echo "No committed baselines found — visual regression gate skipped (capture baselines first via workflow_dispatch)"
+          fi
+
+      - name: Run visual regression gate
+        if: ${{ steps.check-baselines.outputs.have_baselines == 'true' }}
+        working-directory: e2e
+        run: |
+          mkdir -p artifacts-vr
+          ./run-visual-regression.sh ../target/debug/openkite baselines artifacts-vr
+
+      - name: Upload visual regression artifacts
+        if: ${{ always() && steps.check-baselines.outputs.have_baselines == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-regression-artifacts
+          path: e2e/artifacts-vr/
           retention-days: 7
