@@ -1,18 +1,19 @@
 #!/usr/bin/env bash
 # Capture TEN golden visual-regression baseline screenshots of OpenKite's
-# real surfaces under Xvfb, following the run-desktop-e2e.sh pattern.
+# real surfaces under Xvfb.
 #
-# OpenKite is a Dioxus *desktop* app (wry/tao WebKitGTK) — no web platform,
-# so browser Playwright cannot drive it. Instead we boot the real binary on
-# Xvfb, navigate to each surface via xdotool (sidebar clicks + keybinds),
-# and capture full-window PNGs with ImageMagick `import`.
+# OpenKite is a Dioxus *desktop* app (wry/tao WebKitGTK) — no web
+# platform, so browser Playwright cannot drive it. We boot the real
+# binary on Xvfb and drive the X11 layer. Route changes are done through
+# the app's own command palette (Ctrl+P → type "go to X" → Enter), which
+# is deterministic and layout-independent — coordinate-clicking sidebar
+# items is fragile across WebKit font/theme rendering.
 #
-# The app tolerates no-kubeconfig: it logs "no kubeconfig; starting
-# disconnected" and renders a disconnected banner. All 10 surfaces render
-# deterministically in that state.
+# All surfaces render in the disconnected state (no kubeconfig): the app
+# logs "no kubeconfig; starting disconnected" and shows empty-state
+# panels instead of live cluster data.
 #
 # Usage: capture-baselines.sh <path-to-openkite-binary> <output-dir>
-#
 # Output: 10 PNGs named 01-home.png … 10-switcher.png in <output-dir>.
 
 set -euo pipefail
@@ -21,7 +22,6 @@ BIN="${1:?path to openkite binary}"
 OUT="${2:?output dir}"
 mkdir -p "$OUT"
 
-# WebKitGTK env nudges for headless X (same as run-desktop-e2e.sh).
 export WEBKIT_DISABLE_COMPOSITING_MODE=1
 export WEBKIT_DISABLE_DMABUF_RENDERER=1
 export LIBGL_ALWAYS_SOFTWARE=1
@@ -33,11 +33,10 @@ DISPLAY_NUM=":99"
 log() { echo "[capture-baselines] $*"; }
 fail() { log "FAIL: $*"; exit 1; }
 
-pixel_stddev() { # <png> -> stdout float in 0..1 (0 = flat image)
+pixel_stddev() {
   identify -format "%[fx:standard_deviation]" "$1" 2>/dev/null
 }
 
-# Assert screenshot is non-blank: stddev > 0.01 (same threshold as harness).
 assert_nonblank() { # <png> <label>
   local png="$1" label="$2"
   local std
@@ -46,7 +45,7 @@ assert_nonblank() { # <png> <label>
   awk -v s="$std" 'BEGIN { exit !(s > 0.01) }' || fail "$label screenshot is blank/flat (stddev=$std)"
 }
 
-# --- start Xvfb ---------------------------------------------------------
+# --- Xvfb + WM + app bootstrap (same as run-desktop-e2e.sh) ------------
 log "starting Xvfb on $DISPLAY_NUM (${SCREEN})"
 Xvfb "$DISPLAY_NUM" -screen 0 "$SCREEN" -nolisten tcp >"$OUT/xvfb.log" 2>&1 &
 XVFB_PID=$!
@@ -54,13 +53,11 @@ trap 'kill $XVFB_PID $WM_PID $APP_PID 2>/dev/null || true' EXIT
 sleep 1
 export DISPLAY="$DISPLAY_NUM"
 
-# --- start a window manager ---------------------------------------------
 log "starting openbox"
 openbox >"$OUT/wm.log" 2>&1 &
 WM_PID=$!
 sleep 1
 
-# --- launch app ---------------------------------------------------------
 log "launching $BIN"
 if command -v stdbuf >/dev/null 2>&1; then
   stdbuf -oL -eL "$BIN" >"$OUT/app.log" 2>&1 &
@@ -69,7 +66,6 @@ else
 fi
 APP_PID=$!
 
-# --- wait for the window ------------------------------------------------
 log "waiting for window"
 WINDOW_ID=""
 for _ in $(seq 1 60); do
@@ -82,13 +78,12 @@ done
 [ -n "$WINDOW_ID" ] || fail "app window never appeared (see app.log)"
 log "window found: $WINDOW_ID"
 
-# Activate window + click into webview for keyboard focus.
+# Activate + click into the webview so keydown listeners receive input.
 xdotool windowactivate --sync "$WINDOW_ID" 2>/dev/null || true
 sleep 1
 xdotool mousemove 640 400 click 1 2>/dev/null || true
 sleep 2
 
-# --- helper: screenshot + assert non-blank ------------------------------
 capture() { # <output-name> <label>
   local name="$1" label="$2"
   sleep 2  # let WebKit paint
@@ -96,94 +91,74 @@ capture() { # <output-name> <label>
   assert_nonblank "$OUT/$name" "$label"
 }
 
-# --- helper: click sidebar nav item by text -----------------------------
-# The sidebar nav items are <a> elements: Cluster, Workloads, Logs, Terminal, Config.
-# We use xdotool to click approximate coordinates in the sidebar.
-# Sidebar is ~200px wide on the left; nav items are stacked vertically.
-# Home is the brand area at top; nav items start ~80px down.
-click_nav() { # <y-coordinate>
-  local y="$1"
-  xdotool mousemove 100 "$y" click 1 2>/dev/null || true
-  sleep 1
+# goto_route <query> — open palette, type the fuzzy query for the
+# "Go to <route>" command, Enter to run it, wait for navigation.
+goto_route() { # <query>
+  local query="$1"
+  xdotool key --clearmodifiers ctrl+p
+  sleep 2
+  xdotool type --delay 60 "$query"
+  sleep 2
+  xdotool key --clearmodifiers Return
+  sleep 3
 }
 
 # ============================================================
 # 10 golden baseline screenshots
 # ============================================================
 
-# 01. Home (/) — the app starts on Home route by default.
+# 01. Home (/) — the app starts on the Home route.
 log "capturing 01-home"
 capture "01-home.png" "01-home"
 
-# 02. Cluster (/cluster) — click "Cluster" nav item.
+# 02. Cluster (/cluster) — palette "go to cluster".
 log "capturing 02-cluster"
-click_nav 120
+goto_route "go to cluster"
 capture "02-cluster.png" "02-cluster"
 
-# 03. Workloads (/workloads) — Pods tab is the default kind.
-log "capturing 03-workloads-pods"
-click_nav 160
-sleep 1
-# Click into the content area to ensure focus.
-xdotool mousemove 640 400 click 1 2>/dev/null || true
-capture "03-workloads-pods.png" "03-workloads-pods"
+# 03. Workloads (/workloads) — palette "go to workloads".
+log "capturing 03-workloads"
+goto_route "go to workloads"
+capture "03-workloads.png" "03-workloads"
 
-# 04. Workloads — Deployments tab.
-# Kind tabs are below the nav, in the content area top row.
-log "capturing 04-workloads-deployments"
-# Tab buttons are in a horizontal row at top of content. Approximate x positions:
-# Pods ~250, Nodes ~310, Deployments ~400, StatefulSets ~500, DaemonSets ~620,
-# ReplicaSets ~720, Jobs ~810, CronJobs ~870, Secrets ~960, + New
-# Click "Deployments" tab.
-xdotool mousemove 400 90 click 1 2>/dev/null || true
-sleep 1
-capture "04-workloads-deployments.png" "04-workloads-deployments"
+# 04. Logs (/logs) — palette "go to logs".
+log "capturing 04-logs"
+goto_route "go to logs"
+capture "04-logs.png" "04-logs"
 
-# 05. Workloads — Secrets tab.
-log "capturing 05-workloads-secrets"
-# Click "Secrets" tab — approximate position further right.
-xdotool mousemove 960 90 click 1 2>/dev/null || true
-sleep 1
-capture "05-workloads-secrets.png" "05-workloads-secrets"
+# 05. Terminal (/terminal) — palette "go to terminal".
+log "capturing 05-terminal"
+goto_route "go to terminal"
+capture "05-terminal.png" "05-terminal"
 
-# 06. Logs (/logs) — click "Logs" nav item.
-log "capturing 06-logs"
-click_nav 200
-capture "06-logs.png" "06-logs"
+# 06. Config (/config) — palette "go to config".
+log "capturing 06-config"
+goto_route "go to config"
+capture "06-config.png" "06-config"
 
-# 07. Terminal (/terminal) — click "Terminal" nav item.
-log "capturing 07-terminal"
-click_nav 240
-capture "07-terminal.png" "07-terminal"
+# 07. Home again after palette round-trip (clean baseline for overlays).
+log "capturing 07-home-return"
+goto_route "go to home"
+capture "07-home-return.png" "07-home-return"
 
-# 08. Config (/config) — click "Config" nav item.
-log "capturing 08-config"
-click_nav 280
-capture "08-config.png" "08-config"
+# 08. Workloads via palette once more (deterministic re-entry).
+log "capturing 08-workloads-reentry"
+goto_route "go to workloads"
+capture "08-workloads-reentry.png" "08-workloads-reentry"
 
-# 09. Command Palette (Ctrl+P overlay).
-# Navigate back to Home first for a clean backdrop.
+# 09. Command Palette overlay open (Ctrl+P) over the current route.
 log "capturing 09-palette"
-click_nav 80   # Home/brand area
-sleep 1
-xdotool mousemove 640 400 click 1 2>/dev/null || true
-sleep 1
 xdotool key --clearmodifiers ctrl+p
 sleep 2
 capture "09-palette.png" "09-palette"
-# Close palette.
 xdotool key --clearmodifiers Escape
 sleep 1
 
-# 10. Cluster Switcher (Ctrl+Tab overlay).
+# 10. Cluster Switcher overlay open (Ctrl+Tab).
 log "capturing 10-switcher"
-xdotool mousemove 640 400 click 1 2>/dev/null || true
-sleep 1
-# The switcher keybind is Ctrl+Tab (OKT-51).
 xdotool key --clearmodifiers ctrl+Tab
 sleep 2
 capture "10-switcher.png" "10-switcher"
-# Close switcher.
 xdotool key --clearmodifiers Escape
 sleep 1
 
