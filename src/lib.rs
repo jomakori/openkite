@@ -24,6 +24,8 @@ pub mod shell;
 pub mod state;
 pub mod switcher;
 pub mod terminal;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod test_bridge;
 pub mod theme;
 pub mod theme_catalog;
 pub mod theme_opaline;
@@ -111,6 +113,12 @@ pub fn run() {
     let active = cluster.active().map(str::to_string);
     let contexts = cluster.contexts().to_vec();
     let _ = cluster::SHARED.set(tokio::sync::Mutex::new(cluster));
+
+    // Test-only DOM bridge (OKT-64): listens on OPENKITE_TEST_PORT when
+    // set; no-op in production (env unset). Start the HTTP listener now;
+    // the dioxus-side consumer is spawned by the app shell's mount
+    // effect once the webview is live (eval needs a real document).
+    crate::test_bridge::install_bridge();
 
     let config = dioxus::desktop::Config::new().with_custom_head(head);
     let vdom = dioxus::prelude::VirtualDom::new(router::app);

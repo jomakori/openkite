@@ -100,6 +100,11 @@ fn AppShell() -> Element {
     // asset handler, which refreshes the `REGISTRATIONS` mirror — the
     // sidebar and status footer re-render.
     use_effect(move || {
+        // Test-only DOM bridge worker (OKT-64): forwards HTTP requests
+        // from the listener to the in-webview dispatcher. No-op unless
+        // OPENKITE_TEST_PORT is set. Must run on this (UI) thread.
+        crate::test_bridge::spawn_bridge_worker();
+
         if EVALUATED_JS_PLUGINS.set(()).is_ok() {
             for bundle in js_plugins() {
                 match crate::plugin_js::load_source(&bundle) {
