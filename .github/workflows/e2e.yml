@@ -88,6 +88,7 @@ jobs:
         env:
           BIN: ../target/debug/openkite
         run: |
+          rm -rf artifacts-dom
           mkdir -p artifacts-dom
           bats --tempdir "$PWD/artifacts-dom" bridge_flows.bats
 
