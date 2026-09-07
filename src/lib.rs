@@ -36,7 +36,9 @@ pub fn run() {
     // Route tracing to stderr, not stdout: under wry/WebKit (and headless CI
     // in particular) stdout is not reliably flushed to a redirected log,
     // while stderr is. CI assertions grep app.log for connection state.
-    tracing_subscriber::fmt().with_writer(std::io::stderr).init();
+    tracing_subscriber::fmt()
+        .with_writer(std::io::stderr)
+        .init();
 
     // Load the static (feature-gated) plugins.
     let config = config::OpenKiteConfig::load();
