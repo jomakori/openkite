@@ -320,7 +320,7 @@ fn PalettePanel() -> Element {
     let mut grouped: Vec<(String, Vec<(usize, Command)>)> = Vec::new();
     for (idx, cmd) in rows {
         match grouped.last_mut() {
-            Some((section, _)) if section == &cmd.section => {}
+            Some((section, _)) if section.as_str() == cmd.section => {}
             _ => grouped.push((cmd.section.to_string(), Vec::new())),
         }
         if let Some((_, bucket)) = grouped.last_mut() {
@@ -347,7 +347,6 @@ fn PalettePanel() -> Element {
                     },
                     onkeydown: {
                         let list = candidates.clone();
-                        let nav = nav;
                         move |event| match event.key() {
                             Key::ArrowDown => {
                                 if let Some(next) = advance_cursor(Some(cursor), list.len(), 1) {
