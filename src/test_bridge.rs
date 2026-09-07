@@ -95,8 +95,12 @@ pub fn install_bridge(handle: &tokio::runtime::Handle) {
     let addr: SocketAddr = format!("127.0.0.1:{port}")
         .parse()
         .expect("bad OPENKITE_TEST_PORT");
-    let handle = handle.clone();
-    handle.spawn(async move {
+    // Two clones: the listener future moves one in, per-conn spawns use
+    // the other. (Handle::spawn borrows its receiver, so a single clone
+    // would E0505 — the future can't capture what the call borrows.)
+    let rt_listener = handle.clone();
+    let rt_conn = handle.clone();
+    rt_listener.spawn(async move {
         let listener = match TcpListener::bind(addr).await {
             Ok(l) => l,
             Err(e) => {
@@ -109,7 +113,7 @@ pub fn install_bridge(handle: &tokio::runtime::Handle) {
             let Ok((mut sock, _)) = listener.accept().await else {
                 continue;
             };
-            handle.spawn(async move {
+            rt_conn.spawn(async move {
                 if let Err(e) = handle_conn(&mut sock).await {
                     tracing::debug!(%e, "test bridge conn error");
                 }
