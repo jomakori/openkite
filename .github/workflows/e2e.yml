@@ -97,7 +97,8 @@ jobs:
         run: |
           rm -rf artifacts-flows artifacts-junit artifacts-bats-tmp
           mkdir -p artifacts-flows artifacts-junit
-          bats --formatter junit --output "$PWD/artifacts-junit" \
+          # TAP on stdout (live progress) + junit report files for dorny.
+          bats --report-formatter junit --output "$PWD/artifacts-junit" \
             --tempdir "$PWD/artifacts-bats-tmp" user_flows.bats
 
       - name: Publish flow report to job summary
