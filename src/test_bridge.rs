@@ -76,10 +76,11 @@ static INBOX: std::sync::OnceLock<
 
 /// Receiver half, claimed by the worker's `use_future` on first poll.
 /// Stored so the `FnMut` future initializer (re-run every render) does
-/// not try to move the receiver out of its own closure.
-static INBOX_RX: std::sync::OnceLock<
-    mpsc::UnboundedReceiver<(Op, tokio::sync::oneshot::Sender<String>)>,
-> = std::sync::OnceLock::new();
+/// not try to move the receiver out of its own closure. `OnceLock` can't
+/// be used here: `take()` needs `&mut self`, impossible on a static.
+static INBOX_RX: std::sync::Mutex<
+    Option<mpsc::UnboundedReceiver<(Op, tokio::sync::oneshot::Sender<String>)>>,
+> = std::sync::Mutex::new(None);
 
 /// Port the bridge listens on, when enabled (0 = disabled).
 fn requested_port() -> Option<u16> {
@@ -253,15 +254,15 @@ fn op_js(op: &Op) -> Result<String, String> {
 #[component]
 pub fn BridgeWorker() -> Element {
     // Create the channel pair once (component re-renders re-run the
-    // body, but OnceLock::set only succeeds on the first call).
+    // body, but the statics only store on the first call).
     let (tx, rx) = mpsc::unbounded_channel::<(Op, tokio::sync::oneshot::Sender<String>)>();
     let _ = INBOX.set(tx);
-    let _ = INBOX_RX.set(rx);
+    *INBOX_RX.lock().unwrap() = Some(rx);
 
     use_future(move || async move {
         // Claim the receiver on first poll. The future initializer may
-        // run on later renders too; take() makes the claim idempotent.
-        let Some(mut rx) = INBOX_RX.take() else {
+        // run on later renders too; the Mutex makes the claim idempotent.
+        let Some(mut rx) = INBOX_RX.lock().unwrap().take() else {
             return;
         };
         while let Some((op, reply)) = rx.recv().await {
