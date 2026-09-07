@@ -42,14 +42,15 @@ pub fn run() {
         tracing::info!(name = %plugin.metadata().name, "plugin loaded");
     }
 
-    // Install plugin navigation entries and routes into the router.
+    // Collect plugin navigation entries and routes. The write into the
+    // router's global signals must happen inside the Dioxus runtime (see
+    // below), so compute first, publish later.
     let sections = registry.sidebar_entries();
     let routes = registry
         .routes()
         .into_iter()
         .map(|r| (r.path, r.render))
         .collect();
-    router::install_plugins(sections, routes);
 
     // Load the kubeconfig and connect to the current context. The bootstrap
     // runtime outlives the UI so reflectors and plugin tasks share one handle.
@@ -71,31 +72,12 @@ pub fn run() {
         }
     }
 
-    // Publish the active client + context name to the UI before launching.
-    crate::runtime::set_client(cluster.client().cloned());
-    if let Some(active) = cluster.active().map(str::to_string) {
-        crate::runtime::set_context(Some(active));
-    }
-
     // Install the plugin bridge before launch: the app shell's
     // `/openkite` asset handler reads it via `runtime::bridge()`.
     let bridge = match cluster.client() {
         Some(client) => crate::bridge::Bridge::connected(client.clone()),
         None => crate::bridge::Bridge::new(),
     };
-    crate::runtime::set_bridge(bridge);
-
-    // Refresh cluster metadata (namespace list + Prometheus detection)
-    // before launching the UI so the namespace chips and status bar are
-    // populated on first render.
-    if let Some(client) = crate::runtime::client() {
-        runtime.block_on(crate::runtime::refresh_cluster_meta(&client));
-    }
-
-    // Hand the cluster registry to the UI: the ctrl-tab switcher connects
-    // context switches through it, reusing cached clients per context.
-    crate::runtime::set_contexts(cluster.contexts().to_vec());
-    let _ = cluster::SHARED.set(tokio::sync::Mutex::new(cluster));
 
     // Discover JS plugins; the shell evals their bundles after mount and
     // their `register` POSTs flow back through the bridge at runtime.
@@ -105,7 +87,6 @@ pub fn run() {
         tracing::warn!(error = %error, "js plugin discovery failed");
     }
     tracing::info!(count = bundles.len(), "js plugins discovered");
-    crate::runtime::set_js_plugins(bundles);
 
     // Launch with the bridge bootstrap injected into the page head: the
     // inline style loads the shell chrome, the script defines `window.openkite`
@@ -115,7 +96,32 @@ pub fn run() {
         include_str!("../assets/main.css"),
         plugin_api::OPENKITE_BRIDGE_JS,
     );
-    dioxus::LaunchBuilder::new()
-        .with_cfg(dioxus::desktop::Config::new().with_custom_head(head))
-        .launch(router::app);
+
+    // Dioxus global signals are backed by the *runtime* (not process-wide)
+    // in 0.7.10 — reading or writing them outside an active runtime panics.
+    // Bootstrap data is therefore published inside the VirtualDom's runtime,
+    // right after it is created and before the desktop event loop starts.
+    let client = cluster.client().cloned();
+    let active = cluster.active().map(str::to_string);
+    let contexts = cluster.contexts().to_vec();
+    let _ = cluster::SHARED.set(tokio::sync::Mutex::new(cluster));
+
+    let config = dioxus::desktop::Config::new().with_custom_head(head);
+    let vdom = dioxus::prelude::VirtualDom::new(router::app);
+    vdom.in_runtime(|| {
+        router::install_plugins(sections, routes);
+        crate::runtime::set_client(client);
+        if let Some(active) = active {
+            crate::runtime::set_context(Some(active));
+        }
+        crate::runtime::set_bridge(bridge);
+        // Refresh cluster metadata (namespaces + Prometheus) so the chips
+        // and status bar are populated on first render. Only when connected.
+        if let Some(client) = crate::runtime::client() {
+            runtime.block_on(crate::runtime::refresh_cluster_meta(&client));
+        }
+        crate::runtime::set_contexts(contexts);
+        crate::runtime::set_js_plugins(bundles);
+    });
+    dioxus::desktop::launch::launch_virtual_dom(vdom, config);
 }
