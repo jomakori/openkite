@@ -55,3 +55,64 @@ jobs:
           name: desktop-e2e-artifacts
           path: e2e/artifacts/
           retention-days: 7
+
+  desktop-e2e-connected:
+    # Same desktop harness, but pointed at the real maklab cluster through
+    # the tailscale operator's kube-apiserver proxy. Exercises the app's
+    # live-data path (namespace chips, workload views, status bar) instead
+    # of the disconnected empty state.
+    #
+    # Tailnet identity tag:k8s (see gke_GitOps services/helm/tailscale
+    # ci-rbac.yaml) impersonates to cluster-admin on the apiserver proxy.
+    name: Desktop E2E connected (tailnet kubeconfig)
+    runs-on: ubuntu-latest
+    if: ${{ !cancelled() }}
+    needs: desktop-e2e
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libglib2.0-dev \
+            libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev \
+            xvfb xdotool imagemagick dbus-x11 openbox
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: '. -> target'
+
+      - name: Build desktop binary
+        run: cargo build --workspace
+
+      # Tailnet k8s access: join tailnet (tag:k8s) + client-side kubeconfig
+      # (same pattern as gke_GitOps helm_lint-test.yaml).
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@main
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTH_KEY }}
+
+      - name: Configure kubectl kubeconfig
+        run: |
+          tailscale configure kubeconfig ${{ secrets.TAILSCALE_PROXY_HOST }}
+          kubectl config current-context
+          kubectl get ns | head -5
+
+      - name: Run desktop E2E under Xvfb (connected)
+        working-directory: e2e
+        env:
+          EXPECT_CONNECTED: '1'
+        run: |
+          mkdir -p artifacts-connected
+          KUBECONFIG="$HOME/.kube/config" ./run-desktop-e2e.sh ../target/debug/openkite artifacts-connected
+
+      - name: Upload connected E2E artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-e2e-connected-artifacts
+          path: e2e/artifacts-connected/
+          retention-days: 7

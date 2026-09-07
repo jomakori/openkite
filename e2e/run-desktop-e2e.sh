@@ -52,8 +52,15 @@ sleep 1
 
 # --- launch app ---------------------------------------------------------
 # No kubeconfig in CI -> app logs "no kubeconfig; starting disconnected".
+# When KUBECONFIG points at the tailnet apiserver proxy, it connects to the
+# real cluster instead. stdbuf keeps tracing line-buffered so app.log is
+# greppable for the connection state.
 log "launching $BIN"
-"$BIN" >"$ART/app.log" 2>&1 &
+if command -v stdbuf >/dev/null 2>&1; then
+  stdbuf -oL -eL "$BIN" >"$ART/app.log" 2>&1 &
+else
+  "$BIN" >"$ART/app.log" 2>&1 &
+fi
 APP_PID=$!
 
 # --- wait for the window ------------------------------------------------
@@ -69,6 +76,21 @@ for _ in $(seq 1 60); do
 done
 [ -n "$WINDOW_ID" ] || fail "app window never appeared (see app.log)"
 log "window found: $WINDOW_ID"
+
+# --- connection-state assertion (optional) ------------------------------
+# EXPECT_CONNECTED=1: the app must have joined a real cluster (tailnet
+# apiserver proxy kubeconfig). A connected app logs "kubeconfig loaded"
+# with the context list; a disconnected one logs "no kubeconfig; starting
+# disconnected". This is what separates the hermetic run from the live one.
+if [ "${EXPECT_CONNECTED:-0}" = "1" ]; then
+  if grep -q "cluster connected" "$ART/app.log"; then
+    log "connection OK: app joined the cluster"
+  else
+    log "app.log tail:"
+    tail -5 "$ART/app.log" || true
+    fail "expected connected app but no 'cluster connected' in app.log"
+  fi
+fi
 
 # --- first screenshot ---------------------------------------------------
 sleep 3  # let WebKit paint
