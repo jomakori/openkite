@@ -29,7 +29,7 @@ DISPLAY_NUM=":99"
 log() { echo "[desktop-e2e] $*"; }
 fail() { log "FAIL: $*"; exit 1; }
 
-pixel_stddev() { # <png> -> stdout float (0 = flat image)
+pixel_stddev() { # <png> -> stdout float in 0..1 (normalized; 0 = flat image)
   identify -format "%[fx:standard_deviation]" "$1" 2>/dev/null
 }
 
@@ -63,17 +63,19 @@ log "window found: $WINDOW_ID"
 
 # --- first screenshot ---------------------------------------------------
 sleep 3  # let WebKit paint
-import -window root "$ART/01-shell.png" 2>/dev/null || fail "screenshot 1 failed"
+import -window "$WINDOW_ID" "$ART/01-shell.png" 2>/dev/null || fail "screenshot 1 failed"
 STD=$(pixel_stddev "$ART/01-shell.png")
 log "shell screenshot stddev=$STD"
-awk -v s="$STD" 'BEGIN { exit !(s > 5) }' || fail "shell screenshot is blank/flat"
+# identify normalizes to 0..1: a flat/blank webview is ~0.001; a rendered
+# UI (text, sidebar, borders) is comfortably > 0.01.
+awk -v s="$STD" 'BEGIN { exit !(s > 0.01) }' || fail "shell screenshot is blank/flat"
 
 # --- exercise the palette (Ctrl+P opens, Escape closes) ----------------
 log "opening palette with Ctrl+P"
 xdotool windowactivate --sync "$WINDOW_ID" 2>/dev/null || true
 xdotool key --window "$WINDOW_ID" ctrl+p
 sleep 2
-import -window root "$ART/02-palette.png" 2>/dev/null || fail "screenshot 2 failed"
+import -window "$WINDOW_ID" "$ART/02-palette.png" 2>/dev/null || fail "screenshot 2 failed"
 PAL_STD=$(pixel_stddev "$ART/02-palette.png")
 log "palette screenshot stddev=$PAL_STD"
 # Palette overlay changes the pixels measurably (different layout + backdrop).
@@ -84,7 +86,7 @@ log "shell-vs-palette differing pixels: $DIFF"
 log "closing palette with Escape"
 xdotool key --window "$WINDOW_ID" Escape
 sleep 2
-import -window root "$ART/03-closed.png" 2>/dev/null || fail "screenshot 3 failed"
+import -window "$WINDOW_ID" "$ART/03-closed.png" 2>/dev/null || fail "screenshot 3 failed"
 CLOSE_DIFF=$(compare -metric AE "$ART/01-shell.png" "$ART/03-closed.png" null: 2>&1 || true)
 log "shell-vs-closed differing pixels: $CLOSE_DIFF"
 
