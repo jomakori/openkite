@@ -116,7 +116,7 @@ jobs:
         run: cargo tarpaulin --workspace --engine llvm --out xml --output-dir coverage/ --fail-under 80
       - if: always() && needs.changes.outputs.src == 'true'
         name: Publish coverage summary
-        uses: irongut/CodeCoverageSummary@v1
+        uses: irongut/CodeCoverageSummary@v1.3.0
         with:
           filename: coverage/cobertura.xml
           badge: true
