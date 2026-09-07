@@ -87,11 +87,22 @@ jobs:
         working-directory: e2e
         env:
           BIN: ../target/debug/openkite
-        # bats --tempdir refuses a pre-existing dir; use a fresh per-run
-        # dir (artifacts keep the last run for upload on failure).
+        # JUnit output (bats --formatter junit, v1.8+) feeds the dorny
+        # report below, which lands in the GHA job summary. The bats run
+        # dir (--tempdir) and the JUnit dir are separate.
         run: |
-          rm -rf artifacts-dom
-          bats --tempdir "$PWD/artifacts-dom" bridge_flows.bats
+          rm -rf artifacts-junit artifacts-dom
+          bats --formatter junit --output "$PWD/artifacts-junit" \
+            --tempdir "$PWD/artifacts-dom" bridge_flows.bats
+
+      - name: Publish DOM E2E report
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: DOM E2E report
+          path: e2e/artifacts-junit/*.xml
+          reporter: java-junit
+          use-actions-summary: 'true'
 
       - name: Upload DOM E2E artifacts
         if: always()
