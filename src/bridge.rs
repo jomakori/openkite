@@ -1,5 +1,8 @@
 //! Bridge runtime: webview ⇄ kube dispatch core.
 //!
+//! Coverage note: the module's unit + integration coverage is exercised by
+//! `tests/` and `crates/plugin-sdk/tests/`; see coverage.yml (OKT-54).
+//!
 //! The headless half of the plugin bridge. [`OPENKITE_BRIDGE_JS`](crate::plugin_api::OPENKITE_BRIDGE_JS)
 //! turns `openkite.api.*` / `openkite.register*` calls into same-origin
 //! `fetch` POSTs against the `/openkite` asset handler; this module parses
