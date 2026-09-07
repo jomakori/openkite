@@ -274,18 +274,32 @@ pub fn spawn_bridge_worker() {
     let _ = INBOX.set(tx);
 
     // UI-thread request pump: read one op, eval.send it, await the JS
-    // reply, forward it to the HTTP listener's oneshot.
+    // reply, forward it to the HTTP listener's oneshot. A stuck dispatch
+    // must not hang the caller forever, so the recv is time-boxed.
     dioxus::prelude::spawn(async move {
         while let Some((op, reply)) = rx.recv().await {
-            let _ = eval.send(op);
-            match eval.recv::<String>().await {
-                Ok(payload) => {
+            if eval.send(op).is_err() {
+                let _ = reply.send(
+                    r#"{"ok":false,"error":"bridge eval channel closed (webview gone?)"}"#.into(),
+                );
+                continue;
+            }
+            match tokio::time::timeout(std::time::Duration::from_secs(5), eval.recv::<String>())
+                .await
+            {
+                Ok(Ok(payload)) => {
                     let _ = reply.send(payload);
                 }
-                Err(e) => {
+                Ok(Err(e)) => {
                     let _ = reply.send(format!(
                         r#"{{"ok":false,"error":"bridge recv failed: {e}"}}"#
                     ));
+                }
+                Err(_) => {
+                    let _ = reply.send(
+                        r#"{"ok":false,"error":"bridge dispatch timed out (JS loop stuck?)"}"#
+                            .into(),
+                    );
                 }
             }
         }

@@ -20,7 +20,7 @@ dom() {
   payload="$(printf '{"selector":%s,"op":"%s"%s}' \
     "$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$selector")" \
     "$op" "$extra")"
-  curl -s -X POST "$BRIDGE/" -d "$payload" \
+  curl -s -m 5 -X POST "$BRIDGE/" -d "$payload" \
     | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("result", "") if d.get("ok") else "BRIDGE_ERROR: " + str(d.get("error")))'
 }
 
