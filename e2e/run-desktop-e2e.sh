@@ -72,8 +72,11 @@ awk -v s="$STD" 'BEGIN { exit !(s > 0.01) }' || fail "shell screenshot is blank/
 
 # --- exercise the palette (Ctrl+P opens, Escape closes) ----------------
 log "opening palette with Ctrl+P"
-xdotool windowactivate --sync "$WINDOW_ID" 2>/dev/null || true
-xdotool key --window "$WINDOW_ID" ctrl+p
+# WebKit ignores XSendEvent (what `--window` uses); XTEST goes through the
+# server as real input. Ensure the window owns the X input focus first.
+xdotool windowfocus --sync "$WINDOW_ID" 2>/dev/null || true
+sleep 1
+xdotool key --clearmodifiers ctrl+p
 sleep 2
 import -window "$WINDOW_ID" "$ART/02-palette.png" 2>/dev/null || fail "screenshot 2 failed"
 PAL_STD=$(pixel_stddev "$ART/02-palette.png")
@@ -84,7 +87,7 @@ log "shell-vs-palette differing pixels: $DIFF"
 [ -n "$DIFF" ] && [ "$DIFF" -gt 500 ] || fail "palette did not change the screen"
 
 log "closing palette with Escape"
-xdotool key --window "$WINDOW_ID" Escape
+xdotool key --clearmodifiers Escape
 sleep 2
 import -window "$WINDOW_ID" "$ART/03-closed.png" 2>/dev/null || fail "screenshot 3 failed"
 CLOSE_DIFF=$(compare -metric AE "$ART/01-shell.png" "$ART/03-closed.png" null: 2>&1 || true)
