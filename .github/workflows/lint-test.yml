@@ -99,6 +99,49 @@ jobs:
         name: Build
         run: cargo build --workspace
 
+  # ──────────────────────────────────────────────────────────────────────
+  # Cross-platform portability gate (OKT-63)
+  #
+  # The desktop binary (openkite) needs WebKitGTK, which is Linux-only in
+  # CI. But `openkite-plugin-sdk` is a pure library crate — no `desktop`
+  # feature on dioxus, no system deps. Run fmt + clippy + test + build on
+  # that crate across ubuntu/windows/macos to catch platform-specific
+  # regressions early (e.g. `#[cfg(unix)]` paths, path separators).
+  #
+  # We do NOT use ./.github/actions/rust-setup here — it installs GTK apt
+  # packages that don't exist on Windows/macOS runners.
+  # ──────────────────────────────────────────────────────────────────────
+  cross-platform:
+    name: Cross-platform (${{ matrix.os }}) — plugin-sdk
+    runs-on: ${{ matrix.os }}
+    needs: [changes]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - if: needs.changes.outputs.src == 'true'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - if: needs.changes.outputs.src == 'true'
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: cross-${{ matrix.os }}
+      - if: needs.changes.outputs.src == 'true'
+        name: Check formatting
+        run: cargo fmt -p openkite-plugin-sdk -- --check
+      - if: needs.changes.outputs.src == 'true'
+        name: Clippy
+        run: cargo clippy -p openkite-plugin-sdk --all-targets -- -D warnings
+      - if: needs.changes.outputs.src == 'true'
+        name: Build
+        run: cargo build -p openkite-plugin-sdk
+      - if: needs.changes.outputs.src == 'true'
+        name: Test
+        run: cargo test -p openkite-plugin-sdk
+
   coverage:
     name: Coverage gate (≥45% floor)
     runs-on: ubuntu-latest
