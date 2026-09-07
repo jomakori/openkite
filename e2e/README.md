@@ -12,7 +12,22 @@ layers cover the app:
 
 The DOM bridge exists because the webview *is* a real DOM — the app just
 doesn't expose it to outside tooling. The bridge runs inside the app
-(env-gated) and answers selector queries over localhost HTTP.
+(env-gated, debug builds only) and answers selector queries over
+localhost HTTP.
+
+### Why this shape (verified against upstream)
+
+Dioxus-desktop 0.7.10 hardcodes WebKit automation OFF and owns the wry
+`WebContext` privately (webview.rs:260) — Playwright cannot attach (its
+WebKit is a standalone patched build), and WebDriver would require
+forking dioxus-desktop. The Dioxus org tests its own desktop crate the
+same way we do here: `document::eval` + synthetic `dispatchEvent`,
+CSS selectors, zero `data-testid` (`DioxusLabs/dioxus`
+`packages/desktop/headless_tests/`). Our bridge is that mechanism
+delivered **cross-process via HTTP** so bats/any harness can drive it,
+where the org calls it **in-process from Rust** `[[test]]` binaries.
+Both are the same wry eval channel; HTTP trades a little purity for
+language-agnostic, screenshot-friendly shell tests.
 
 ---
 
@@ -128,6 +143,16 @@ BIN=../target/debug/openkite bats --filter 'palette' e2e/bridge_flows.bats
 
 CI runs the suite in `.github/workflows/e2e.yml` (`bats` job) on ubuntu-latest
 with `xvfb`, `openbox`, `curl`, `python3`, and the GTK/WebKit build deps.
+
+### Future: in-process Rust tests
+
+For deep interaction coverage the Dioxus-org-idiomatic layer is Rust
+`[[test]] harness = false` binaries (`packages/desktop/headless_tests/`
+pattern): launch the app in-process, drive it with `document::eval`,
+self-terminate via `window().close()`. The bats suite above is the
+shell-level smoke layer — fast to add, language-agnostic, keeps
+screenshots. Both can coexist; convert flows to Rust binaries if a test
+outgrows shell ergonomics.
 
 ### Debugging a failing test
 
