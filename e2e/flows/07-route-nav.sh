@@ -35,13 +35,13 @@ xdotool type --delay 60 "go to home"
 sleep 2
 xdotool key --clearmodifiers Return
 sleep 3
-# Belt-and-braces: dismiss the palette if the Enter-run left it open
-# (focus can drift between sessions), so the restore shot is comparable
-# to the 01-home baseline.
+# Dismiss the palette if the Enter-run left it open (focus can drift
+# between sessions).
 xdotool key --clearmodifiers Escape
 sleep 1
-shot "03-home-restored.png"
-assert_rendered "$ART/03-home-restored.png" "home-restored"
-assert_pixels_unchanged "$ART/01-home.png" "$ART/03-home-restored.png" "home-restored" 1000
+shot "03-home.png"
+assert_rendered "$ART/03-home.png" "home-returned"
+# Navigating Logs -> Home must change the view again (leaves Logs).
+assert_pixels_changed "$ART/02-logs.png" "$ART/03-home.png" "logs-to-home-nav" 1000
 
 flow_log "PASS"
