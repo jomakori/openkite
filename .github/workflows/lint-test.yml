@@ -79,7 +79,8 @@ jobs:
         run: cargo nextest run --profile ci --workspace --config-file nextest.toml
       # dorny/test-reporter: one check per commit, annotations only at
       # failure sites, no PR comment spam. Runs even on failure so a red
-      # suite surfaces; fail-on-error keeps the gate.
+      # suite surfaces; fail-on-error keeps the gate. use-actions-summary
+      # writes the result (incl. failures) into the GHA job summary.
       - if: always() && needs.changes.outputs.src == 'true'
         name: Test report
         uses: dorny/test-reporter@v1
@@ -88,6 +89,7 @@ jobs:
           path: target/nextest/ci/junit.xml
           reporter: java-junit
           fail-on-error: 'true'
+          use-actions-summary: 'true'
 
   build:
     name: Build
