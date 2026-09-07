@@ -118,6 +118,8 @@ pub fn install_bridge() {
 /// Read one HTTP request, parse the op, forward it to the UI-thread
 /// worker, and write the JSON reply back.
 async fn handle_conn(sock: &mut tokio::net::TcpStream) -> Result<(), String> {
+    // The reader owns the stream for the duration of the request; the
+    // response is written through `get_mut()` so no move/borrow juggling.
     let mut reader = BufReader::new(sock);
     let mut head = String::new();
     loop {
@@ -135,7 +137,7 @@ async fn handle_conn(sock: &mut tokio::net::TcpStream) -> Result<(), String> {
         head.push_str(&line);
     }
     if !head.starts_with("POST ") {
-        return write_json(sock, r#"{"ok":false,"error":"POST only"}"#).await;
+        return write_json(reader.get_mut(), r#"{"ok":false,"error":"POST only"}"#).await;
     }
 
     let clen: usize = head
@@ -155,7 +157,11 @@ async fn handle_conn(sock: &mut tokio::net::TcpStream) -> Result<(), String> {
     let op: Op = serde_json::from_slice(&body).map_err(|e| e.to_string())?;
 
     let Some(inbox) = INBOX.get() else {
-        return write_json(sock, r#"{"ok":false,"error":"bridge worker not running"}"#).await;
+        return write_json(
+            reader.get_mut(),
+            r#"{"ok":false,"error":"bridge worker not running"}"#,
+        )
+        .await;
     };
     let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
     inbox
@@ -163,7 +169,7 @@ async fn handle_conn(sock: &mut tokio::net::TcpStream) -> Result<(), String> {
         .map_err(|_| "worker dropped".to_string())?;
     let result = reply_rx.await.map_err(|_| "worker dropped".to_string())?;
 
-    write_json(sock, &result).await
+    write_json(reader.get_mut(), &result).await
 }
 
 async fn write_json(sock: &mut tokio::net::TcpStream, payload: &str) -> Result<(), String> {

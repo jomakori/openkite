@@ -24,7 +24,10 @@ pub mod shell;
 pub mod state;
 pub mod switcher;
 pub mod terminal;
-#[cfg(not(target_arch = "wasm32"))]
+// Test-only DOM bridge (OKT-64). Compiled only in dev/test builds —
+// release binaries strip it (the bridge answers DOM queries over a
+// localhost HTTP port and must never ship).
+#[cfg(all(not(target_arch = "wasm32"), debug_assertions))]
 pub mod test_bridge;
 pub mod theme;
 pub mod theme_catalog;
@@ -115,9 +118,11 @@ pub fn run() {
     let _ = cluster::SHARED.set(tokio::sync::Mutex::new(cluster));
 
     // Test-only DOM bridge (OKT-64): listens on OPENKITE_TEST_PORT when
-    // set; no-op in production (env unset). Start the HTTP listener now;
-    // the dioxus-side consumer is spawned by the app shell's mount
+    // set; no-op in production (env unset, module stripped from release
+    // builds via cfg(debug_assertions)). Start the HTTP listener now;
+    // the dioxus-side worker is spawned by the app shell's mount
     // effect once the webview is live (eval needs a real document).
+    #[cfg(debug_assertions)]
     crate::test_bridge::install_bridge();
 
     let config = dioxus::desktop::Config::new().with_custom_head(head);

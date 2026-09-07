@@ -103,6 +103,7 @@ fn AppShell() -> Element {
         // Test-only DOM bridge worker (OKT-64): forwards HTTP requests
         // from the listener to the in-webview dispatcher. No-op unless
         // OPENKITE_TEST_PORT is set. Must run on this (UI) thread.
+        #[cfg(debug_assertions)]
         crate::test_bridge::spawn_bridge_worker();
 
         if EVALUATED_JS_PLUGINS.set(()).is_ok() {
