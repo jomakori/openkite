@@ -119,11 +119,12 @@ pub fn run() {
 
     // Test-only DOM bridge (OKT-64): listens on OPENKITE_TEST_PORT when
     // set; no-op in production (env unset, module stripped from release
-    // builds via cfg(debug_assertions)). Start the HTTP listener now;
-    // the dioxus-side worker is spawned by the app shell's mount
-    // effect once the webview is live (eval needs a real document).
+    // builds via cfg(debug_assertions)). Start the HTTP listener now —
+    // on the bootstrap runtime's handle, since this thread is not inside
+    // a runtime context — and the dioxus-side worker is spawned by the
+    // app shell's mount effect once the webview is live.
     #[cfg(debug_assertions)]
-    crate::test_bridge::install_bridge();
+    crate::test_bridge::install_bridge(runtime.handle());
 
     let config = dioxus::desktop::Config::new().with_custom_head(head);
     let vdom = dioxus::prelude::VirtualDom::new(router::app);

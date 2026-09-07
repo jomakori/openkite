@@ -85,15 +85,18 @@ pub fn enabled() -> bool {
     requested_port().is_some()
 }
 
-/// Start the HTTP listener (tokio task). Called from `run()` before the
-/// desktop event loop launches. Parsed ops are forwarded to the UI-thread
-/// worker registered by [`spawn_bridge_worker`].
-pub fn install_bridge() {
+/// Start the HTTP listener. Called from `run()` before the desktop event
+/// loop launches, on the bootstrap runtime's handle (a bare `tokio::spawn`
+/// would panic here — the main thread is not inside a runtime context).
+/// Parsed ops are forwarded to the UI-thread worker registered by
+/// [`spawn_bridge_worker`].
+pub fn install_bridge(handle: &tokio::runtime::Handle) {
     let Some(port) = requested_port() else { return };
     let addr: SocketAddr = format!("127.0.0.1:{port}")
         .parse()
         .expect("bad OPENKITE_TEST_PORT");
-    tokio::spawn(async move {
+    let handle = handle.clone();
+    handle.spawn(async move {
         let listener = match TcpListener::bind(addr).await {
             Ok(l) => l,
             Err(e) => {
@@ -106,7 +109,7 @@ pub fn install_bridge() {
             let Ok((mut sock, _)) = listener.accept().await else {
                 continue;
             };
-            tokio::spawn(async move {
+            handle.spawn(async move {
                 if let Err(e) = handle_conn(&mut sock).await {
                     tracing::debug!(%e, "test bridge conn error");
                 }
