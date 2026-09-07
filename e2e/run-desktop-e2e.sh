@@ -37,9 +37,18 @@ pixel_stddev() { # <png> -> stdout float in 0..1 (normalized; 0 = flat image)
 log "starting Xvfb on $DISPLAY_NUM (${SCREEN})"
 Xvfb "$DISPLAY_NUM" -screen 0 "$SCREEN" -nolisten tcp >"$ART/xvfb.log" 2>&1 &
 XVFB_PID=$!
-trap 'kill $XVFB_PID $APP_PID 2>/dev/null || true' EXIT
+trap 'kill $XVFB_PID $WM_PID $APP_PID 2>/dev/null || true' EXIT
 sleep 1
 export DISPLAY="$DISPLAY_NUM"
+
+# --- start a window manager ---------------------------------------------
+# GTK/WebKit only delivers keyboard input to an *activated* window, and
+# activation is a WM job. Without a WM the palette keybind (a document
+# keydown listener) never fires, no matter how keys are injected.
+log "starting openbox"
+openbox >"$ART/wm.log" 2>&1 &
+WM_PID=$!
+sleep 1
 
 # --- launch app ---------------------------------------------------------
 # No kubeconfig in CI -> app logs "no kubeconfig; starting disconnected".
@@ -73,8 +82,9 @@ awk -v s="$STD" 'BEGIN { exit !(s > 0.01) }' || fail "shell screenshot is blank/
 # --- exercise the palette (Ctrl+P opens, Escape closes) ----------------
 log "opening palette with Ctrl+P"
 # WebKit ignores XSendEvent (what `--window` uses); XTEST goes through the
-# server as real input. Ensure the window owns the X input focus first.
-xdotool windowfocus --sync "$WINDOW_ID" 2>/dev/null || true
+# server as real input. With openbox running, windowactivate actually
+# activates the window so the webview's keydown listener receives keys.
+xdotool windowactivate --sync "$WINDOW_ID" 2>/dev/null || true
 sleep 1
 xdotool key --clearmodifiers ctrl+p
 sleep 2
