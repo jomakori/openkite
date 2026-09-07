@@ -279,7 +279,7 @@ pub fn BridgeWorker() -> Element {
             // One fresh eval per op; join waits for the completion value.
             // A stuck page can't hang the caller: bound the wait and reply
             // with an error instead.
-            let mut eval = dioxus::document::eval(&js);
+            let eval = dioxus::document::eval(&js);
             match tokio::time::timeout(
                 std::time::Duration::from_secs(5),
                 eval.join::<serde_json::Value>(),
