@@ -11,11 +11,19 @@ dioxus = { version = "0.7" }
 tokio = { version = "1", features = ["rt"] }
 anyhow = "1"
 
-# Library crate: do NOT enable a k8s-openapi version feature here.
-# The binary crate (openkite) selects the Kubernetes version via k8s-openapi.
+# Library crate: do NOT enable a k8s-openapi version feature in
+# [dependencies] — the binary crate (openkite) selects the Kubernetes
+# version, keeping this SDK version-agnostic.
+#
+# dev-dependencies DO select one ("latest", matching the binary): cargo
+# clippy/test --all-targets builds this crate standalone, and k8s-openapi's
+# build script panics when no version feature is enabled. Dev-deps never
+# ship, so the library contract stays version-agnostic.
 kube = { version = "4", default-features = false, features = ["client", "runtime", "derive", "rustls-tls"] }
 
 [dev-dependencies]
 http = "1"
 rustls = { version = "0.23", features = ["ring"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+# Version selection for standalone lib builds (see comment above).
+k8s-openapi = { version = "0.28", features = ["latest"] }
