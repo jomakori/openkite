@@ -11,11 +11,12 @@ dioxus = { version = "0.7" }
 tokio = { version = "1", features = ["rt"] }
 anyhow = "1"
 
-# Library crate: do NOT enable a k8s-openapi version feature here.
-# The binary crate (openkite) selects the Kubernetes version via k8s-openapi.
+# Deps: no k8s-openapi version feature (binary selects it).
+# Dev-deps: select one — standalone --all-targets builds panic otherwise.
 kube = { version = "4", default-features = false, features = ["client", "runtime", "derive", "rustls-tls"] }
 
 [dev-dependencies]
 http = "1"
 rustls = { version = "0.23", features = ["ring"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+k8s-openapi = { version = "0.28", features = ["latest"] }

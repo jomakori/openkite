@@ -136,9 +136,6 @@ jobs:
         name: Clippy
         run: cargo clippy -p openkite-plugin-sdk --all-targets -- -D warnings
       - if: needs.changes.outputs.src == 'true'
-        name: Build
-        run: cargo build -p openkite-plugin-sdk
-      - if: needs.changes.outputs.src == 'true'
         name: Test
         run: cargo test -p openkite-plugin-sdk
 
