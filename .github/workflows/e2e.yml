@@ -56,6 +56,68 @@ jobs:
           path: e2e/artifacts/
           retention-days: 7
 
+  # Ten user-flow scenarios (OKT-61), each booting the app under Xvfb and
+  # driving real X11 input: launch, palette open/filter/navigate/escape,
+  # theme cycle, sidebar nav, disconnected state, switcher. Run after the
+  # smoke E2E passes so a launch regression fails fast before the suite.
+  # Implemented as a bats suite (user decision: bats-core over bespoke
+  # shell flow scripts) so results land in the GHA summary via dorny.
+  user-flows:
+    name: User flows (10 scenarios)
+    runs-on: ubuntu-latest
+    needs: desktop-e2e
+    # Bats junit buffers until suite end; cap so a wedge can't eat the
+    # full 6h runner cap.
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libglib2.0-dev \
+            libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev \
+            xvfb xdotool imagemagick dbus-x11 openbox bats
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: '. -> target'
+
+      - name: Build desktop binary
+        run: cargo build --workspace
+
+      - name: Run user-flow bats suite
+        working-directory: e2e
+        env:
+          BIN: ../target/debug/openkite
+          ART_ROOT: artifacts-flows
+        run: |
+          rm -rf artifacts-flows artifacts-junit artifacts-bats-tmp
+          mkdir -p artifacts-flows artifacts-junit
+          # TAP on stdout (live progress) + junit report files for dorny.
+          bats --report-formatter junit --output "$PWD/artifacts-junit" \
+            --tempdir "$PWD/artifacts-bats-tmp" user_flows.bats
+
+      - name: Publish flow report to job summary
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: User flow report
+          path: e2e/artifacts-junit/*.xml
+          reporter: java-junit
+          use-actions-summary: 'true'
+
+      - name: Upload flow artifacts (screenshots + logs per flow)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: user-flow-artifacts
+          path: e2e/artifacts-flows/
+          retention-days: 7
+
   desktop-e2e-connected:
     # Same desktop harness, but pointed at the real maklab cluster through
     # the tailscale operator's kube-apiserver proxy. Exercises the app's

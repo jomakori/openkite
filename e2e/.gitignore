@@ -1,2 +1,5 @@
 artifacts/
+artifacts-flows/
+artifacts-junit/
+artifacts-bats-tmp/
 *.log
