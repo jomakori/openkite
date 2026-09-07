@@ -15,7 +15,7 @@
 //! chrome in `AppShell` (sibling to the cluster switcher).
 
 use crate::router::Route;
-use dioxus::router::navigator::Navigator;
+use dioxus::router::Navigator;
 
 /// What running a [`Command`] does. Static-only, host-defined for v1.
 #[derive(Debug, Clone, PartialEq, Eq)]

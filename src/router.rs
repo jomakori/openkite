@@ -60,7 +60,7 @@ fn full_path(path: &[String]) -> String {
 
 /// The `#[layout(AppShell)]` stays open for every route that follows, so the
 /// sidebar + status footer wrap core routes and the plugin catch-all alike.
-#[derive(Routable, Clone, Debug, PartialEq)]
+#[derive(Routable, Clone, Debug, PartialEq, Eq)]
 pub enum Route {
     #[layout(AppShell)]
     #[route("/")]
