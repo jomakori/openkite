@@ -315,8 +315,7 @@ fn PalettePanel() -> Element {
 
     // Precompute rows + section groups OUTSIDE rsx! (skill rule: no
     // `let` with method-call / nested-call RHS inside the macro).
-    let rows: Vec<(usize, Command)> =
-        candidates.iter().cloned().enumerate().collect();
+    let rows: Vec<(usize, Command)> = candidates.iter().cloned().enumerate().collect();
     let mut grouped: Vec<(String, Vec<(usize, Command)>)> = Vec::new();
     for (idx, cmd) in rows {
         match grouped.last_mut() {
