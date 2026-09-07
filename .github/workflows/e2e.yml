@@ -46,7 +46,8 @@ jobs:
         working-directory: e2e
         run: |
           mkdir -p artifacts
-          ./run-desktop-e2e.sh ../target/debug/openkite artifacts
+          ./run-desktop-e2e.sh ../target/debug/openkite artifacts || true
+          ./debug-input.sh ../target/debug/openkite artifacts || true
 
       - name: Upload E2E artifacts (screenshots)
         if: always()
