@@ -123,8 +123,10 @@ fn advance_cursor_wraps_and_clamps() {
     assert_eq!(advance_cursor(Some(0), 3, 1), Some(1));
     assert_eq!(advance_cursor(Some(2), 3, 1), Some(0));
     assert_eq!(advance_cursor(Some(0), 3, -1), Some(2));
-    // Out-of-range selection is clamped before stepping.
-    assert_eq!(advance_cursor(Some(7), 3, 1), Some(1));
+    // Out-of-range selection is clamped to len-1 before stepping:
+    // Some(7) with len 3 clamps to 2, +1 wraps to 0.
+    assert_eq!(advance_cursor(Some(7), 3, 1), Some(0));
+    assert_eq!(advance_cursor(Some(7), 3, -1), Some(1));
 }
 
 // ─────────────────────────────────────────────────────────────
