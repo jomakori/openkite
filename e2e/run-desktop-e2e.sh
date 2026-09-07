@@ -83,8 +83,11 @@ awk -v s="$STD" 'BEGIN { exit !(s > 0.01) }' || fail "shell screenshot is blank/
 log "opening palette with Ctrl+P"
 # WebKit ignores XSendEvent (what `--window` uses); XTEST goes through the
 # server as real input. With openbox running, windowactivate actually
-# activates the window so the webview's keydown listener receives keys.
+# activates the window. A click into the webview first gives the DOM
+# keyboard focus — WebKitGTK only routes key events to a focused frame.
 xdotool windowactivate --sync "$WINDOW_ID" 2>/dev/null || true
+sleep 1
+xdotool mousemove 640 400 click 1 2>/dev/null || true
 sleep 1
 xdotool key --clearmodifiers ctrl+p
 sleep 2
