@@ -15,6 +15,7 @@
 //! chrome in `AppShell` (sibling to the cluster switcher).
 
 use crate::router::Route;
+use dioxus::router::Navigator;
 
 /// What running a [`Command`] does. Static-only, host-defined for v1.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -282,7 +283,7 @@ fn run_command(cmd: Command, nav: Navigator) {
 /// reloads; the eval sets `documentElement.style.cssText` until then.
 fn cycle_theme() {
     let mut config = crate::config::OpenKiteConfig::load();
-    let current = config.theme.as_deref();
+    let current = config.theme.as_deref().unwrap_or("default");
     let catalog = crate::theme_catalog::catalog();
     let next = catalog
         .iter()
@@ -315,12 +316,11 @@ fn PalettePanel() -> Element {
 
     // Precompute rows + section groups OUTSIDE rsx! (skill rule: no
     // `let` with method-call / nested-call RHS inside the macro).
-    let rows: Vec<(usize, Command)> =
-        candidates.iter().cloned().enumerate().collect();
+    let rows: Vec<(usize, Command)> = candidates.iter().cloned().enumerate().collect();
     let mut grouped: Vec<(String, Vec<(usize, Command)>)> = Vec::new();
     for (idx, cmd) in rows {
         match grouped.last_mut() {
-            Some((section, _)) if section == &cmd.section => {}
+            Some((section, _)) if section.as_str() == cmd.section => {}
             _ => grouped.push((cmd.section.to_string(), Vec::new())),
         }
         if let Some((_, bucket)) = grouped.last_mut() {
@@ -347,7 +347,6 @@ fn PalettePanel() -> Element {
                     },
                     onkeydown: {
                         let list = candidates.clone();
-                        let nav = nav;
                         move |event| match event.key() {
                             Key::ArrowDown => {
                                 if let Some(next) = advance_cursor(Some(cursor), list.len(), 1) {
@@ -380,7 +379,6 @@ fn PalettePanel() -> Element {
                                     key: "{cmd.id}",
                                     cmd: cmd,
                                     is_selected: idx == cursor,
-                                    nav: nav,
                                 }
                             }
                         }
@@ -395,7 +393,11 @@ fn PalettePanel() -> Element {
 /// level) runs the command; the `title=` attribute surfaces the
 /// description as a v1 hover tooltip.
 #[component]
-fn PaletteRow(cmd: Command, is_selected: bool, nav: Navigator) -> Element {
+fn PaletteRow(cmd: Command, is_selected: bool) -> Element {
+    // Navigator is not PartialEq, so it cannot be a component prop (the
+    // `#[component]` macro compares props for change detection). Grab it
+    // from context inside the component instead.
+    let nav = use_navigator();
     let row_class = if is_selected {
         "palette-row selected"
     } else {

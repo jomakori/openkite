@@ -16,6 +16,7 @@ use openkite_plugin_sdk::{SidebarEntry, SidebarSection};
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
+use crate::palette::{CommandPalette, PaletteKeybind};
 use crate::switcher::{ClusterSwitcher, SwitcherKeybind};
 use crate::views::pod_detail::PodDetail;
 
@@ -59,8 +60,8 @@ fn full_path(path: &[String]) -> String {
 
 /// The `#[layout(AppShell)]` stays open for every route that follows, so the
 /// sidebar + status footer wrap core routes and the plugin catch-all alike.
-#[derive(Routable, Clone, Debug, PartialEq)]
-enum Route {
+#[derive(Routable, Clone, Debug, PartialEq, Eq)]
+pub enum Route {
     #[layout(AppShell)]
     #[route("/")]
     Home {},
@@ -123,10 +124,12 @@ fn AppShell() -> Element {
     rsx! {
         div { class: "app-shell",
             SwitcherKeybind {}
+            PaletteKeybind {}
             ClusterSwitcher {}
             PodDetail {}
             crate::components::secret_detail::SecretDetail {}
             crate::components::crud_modal::CrudOverlay {}
+            CommandPalette {}
             Sidebar {}
             div { class: "main-col",
                 TopBar {}
