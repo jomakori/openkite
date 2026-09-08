@@ -42,13 +42,15 @@ Prebuilt binaries land on the [Releases page](https://github.com/jomakori/openki
 **macOS (Homebrew cask — Apple Silicon + Intel)**
 
 ```sh
-brew install --cask https://raw.githubusercontent.com/jomakori/openkite/main/Casks/openkite.rb
+brew tap jomakori/homebrew-tap
+brew install --cask openkite
 ```
 
 **Linux (Homebrew formula — builds from source, any arch)**
 
 ```sh
-brew install https://raw.githubusercontent.com/jomakori/openkite/main/Formula/openkite.rb
+brew tap jomakori/homebrew-tap
+brew install openkite
 ```
 
 **Windows (Chocolatey via GitHub Packages — amd64 + arm64)**
@@ -58,7 +60,7 @@ choco source add -n openkite-gh -s "https://nuget.pkg.github.com/jomakori/index.
 choco install openkite
 ```
 
-> GitHub Packages NuGet feeds require authentication for `choco source add` — use a [PAT](https://github.com/settings/tokens) with `read:packages` when prompted, or set `GH_TOKEN`. Releases are also downloadable directly from the [Releases page](https://github.com/jomakori/openkite/releases) (AppImage / DMG / NSIS `.exe`).
+> The brew cask + formula live in the [jomakori/homebrew-tap](https://github.com/jomakori/homebrew-tap) repo and auto-update on every release. GitHub Packages NuGet feeds require authentication for `choco source add` — use a [PAT](https://github.com/settings/tokens) with `read:packages` when prompted, or set `GH_TOKEN`. Releases are also downloadable directly from the [Releases page](https://github.com/jomakori/openkite/releases) (AppImage / DMG / NSIS `.exe` / `.nupkg`).
 
 ## Quickstart
 
