@@ -5,16 +5,18 @@ use k8s_openapi::api::apps::v1::{
     ReplicaSet, ReplicaSetSpec, ReplicaSetStatus, StatefulSet, StatefulSetSpec, StatefulSetStatus,
 };
 use k8s_openapi::api::batch::v1::{CronJob, CronJobSpec, CronJobStatus, Job, JobSpec, JobStatus};
-use k8s_openapi::api::core::v1::{ContainerStatus, Pod, PodStatus};
+use k8s_openapi::api::core::v1::{
+    ContainerStatus, Node, NodeCondition, NodeSpec, NodeStatus, Pod, PodStatus,
+};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{ObjectMeta, OwnerReference, Time};
 
 use openkite::components::resource_table::{CellExtras, HealthDot};
 use openkite::components::status_badge::StatusKind;
 use openkite::workloads::{
     age_cell, controller_for_pod, cron_job_columns, cron_job_row, daemon_set_columns,
-    daemon_set_row, deployment_columns, deployment_row, job_columns, job_row, pod_columns,
-    pod_health_dots, pod_row, replica_set_columns, replica_set_row, stateful_set_columns,
-    stateful_set_row, WorkloadKind,
+    daemon_set_row, deployment_columns, deployment_row, job_columns, job_row, node_columns,
+    node_row, pod_columns, pod_health_dots, pod_row, replica_set_columns, replica_set_row,
+    stateful_set_columns, stateful_set_row, WorkloadKind,
 };
 
 fn meta(name: &str, namespace: &str) -> ObjectMeta {
@@ -373,4 +375,83 @@ fn workload_kind_labels_match_mockup() {
             "Secrets",
         ]
     );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Nodes.
+// ─────────────────────────────────────────────────────────────
+
+fn node(name: &str, ready: Option<&str>, labels: &[(&str, &str)]) -> Node {
+    Node {
+        metadata: ObjectMeta {
+            name: Some(name.to_string()),
+            labels: Some(
+                labels
+                    .iter()
+                    .map(|(k, v)| (k.to_string(), v.to_string()))
+                    .collect(),
+            ),
+            ..Default::default()
+        },
+        spec: Some(NodeSpec::default()),
+        status: Some(NodeStatus {
+            conditions: ready.map(|r| {
+                vec![NodeCondition {
+                    type_: "Ready".into(),
+                    status: r.into(),
+                    ..Default::default()
+                }]
+            }),
+            ..Default::default()
+        }),
+    }
+}
+
+#[test]
+fn node_row_extracts_roles_and_ready_status() {
+    let n = node(
+        "node-1",
+        Some("True"),
+        &[
+            ("node-role.kubernetes.io/control-plane", ""),
+            ("kubernetes.io/role", "worker"),
+            ("kubernetes.io/hostname", "node-1"),
+        ],
+    );
+    let row = node_row(&n);
+    assert_eq!(row.id, "node-1");
+    assert_eq!(row.namespace, None);
+    assert_eq!(row.cells.len(), 5);
+    assert_eq!(row.cells[0].text, "node-1");
+    // Both role labels surface (BTreeMap order: kubernetes.io/* < node-role.*);
+    // non-role labels are skipped.
+    assert_eq!(row.cells[1].text, "worker, control-plane");
+    assert_eq!(row.cells[2].text, "True");
+    assert_eq!(row.cells[2].status, Some(StatusKind::Running));
+}
+
+#[test]
+fn node_row_not_ready_maps_to_failed() {
+    let n = node("node-2", Some("False"), &[]);
+    let row = node_row(&n);
+    assert_eq!(row.cells[1].text, "none");
+    assert_eq!(row.cells[2].text, "False");
+    assert_eq!(row.cells[2].status, Some(StatusKind::Failed));
+}
+
+#[test]
+fn node_row_unknown_ready_when_condition_absent() {
+    let n = node("node-3", None, &[]);
+    let row = node_row(&n);
+    assert_eq!(row.cells[2].text, "Unknown");
+    assert_eq!(row.cells[2].status, Some(StatusKind::Unknown));
+    // No conditions → dash cell.
+    assert_eq!(row.cells[4].text, "-");
+}
+
+#[test]
+fn node_columns_match_row_layout() {
+    let cols = node_columns();
+    assert_eq!(cols.len(), 5);
+    assert_eq!(cols[0].label, "Name");
 }
