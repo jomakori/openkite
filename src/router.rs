@@ -625,4 +625,42 @@ mod tests {
             other => panic!("expected Plugin variant, got {other:?}"),
         }
     }
+
+    #[test]
+    fn plugin_route_all_slashes_yields_no_segments() {
+        let Route::Plugin { path } = plugin_route("///") else {
+            panic!("expected Plugin variant");
+        };
+        assert!(path.is_empty());
+        assert_eq!(full_path(&path), "/");
+    }
+
+    #[test]
+    fn json_response_serializes_ok_and_error_envelopes() {
+        let ok = json_response(ApiResponse::Ok {
+            result: serde_json::json!({ "items": [] }),
+        });
+        assert_eq!(
+            ok.headers().get("content-type").map(|v| v.as_bytes()),
+            Some(&b"application/json"[..])
+        );
+        let body: ApiResponse = serde_json::from_slice(ok.body()).unwrap();
+        assert_eq!(
+            body,
+            ApiResponse::Ok {
+                result: serde_json::json!({ "items": [] })
+            }
+        );
+
+        let err = json_response(ApiResponse::Error {
+            error: "bridge not installed".into(),
+        });
+        let body: ApiResponse = serde_json::from_slice(err.body()).unwrap();
+        assert_eq!(
+            body,
+            ApiResponse::Error {
+                error: "bridge not installed".into()
+            }
+        );
+    }
 }

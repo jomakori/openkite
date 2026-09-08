@@ -1,8 +1,8 @@
 //! Integration tests for the JS plugin host.
 
 use openkite::plugin_js::{
-    coalesce, discover_plugins, load_manifest, scan_and_reconcile, JsPluginRegistry, PluginAction,
-    PluginChange, PluginManifest,
+    coalesce, collect_bundles, discover_plugins, load_manifest, load_source, scan_and_reconcile,
+    JsBundle, JsPluginRegistry, PluginAction, PluginChange, PluginManifest,
 };
 use std::fs;
 use tempfile::tempdir;
@@ -52,6 +52,15 @@ fn validate_rejects_non_js_or_escaping_entries() {
     assert!(m.validate().unwrap_err().contains("relative"));
     m.entry = "/etc/passwd.js".into();
     assert!(m.validate().unwrap_err().contains("relative"));
+}
+
+#[test]
+fn validate_rejects_empty_version_and_entry() {
+    let mut m = manifest("a", "");
+    assert!(m.validate().unwrap_err().contains("version"));
+    let mut m = manifest("a", "1.0.0");
+    m.entry = "".into();
+    assert!(m.validate().unwrap_err().contains("entry"));
 }
 
 #[test]
@@ -227,4 +236,53 @@ fn coalesce_collapses_bursts_last_wins() {
             action: PluginAction::Removed
         }
     );
+}
+
+#[test]
+fn load_manifest_read_error_is_reported() {
+    let dir = tempdir().unwrap();
+    let err = load_manifest(&dir.path().join("ghost")).unwrap_err();
+    assert!(err.contains("read"));
+}
+
+#[test]
+fn registry_lists_sorted_names_and_len() {
+    let mut reg = JsPluginRegistry::new();
+    reg.upsert(manifest("b", "0.1.0"), true);
+    reg.upsert(manifest("a", "0.1.0"), false);
+    assert_eq!(reg.len(), 2);
+    assert_eq!(reg.names(), vec!["a".to_string(), "b".to_string()]);
+}
+
+#[test]
+fn collect_bundles_keeps_only_enabled_plugins() {
+    let dir = tempdir().unwrap();
+    write_plugin(dir.path(), "keep", "0.1.0");
+    write_plugin(dir.path(), "skip", "0.2.0");
+
+    let (bundles, errors) = collect_bundles(dir.path(), |name| name == "keep");
+    assert!(errors.is_empty());
+    assert_eq!(bundles.len(), 1);
+    assert_eq!(bundles[0].name, "keep");
+    assert_eq!(bundles[0].entry, dir.path().join("keep").join("main.js"));
+}
+
+#[test]
+fn load_source_reads_bundle_text() {
+    let dir = tempdir().unwrap();
+    write_plugin(dir.path(), "a", "0.1.0");
+    let bundle = JsBundle {
+        name: "a".into(),
+        entry: dir.path().join("a").join("main.js"),
+    };
+    assert_eq!(load_source(&bundle).unwrap(), "// noop");
+}
+
+#[test]
+fn load_source_reports_missing_entry() {
+    let bundle = JsBundle {
+        name: "a".into(),
+        entry: std::path::PathBuf::from("/nonexistent/a/main.js"),
+    };
+    assert!(load_source(&bundle).unwrap_err().contains("read"));
 }
