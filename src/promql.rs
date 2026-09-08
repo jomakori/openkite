@@ -551,4 +551,44 @@ mod tests {
         assert_eq!(series[0].metric.get("pod").map(String::as_str), Some("a"));
         assert_eq!(series[1].metric.get("pod").map(String::as_str), Some("b"));
     }
+
+    fn dead_client() -> kube::Client {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let url: http::Uri = "http://127.0.0.1:1".parse().unwrap();
+        kube::Client::try_from(kube::Config::new(url)).unwrap()
+    }
+
+    #[tokio::test]
+    async fn query_instant_send_error_surfaces_as_http() {
+        let err = query_instant(
+            &dead_client(),
+            "http://127.0.0.1:1",
+            &PromQuery {
+                expr: "up".into(),
+                time: None,
+            },
+        )
+        .await
+        .unwrap_err();
+        // Connection refused surfaces as PromError::Http(0, …) — the wire
+        // never got far enough for a status code.
+        assert!(matches!(err, PromError::Http(0, _)));
+    }
+
+    #[tokio::test]
+    async fn query_range_send_error_surfaces_as_http() {
+        let err = query_range(
+            &dead_client(),
+            "http://127.0.0.1:1",
+            &PromRangeQuery {
+                expr: "up".into(),
+                start: 0.0,
+                end: 1.0,
+                step: 1.0,
+            },
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(err, PromError::Http(0, _)));
+    }
 }

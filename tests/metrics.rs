@@ -39,3 +39,12 @@ fn sparkline_emits_polyline() {
     assert!(svg.contains("points=\""));
     assert!(svg.contains("currentColor"));
 }
+
+#[test]
+fn sparkline_empty_series_emits_empty_points_and_viewbox() {
+    let svg = sparkline(&[], 100.0, 30.0);
+    assert!(svg.contains("points=\"\""));
+    assert!(svg.contains("width=\"100\""));
+    assert!(svg.contains("height=\"30\""));
+    assert!(svg.contains("viewBox=\"0 0 100 30\""));
+}

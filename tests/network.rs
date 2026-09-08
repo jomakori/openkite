@@ -11,7 +11,11 @@ use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 
 use openkite::network::{
-    config_map_entries, ingress_rules, secret_keys, service_ports, service_summary,
+    config_data_preview, config_map_columns, config_map_entries, config_map_row,
+    format_ingress_hosts, format_ingress_paths, format_ports_summary, format_selector_short,
+    ingress_columns, ingress_row, ingress_rules, secret_columns, secret_key_count, secret_keys,
+    secret_row, service_columns, service_ports, service_row, service_summary, ConfigKind,
+    IngressRuleRow, ServicePortRow,
 };
 
 fn service(ports: Vec<ServicePort>, type_: &str, selector: &[(&str, &str)]) -> Service {
@@ -147,4 +151,412 @@ fn secret_keys_union_data_and_string_data() {
         ..Default::default()
     };
     assert_eq!(secret_keys(&secret), vec!["password", "username"]);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Pure formatters (preview cells).
+// ─────────────────────────────────────────────────────────────
+
+#[test]
+fn config_data_preview_empty_is_dash() {
+    assert_eq!(config_data_preview(&[]), "—");
+}
+
+#[test]
+fn config_data_preview_one_or_two_keys_no_suffix() {
+    let one = vec![("a".to_string(), "1".to_string())];
+    assert_eq!(config_data_preview(&one), "1 keys: a");
+
+    let two = vec![
+        ("a".to_string(), "1".to_string()),
+        ("b".to_string(), "2".to_string()),
+    ];
+    assert_eq!(config_data_preview(&two), "2 keys: a, b");
+}
+
+#[test]
+fn config_data_preview_many_keys_shows_remainder() {
+    let entries = vec![
+        ("a".to_string(), "1".to_string()),
+        ("b".to_string(), "2".to_string()),
+        ("c".to_string(), "3".to_string()),
+        ("d".to_string(), "4".to_string()),
+    ];
+    assert_eq!(config_data_preview(&entries), "4 keys: a, b +2");
+}
+
+#[test]
+fn format_ports_summary_empty_is_dash() {
+    assert_eq!(format_ports_summary(&[]), "—");
+}
+
+#[test]
+fn format_ports_summary_same_target_shows_port_only() {
+    let rows = vec![ServicePortRow {
+        name: "http".into(),
+        port: 80,
+        target_port: "80".into(),
+        protocol: "TCP".into(),
+        node_port: None,
+    }];
+    assert_eq!(format_ports_summary(&rows), "80");
+}
+
+#[test]
+fn format_ports_summary_named_target_uses_arrow() {
+    let rows = vec![ServicePortRow {
+        name: "https".into(),
+        port: 443,
+        target_port: "https".into(),
+        protocol: "TCP".into(),
+        node_port: None,
+    }];
+    assert_eq!(format_ports_summary(&rows), "443→https");
+}
+
+#[test]
+fn format_selector_short_empty_is_dash() {
+    assert_eq!(format_selector_short(&BTreeMap::new()), "—");
+}
+
+#[test]
+fn format_selector_short_flat_kv_and_truncate() {
+    let mut one = BTreeMap::new();
+    one.insert("app".to_string(), "api".to_string());
+    assert_eq!(format_selector_short(&one), "app=api");
+
+    let mut many = BTreeMap::new();
+    many.insert("a".to_string(), "1".to_string());
+    many.insert("b".to_string(), "2".to_string());
+    many.insert("c".to_string(), "3".to_string());
+    many.insert("d".to_string(), "4".to_string());
+    let s = format_selector_short(&many);
+    assert!(s.starts_with("a=1, b=2, c=3"), "got: {s}");
+    assert!(s.ends_with("+1"), "got: {s}");
+}
+
+#[test]
+fn format_ingress_paths_empty_is_dash() {
+    assert_eq!(format_ingress_paths(&[]), "—");
+}
+
+#[test]
+fn format_ingress_paths_joins_host_path() {
+    let rules = vec![
+        IngressRuleRow {
+            host: "example.com".into(),
+            path: "/api".into(),
+            path_type: "Prefix".into(),
+            backend: "api".into(),
+        },
+        IngressRuleRow {
+            host: "other.com".into(),
+            path: String::new(),
+            path_type: "Prefix".into(),
+            backend: "web".into(),
+        },
+    ];
+    // Leading slash stripped; host-only rule renders bare host.
+    assert_eq!(format_ingress_paths(&rules), "example.com/api, other.com");
+}
+
+#[test]
+fn format_ingress_hosts_dedupes_and_sorts() {
+    let rules = vec![
+        IngressRuleRow {
+            host: "b.com".into(),
+            path: "/1".into(),
+            path_type: "Prefix".into(),
+            backend: "x".into(),
+        },
+        IngressRuleRow {
+            host: "a.com".into(),
+            path: "/2".into(),
+            path_type: "Prefix".into(),
+            backend: "y".into(),
+        },
+        IngressRuleRow {
+            host: "b.com".into(),
+            path: "/3".into(),
+            path_type: "Prefix".into(),
+            backend: "z".into(),
+        },
+    ];
+    assert_eq!(format_ingress_hosts(&rules), "a.com, b.com");
+}
+
+#[test]
+fn secret_key_count_union() {
+    let mut data = BTreeMap::new();
+    data.insert("a".to_string(), k8s_openapi::ByteString(vec![1]));
+    let mut string_data = BTreeMap::new();
+    string_data.insert("b".to_string(), "v".to_string());
+    string_data.insert("a".to_string(), "dup".to_string());
+    let secret = Secret {
+        metadata: ObjectMeta::default(),
+        data: Some(data),
+        string_data: Some(string_data),
+        ..Default::default()
+    };
+    assert_eq!(secret_key_count(&secret), 2);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Row builders (cell layout pin).
+// ─────────────────────────────────────────────────────────────
+
+#[test]
+fn config_map_row_layout_and_preview() {
+    let mut data = BTreeMap::new();
+    data.insert("key".to_string(), "val".to_string());
+    let cm = ConfigMap {
+        metadata: ObjectMeta {
+            name: Some("app-config".into()),
+            namespace: Some("default".into()),
+            ..Default::default()
+        },
+        data: Some(data),
+        ..Default::default()
+    };
+    let row = config_map_row(&cm);
+    assert_eq!(row.id, "default/app-config");
+    assert_eq!(row.cells[0].text, "app-config");
+    assert_eq!(row.cells[1].text, "1 keys: key");
+    assert_eq!(row.cells[2].text, "1");
+    assert_eq!(row.cells[4].text, "ConfigMap");
+}
+
+#[test]
+fn secret_row_masked_type_and_key_count() {
+    let mut data = BTreeMap::new();
+    data.insert("password".to_string(), k8s_openapi::ByteString(vec![1]));
+    let secret = Secret {
+        metadata: ObjectMeta {
+            name: Some("app-secret".into()),
+            namespace: Some("prod".into()),
+            ..Default::default()
+        },
+        type_: Some("Opaque".into()),
+        data: Some(data),
+        ..Default::default()
+    };
+    let row = secret_row(&secret);
+    assert_eq!(row.id, "prod/app-secret");
+    assert_eq!(row.cells[0].text, "app-secret");
+    assert_eq!(row.cells[1].text, "Opaque");
+    // Key count only — the value is never surfaced.
+    assert_eq!(row.cells[2].text, "1");
+    assert_eq!(row.cells[4].text, "Secret");
+}
+
+#[test]
+fn service_row_layout_uses_formatters() {
+    let svc = service(
+        vec![ServicePort {
+            name: Some("http".into()),
+            port: 80,
+            target_port: Some(IntOrString::Int(8080)),
+            protocol: None,
+            node_port: None,
+            ..Default::default()
+        }],
+        "LoadBalancer",
+        &[("app", "nginx")],
+    );
+    let row = service_row(&svc);
+    assert_eq!(row.cells[0].text, "");
+    assert_eq!(row.cells[1].text, "LoadBalancer");
+    assert_eq!(row.cells[2].text, "—");
+    assert_eq!(row.cells[3].text, "80→8080");
+    assert_eq!(row.cells[4].text, "app=nginx");
+    assert_eq!(row.cells[6].text, "Service");
+}
+
+#[test]
+fn ingress_row_layout_uses_host_path_formatters() {
+    let ing = Ingress {
+        metadata: ObjectMeta {
+            name: Some("edge".into()),
+            namespace: Some("default".into()),
+            ..Default::default()
+        },
+        spec: Some(IngressSpec {
+            ingress_class_name: Some("nginx".into()),
+            rules: Some(vec![IngressRule {
+                host: Some("example.com".into()),
+                http: Some(HTTPIngressRuleValue {
+                    paths: vec![HTTPIngressPath {
+                        path: Some("/api".into()),
+                        path_type: "Prefix".into(),
+                        backend: IngressBackend {
+                            service: Some(IngressServiceBackend {
+                                name: "api".into(),
+                                port: None,
+                            }),
+                            ..Default::default()
+                        },
+                    }],
+                }),
+            }]),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let row = ingress_row(&ing);
+    assert_eq!(row.id, "default/edge");
+    assert_eq!(row.cells[1].text, "nginx");
+    assert_eq!(row.cells[2].text, "example.com");
+    assert_eq!(row.cells[3].text, "example.com/api");
+    assert_eq!(row.cells[5].text, "Ingress");
+}
+
+#[test]
+fn config_map_columns_are_name_data_keys_age_type() {
+    let cols = config_map_columns();
+    assert_eq!(cols.len(), 5);
+    assert_eq!(cols[0].key, "name");
+    assert_eq!(cols[1].key, "data");
+    assert_eq!(cols[2].key, "keys");
+    assert_eq!(cols[3].key, "age");
+    assert_eq!(cols[4].key, "type");
+}
+
+#[test]
+fn secret_columns_are_name_type_keys_age_type() {
+    let cols = secret_columns();
+    assert_eq!(cols.len(), 5);
+    assert_eq!(cols[0].key, "name");
+    assert_eq!(cols[1].key, "type");
+    assert_eq!(cols[2].key, "keys");
+    assert_eq!(cols[3].key, "age");
+}
+
+#[test]
+fn service_columns_are_name_type_ip_ports_selector_age_type() {
+    let cols = service_columns();
+    assert_eq!(cols.len(), 7);
+    assert_eq!(cols[0].key, "name");
+    assert_eq!(cols[1].key, "svc_type");
+    assert_eq!(cols[2].key, "cluster_ip");
+    assert_eq!(cols[3].key, "ports");
+    assert_eq!(cols[4].key, "selector");
+    assert_eq!(cols[5].key, "age");
+    assert_eq!(cols[6].key, "type");
+}
+
+#[test]
+fn ingress_columns_are_name_class_hosts_paths_age_type() {
+    let cols = ingress_columns();
+    assert_eq!(cols.len(), 6);
+    assert_eq!(cols[0].key, "name");
+    assert_eq!(cols[1].key, "class");
+    assert_eq!(cols[2].key, "hosts");
+    assert_eq!(cols[3].key, "paths");
+    assert_eq!(cols[4].key, "age");
+    assert_eq!(cols[5].key, "type");
+}
+
+// ─────────────────────────────────────────────────────────────
+// Default arms (absent spec/data) + ConfigKind metadata.
+// ─────────────────────────────────────────────────────────────
+
+#[test]
+fn config_kind_labels_kinds_and_versions() {
+    assert_eq!(ConfigKind::ALL.len(), 4);
+    for (kind, label, kind_str, api_version) in [
+        (ConfigKind::ConfigMaps, "ConfigMaps", "ConfigMap", "v1"),
+        (ConfigKind::Secrets, "Secrets", "Secret", "v1"),
+        (ConfigKind::Services, "Services", "Service", "v1"),
+        (
+            ConfigKind::Ingress,
+            "Ingress",
+            "Ingress",
+            "networking.k8s.io/v1",
+        ),
+    ] {
+        assert_eq!(kind.label(), label);
+        assert_eq!(kind.kind_str(), kind_str);
+        assert_eq!(kind.api_version(), api_version);
+    }
+}
+
+#[test]
+fn service_without_spec_defaults_to_cluster_ip() {
+    let svc = Service {
+        metadata: ObjectMeta {
+            name: Some("headless".into()),
+            ..Default::default()
+        },
+        spec: None,
+        ..Default::default()
+    };
+    assert!(service_ports(&svc).is_empty());
+    assert_eq!(service_summary(&svc).type_, "ClusterIP");
+    let row = service_row(&svc);
+    assert_eq!(row.id, "headless");
+    assert_eq!(row.cells[1].text, "ClusterIP");
+    assert_eq!(row.cells[2].text, "—");
+}
+
+#[test]
+fn ingress_without_spec_or_http_rules_renders_dashes() {
+    let bare = Ingress {
+        metadata: ObjectMeta::default(),
+        spec: None,
+        ..Default::default()
+    };
+    assert!(ingress_rules(&bare).is_empty());
+    let row = ingress_row(&bare);
+    assert_eq!(row.cells[1].text, "—");
+    assert_eq!(row.cells[2].text, "—");
+    assert_eq!(row.cells[3].text, "—");
+
+    let host_only = Ingress {
+        metadata: ObjectMeta::default(),
+        spec: Some(IngressSpec {
+            rules: Some(vec![IngressRule {
+                host: Some("example.com".into()),
+                http: None,
+            }]),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    assert!(ingress_rules(&host_only).is_empty());
+}
+
+#[test]
+fn config_map_row_cluster_scoped_without_data() {
+    let cm = ConfigMap {
+        metadata: ObjectMeta {
+            name: Some("shared".into()),
+            ..Default::default()
+        },
+        data: None,
+        ..Default::default()
+    };
+    assert!(config_map_entries(&cm).is_empty());
+    let row = config_map_row(&cm);
+    assert_eq!(row.id, "shared");
+    assert_eq!(row.cells[1].text, "—");
+    assert_eq!(row.cells[2].text, "0");
+    assert_eq!(row.cells[4].text, "ConfigMap");
+}
+
+#[test]
+fn secret_row_without_type_defaults_to_opaque() {
+    let secret = Secret {
+        metadata: ObjectMeta {
+            name: Some("bare".into()),
+            ..Default::default()
+        },
+        type_: None,
+        data: None,
+        string_data: None,
+        ..Default::default()
+    };
+    let row = secret_row(&secret);
+    assert_eq!(row.cells[1].text, "Opaque");
+    assert_eq!(row.cells[2].text, "0");
+    assert_eq!(row.cells[4].text, "Secret");
 }

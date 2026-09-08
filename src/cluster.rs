@@ -208,4 +208,79 @@ users:
             "unreachable cluster must error"
         );
     }
+
+    #[tokio::test]
+    async fn client_is_none_without_active_context() {
+        let state = ClusterState {
+            contexts: vec!["test-context".into()],
+            active: None,
+            clients: HashMap::new(),
+        };
+        assert!(state.client().is_none());
+        assert!(state.discovery().is_none());
+        assert!(state
+            .plugin_context(tokio::runtime::Handle::current())
+            .is_none());
+    }
+
+    #[tokio::test]
+    async fn disconnect_clears_active_but_keeps_cached_clients() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let url: http::Uri = "http://127.0.0.1:1".parse().unwrap();
+        let client = Client::try_from(Config::new(url)).unwrap();
+
+        let mut state = ClusterState {
+            contexts: vec!["test-context".into()],
+            active: Some("test-context".into()),
+            clients: HashMap::from([("test-context".into(), client)]),
+        };
+
+        state.disconnect();
+        assert_eq!(state.active(), None);
+        assert_eq!(
+            state.clients.len(),
+            1,
+            "clients stay cached for fast re-switch"
+        );
+        assert!(state.client().is_none());
+    }
+
+    #[tokio::test]
+    async fn invalidate_drops_only_named_context() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let url: http::Uri = "http://127.0.0.1:1".parse().unwrap();
+        let client = Client::try_from(Config::new(url)).unwrap();
+
+        let mut state = ClusterState {
+            contexts: vec!["a".into(), "b".into()],
+            active: Some("a".into()),
+            clients: HashMap::from([("a".into(), client.clone()), ("b".into(), client)]),
+        };
+
+        state.invalidate("a");
+        assert_eq!(state.clients.len(), 1);
+        assert!(state.clients.contains_key("b"));
+        // The active client is gone → client() falls back to None.
+        assert!(state.client().is_none());
+    }
+
+    #[tokio::test]
+    async fn discovery_and_plugin_context_require_active_client() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let url: http::Uri = "http://127.0.0.1:1".parse().unwrap();
+        let client = Client::try_from(Config::new(url)).unwrap();
+
+        let state = ClusterState {
+            contexts: vec!["test-context".into()],
+            active: Some("test-context".into()),
+            clients: HashMap::from([("test-context".into(), client)]),
+        };
+
+        assert!(state.discovery().is_some());
+        // kube::Client/tokio::Handle have no PartialEq — presence is the
+        // observable surface for the Some-path.
+        assert!(state
+            .plugin_context(tokio::runtime::Handle::current())
+            .is_some());
+    }
 }

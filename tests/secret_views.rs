@@ -63,3 +63,17 @@ fn secret_kind_label_recognises_known_kinds() {
     assert_eq!(secret_kind_label(None), "Opaque");
     assert_eq!(secret_kind_label(Some("custom")), "custom");
 }
+
+#[test]
+fn secret_kind_label_covers_remaining_known_kinds() {
+    assert_eq!(
+        secret_kind_label(Some("kubernetes.io/dockerconfigjson")),
+        "Docker config"
+    );
+    assert_eq!(
+        secret_kind_label(Some("kubernetes.io/service-account-token")),
+        "Service account token"
+    );
+    // Empty-string type collapses to the kube default like `None`.
+    assert_eq!(secret_kind_label(Some("")), "Opaque");
+}

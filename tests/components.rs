@@ -9,8 +9,8 @@
 
 use dioxus::prelude::rsx;
 use dioxus_ssr::render_element;
-use openkite::components::code_editor::{code_editor_path, compute_diagnostics};
-use openkite::components::status_badge::{StatusBadge, StatusKind};
+use openkite::components::code_editor::{code_editor_path, compute_diagnostics, YamlDiagnostics};
+use openkite::components::status_badge::{StatusBadge, StatusKind, StatusPill};
 
 #[test]
 fn status_badge_renders_class_and_label() {
@@ -76,4 +76,25 @@ fn code_editor_compute_diagnostics_reports_invalid_yaml() {
 #[test]
 fn code_editor_path_is_stable_cache_buster() {
     assert_eq!(code_editor_path(), "cm-bundle-v1");
+}
+
+#[test]
+fn status_pill_renders_design_system_variant() {
+    let danger = render_element(rsx! { StatusPill { status: StatusKind::Degraded } });
+    assert!(danger.contains("pill danger"), "got: {danger}");
+    assert!(danger.contains(">Degraded<"), "got: {danger}");
+    let ok = render_element(rsx! { StatusPill { status: StatusKind::Ready } });
+    assert!(ok.contains("pill success"), "got: {ok}");
+    let warn = render_element(rsx! { StatusPill { status: StatusKind::OutOfSync } });
+    assert!(warn.contains("pill warn"), "got: {warn}");
+}
+
+#[test]
+fn yaml_diagnostics_renders_one_row_per_diagnostic() {
+    let html = render_element(rsx! { YamlDiagnostics {
+        diagnostics: vec![(3, 5, "bad yaml".to_string())]
+    } });
+    assert!(html.contains("diagnostic-line"), "got: {html}");
+    assert!(html.contains("3:5"), "got: {html}");
+    assert!(html.contains("bad yaml"), "got: {html}");
 }

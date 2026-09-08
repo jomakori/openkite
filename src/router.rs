@@ -53,6 +53,25 @@ fn plugin_route(path: &str) -> Route {
     }
 }
 
+/// Resolve a URL path string to the matching [`Route`].
+///
+/// Core routes map 1:1 from their `#[route("/...")]` paths; anything
+/// else falls through to the plugin wildcard. Used by the
+/// `OPENKITE_ROUTE` test hook (boot the app directly onto a route for
+/// deterministic E2E/visual-baseline captures) and by callers resolving
+/// a render target from a path.
+pub fn route_from_path(path: &str) -> Route {
+    match path.trim().trim_matches('/') {
+        "" | "home" => Route::Home {},
+        "cluster" => Route::Cluster {},
+        "workloads" => Route::Workloads {},
+        "logs" => Route::Logs {},
+        "terminal" => Route::Terminal {},
+        "config" => Route::Config {},
+        other => plugin_route(other),
+    }
+}
+
 /// Reconstruct a full path from wildcard segments.
 fn full_path(path: &[String]) -> String {
     format!("/{}", path.join("/"))
@@ -81,6 +100,28 @@ pub enum Route {
 
 #[component]
 fn AppShell() -> Element {
+    // Test hook (OPENKITE_ROUTE=/cluster): boot the app directly onto a
+    // route so E2E/visual-baseline captures are deterministic — no input
+    // automation needed to reach a surface. Read once; navigate after the
+    // router is live (first mount). Ignored when unset or empty.
+    {
+        let nav = use_navigator();
+        let mut routed = use_signal(|| false);
+        use_effect(move || {
+            if !*routed.read() {
+                routed.set(true);
+                if let Ok(path) = std::env::var("OPENKITE_ROUTE") {
+                    let path = path.trim().to_string();
+                    if !path.is_empty() {
+                        let target = route_from_path(&path);
+                        tracing::info!(route = %path, "OPENKITE_ROUTE: booting onto route");
+                        nav.push(target);
+                    }
+                }
+            }
+        });
+    }
+
     // Mount the `/openkite` bridge endpoint. The webview's fetch
     // POSTs (plugin `register` calls + `openkite.api.*` requests) dispatch on
     // the first URL path segment, so the handler name `openkite` is the route.
@@ -557,5 +598,69 @@ mod tests {
         );
         let renderers = store.all_renderer_paths();
         assert_eq!(renderers, vec![("argocd", "/argocd/apps")]);
+    }
+
+    #[test]
+    fn route_from_path_maps_core_routes() {
+        assert_eq!(route_from_path("/"), Route::Home {});
+        assert_eq!(route_from_path(""), Route::Home {});
+        assert_eq!(route_from_path("home"), Route::Home {});
+        assert_eq!(route_from_path("/home"), Route::Home {});
+        assert_eq!(route_from_path("/cluster"), Route::Cluster {});
+        assert_eq!(route_from_path("cluster"), Route::Cluster {});
+        assert_eq!(route_from_path("/workloads"), Route::Workloads {});
+        assert_eq!(route_from_path("/logs"), Route::Logs {});
+        assert_eq!(route_from_path("/terminal"), Route::Terminal {});
+        assert_eq!(route_from_path("/config"), Route::Config {});
+    }
+
+    #[test]
+    fn route_from_path_falls_through_to_plugin_wildcard() {
+        match route_from_path("/argocd/apps") {
+            Route::Plugin { path } => assert_eq!(path, vec!["argocd", "apps"]),
+            other => panic!("expected Plugin variant, got {other:?}"),
+        }
+        match route_from_path("argocd") {
+            Route::Plugin { path } => assert_eq!(path, vec!["argocd"]),
+            other => panic!("expected Plugin variant, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn plugin_route_all_slashes_yields_no_segments() {
+        let Route::Plugin { path } = plugin_route("///") else {
+            panic!("expected Plugin variant");
+        };
+        assert!(path.is_empty());
+        assert_eq!(full_path(&path), "/");
+    }
+
+    #[test]
+    fn json_response_serializes_ok_and_error_envelopes() {
+        let ok = json_response(ApiResponse::Ok {
+            result: serde_json::json!({ "items": [] }),
+        });
+        assert_eq!(
+            ok.headers().get("content-type").map(|v| v.as_bytes()),
+            Some(&b"application/json"[..])
+        );
+        let body: ApiResponse = serde_json::from_slice(ok.body()).unwrap();
+        assert_eq!(
+            body,
+            ApiResponse::Ok {
+                result: serde_json::json!({ "items": [] })
+            }
+        );
+
+        let err = json_response(ApiResponse::Error {
+            error: "bridge not installed".into(),
+        });
+        let body: ApiResponse = serde_json::from_slice(err.body()).unwrap();
+        assert_eq!(
+            body,
+            ApiResponse::Error {
+                error: "bridge not installed".into()
+            }
+        );
     }
 }
