@@ -141,7 +141,7 @@ jobs:
   publish:
     name: Publish release
     runs-on: ubuntu-latest
-    needs: [analyze, build-artifacts]
+    needs: [analyze, build-artifacts, package-choco]
     if: needs.analyze.outputs.new_release_published == 'true'
     steps:
       - name: Checkout
@@ -267,37 +267,32 @@ jobs:
           gh pr merge "$BRANCH" --repo jomakori/openkite --auto --squash 2>/dev/null || \
             echo "auto-merge not available yet (PR #$(gh pr view "$BRANCH" --repo jomakori/openkite --json number -q .number)) — will need manual merge"
 
-  publish-choco:
-    name: Publish chocolatey package (GH Packages)
+  package-choco:
+    name: Build + push chocolatey package
     runs-on: windows-latest
-    needs: [analyze, publish]
-    if: needs.analyze.outputs.new_release_published == 'true'
+    needs: [analyze, build-artifacts]
     permissions:
       contents: read
       packages: write
     steps:
-      - name: Checkout
+      - name: Checkout (choco templates)
         uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
-      - name: Download Windows installers
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ needs.analyze.outputs.new_release_version }}
-        shell: pwsh
-        run: |
-          gh release download "v${env:VERSION}" --repo jomakori/openkite `
-            --pattern "openkite_${env:VERSION}_windows_*.exe" --dir /tmp/choco-artifacts --clobber
-          Get-ChildItem /tmp/choco-artifacts
-      - name: Compute checksums + rewrite package
+      - name: Download built Windows installers (matrix artifacts)
+        uses: actions/download-artifact@v4
+        with:
+          path: exes
+          merge-multiple: true
+      - name: Rewrite version + checksums into package templates
         env:
           VERSION: ${{ needs.analyze.outputs.new_release_version }}
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $amd = Get-FileHash (Get-ChildItem /tmp/choco-artifacts/*_windows_amd64.exe | Select-Object -First 1).FullName -Algorithm SHA256
-          $arm = Get-FileHash (Get-ChildItem /tmp/choco-artifacts/*_windows_arm64.exe | Select-Object -First 1).FullName -Algorithm SHA256
+          $amd = Get-FileHash (Get-ChildItem exes/*_windows_amd64.exe | Select-Object -First 1).FullName -Algorithm SHA256
+          $arm = Get-FileHash (Get-ChildItem exes/*_windows_arm64.exe | Select-Object -First 1).FullName -Algorithm SHA256
           $ps1 = 'choco/tools/chocolateyinstall.ps1'
           (Get-Content $ps1 -Raw) `
             -replace "\`$version = '.*'", "\`$version = '$env:VERSION'" `
@@ -307,13 +302,23 @@ jobs:
           $nuspec = 'choco/openkite.nuspec'
           (Get-Content $nuspec -Raw) -replace '<version>.*</version>', "<version>$env:VERSION</version>" |
             Set-Content $nuspec -NoNewline
-      - name: choco pack + push to GitHub Packages
+      - name: choco pack (uses the built installers via URL+checksum)
+        env:
+          VERSION: ${{ needs.analyze.outputs.new_release_version }}
+        shell: pwsh
+        run: |
+          choco pack choco/openkite.nuspec --outputdirectory dist
+      - name: Upload nupkg as release asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: openkite_${{ needs.analyze.outputs.new_release_version }}.nupkg
+          path: dist/openkite.*.nupkg
+      - name: Push to GitHub Packages
         env:
           VERSION: ${{ needs.analyze.outputs.new_release_version }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
         run: |
-          choco pack choco/openkite.nuspec --outputdirectory /tmp/choco-artifacts
-          choco push "/tmp/choco-artifacts/openkite.$env:VERSION.nupkg" `
+          choco push "dist/openkite.$env:VERSION.nupkg" `
             --source "https://nuget.pkg.github.com/jomakori/index.json" `
             --api-key $env:GH_TOKEN
