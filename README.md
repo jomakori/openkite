@@ -35,6 +35,31 @@ with kube-rs 4. One language, one binary, desktop-first.
 > YAML editor (CodeMirror 6) and embedded terminal (portable-pty + xterm.js)
 > are in progress — see the [board](https://plane.maklab.net/maklab/projects/71ba0e95-7c1a-4ea6-a50a-c42b0591492f).
 
+## Install
+
+Prebuilt binaries land on the [Releases page](https://github.com/jomakori/openkite/releases) for every version. Install via your platform's package manager:
+
+**macOS (Homebrew cask — Apple Silicon + Intel)**
+
+```sh
+brew install --cask https://raw.githubusercontent.com/jomakori/openkite/main/Casks/openkite.rb
+```
+
+**Linux (Homebrew formula — builds from source, any arch)**
+
+```sh
+brew install https://raw.githubusercontent.com/jomakori/openkite/main/Formula/openkite.rb
+```
+
+**Windows (Chocolatey via GitHub Packages — amd64 + arm64)**
+
+```sh
+choco source add -n openkite-gh -s "https://nuget.pkg.github.com/jomakori/index.json" --priority 1
+choco install openkite
+```
+
+> GitHub Packages NuGet feeds require authentication for `choco source add` — use a [PAT](https://github.com/settings/tokens) with `read:packages` when prompted, or set `GH_TOKEN`. Releases are also downloadable directly from the [Releases page](https://github.com/jomakori/openkite/releases) (AppImage / DMG / NSIS `.exe`).
+
 ## Quickstart
 
 ```sh
