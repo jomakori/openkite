@@ -1,6 +1,7 @@
 //! Integration tests for the bridge runtime: envelope parsing,
-//! registration merging, and the headless error paths. kube dispatch needs
-//! a live apiserver; the wire contract here pins what the shell mounts.
+//! registration merging, and the headless error paths. Kube dispatch is
+//! exercised two ways: the no-cluster fallback, and the connected error
+//! arms against a dead cluster (127.0.0.1:1 — refused, no network).
 
 use openkite::bridge::Bridge;
 use openkite::plugin_api::ApiResponse;
@@ -119,4 +120,105 @@ async fn exec_is_deferred_even_when_connected() {
         )
         .await;
     assert!(error_of(&resp).contains("exec is not supported yet"));
+}
+
+/// kube client aimed at a dead cluster (127.0.0.1:1, refused — no network).
+fn dead_client() -> kube::Client {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let url: http::Uri = "http://127.0.0.1:1".parse().unwrap();
+    kube::Client::try_from(kube::Config::new(url)).unwrap()
+}
+
+#[tokio::test]
+async fn dead_cluster_dispatch_errors_through_discovery() {
+    let bridge = Bridge::connected(dead_client());
+    // list/watch/get resolve the kind via discovery first; the dead cluster
+    // fails there, before any resource request is sent.
+    for body in [
+        r#"{"id":1,"plugin":"p","request":{"op":"list","kind":"pods","ns":null}}"#,
+        r#"{"id":2,"plugin":"p","request":{"op":"watch","kind":"pods","ns":"default"}}"#,
+        r#"{"id":3,"plugin":"p","request":{"op":"get","kind":"pods","ns":"default","name":"web"}}"#,
+    ] {
+        let resp = bridge.handle_post(body).await;
+        assert!(error_of(&resp).contains("discovery:"), "{resp:?}");
+    }
+}
+
+#[tokio::test]
+async fn dead_cluster_logs_error_after_params_build() {
+    let bridge = Bridge::connected(dead_client());
+    let resp = bridge
+        .handle_post(
+            r#"{"id":1,"plugin":"p","request":{"op":"logs","name":"web","ns":"default","container":null}}"#,
+        )
+        .await;
+    assert!(error_of(&resp).contains("logs web:"), "{resp:?}");
+}
+
+#[tokio::test]
+async fn connected_logs_still_require_a_namespace() {
+    let bridge = Bridge::connected(dead_client());
+    let resp = bridge
+        .handle_post(
+            r#"{"id":1,"plugin":"p","request":{"op":"logs","name":"web","ns":"","container":null}}"#,
+        )
+        .await;
+    assert!(error_of(&resp).contains("namespace required"), "{resp:?}");
+}
+
+#[tokio::test]
+async fn set_client_swaps_and_disconnects_kube_access() {
+    let bridge = Bridge::new();
+    // Swap a client in: list leaves the no-cluster fallback and hits discovery.
+    bridge.set_client(Some(dead_client()));
+    assert!(bridge.client().is_some());
+    let resp = bridge
+        .handle_post(r#"{"id":1,"plugin":"p","request":{"op":"list","kind":"pods","ns":null}}"#)
+        .await;
+    assert!(error_of(&resp).contains("discovery:"), "{resp:?}");
+
+    // Disconnect: kube ops fall back to the clean no-cluster error.
+    bridge.set_client(None);
+    assert!(bridge.client().is_none());
+    let resp = bridge
+        .handle_post(r#"{"id":2,"plugin":"p","request":{"op":"list","kind":"pods","ns":null}}"#)
+        .await;
+    assert_eq!(error_of(&resp), "no cluster connected");
+}
+
+#[tokio::test]
+async fn snapshot_is_a_point_in_time_copy_of_the_store() {
+    let bridge = Bridge::new();
+    assert!(bridge.snapshot().is_empty());
+    let resp = bridge
+        .handle_post(
+            r#"{"id":1,"plugin":"argocd","request":{"op":"register","kind":"sidebar","payload":{"label":"Applications","route":"/argocd/apps"}}}"#,
+        )
+        .await;
+    assert!(matches!(&resp, ApiResponse::Ok { .. }), "{resp:?}");
+    let snap = bridge.snapshot();
+    assert!(snap.get("argocd").is_some());
+    assert_eq!(snap.all_sidebar_items().len(), 1);
+}
+
+#[tokio::test]
+async fn register_route_and_status_payload_parse_failures_are_atomic() {
+    let bridge = Bridge::new();
+    // RouteSpec requires `path`; StatusItem requires `label`. The serde
+    // error surfaces before any validation and the store stays untouched.
+    let resp = bridge
+        .handle_post(
+            r#"{"id":1,"plugin":"odd","request":{"op":"register","kind":"route","payload":{"title":"T"}}}"#,
+        )
+        .await;
+    assert!(error_of(&resp).contains("invalid route"), "{resp:?}");
+    let resp = bridge
+        .handle_post(
+            r#"{"id":2,"plugin":"odd","request":{"op":"register","kind":"status","payload":{"color":"green"}}}"#,
+        )
+        .await;
+    assert!(error_of(&resp).contains("invalid status item"), "{resp:?}");
+    let store = bridge.store();
+    let store = store.lock().expect("test store lock");
+    assert!(store.get("odd").is_none());
 }
