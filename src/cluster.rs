@@ -223,8 +223,8 @@ users:
             .is_none());
     }
 
-    #[test]
-    fn disconnect_clears_active_but_keeps_cached_clients() {
+    #[tokio::test]
+    async fn disconnect_clears_active_but_keeps_cached_clients() {
         let _ = rustls::crypto::ring::default_provider().install_default();
         let url: http::Uri = "http://127.0.0.1:1".parse().unwrap();
         let client = Client::try_from(Config::new(url)).unwrap();
@@ -245,8 +245,8 @@ users:
         assert!(state.client().is_none());
     }
 
-    #[test]
-    fn invalidate_drops_only_named_context() {
+    #[tokio::test]
+    async fn invalidate_drops_only_named_context() {
         let _ = rustls::crypto::ring::default_provider().install_default();
         let url: http::Uri = "http://127.0.0.1:1".parse().unwrap();
         let client = Client::try_from(Config::new(url)).unwrap();
@@ -277,9 +277,10 @@ users:
         };
 
         assert!(state.discovery().is_some());
-        let ctx = state.plugin_context(tokio::runtime::Handle::current());
-        assert!(ctx.is_some());
-        let ctx = ctx.unwrap();
-        assert_eq!(ctx.kube_client, state.client().unwrap().clone());
+        // kube::Client/tokio::Handle have no PartialEq — presence is the
+        // observable surface for the Some-path.
+        assert!(state
+            .plugin_context(tokio::runtime::Handle::current())
+            .is_some());
     }
 }

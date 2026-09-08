@@ -103,12 +103,12 @@ async fn error_events_log_and_skip_snapshot_but_keep_stream_alive() {
     // not kill the loop (reflector reconnects upstream), and only the
     // Apply republishes a snapshot.
     let events = futures::stream::iter(vec![
-        Err(kube::Error::Api(kube::core::ErrorResponse {
-            status: "Failure".into(),
-            message: "watch reset".into(),
-            reason: "Expired".into(),
+        Err(watcher::Error::WatchError(Box::new(kube::core::Status {
             code: 410,
-        })),
+            reason: "Expired".to_string(),
+            message: "watch reset".to_string(),
+            ..Default::default()
+        }))),
         Ok(watcher::Event::Apply(config_map("a"))),
     ]);
 
