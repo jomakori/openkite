@@ -77,6 +77,12 @@ jobs:
             package_arch: arm64
             formats: dmg
             ext: dmg
+          - os: macos-13
+            target: x86_64-apple-darwin
+            package_os: macos
+            package_arch: amd64
+            formats: dmg
+            ext: dmg
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             package_os: windows
@@ -184,7 +190,7 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
-      - name: Download macOS artifact
+      - name: Download artifacts (dmg + source tarball)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ needs.analyze.outputs.new_release_version }}
@@ -193,6 +199,8 @@ jobs:
             --repo jomakori/openkite \
             --pattern "openkite_${VERSION}_macos_arm64.dmg" \
             --dir /tmp/tap-artifacts --clobber
+          curl -sL -o "/tmp/tap-artifacts/openkite-src.tar.gz" \
+            "https://github.com/jomakori/openkite/archive/refs/tags/v${VERSION}.tar.gz"
       - name: Update cask (version + sha256)
         env:
           VERSION: ${{ needs.analyze.outputs.new_release_version }}
@@ -205,14 +213,73 @@ jobs:
           sed -i "s/^  sha256 .*/  sha256 \"${SHA}\"/" "$CASK"
           grep -q "version \"${VERSION}\"" "$CASK"
           grep -q "sha256 \"${SHA}\"" "$CASK"
+      - name: Update formula (version + sha256)
+        env:
+          VERSION: ${{ needs.analyze.outputs.new_release_version }}
+        run: |
+          set -euo pipefail
+          SRC_SHA=$(shasum -a 256 /tmp/tap-artifacts/openkite-src.tar.gz | awk '{print $1}')
+          FORMULA=Formula/openkite.rb
+          sed -i "s|refs/tags/v[0-9.]*\.tar.gz|refs/tags/v${VERSION}.tar.gz|" "$FORMULA"
+          sed -i "s/^  sha256 .*/  sha256 \"${SRC_SHA}\"/" "$FORMULA"
+          grep -q "refs/tags/v${VERSION}.tar.gz" "$FORMULA"
+          grep -q "sha256 \"${SRC_SHA}\"" "$FORMULA"
       - name: Commit + push
         run: |
           git config user.name "semantic-release-bot"
           git config user.email "semantic-release-bot@users.noreply.github.com"
-          git add Casks/openkite.rb
+          git add Casks/openkite.rb Formula/openkite.rb
           if git diff --cached --quiet; then
-            echo "cask unchanged — nothing to push"
+            echo "brew files unchanged — nothing to push"
           else
-            git commit -m "chore(release): bump cask to v${{ needs.analyze.outputs.new_release_version }}"
+            git commit -m "chore(release): bump brew cask+formula to v${{ needs.analyze.outputs.new_release_version }}"
             git push
           fi
+
+  publish-choco:
+    name: Publish chocolatey package (GH Packages)
+    runs-on: windows-latest
+    needs: [analyze, publish]
+    if: needs.analyze.outputs.new_release_published == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Download Windows installers
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.analyze.outputs.new_release_version }}
+        shell: pwsh
+        run: |
+          gh release download "v${env:VERSION}" --repo jomakori/openkite `
+            --pattern "openkite_${env:VERSION}_windows_*.exe" --dir /tmp/choco-artifacts --clobber
+          Get-ChildItem /tmp/choco-artifacts
+      - name: Compute checksums + rewrite package
+        env:
+          VERSION: ${{ needs.analyze.outputs.new_release_version }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $amd = Get-FileHash (Get-ChildItem /tmp/choco-artifacts/*_windows_amd64.exe | Select-Object -First 1).FullName -Algorithm SHA256
+          $arm = Get-FileHash (Get-ChildItem /tmp/choco-artifacts/*_windows_arm64.exe | Select-Object -First 1).FullName -Algorithm SHA256
+          $ps1 = 'choco/tools/chocolateyinstall.ps1'
+          (Get-Content $ps1 -Raw) `
+            -replace "\`$version = '.*'", "\`$version = '$env:VERSION'" `
+            -replace "\`$amd64Checksum = '.*'", "\`$amd64Checksum = '$($amd.Hash.ToLower())'" `
+            -replace "\`$arm64Checksum = '.*'", "\`$arm64Checksum = '$($arm.Hash.ToLower())'" |
+            Set-Content $ps1 -NoNewline
+          $nuspec = 'choco/openkite.nuspec'
+          (Get-Content $nuspec -Raw) -replace '<version>.*</version>', "<version>$env:VERSION</version>" |
+            Set-Content $nuspec -NoNewline
+      - name: choco pack + push to GitHub Packages
+        env:
+          VERSION: ${{ needs.analyze.outputs.new_release_version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          choco pack choco/openkite.nuspec --outputdirectory /tmp/choco-artifacts
+          choco push "/tmp/choco-artifacts/openkite.$env:VERSION.nupkg" `
+            --source "https://nuget.pkg.github.com/jomakori/index.json" `
+            --api-key $env:GH_TOKEN
