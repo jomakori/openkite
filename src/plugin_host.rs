@@ -137,6 +137,7 @@ mod tests {
         log: Arc<Mutex<Vec<String>>>,
         panic_on_connect: bool,
         connect_error: bool,
+        panic_lifecycle: bool,
     }
 
     impl MockPlugin {
@@ -146,6 +147,7 @@ mod tests {
                 log,
                 panic_on_connect: false,
                 connect_error: false,
+                panic_lifecycle: false,
             }
         }
 
@@ -182,19 +184,31 @@ mod tests {
 
         fn on_cluster_disconnect(&mut self) {
             self.record("disconnect");
+            if self.panic_lifecycle {
+                panic!("simulated disconnect panic");
+            }
         }
 
         fn sidebar_entries(&self) -> Vec<SidebarSection> {
             self.record("sidebar");
+            if self.panic_lifecycle {
+                panic!("simulated sidebar panic");
+            }
             vec![]
         }
 
         fn routes(&self) -> Vec<PluginRoute> {
+            if self.panic_lifecycle {
+                panic!("simulated routes panic");
+            }
             vec![]
         }
 
         fn on_unload(&mut self) {
             self.record("unload");
+            if self.panic_lifecycle {
+                panic!("simulated unload panic");
+            }
         }
     }
 
@@ -289,5 +303,46 @@ mod tests {
             events,
             vec!["a-sidebar".to_string(), "b-sidebar".to_string()]
         );
+    }
+
+    #[tokio::test]
+    async fn panics_in_disconnect_unload_and_queries_are_contained() {
+        let log = Arc::new(Mutex::new(Vec::new()));
+        let mut registry = PluginRegistry::new();
+
+        let mut fragile = MockPlugin::new("fragile", log.clone());
+        fragile.panic_lifecycle = true;
+        registry.register(Box::new(fragile));
+        registry.register(Box::new(MockPlugin::new("ok", log.clone())));
+
+        let ctx = test_context();
+        registry.on_cluster_connect(&ctx);
+        registry.on_cluster_disconnect();
+        registry.on_unload();
+        assert!(registry.sidebar_entries().is_empty());
+        assert!(registry.routes().is_empty());
+
+        // Fan-out continues past each contained panic.
+        let events = log.lock().unwrap().clone();
+        assert_eq!(
+            events,
+            vec![
+                "fragile-connect".to_string(),
+                "ok-connect".to_string(),
+                "fragile-disconnect".to_string(),
+                "ok-disconnect".to_string(),
+                "fragile-unload".to_string(),
+                "ok-unload".to_string(),
+                "fragile-sidebar".to_string(),
+                "ok-sidebar".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn load_static_is_noop_and_default_is_empty() {
+        let mut registry = PluginRegistry::default();
+        registry.load_static(&crate::config::OpenKiteConfig::default());
+        assert!(registry.plugins().is_empty());
     }
 }
