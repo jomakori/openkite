@@ -139,3 +139,33 @@ fn minimal_registration_contributes_no_extra_sections() {
     assert_eq!(bar.len(), 3);
     assert_eq!(bar[2].label, "Metrics: Scraping");
 }
+
+#[test]
+fn status_bar_includes_prometheus_entry_when_detected() {
+    let store = RegistrationStore::new();
+    let state = ShellState {
+        cluster: Some("prod".into()),
+        connected: true,
+        prometheus: Some("kube-prometheus-stack-prometheus".into()),
+        ..ShellState::default()
+    };
+    let bar = status_bar_model(&state, &store, "1.2.3");
+    assert_eq!(bar.len(), 3);
+    assert_eq!(
+        bar[2].label,
+        "Prometheus · kube-prometheus-stack-prometheus"
+    );
+    assert_eq!(bar[2].color.as_deref(), Some("green"));
+}
+
+#[test]
+fn dot_color_rejects_non_function_shapes_and_keeps_hex_lowercase() {
+    assert_eq!(status_dot_color("#ABCDEF"), "#abcdef");
+    assert_eq!(status_dot_color("info"), "var(--accent)");
+    // A ')' without a matching function name is not a color call.
+    assert_eq!(status_dot_color("red)"), "var(--fg-2)");
+    // Hex past the 8-digit budget (# + 8 = 9 chars) is rejected.
+    assert_eq!(status_dot_color("#0123456789"), "var(--fg-2)");
+    // A quote inside a call could break out of the style attribute.
+    assert_eq!(status_dot_color("hsla(0,0%,0%)\",x:1)"), "var(--fg-2)");
+}

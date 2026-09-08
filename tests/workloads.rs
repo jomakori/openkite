@@ -455,3 +455,39 @@ fn node_columns_match_row_layout() {
     assert_eq!(cols.len(), 5);
     assert_eq!(cols[0].label, "Name");
 }
+
+// ─────────────────────────────────────────────────────────────
+// Workloads view (headless mount).
+// ─────────────────────────────────────────────────────────────
+
+use dioxus::prelude::*;
+use openkite::views::workloads::WorkloadView;
+
+fn mount(view: fn() -> Element) -> String {
+    let mut vdom = VirtualDom::new(view);
+    vdom.rebuild_in_place();
+    dioxus_ssr::Renderer::new().render(&vdom)
+}
+
+#[test]
+fn workload_view_renders_kind_tabs_and_default_pods_table() {
+    let html = mount(WorkloadView);
+    for label in [
+        "Pods",
+        "Nodes",
+        "Deployments",
+        "StatefulSets",
+        "DaemonSets",
+        "ReplicaSets",
+        "Jobs",
+        "CronJobs",
+        "Secrets",
+    ] {
+        assert!(html.contains(label), "missing kind tab {label}: {html}");
+    }
+    // Pods is the default selection, so its tab carries the active class.
+    assert!(html.contains("kind-tab active"), "got: {html}");
+    assert!(html.contains("New"), "missing new-resource button: {html}");
+    // The live reflector has no rows yet in a headless mount -> empty table.
+    assert!(html.contains("No resources"), "got: {html}");
+}

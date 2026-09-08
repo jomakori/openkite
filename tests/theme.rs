@@ -54,3 +54,33 @@ fn theme_roundtrips_through_json() {
     assert_eq!(theme, loaded);
     let _ = std::fs::remove_file(&path);
 }
+
+#[test]
+fn theme_load_reports_malformed_json() {
+    let path = std::env::temp_dir().join(format!("openkite-theme-bad-{}.json", std::process::id()));
+    std::fs::write(&path, "{not json").unwrap();
+    let err = Theme::load(&path).unwrap_err();
+    assert!(err.to_string().contains("valid JSON"));
+    let _ = std::fs::remove_file(&path);
+}
+
+#[test]
+fn theme_load_missing_file_is_an_io_error() {
+    let missing =
+        std::env::temp_dir().join(format!("openkite-theme-ghost-{}.json", std::process::id()));
+    let _ = std::fs::remove_file(&missing);
+    let err = Theme::load(&missing).unwrap_err();
+    assert!(err.to_string().contains("theme I/O error"));
+}
+
+#[test]
+fn theme_save_to_a_directory_is_an_io_error() {
+    let dir = std::env::temp_dir().join(format!("openkite-theme-dir-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let err = Theme::new()
+        .with_var("--bg-0", "#000000")
+        .save(&dir)
+        .unwrap_err();
+    assert!(err.to_string().contains("theme I/O error"));
+    let _ = std::fs::remove_dir_all(&dir);
+}

@@ -97,11 +97,7 @@ pub fn run() {
     // Launch with the bridge bootstrap injected into the page head: the
     // inline style loads the shell chrome, the script defines `window.openkite`
     // before any plugin bundle evaluates.
-    let head = format!(
-        "<style>{}</style>\n<script>{}</script>",
-        include_str!("../assets/main.css"),
-        plugin_api::OPENKITE_BRIDGE_JS,
-    );
+    let head = bootstrap_head();
 
     // Dioxus global signals are backed by the *runtime* (not process-wide)
     // in 0.7.10 — reading or writing them outside an active runtime panics.
@@ -130,4 +126,47 @@ pub fn run() {
         crate::runtime::set_js_plugins(bundles);
     });
     dioxus::desktop::launch::launch_virtual_dom(vdom, config);
+}
+
+/// The page-`<head>` bootstrap handed to the desktop window: the shell
+/// stylesheet plus the `window.openkite` bridge script, inlined so shell
+/// chrome paints before any plugin bundle evaluates. Pure — the sole
+/// sub-logic of [`run`] that is testable without a desktop event loop.
+fn bootstrap_head() -> String {
+    format!(
+        "<style>{}</style>\n<script>{}</script>",
+        include_str!("../assets/main.css"),
+        plugin_api::OPENKITE_BRIDGE_JS,
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // `run()` boots a desktop Dioxus event loop (VirtualDom + wry webview +
+    // tokio runtime + tracing subscriber) and structurally cannot mount
+    // headless: the tracing subscriber is process-global init-once, the
+    // Dioxus global signals are runtime-bound, and cluster connect needs a
+    // kubeconfig. Its pure sub-logic is extracted and pinned here instead.
+    #[test]
+    fn bootstrap_head_wraps_css_and_bridge_script() {
+        let head = bootstrap_head();
+        assert!(head.starts_with("<style>"));
+        assert!(head.contains("</style>\n<script>"));
+        assert!(head.ends_with("</script>"));
+    }
+
+    #[test]
+    fn bootstrap_head_carries_shell_css_and_openkite_global() {
+        let head = bootstrap_head();
+        // The stylesheet supplies the shell chrome (`.app-shell` rule) and
+        // the script defines `window.openkite` before plugins evaluate.
+        assert!(head.contains(".app-shell"));
+        assert!(head.contains("window.openkite"));
+        assert!(head.contains(&format!(
+            "<script>{}</script>",
+            plugin_api::OPENKITE_BRIDGE_JS
+        )));
+    }
 }

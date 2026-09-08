@@ -157,3 +157,20 @@ fn missing_name_rejected() {
         "missing metadata.name"
     );
 }
+
+#[test]
+fn missing_kind_rejected() {
+    let doc = json!({ "apiVersion": "v1", "metadata": { "name": "app" } });
+    assert_eq!(validate_manifest(&doc).unwrap_err(), "missing kind");
+}
+
+#[test]
+fn target_summary_tolerates_sparse_create_doc() {
+    // target_summary reads defensively (unwrap_or defaults), so a doc
+    // missing apiVersion/kind/name renders empty slots rather than panicking.
+    let r = target_summary(&Mutation::Create(json!({ "metadata": {} })));
+    assert_eq!(r.api_version, "");
+    assert_eq!(r.kind, "");
+    assert_eq!(r.name, "");
+    assert_eq!(r.namespace, None);
+}

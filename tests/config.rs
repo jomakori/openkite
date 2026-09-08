@@ -80,3 +80,54 @@ fn is_enabled_semantics() {
     };
     assert!(!disabled_wins.is_enabled("argocd"));
 }
+
+#[test]
+fn corrupt_toml_falls_back_to_default() {
+    let dir = std::env::temp_dir().join(format!("openkite-corrupt-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("config.toml");
+    std::fs::write(&path, "enabled_plugins = [unterminated").unwrap();
+
+    assert_eq!(OpenKiteConfig::load_from(&path), OpenKiteConfig::default());
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn save_to_errors_when_parent_cannot_be_created() {
+    let dir = std::env::temp_dir().join(format!("openkite-blocked-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    // A regular file where the parent directory should be.
+    let blocker = dir.join("blocker");
+    std::fs::write(&blocker, "not a directory").unwrap();
+
+    assert!(OpenKiteConfig::default()
+        .save_to(&blocker.join("config.toml"))
+        .is_err());
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn save_and_load_use_the_home_config_path() {
+    let dir = std::env::temp_dir().join(format!("openkite-home-{}", std::process::id()));
+    let home = dir.join("home");
+    std::fs::create_dir_all(&home).unwrap();
+    // Point HOME at the sandbox so `load()`/`save()` hit a known path.
+    std::env::set_var("HOME", &home);
+
+    let config = OpenKiteConfig {
+        enabled_plugins: vec!["argocd".into()],
+        disabled_plugins: vec![],
+        theme: Some("catppuccin-mocha".into()),
+        font_size: Some(13),
+        metrics_enabled: false,
+    };
+    config
+        .save()
+        .expect("save() persists to ~/.openkite/config.toml");
+    assert_eq!(OpenKiteConfig::load(), config);
+    assert!(home.join(".openkite").join("config.toml").exists());
+
+    let _ = std::fs::remove_dir_all(&dir);
+}

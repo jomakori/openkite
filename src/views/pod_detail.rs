@@ -264,3 +264,200 @@ fn ContainersTab(pod: Pod) -> Element {
         }
     }
 }
+
+#[cfg(test)]
+mod render_tests {
+    use super::*;
+    use dioxus_ssr::Renderer;
+    use k8s_openapi::api::core::v1::{
+        Container, ContainerState, ContainerStateRunning, ContainerStatus, PodSpec, PodStatus,
+    };
+    use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+
+    fn str_map(pairs: &[(&str, &str)]) -> std::collections::BTreeMap<String, String> {
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
+    }
+
+    fn rich_pod() -> Pod {
+        Pod {
+            metadata: ObjectMeta {
+                name: Some("web-1".into()),
+                namespace: Some("default".into()),
+                labels: Some(str_map(&[("app", "web"), ("tier", "frontend")])),
+                annotations: Some(str_map(&[("owner", "platform")])),
+                ..Default::default()
+            },
+            spec: Some(PodSpec {
+                node_name: Some("node-1".into()),
+                containers: vec![
+                    Container {
+                        name: "web".into(),
+                        image: Some("nginx:1.25".into()),
+                        ..Default::default()
+                    },
+                    Container {
+                        name: "sidecar".into(),
+                        image: Some("envoy:1.30".into()),
+                        ..Default::default()
+                    },
+                ],
+                ..Default::default()
+            }),
+            status: Some(PodStatus {
+                phase: Some("Running".into()),
+                pod_ip: Some("10.0.0.7".into()),
+                qos_class: Some("Guaranteed".into()),
+                reason: Some("Evicted".into()),
+                message: Some("node low on memory".into()),
+                container_statuses: Some(vec![
+                    ContainerStatus {
+                        name: "web".into(),
+                        image: "nginx:1.25".into(),
+                        ready: true,
+                        restart_count: 1,
+                        state: Some(ContainerState {
+                            running: Some(ContainerStateRunning::default()),
+                            ..Default::default()
+                        }),
+                        ..Default::default()
+                    },
+                    ContainerStatus {
+                        name: "sidecar".into(),
+                        image: "envoy:1.30".into(),
+                        ready: false,
+                        restart_count: 3,
+                        ..Default::default()
+                    },
+                ]),
+                ..Default::default()
+            }),
+        }
+    }
+
+    fn bare_pod() -> Pod {
+        Pod {
+            metadata: ObjectMeta::default(),
+            ..Default::default()
+        }
+    }
+
+    fn mount(root: fn() -> Element) -> String {
+        let mut vdom = VirtualDom::new(root);
+        vdom.rebuild_in_place();
+        Renderer::new().render(&vdom)
+    }
+
+    fn mount_seeded(root: fn() -> Element, pod: Pod) -> String {
+        let mut vdom = VirtualDom::new(root);
+        vdom.in_runtime(move || *crate::runtime::SELECTED_POD.write() = Some(pod));
+        vdom.rebuild_in_place();
+        Renderer::new().render(&vdom)
+    }
+
+    fn root_overview_rich() -> Element {
+        rsx! { OverviewTab { pod: rich_pod() } }
+    }
+    fn root_overview_bare() -> Element {
+        rsx! { OverviewTab { pod: bare_pod() } }
+    }
+    fn root_logs_tab() -> Element {
+        rsx! { LogsTab { pod: rich_pod() } }
+    }
+    fn root_events_tab() -> Element {
+        rsx! { EventsTab { pod: rich_pod() } }
+    }
+    fn root_yaml_tab() -> Element {
+        rsx! { YamlTab { pod: rich_pod() } }
+    }
+    fn root_containers_tab() -> Element {
+        rsx! { ContainersTab { pod: rich_pod() } }
+    }
+    fn root_pod_detail() -> Element {
+        rsx! { PodDetail {} }
+    }
+
+    #[test]
+    fn overview_tab_renders_summary_labels_and_annotations() {
+        let html = mount(root_overview_rich);
+        for want in [
+            "Running",
+            "node-1",
+            "10.0.0.7",
+            "Guaranteed",
+            "Evicted",
+            "node low on memory",
+            "app=web",
+            "tier=frontend",
+            "owner=platform",
+        ] {
+            assert!(html.contains(want), "missing {want:?}: {html}");
+        }
+    }
+
+    #[test]
+    fn overview_tab_defaults_for_bare_pod() {
+        let html = mount(root_overview_bare);
+        assert!(html.contains("Unknown"), "got: {html}");
+        assert!(!html.contains("Labels"), "got: {html}");
+        assert!(!html.contains("Reason"), "got: {html}");
+    }
+
+    #[test]
+    fn logs_tab_lists_containers_and_empty_prompt() {
+        let html = mount(root_logs_tab);
+        assert!(html.contains("sidecar"), "got: {html}");
+        assert!(html.contains("Follow"), "got: {html}");
+        assert!(
+            html.contains("Select a container to view logs."),
+            "got: {html}"
+        );
+    }
+
+    #[test]
+    fn events_tab_shows_placeholder() {
+        let html = mount(root_events_tab);
+        assert!(
+            html.contains("Events will be fetched from the cluster"),
+            "got: {html}"
+        );
+    }
+
+    #[test]
+    fn yaml_tab_renders_code_editor_host() {
+        let html = mount(root_yaml_tab);
+        assert!(html.contains("code-editor"), "got: {html}");
+        assert!(html.contains("data-cm-host"), "got: {html}");
+    }
+
+    #[test]
+    fn containers_tab_renders_state_and_readiness() {
+        let html = mount(root_containers_tab);
+        assert!(html.contains("nginx:1.25"), "got: {html}");
+        assert!(html.contains("envoy:1.30"), "got: {html}");
+        assert!(html.contains(">Running<"), "got: {html}");
+        assert!(html.contains("dot ok"), "got: {html}");
+        assert!(html.contains("dot err"), "got: {html}");
+    }
+
+    #[test]
+    fn pod_detail_closed_without_selection() {
+        let html = mount(root_pod_detail);
+        assert!(!html.contains("inspector open"), "got: {html}");
+        assert!(!html.contains("inspector-tabs"), "got: {html}");
+    }
+
+    #[test]
+    fn pod_detail_open_renders_header_tabs_and_overview() {
+        let html = mount_seeded(root_pod_detail, rich_pod());
+        assert!(html.contains("inspector open"), "got: {html}");
+        assert!(html.contains("web-1"), "got: {html}");
+        for tab in ["Overview", "Logs", "Events", "YAML", "Containers"] {
+            assert!(html.contains(tab), "missing tab {tab}: {html}");
+        }
+        assert!(html.contains("tab-btn active"), "got: {html}");
+        assert!(html.contains("Evicted"), "got: {html}");
+    }
+}

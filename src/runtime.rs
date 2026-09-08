@@ -238,3 +238,84 @@ pub async fn refresh_cluster_meta(client: &Client) {
         .cloned();
     set_prometheus(prom);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Run a closure with a Dioxus runtime installed on this thread.
+    fn with_runtime<O>(f: impl FnOnce() -> O) -> O {
+        fn stub() -> Element {
+            rsx! { div {} }
+        }
+        let vdom = VirtualDom::new(stub);
+        vdom.in_runtime(f)
+    }
+
+    /// Current-thread tokio runtime for building a kube client.
+    fn current_thread_runtime() -> tokio::runtime::Runtime {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("current-thread tokio runtime")
+    }
+
+    /// A client pointed at a dead cluster: every request errors, driving the
+    /// fallback arms in `refresh_cluster_meta`.
+    fn dead_client(rt: &tokio::runtime::Runtime) -> kube::Client {
+        let config = kube::Config::new("http://127.0.0.1:1".parse().expect("valid uri"));
+        rt.block_on(async { kube::Client::try_from(config).expect("client builds from config") })
+    }
+
+    #[test]
+    fn client_some_publish_is_readable() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let rt = current_thread_runtime();
+        let dead = dead_client(&rt);
+        with_runtime(|| {
+            set_client(None);
+            assert!(client().is_none());
+            set_client(Some(dead));
+            assert!(client().is_some());
+            set_client(None);
+            assert!(client().is_none());
+        });
+    }
+
+    #[test]
+    fn refresh_cluster_meta_error_arms_clear_stale_meta() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let rt = current_thread_runtime();
+        let client = dead_client(&rt);
+        with_runtime(|| {
+            set_namespaces(vec!["stale".into()]);
+            set_prometheus(Some("stale-prom".into()));
+            rt.block_on(refresh_cluster_meta(&client));
+            assert!(NAMESPACES.read().is_empty());
+            assert_eq!(*PROMETHEUS.read(), None);
+        });
+    }
+
+    #[test]
+    fn bridge_and_js_plugins_once_locks_keep_first_write() {
+        with_runtime(|| {
+            assert!(bridge().is_none());
+            set_bridge(Bridge::new());
+            let first = bridge().expect("bridge installed");
+            set_bridge(Bridge::new());
+            let second = bridge().expect("bridge still installed");
+            assert!(Arc::ptr_eq(&first, &second));
+
+            assert!(js_plugins().is_empty());
+            set_js_plugins(vec![crate::plugin_js::JsBundle {
+                name: "demo".into(),
+                entry: std::path::PathBuf::from("/tmp/demo.js"),
+            }]);
+            let bundles = js_plugins();
+            assert_eq!(bundles.len(), 1);
+            assert_eq!(bundles[0].name, "demo");
+            set_js_plugins(Vec::new());
+            assert_eq!(js_plugins().len(), 1);
+        });
+    }
+}
