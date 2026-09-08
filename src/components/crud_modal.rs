@@ -565,6 +565,58 @@ mod tests {
     }
 
     #[test]
+    fn starter_for_kind_covers_every_workload_kind() {
+        // Each typed branch seeds the expected apiVersion/kind and a spec
+        // with the kind's distinguishing field.
+        let cases = [
+            ("StatefulSet", "apps/v1", Some("serviceName")),
+            ("DaemonSet", "apps/v1", Some("template")),
+            ("ReplicaSet", "apps/v1", Some("replicas")),
+            ("Job", "batch/v1", Some("template")),
+            ("CronJob", "batch/v1", Some("schedule")),
+            ("ConfigMap", "v1", None),
+        ];
+        for (kind, api_version, marker) in cases {
+            let doc = starter_for_kind(kind);
+            assert_eq!(
+                doc.get("apiVersion").and_then(Value::as_str),
+                Some(api_version),
+                "{kind}"
+            );
+            assert_eq!(
+                doc.get("kind").and_then(Value::as_str),
+                Some(kind),
+                "{kind}"
+            );
+            match marker {
+                Some(path) => {
+                    let pointer = format!("/spec/{path}");
+                    assert!(doc.pointer(&pointer).is_some(), "{kind} missing {pointer}");
+                }
+                None => assert_eq!(doc.get("spec"), None, "{kind} should have no spec"),
+            }
+        }
+    }
+
+    #[test]
+    fn value_to_yaml_roundtrips_starter_docs() {
+        for kind in [
+            "Pod",
+            "Deployment",
+            "StatefulSet",
+            "DaemonSet",
+            "ReplicaSet",
+            "Job",
+            "CronJob",
+        ] {
+            let doc = starter_for_kind(kind);
+            let yaml = value_to_yaml(&doc);
+            assert!(yaml.contains("apiVersion"), "{kind}: {yaml}");
+            assert!(yaml.contains("kind"), "{kind}");
+        }
+    }
+
+    #[test]
     fn format_resource_triple_includes_namespace_when_present() {
         assert_eq!(
             format_resource_triple("Pod", Some("default"), "nginx"),
