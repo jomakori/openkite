@@ -268,7 +268,6 @@ fn ContainersTab(pod: Pod) -> Element {
 #[cfg(test)]
 mod render_tests {
     use super::*;
-    use dioxus::prelude::*;
     use dioxus_ssr::Renderer;
     use k8s_openapi::api::core::v1::{
         Container, ContainerState, ContainerStateRunning, ContainerStatus, PodSpec, PodStatus,

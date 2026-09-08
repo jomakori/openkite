@@ -47,3 +47,13 @@ fn rank_orders_best_first() {
     assert_eq!(ranked[0].1, 2);
     assert_eq!(ranked[1].1, 3);
 }
+
+#[test]
+fn long_candidates_pay_a_length_penalty() {
+    let short = fuzzy_match("pod", "pod").unwrap().score;
+    let long = fuzzy_match("pod", "pod-0123456789abcdef").unwrap().score;
+    assert!(
+        short > long,
+        "length penalty should reduce score: {short} vs {long}"
+    );
+}

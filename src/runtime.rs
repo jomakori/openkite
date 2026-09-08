@@ -271,11 +271,11 @@ mod tests {
     fn client_some_publish_is_readable() {
         let _ = rustls::crypto::ring::default_provider().install_default();
         let rt = current_thread_runtime();
-        let client = dead_client(&rt);
+        let dead = dead_client(&rt);
         with_runtime(|| {
             set_client(None);
             assert!(client().is_none());
-            set_client(Some(client));
+            set_client(Some(dead));
             assert!(client().is_some());
             set_client(None);
             assert!(client().is_none());
