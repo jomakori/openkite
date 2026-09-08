@@ -116,7 +116,7 @@ jobs:
   # packages that don't exist on Windows/macOS runners.
   # ──────────────────────────────────────────────────────────────────────
   cross-platform:
-    name: Cross-platform (${{ matrix.os }}) — plugin-sdk
+    name: plugin-sdk cross-platform (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     needs: [changes]
     strategy:
@@ -144,7 +144,7 @@ jobs:
         run: cargo test -p openkite-plugin-sdk
 
   coverage:
-    name: Coverage gate (≥45% floor)
+    name: Coverage gate
     runs-on: ubuntu-latest
     needs: [changes, fmt, clippy]
     steps:
