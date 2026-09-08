@@ -11,10 +11,11 @@ use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 
 use openkite::network::{
-    config_data_preview, config_map_entries, config_map_row, format_ingress_hosts,
-    format_ingress_paths, format_ports_summary, format_selector_short, ingress_row, ingress_rules,
-    secret_key_count, secret_keys, secret_row, service_ports, service_row, service_summary,
-    IngressRuleRow, ServicePortRow,
+    config_data_preview, config_map_columns, config_map_entries, config_map_row,
+    format_ingress_hosts, format_ingress_paths, format_ports_summary, format_selector_short,
+    ingress_columns, ingress_row, ingress_rules, secret_columns, secret_key_count, secret_keys,
+    secret_row, service_columns, service_ports, service_row, service_summary, IngressRuleRow,
+    ServicePortRow,
 };
 
 fn service(ports: Vec<ServicePort>, type_: &str, selector: &[(&str, &str)]) -> Service {
@@ -407,4 +408,50 @@ fn ingress_row_layout_uses_host_path_formatters() {
     assert_eq!(row.cells[2].text, "example.com");
     assert_eq!(row.cells[3].text, "example.com/api");
     assert_eq!(row.cells[5].text, "Ingress");
+}
+
+#[test]
+fn config_map_columns_are_name_data_keys_age_type() {
+    let cols = config_map_columns();
+    assert_eq!(cols.len(), 5);
+    assert_eq!(cols[0].key, "name");
+    assert_eq!(cols[1].key, "data");
+    assert_eq!(cols[2].key, "keys");
+    assert_eq!(cols[3].key, "age");
+    assert_eq!(cols[4].key, "type");
+}
+
+#[test]
+fn secret_columns_are_name_type_keys_age_type() {
+    let cols = secret_columns();
+    assert_eq!(cols.len(), 5);
+    assert_eq!(cols[0].key, "name");
+    assert_eq!(cols[1].key, "type");
+    assert_eq!(cols[2].key, "keys");
+    assert_eq!(cols[3].key, "age");
+}
+
+#[test]
+fn service_columns_are_name_type_ip_ports_selector_age_type() {
+    let cols = service_columns();
+    assert_eq!(cols.len(), 7);
+    assert_eq!(cols[0].key, "name");
+    assert_eq!(cols[1].key, "svc_type");
+    assert_eq!(cols[2].key, "cluster_ip");
+    assert_eq!(cols[3].key, "ports");
+    assert_eq!(cols[4].key, "selector");
+    assert_eq!(cols[5].key, "age");
+    assert_eq!(cols[6].key, "type");
+}
+
+#[test]
+fn ingress_columns_are_name_class_hosts_paths_age_type() {
+    let cols = ingress_columns();
+    assert_eq!(cols.len(), 6);
+    assert_eq!(cols[0].key, "name");
+    assert_eq!(cols[1].key, "class");
+    assert_eq!(cols[2].key, "hosts");
+    assert_eq!(cols[3].key, "paths");
+    assert_eq!(cols[4].key, "age");
+    assert_eq!(cols[5].key, "type");
 }
