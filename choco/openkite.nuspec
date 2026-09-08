@@ -7,7 +7,7 @@
     <authors>Joel Makori</authors>
     <owners>jomakori</owners>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
-    <license type="expression">MIT</license>
+    <licenseUrl>https://github.com/jomakori/openkite/blob/main/LICENSE-MIT</licenseUrl>
     <projectUrl>https://github.com/jomakori/openkite</projectUrl>
     <description>Kubernetes desktop IDE with plugin bridge. Windows installer (NSIS) — per-machine install.</description>
     <summary>Kubernetes desktop IDE with plugin bridge</summary>
