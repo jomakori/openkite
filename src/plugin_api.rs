@@ -354,6 +354,24 @@ mod tests {
     }
 
     #[test]
+    fn registration_validation_catches_empty_sidebar_and_spaced_paths() {
+        let mut sidebar_bad = registration();
+        sidebar_bad.sidebar[0].label = " ".into();
+        assert_eq!(
+            sidebar_bad.validate().unwrap_err(),
+            "sidebar item label must not be empty"
+        );
+
+        let mut spaced_route = registration();
+        spaced_route.routes[0].path = "/argocd apps".into();
+        assert!(spaced_route.validate().unwrap_err().contains("spaces"));
+
+        let mut spaced_renderer = registration();
+        spaced_renderer.renderers[0].path = "/argocd apps".into();
+        assert!(spaced_renderer.validate().unwrap_err().contains("spaces"));
+    }
+
+    #[test]
     fn api_request_serializes_as_tagged_ops() {
         let req = ApiRequest::List {
             kind: "pods".into(),
@@ -385,6 +403,35 @@ mod tests {
             }
             .describe(),
             "exec pod-1 sh -c ls"
+        );
+    }
+
+    #[test]
+    fn api_request_describe_covers_list_watch_logs() {
+        assert_eq!(
+            ApiRequest::List {
+                kind: "pods".into(),
+                ns: Some("default".into()),
+            }
+            .describe(),
+            "list pods"
+        );
+        assert_eq!(
+            ApiRequest::Watch {
+                kind: "pods".into(),
+                ns: None,
+            }
+            .describe(),
+            "watch pods"
+        );
+        assert_eq!(
+            ApiRequest::Logs {
+                name: "pod-1".into(),
+                ns: "default".into(),
+                container: Some("app".into()),
+            }
+            .describe(),
+            "logs pod-1"
         );
     }
 
@@ -455,6 +502,19 @@ mod tests {
         assert!(store.remove("argocd"));
         assert!(store.is_empty());
         assert!(!store.remove("argocd"));
+    }
+
+    #[test]
+    fn registration_store_get_status_and_plugin_names() {
+        let mut store = RegistrationStore::new();
+        assert_eq!(store.get("argocd"), None);
+        assert!(store.plugins().is_empty());
+
+        store.upsert("argocd", registration());
+        assert_eq!(store.get("argocd").map(|r| r.routes.len()), Some(1));
+        assert_eq!(store.all_status_items().len(), 1);
+        assert_eq!(store.plugins(), vec!["argocd".to_string()]);
+        assert!(!store.is_empty());
     }
 
     #[test]

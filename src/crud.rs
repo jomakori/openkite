@@ -310,4 +310,16 @@ mod tests {
         assert!(!typed_name_matches("nginx-7c5d ", "nginx-7c5d"));
         assert!(!typed_name_matches("", "nginx-7c5d"));
     }
+
+    #[test]
+    fn validate_manifest_rejects_missing_kind() {
+        let doc = json!({ "apiVersion": "v1", "metadata": { "name": "app" } });
+        assert_eq!(validate_manifest(&doc).unwrap_err(), "missing kind");
+    }
+
+    #[test]
+    fn validate_for_edit_propagates_manifest_gate() {
+        let doc = json!({ "kind": "Pod" });
+        assert_eq!(validate_for_edit(&doc).unwrap_err(), "missing apiVersion");
+    }
 }

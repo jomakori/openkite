@@ -14,8 +14,8 @@ use openkite::network::{
     config_data_preview, config_map_columns, config_map_entries, config_map_row,
     format_ingress_hosts, format_ingress_paths, format_ports_summary, format_selector_short,
     ingress_columns, ingress_row, ingress_rules, secret_columns, secret_key_count, secret_keys,
-    secret_row, service_columns, service_ports, service_row, service_summary, IngressRuleRow,
-    ServicePortRow,
+    secret_row, service_columns, service_ports, service_row, service_summary, ConfigKind,
+    IngressRuleRow, ServicePortRow,
 };
 
 fn service(ports: Vec<ServicePort>, type_: &str, selector: &[(&str, &str)]) -> Service {
@@ -454,4 +454,109 @@ fn ingress_columns_are_name_class_hosts_paths_age_type() {
     assert_eq!(cols[3].key, "paths");
     assert_eq!(cols[4].key, "age");
     assert_eq!(cols[5].key, "type");
+}
+
+// ─────────────────────────────────────────────────────────────
+// Default arms (absent spec/data) + ConfigKind metadata.
+// ─────────────────────────────────────────────────────────────
+
+#[test]
+fn config_kind_labels_kinds_and_versions() {
+    assert_eq!(ConfigKind::ALL.len(), 4);
+    for (kind, label, kind_str, api_version) in [
+        (ConfigKind::ConfigMaps, "ConfigMaps", "ConfigMap", "v1"),
+        (ConfigKind::Secrets, "Secrets", "Secret", "v1"),
+        (ConfigKind::Services, "Services", "Service", "v1"),
+        (
+            ConfigKind::Ingress,
+            "Ingress",
+            "Ingress",
+            "networking.k8s.io/v1",
+        ),
+    ] {
+        assert_eq!(kind.label(), label);
+        assert_eq!(kind.kind_str(), kind_str);
+        assert_eq!(kind.api_version(), api_version);
+    }
+}
+
+#[test]
+fn service_without_spec_defaults_to_cluster_ip() {
+    let svc = Service {
+        metadata: ObjectMeta {
+            name: Some("headless".into()),
+            ..Default::default()
+        },
+        spec: None,
+        ..Default::default()
+    };
+    assert!(service_ports(&svc).is_empty());
+    assert_eq!(service_summary(&svc).type_, "ClusterIP");
+    let row = service_row(&svc);
+    assert_eq!(row.id, "headless");
+    assert_eq!(row.cells[1].text, "ClusterIP");
+    assert_eq!(row.cells[2].text, "—");
+}
+
+#[test]
+fn ingress_without_spec_or_http_rules_renders_dashes() {
+    let bare = Ingress {
+        metadata: ObjectMeta::default(),
+        spec: None,
+        ..Default::default()
+    };
+    assert!(ingress_rules(&bare).is_empty());
+    let row = ingress_row(&bare);
+    assert_eq!(row.cells[1].text, "—");
+    assert_eq!(row.cells[2].text, "—");
+    assert_eq!(row.cells[3].text, "—");
+
+    let host_only = Ingress {
+        metadata: ObjectMeta::default(),
+        spec: Some(IngressSpec {
+            rules: Some(vec![IngressRule {
+                host: Some("example.com".into()),
+                http: None,
+            }]),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    assert!(ingress_rules(&host_only).is_empty());
+}
+
+#[test]
+fn config_map_row_cluster_scoped_without_data() {
+    let cm = ConfigMap {
+        metadata: ObjectMeta {
+            name: Some("shared".into()),
+            ..Default::default()
+        },
+        data: None,
+        ..Default::default()
+    };
+    assert!(config_map_entries(&cm).is_empty());
+    let row = config_map_row(&cm);
+    assert_eq!(row.id, "shared");
+    assert_eq!(row.cells[1].text, "—");
+    assert_eq!(row.cells[2].text, "0");
+    assert_eq!(row.cells[4].text, "ConfigMap");
+}
+
+#[test]
+fn secret_row_without_type_defaults_to_opaque() {
+    let secret = Secret {
+        metadata: ObjectMeta {
+            name: Some("bare".into()),
+            ..Default::default()
+        },
+        type_: None,
+        data: None,
+        string_data: None,
+        ..Default::default()
+    };
+    let row = secret_row(&secret);
+    assert_eq!(row.cells[1].text, "Opaque");
+    assert_eq!(row.cells[2].text, "0");
+    assert_eq!(row.cells[4].text, "Secret");
 }
