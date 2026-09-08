@@ -174,16 +174,16 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish-tap:
-    name: Update homebrew tap cask
+    name: Update in-repo homebrew cask
     runs-on: ubuntu-latest
     needs: [analyze, publish]
     if: needs.analyze.outputs.new_release_published == 'true'
     steps:
-      - name: Checkout tap
+      - name: Checkout openkite
         uses: actions/checkout@v4
         with:
-          repository: jomakori/homebrew-tap
-          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          ref: main
+          fetch-depth: 0
       - name: Download macOS artifact
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -213,6 +213,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "cask unchanged — nothing to push"
           else
-            git commit -m "openkite v${{ needs.analyze.outputs.new_release_version }}"
+            git commit -m "chore(release): bump cask to v${{ needs.analyze.outputs.new_release_version }}"
             git push
           fi
