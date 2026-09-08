@@ -71,13 +71,13 @@ jobs:
             package_arch: arm64
             formats: appimage
             ext: AppImage
-          - os: macos-14
+          - os: macos-15
             target: aarch64-apple-darwin
             package_os: macos
             package_arch: arm64
             formats: dmg
             ext: dmg
-          - os: macos-13
+          - os: macos-15-intel
             target: x86_64-apple-darwin
             package_os: macos
             package_arch: amd64
@@ -190,29 +190,44 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
-      - name: Download artifacts (dmg + source tarball)
+      - name: Download artifacts (dmgs + source tarball)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ needs.analyze.outputs.new_release_version }}
         run: |
-          gh release download "v${VERSION}" \
-            --repo jomakori/openkite \
-            --pattern "openkite_${VERSION}_macos_arm64.dmg" \
-            --dir /tmp/tap-artifacts --clobber
+          mkdir -p /tmp/tap-artifacts
+          for arch in arm64 amd64; do
+            gh release download "v${VERSION}" \
+              --repo jomakori/openkite \
+              --pattern "openkite_${VERSION}_macos_${arch}.dmg" \
+              --dir /tmp/tap-artifacts --clobber
+          done
           curl -sL -o "/tmp/tap-artifacts/openkite-src.tar.gz" \
             "https://github.com/jomakori/openkite/archive/refs/tags/v${VERSION}.tar.gz"
-      - name: Update cask (version + sha256)
+      - name: Update cask (version + both arch sha256)
         env:
           VERSION: ${{ needs.analyze.outputs.new_release_version }}
         run: |
           set -euo pipefail
-          DMG=$(ls /tmp/tap-artifacts/*.dmg | head -1)
-          SHA=$(shasum -a 256 "$DMG" | awk '{print $1}')
+          ARM_SHA=$(shasum -a 256 /tmp/tap-artifacts/*_macos_arm64.dmg | awk '{print $1}')
+          AMD_SHA=$(shasum -a 256 /tmp/tap-artifacts/*_macos_amd64.dmg | awk '{print $1}')
           CASK=Casks/openkite.rb
           sed -i "s/^  version .*/  version \"${VERSION}\"/" "$CASK"
-          sed -i "s/^  sha256 .*/  sha256 \"${SHA}\"/" "$CASK"
+          # on_arm block sha256
+          awk -v sha="$ARM_SHA" '
+            /on_arm do/ { in_arm=1 }
+            in_arm && /sha256/ { sub(/sha256 ".*"/, "sha256 \"" sha "\""); in_arm=0 }
+            { print }
+          ' "$CASK" > "$CASK.tmp" && mv "$CASK.tmp" "$CASK"
+          # on_intel block sha256
+          awk -v sha="$AMD_SHA" '
+            /on_intel do/ { in_intel=1 }
+            in_intel && /sha256/ { sub(/sha256 ".*"/, "sha256 \"" sha "\""); in_intel=0 }
+            { print }
+          ' "$CASK" > "$CASK.tmp" && mv "$CASK.tmp" "$CASK"
           grep -q "version \"${VERSION}\"" "$CASK"
-          grep -q "sha256 \"${SHA}\"" "$CASK"
+          grep -q "sha256 \"${ARM_SHA}\"" "$CASK"
+          grep -q "sha256 \"${AMD_SHA}\"" "$CASK"
       - name: Update formula (version + sha256)
         env:
           VERSION: ${{ needs.analyze.outputs.new_release_version }}
