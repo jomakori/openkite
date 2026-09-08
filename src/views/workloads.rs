@@ -209,3 +209,25 @@ pub fn WorkloadView() -> Element {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn split_row_id_splits_namespaced_id() {
+        assert_eq!(
+            split_row_id("default/web"),
+            (Some("default".to_string()), "web".to_string())
+        );
+    }
+
+    #[test]
+    fn split_row_id_keeps_bare_id_and_extra_slashes() {
+        assert_eq!(split_row_id("node-1"), (None, "node-1".to_string()));
+        assert_eq!(
+            split_row_id("ns/a/b"),
+            (Some("ns".to_string()), "a/b".to_string())
+        );
+    }
+}

@@ -73,3 +73,64 @@ fn default_container_matches_pick_default_container_semantics() {
     assert_eq!(default_container(&[]), None);
     assert_eq!(default_container(&["".into()]), None);
 }
+
+// ─────────────────────────────────────────────────────────────
+// Terminal view (headless mount).
+// ─────────────────────────────────────────────────────────────
+
+use dioxus::prelude::*;
+use k8s_openapi::api::core::v1::{Container, PodSpec};
+use openkite::views::terminal::TerminalView;
+
+fn term_pod() -> Pod {
+    Pod {
+        metadata: ObjectMeta {
+            name: Some("web-1".into()),
+            ..Default::default()
+        },
+        spec: Some(PodSpec {
+            containers: vec![Container {
+                name: "app".into(),
+                image: Some("nginx".into()),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }),
+        ..Default::default()
+    }
+}
+
+fn mount_terminal(seed: impl FnOnce()) -> String {
+    let mut vdom = VirtualDom::new(TerminalView);
+    vdom.in_runtime(seed);
+    vdom.rebuild_in_place();
+    dioxus_ssr::Renderer::new().render(&vdom)
+}
+
+#[test]
+fn terminal_view_empty_state_without_selected_pod() {
+    let html = mount_terminal(|| {});
+    assert!(
+        html.contains("Pick a pod to start a terminal session"),
+        "got: {html}"
+    );
+    assert!(html.contains("(none — open from inspector)"), "got: {html}");
+    assert!(html.contains("Disconnected"), "got: {html}");
+}
+
+#[test]
+fn terminal_view_with_pod_renders_picker_buttons_and_host() {
+    let pod = term_pod();
+    let html = mount_terminal(move || {
+        *openkite::runtime::SELECTED_POD.write() = Some(pod);
+    });
+    assert!(html.contains("web-1"), "got: {html}");
+    assert!(html.contains(">app<"), "got: {html}");
+    assert!(html.contains("Reconnect"), "got: {html}");
+    assert!(html.contains("Disconnect"), "got: {html}");
+    assert!(html.contains("term-status"), "got: {html}");
+    assert!(
+        !html.contains("Pick a pod to start a terminal session"),
+        "got: {html}"
+    );
+}
