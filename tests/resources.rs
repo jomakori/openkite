@@ -93,3 +93,32 @@ async fn empty_stream_never_fires_snapshot() {
         "no events → no callbacks"
     );
 }
+
+#[tokio::test]
+async fn error_events_log_and_skip_snapshot_but_keep_stream_alive() {
+    let (store, writer) = store::<ConfigMap>();
+    let snapshot_lens = Arc::new(Mutex::new(Vec::<usize>::new()));
+
+    // A transient watch error followed by a healthy Apply: the error must
+    // not kill the loop (reflector reconnects upstream), and only the
+    // Apply republishes a snapshot.
+    let events = futures::stream::iter(vec![
+        Err(kube::Error::Api(kube::core::ErrorResponse {
+            status: "Failure".into(),
+            message: "watch reset".into(),
+            reason: "Expired".into(),
+            code: 410,
+        })),
+        Ok(watcher::Event::Apply(config_map("a"))),
+    ]);
+
+    let captured = snapshot_lens.clone();
+    drive_reflector(writer, events, store.clone(), move |rows| {
+        captured.lock().unwrap().push(rows.len());
+    })
+    .await;
+
+    assert_eq!(store.state().len(), 1, "Apply after error still lands");
+    let lens = snapshot_lens.lock().unwrap();
+    assert_eq!(lens.as_slice(), &[1], "only the Apply fires a snapshot");
+}
