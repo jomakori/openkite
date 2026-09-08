@@ -59,25 +59,25 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-22.04
+          - os: ubuntu-24.04
             target: x86_64-unknown-linux-gnu
             package_os: linux
             package_arch: amd64
             formats: appimage
             ext: AppImage
-          - os: ubuntu-22.04-arm
+          - os: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
             package_os: linux
             package_arch: arm64
             formats: appimage
             ext: AppImage
-          - os: macos-15
+          - os: macos-26
             target: aarch64-apple-darwin
             package_os: macos
             package_arch: arm64
             formats: dmg
             ext: dmg
-          - os: macos-15-intel
+          - os: macos-26-intel
             target: x86_64-apple-darwin
             package_os: macos
             package_arch: amd64
