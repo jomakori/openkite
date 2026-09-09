@@ -59,22 +59,28 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-22.04
+          - os: ubuntu-24.04
             target: x86_64-unknown-linux-gnu
             package_os: linux
             package_arch: amd64
             formats: appimage
             ext: AppImage
-          - os: ubuntu-22.04-arm
+          - os: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
             package_os: linux
             package_arch: arm64
             formats: appimage
             ext: AppImage
-          - os: macos-14
+          - os: macos-26
             target: aarch64-apple-darwin
             package_os: macos
             package_arch: arm64
+            formats: dmg
+            ext: dmg
+          - os: macos-26-intel
+            target: x86_64-apple-darwin
+            package_os: macos
+            package_arch: amd64
             formats: dmg
             ext: dmg
           - os: windows-latest
@@ -172,3 +178,133 @@ jobs:
           files: dist/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-tap:
+    name: Update homebrew tap (jomakori/homebrew-tap)
+    runs-on: ubuntu-latest
+    needs: [analyze, publish]
+    if: needs.analyze.outputs.new_release_published == 'true'
+    steps:
+      # Digests set by release-digest (GITHUB_ENV) persist across the tap
+      # checkout below — env file is job-scoped, applied after every step.
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Read dmg digests
+        uses: ./.github/actions/release-digest
+        with:
+          version: ${{ needs.analyze.outputs.new_release_version }}
+          repo: jomakori/openkite
+          map: |
+            .*_macos_arm64\.dmg=ARM_SHA
+            .*_macos_amd64\.dmg=AMD_SHA
+      - name: Source tarball sha
+        env:
+          VERSION: ${{ needs.analyze.outputs.new_release_version }}
+        run: |
+          set -euo pipefail
+          SRC_SHA=$(curl -sL "https://github.com/jomakori/openkite/archive/refs/tags/v${VERSION}.tar.gz" | shasum -a 256 | awk '{print $1}')
+          test -n "$SRC_SHA" || { echo "source tarball fetch failed"; exit 1; }
+          echo "SRC_SHA=$SRC_SHA" >> "$GITHUB_ENV"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+      - name: Checkout tap
+        uses: actions/checkout@v4
+        with:
+          repository: jomakori/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          fetch-depth: 0
+      - name: Update cask
+        run: |
+          set -euo pipefail
+          CASK=Casks/openkite.rb
+          sed -i "s/^  version .*/  version \"${VERSION}\"/" "$CASK"
+          awk -v arm="$ARM_SHA" -v amd="$AMD_SHA" '
+            /on_arm do/ { in_arm=1 }
+            in_arm && /sha256/ { sub(/sha256 ".*"/, "sha256 \"" arm "\""); in_arm=0 }
+            /on_intel do/ { in_intel=1 }
+            in_intel && /sha256/ { sub(/sha256 ".*"/, "sha256 \"" amd "\""); in_intel=0 }
+            { print }
+          ' "$CASK" > "$CASK.tmp" && mv "$CASK.tmp" "$CASK"
+          grep -q "version \"${VERSION}\"" "$CASK"
+          grep -q "sha256 \"${ARM_SHA}\"" "$CASK"
+          grep -q "sha256 \"${AMD_SHA}\"" "$CASK"
+      - name: Update formula
+        run: |
+          set -euo pipefail
+          FORMULA=Formula/openkite.rb
+          sed -i "s|refs/tags/v[0-9.]*\.tar.gz|refs/tags/v${VERSION}.tar.gz|" "$FORMULA"
+          sed -i "s/^  sha256 .*/  sha256 \"${SRC_SHA}\"/" "$FORMULA"
+          grep -q "refs/tags/v${VERSION}.tar.gz" "$FORMULA"
+          grep -q "sha256 \"${SRC_SHA}\"" "$FORMULA"
+      - name: Commit + push
+        run: |
+          git config user.name "semantic-release-bot"
+          git config user.email "semantic-release-bot@users.noreply.github.com"
+          git add Casks/openkite.rb Formula/openkite.rb
+          if git diff --cached --quiet; then
+            echo "brew files unchanged"
+          else
+            git commit -m "openkite v${VERSION}"
+            git push
+          fi
+
+  publish-choco:
+    name: Publish chocolatey package (GH Packages)
+    runs-on: windows-latest
+    needs: [analyze, publish]
+    if: needs.analyze.outputs.new_release_published == 'true'
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Read exe digests
+        uses: ./.github/actions/release-digest
+        with:
+          version: ${{ needs.analyze.outputs.new_release_version }}
+          repo: jomakori/openkite
+          map: |
+            .*_windows_amd64\.exe=AMD_SHA
+            .*_windows_arm64\.exe=ARM_SHA
+      - name: Update package
+        env:
+          VERSION: ${{ needs.analyze.outputs.new_release_version }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ps1 = 'choco/tools/chocolateyinstall.ps1'
+          (Get-Content $ps1 -Raw) `
+            -replace "\`$version = '.*'", "\`$version = '$env:VERSION'" `
+            -replace "\`$amd64Checksum = '.*'", "\`$amd64Checksum = '$env:AMD_SHA'" `
+            -replace "\`$arm64Checksum = '.*'", "\`$arm64Checksum = '$env:ARM_SHA'" |
+            Set-Content $ps1 -NoNewline
+          $nuspec = 'choco/openkite.nuspec'
+          (Get-Content $nuspec -Raw) -replace '<version>.*</version>', "<version>$env:VERSION</version>" |
+            Set-Content $nuspec -NoNewline
+      - name: choco pack
+        env:
+          VERSION: ${{ needs.analyze.outputs.new_release_version }}
+        shell: pwsh
+        run: |
+          choco pack choco/openkite.nuspec --outputdirectory dist
+      - name: Push to GitHub Packages
+        env:
+          VERSION: ${{ needs.analyze.outputs.new_release_version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          choco push "dist/openkite.$env:VERSION.nupkg" `
+            --source "https://nuget.pkg.github.com/jomakori/index.json" `
+            --api-key $env:GH_TOKEN
+      - name: Attach nupkg to release
+        env:
+          VERSION: ${{ needs.analyze.outputs.new_release_version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          gh release upload "v$env:VERSION" "dist/openkite.$env:VERSION.nupkg" --repo jomakori/openkite --clobber

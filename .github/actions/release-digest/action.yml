@@ -1,0 +1,39 @@
+name: Release asset sha256 digests
+description: Read release asset sha256 digests via the GitHub API into GITHUB_ENV.
+
+inputs:
+  version:
+    description: Release version without the v prefix (e.g. 0.27.0)
+    required: true
+  map:
+    description: "One asset per line: <regex>=<ENV_NAME>"
+    required: true
+  repo:
+    description: "owner/repo of the release (default: current repository)"
+    required: false
+
+runs:
+  using: composite
+  steps:
+    - name: Assign digests
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPO: ${{ inputs.repo }}
+        VERSION: ${{ inputs.version }}
+        MAP: ${{ inputs.map }}
+      run: |
+        set -euo pipefail
+        repo="${REPO:-${GITHUB_REPOSITORY}}"
+        release="$(gh api "repos/${repo}/releases/tags/v${VERSION}")"
+
+        while IFS='=' read -r pattern env_name; do
+          [[ -z "${pattern}" || -z "${env_name}" ]] && continue
+          digest="$(jq -r --arg p "${pattern}" \
+            '.assets[] | select(.name | test($p)) | .digest' <<<"${release}" | head -n1)"
+          test -n "${digest}" && [[ "${digest}" != null ]] || {
+            echo "::error::no asset matching '${pattern}' on ${repo} v${VERSION}"
+            exit 1
+          }
+          echo "${env_name}=${digest#sha256:}" >> "${GITHUB_ENV}"
+        done <<<"${MAP}"

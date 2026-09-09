@@ -27,7 +27,7 @@ env:
 
 jobs:
   desktop-e2e:
-    name: Desktop E2E (Xvfb + xdotool)
+    name: Desktop E2E
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -70,7 +70,7 @@ jobs:
   # Implemented as a bats suite (user decision: bats-core over bespoke
   # shell flow scripts) so results land in the GHA summary via dorny.
   user-flows:
-    name: User flows (10 scenarios)
+    name: User flows
     runs-on: ubuntu-latest
     needs: desktop-e2e
     # Bats junit buffers until suite end; cap so a wedge can't eat the
@@ -133,7 +133,7 @@ jobs:
     #
     # Tailnet identity tag:k8s (see gke_GitOps services/helm/tailscale
     # ci-rbac.yaml) impersonates to cluster-admin on the apiserver proxy.
-    name: Desktop E2E connected (tailnet kubeconfig)
+    name: Desktop E2E (connected)
     runs-on: ubuntu-latest
     if: ${{ !cancelled() }}
     needs: desktop-e2e
@@ -238,7 +238,7 @@ jobs:
           retention-days: 30
 
   visual-regression:
-    name: Visual regression gate (10 baselines)
+    name: Visual regression
     runs-on: ubuntu-latest
     if: ${{ !cancelled() }}
     needs: desktop-e2e

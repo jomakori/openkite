@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>openkite</id>
+    <version>0.26.4</version>
+    <title>OpenKite</title>
+    <authors>Joel Makori</authors>
+    <owners>jomakori</owners>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <licenseUrl>https://github.com/jomakori/openkite/blob/main/LICENSE-MIT</licenseUrl>
+    <projectUrl>https://github.com/jomakori/openkite</projectUrl>
+    <description>Kubernetes desktop IDE with plugin bridge. Windows installer (NSIS) — per-machine install.</description>
+    <summary>Kubernetes desktop IDE with plugin bridge</summary>
+    <tags>kubernetes k8s dioxus desktop ide</tags>
+    <packageSourceUrl>https://github.com/jomakori/openkite</packageSourceUrl>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>
