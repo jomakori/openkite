@@ -135,6 +135,12 @@ pub enum ApiRequest {
         container: Option<String>,
         cmd: Vec<String>,
     },
+    /// Subscribe to live updates for a kind (additive push channel, OKT-91).
+    /// Answers `{sub: <id>, initial: <snapshot>}`; ongoing updates arrive out
+    /// of band via `window.openkite._pushState`.
+    Subscribe { kind: String, ns: Option<String> },
+    /// Cancel a subscription by id. Answers `{unsubscribed: <bool>}`.
+    Unsubscribe { sub: u64 },
 }
 
 impl ApiRequest {
@@ -147,6 +153,8 @@ impl ApiRequest {
             ApiRequest::Watch { kind, .. } => format!("watch {kind}"),
             ApiRequest::Logs { name, .. } => format!("logs {name}"),
             ApiRequest::Exec { name, cmd, .. } => format!("exec {name} {}", cmd.join(" ")),
+            ApiRequest::Subscribe { kind, .. } => format!("subscribe {kind}"),
+            ApiRequest::Unsubscribe { sub } => format!("unsubscribe {sub}"),
         }
     }
 }
@@ -298,6 +306,51 @@ pub const OPENKITE_BRIDGE_JS: &str = r##"(() => {
       watch: (kind, ns) => call({ op: "watch", kind, ns: ns || null }),
       logs: (name, ns, container) => call({ op: "logs", name, ns, container: container || null }),
       exec: (name, ns, container, cmd) => call({ op: "exec", name, ns, container: container || null, cmd })
+    },
+    // Additive push channel (OKT-91) — see src/push.rs. `subscribe` resolves the
+    // request/response hop to get a subscription id, then the host delivers
+    // updates out of band through `_pushState`.
+    _pushHandlers: new Map(),
+    subscribe: function (opts, handler) {
+      const kind = typeof opts === "string" ? opts : (opts && opts.kind);
+      const ns = (typeof opts === "string" ? null : (opts && opts.ns)) || null;
+      let sub = null;
+      let cancelled = false;
+      call({ op: "subscribe", kind, ns })
+        .then((res) => {
+          sub = res && res.sub;
+          if (sub == null) return;
+          // Unsubscribed before the id came back — honour the intent.
+          if (cancelled) {
+            call({ op: "unsubscribe", sub }).catch(() => {});
+            return;
+          }
+          window.openkite._pushHandlers.set(sub, handler);
+          if (res.initial !== undefined && handler) {
+            try {
+              handler({ sub: sub, kind: kind, ns: ns, rows: res.initial, revision: 0, initial: true });
+            } catch (e) {
+              console.warn("openkite subscribe handler threw:", e);
+            }
+          }
+        })
+        .catch((err) => console.warn("openkite subscribe failed:", err));
+      return function unsubscribe() {
+        cancelled = true;
+        if (sub == null) return;
+        window.openkite._pushHandlers.delete(sub);
+        call({ op: "unsubscribe", sub }).catch(() => {});
+      };
+    },
+    // Host → JS delivery point. Never throws into the host's eval.
+    _pushState: function (msg) {
+      const handler = window.openkite._pushHandlers.get(msg && msg.sub);
+      if (!handler) return;
+      try {
+        handler(msg);
+      } catch (e) {
+        console.warn("openkite push handler threw:", e);
+      }
     }
   };
 })();

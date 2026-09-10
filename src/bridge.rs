@@ -110,6 +110,32 @@ impl Bridge {
     pub async fn execute(&self, plugin: &str, request: ApiRequest) -> ApiResponse {
         let outcome: Result<Value, String> = match request {
             ApiRequest::Exec { .. } => Err("exec is not supported yet".into()),
+            // Additive push channel (OKT-91). Allocating a subscription only
+            // touches the host registry; the caller also gets an immediate
+            // snapshot so it need not follow up with `list`. Later updates
+            // arrive via `crate::push::publish` → the Dioxus-side pump.
+            ApiRequest::Subscribe { kind, ns } => {
+                let sub = match crate::push::registry().lock() {
+                    Ok(mut reg) => reg.subscribe(kind.clone(), ns.clone()),
+                    // Poisoned lock: another thread panicked mid-update. Recover
+                    // the data rather than failing the caller's request.
+                    Err(poisoned) => poisoned.into_inner().subscribe(kind.clone(), ns.clone()),
+                };
+                let initial = match self.client() {
+                    Some(client) => list_resource(&client, &kind, ns.as_deref())
+                        .await
+                        .unwrap_or_else(|err| serde_json::json!({ "error": err })),
+                    None => serde_json::json!([]),
+                };
+                Ok(serde_json::json!({ "sub": sub, "initial": initial }))
+            }
+            ApiRequest::Unsubscribe { sub } => {
+                let removed = match crate::push::registry().lock() {
+                    Ok(mut reg) => reg.unsubscribe(sub),
+                    Err(poisoned) => poisoned.into_inner().unsubscribe(sub),
+                };
+                Ok(serde_json::json!({ "unsubscribed": removed }))
+            }
             ApiRequest::Register { kind, payload } => {
                 let mut store = self.store.lock().expect("registration store lock");
                 apply_register(&mut store, plugin, &kind, payload)
