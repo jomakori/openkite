@@ -1,0 +1,330 @@
+# OKT-67/OKT-96 real-webview + live-reflector verification — one-shot Job on k3d.
+#
+# OKT-67 asked: does the React spike render in OpenKite's REAL wry/WebKitGTK
+# webview? OKT-96 asks the follow-up this harness could not answer: does a REAL
+# cluster mutation propagate into the running app process?
+#
+# Runs OFF the Hermes agent pod because that pod has a ~3Gi cgroup cap and a
+# Dioxus cargo build needs >2.5Gi — building on the agent pod OOM-killed the
+# container and restarted the gateway repeatedly.
+#
+# ns ok-debug is throwaway: no ArgoCD Application targets it (not drift-fought).
+# Cargo cache on a local-path PVC so repeat runs are ~4 min instead of ~15.
+#
+# OKT-96 additions (2026-09-10):
+#   - OPENKITE_ROUTE moves to /workloads because the native Workloads view (not
+#     the React spike) is what consumes `state::live` signals; that is the
+#     surface the UI-propagation claim is about.
+#   - kubectl is installed so the harness can mutate the cluster it observes.
+#   - A DWELL step keeps the app alive after the reflectors start, then a probe
+#     Pod is created in ok-debug, observed, and deleted. Cleaned up on EXIT.
+#   - Snapshot lines are ANSI-stripped before extraction: tracing_subscriber
+#     emits colour even when redirected, and the escapes split `rows=<n>`, so
+#     the old plain grep could never have parsed a value.
+#   - The app log dump no longer truncates to the first 20 INFO lines — that is
+#     exactly what hid the data-bearing snapshots behind the reflector's empty
+#     `Init` burst and produced the misleading "rows=0 proves nothing" reading.
+#
+# Companion Secret (created out-of-band, NOT committed here):
+#   kubectl -n ok-debug create secret generic openkite-kubeconfig \
+#     --from-literal=config="$(printenv MCP_KUBECONFIG)"
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ok-debug
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: openkite-cargo-cache
+  namespace: ok-debug
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: openkite-spike-webview
+  namespace: ok-debug
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  activeDeadlineSeconds: 3600
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: webview
+          image: rust:1.98
+          env:
+            - name: CARGO_HOME
+              value: /cache/cargo
+            - name: CARGO_TARGET_DIR
+              value: /cache/target
+            # OKT-96: the native view that consumes the live signals.
+            - name: OPENKITE_ROUTE
+              value: "/workloads"
+            - name: KUBECONFIG
+              value: /tmp/kc/config
+            - name: BRANCH
+              value: feat/okt96-live-reflector
+            # OKT-96 dwell/mutation knobs.
+            - name: DWELL_S
+              value: "90"
+            - name: SETTLE_S
+              value: "30"
+            - name: MUTATE_S
+              value: "30"
+            - name: PROBE_NS
+              value: "ok-debug"
+            - name: PROBE_NAME
+              value: "okt96-live-probe"
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -uxo pipefail
+              ART=/tmp/art; mkdir -p "$ART"
+              DWELL_S="${DWELL_S:-90}"; SETTLE_S="${SETTLE_S:-30}"; MUTATE_S="${MUTATE_S:-30}"
+              PROBE_NS="${PROBE_NS:-ok-debug}"; PROBE_NAME="${PROBE_NAME:-okt96-live-probe}"
+
+              # Strip ANSI SGR escapes so `rows=<n>` is contiguous again.
+              strip() { sed -e 's/\x1b\[[0-9;]*m//g'; }
+              # Last pods snapshot row count, or empty.
+              pods_rows() {
+                grep -a "live: snapshot" "$ART/app.log" 2>/dev/null | strip \
+                  | grep -a "kind=pods" | tail -1 | grep -oE 'rows=[0-9]+' | head -1 | cut -d= -f2
+              }
+              pods_lines() {
+                grep -a "live: snapshot" "$ART/app.log" 2>/dev/null | strip | grep -a "kind=pods"
+              }
+              view_rows() {
+                grep -a "live: view rows" "$ART/app.log" 2>/dev/null | strip \
+                  | grep -a "view=PodsTable" | tail -1 | grep -oE 'rows=[0-9]+' | head -1 | cut -d= -f2
+              }
+
+              # Always remove the probe, even on an early failure.
+              cleanup_probe() {
+                kubectl delete pod -n "$PROBE_NS" "$PROBE_NAME" --ignore-not-found >/dev/null 2>&1 || true
+              }
+              trap cleanup_probe EXIT
+
+              echo "=== 1. system deps: build (dev) + runtime GUI (webkit/gtk) + kubectl ==="
+              apt-get update -qq
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+                libwebkit2gtk-4.1-dev libgtk-3-dev libglib2.0-dev \
+                libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev \
+                pkg-config build-essential cmake \
+                xvfb xauth dbus-x11 openbox xdotool imagemagick \
+                git ca-certificates curl
+              echo "runtime libs: $(pkg-config --modversion webkit2gtk-4.1 gtk+-3.0 glib-2.0 | tr '\n' ' ')"
+              KUBECTL_VER="$(curl -fsSL https://dl.k8s.io/release/stable.txt)"
+              curl -fsSLo /usr/local/bin/kubectl "https://dl.k8s.io/release/${KUBECTL_VER}/bin/linux/amd64/kubectl"
+              chmod +x /usr/local/bin/kubectl
+              echo "kubectl: $(kubectl version --client=true 2>&1 | head -1)"
+
+              echo "=== 2. clone openkite (PUBLIC) — the branch under test ==="
+              [ -d /src/.git ] || git clone --depth 50 --branch "$BRANCH" https://github.com/jomakori/openkite.git /src
+              cd /src
+              git fetch -q origin "$BRANCH" 2>/dev/null || true
+              git checkout -q "$BRANCH" 2>/dev/null || true
+              git reset --hard -q "origin/$BRANCH" 2>/dev/null || true
+              echo "branch: $(git rev-parse --abbrev-ref HEAD) @ $(git rev-parse --short HEAD)"
+              git log --oneline -1
+              echo "UI view-rows probe present: $(grep -c 'live: view rows' src/views/workloads.rs)"
+
+              echo "=== 3. kubeconfig (mounted Secret) for a CONNECTED run ==="
+              ls -la /tmp/kc/config && head -1 /tmp/kc/config
+              kubectl auth whoami 2>&1 | tail -2
+
+              echo "=== 4. cargo build --bin openkite -j2 (6Gi limit; -j2 avoids the link spike) ==="
+              date -u +"build start %H:%M:%S"
+              cargo build --bin openkite -j2
+              rc=$?
+              date -u +"build end %H:%M:%S"
+              echo "cargo build exit=$rc"
+              if [ "$rc" -ne 0 ] || [ ! -x "$CARGO_TARGET_DIR/debug/openkite" ]; then echo "BUILD FAILED"; exit 1; fi
+              ls -la "$CARGO_TARGET_DIR/debug/openkite"
+
+              echo "=== 5. run the REAL app under Xvfb, booted onto /workloads ==="
+              export WEBKIT_DISABLE_COMPOSITING_MODE=1
+              export WEBKIT_DISABLE_DMABUF_RENDERER=1
+              export LIBGL_ALWAYS_SOFTWARE=1
+              export RUST_BACKTRACE=full
+              # tracing_subscriber emits colour regardless of tty; NO_COLOR keeps
+              # the log parseable (strip() is still applied defensively).
+              export NO_COLOR=1
+              Xvfb :99 -screen 0 1280x800x24 >"$ART/xvfb.log" 2>&1 &
+              sleep 3
+              export DISPLAY=:99
+              openbox >"$ART/wm.log" 2>&1 &
+              sleep 2
+
+              T_LAUNCH=$(date +%s.%N)
+              stdbuf -oL -eL "$CARGO_TARGET_DIR/debug/openkite" >"$ART/app.log" 2>&1 &
+              APID=$!
+              WID=""
+              for i in $(seq 1 60); do
+                WID=$(xdotool search --onlyvisible --name "OpenKite" 2>/dev/null | head -1)
+                [ -z "$WID" ] && WID=$(xdotool search --onlyvisible --class "openkite" 2>/dev/null | head -1)
+                [ -n "$WID" ] && break
+                sleep 1
+              done
+              T_WINDOW=$(date +%s.%N)
+              echo "window_id=${WID:-NONE} alive=$(kill -0 $APID 2>/dev/null && echo yes || echo no)"
+              echo "COLD_START_S=$(awk -v a="$T_LAUNCH" -v b="$T_WINDOW" 'BEGIN{printf "%.2f", b-a}')  (exec -> window mapped)"
+
+              echo "=== 5b. wait for reflectors, settle the initial LIST, then mutate ==="
+              REFLECT_START=""
+              for i in $(seq 1 60); do
+                if grep -aq "live: reflectors running" "$ART/app.log" 2>/dev/null; then
+                  REFLECT_START=$(date +%s)
+                  echo "reflectors_running_after_s=$i"
+                  break
+                fi
+                sleep 1
+              done
+              echo "REFLECTORS_STARTED=${REFLECT_START:-NO}"
+
+              PRE_ROWS=""
+              for i in $(seq 1 "$SETTLE_S"); do
+                PRE_ROWS="$(pods_rows)"
+                if [ -n "$PRE_ROWS" ] && [ "$PRE_ROWS" -gt 0 ] 2>/dev/null; then break; fi
+                sleep 1
+              done
+              echo "PRE_PODS_ROWS=${PRE_ROWS:-none} (settled after ${i}s)"
+              echo "PRE_VIEW_ROWS=$(view_rows)"
+              echo "--- last pods snapshots BEFORE mutation ---"
+              pods_lines | tail -3
+              import -window root "$ART/spike_before.png" 2>/dev/null || true
+              echo "shot_before_bytes=$(stat -c%s "$ART/spike_before.png" 2>/dev/null || echo 0)"
+
+              cat >"$ART/probe.yaml" <<EOF
+              apiVersion: v1
+              kind: Pod
+              metadata:
+                name: ${PROBE_NAME}
+                namespace: ${PROBE_NS}
+                labels:
+                  okt96-probe: "live-reflector"
+              spec:
+                restartPolicy: Never
+                containers:
+                  - name: probe
+                    image: registry.k8s.io/pause:3.9
+                    imagePullPolicy: IfNotPresent
+              EOF
+              echo "--- MUTATION: create ${PROBE_NS}/${PROBE_NAME} at $(date -u +%H:%M:%S) ---"
+              kubectl apply -f "$ART/probe.yaml"
+              kubectl -n "$PROBE_NS" get pod "$PROBE_NAME" -o name 2>&1 || true
+
+              POST_ROWS="$PRE_ROWS"
+              for i in $(seq 1 "$MUTATE_S"); do
+                POST_ROWS="$(pods_rows)"
+                if [ -n "$POST_ROWS" ] && [ -n "$PRE_ROWS" ] && [ "$POST_ROWS" -gt "$PRE_ROWS" ] 2>/dev/null; then break; fi
+                sleep 1
+              done
+              echo "POST_PODS_ROWS=${POST_ROWS:-none} (after ${i}s; expected > PRE)"
+              echo "POST_VIEW_ROWS=$(view_rows)"
+              echo "--- last pods snapshots AFTER create ---"
+              pods_lines | tail -3
+              import -window root "$ART/spike_after.png" 2>/dev/null || true
+              echo "shot_after_bytes=$(stat -c%s "$ART/spike_after.png" 2>/dev/null || echo 0)"
+              if cmp -s "$ART/spike_before.png" "$ART/spike_after.png"; then echo "SHOT_DELTA=identical"; else echo "SHOT_DELTA=changed"; fi
+
+              echo "--- MUTATION: delete ${PROBE_NS}/${PROBE_NAME} at $(date -u +%H:%M:%S) ---"
+              kubectl -n "$PROBE_NS" delete pod "$PROBE_NAME" --wait=false --ignore-not-found || true
+              DEL_ROWS="$POST_ROWS"
+              for i in $(seq 1 "$MUTATE_S"); do
+                DEL_ROWS="$(pods_rows)"
+                if [ -n "$DEL_ROWS" ] && [ -n "$PRE_ROWS" ] && [ "$DEL_ROWS" -le "$PRE_ROWS" ] 2>/dev/null; then break; fi
+                sleep 1
+              done
+              echo "POST_DELETE_PODS_ROWS=${DEL_ROWS:-none} (after ${i}s; expected == PRE)"
+              echo "POST_DELETE_VIEW_ROWS=$(view_rows)"
+              echo "--- last pods snapshots AFTER delete ---"
+              pods_lines | tail -3
+
+              echo "=== 5c. DWELL: keep the app alive >= ${DWELL_S}s after reflectors started ==="
+              if [ -n "${REFLECT_START:-}" ]; then
+                elapsed=$(( $(date +%s) - REFLECT_START ))
+                if [ "$elapsed" -lt "$DWELL_S" ]; then sleep $(( DWELL_S - elapsed )); fi
+                echo "DWELL_TOTAL_S=$(( $(date +%s) - REFLECT_START )) (target ${DWELL_S})"
+              else
+                sleep "$DWELL_S"
+                echo "DWELL_TOTAL_S=$DWELL_S (reflectors never detected)"
+              fi
+              echo "alive_after_dwell=$(kill -0 $APID 2>/dev/null && echo yes || echo no)"
+
+              echo "=== OKT-93 idle RSS (app process group; includes WebKitWebProcess) ==="
+              PGID=$(ps -o pgid= -p $APID 2>/dev/null | tr -d ' ')
+              ps -o pid=,rss=,comm= -g "$PGID" 2>/dev/null | sort -k2 -nr | head -8 \
+                | awk '{printf "  rss=%8.1f MB  pid=%s  %s\n", $2/1024, $1, $3}'
+              echo "IDLE_RSS_TOTAL_MB=$(ps -o rss= -g "$PGID" 2>/dev/null | awk '{s+=$1} END {printf "%.1f", s/1024}')"
+
+              echo "=== OKT-93 in-page measurements (informational) ==="
+              if grep -aq "SPIKE_MEASURE" "$ART/app.log"; then
+                grep -a "SPIKE_MEASURE" "$ART/app.log" | tail -3
+              else
+                echo "  (no SPIKE_MEASURE line: the emitter is absent from this branch)"
+                echo "  reason: SpikeRequest::Report + MEASURE_JS were added only in 3e614be"
+                echo "  on chore/okt93-real-webview-measure; feat/okt96-live-reflector has"
+                echo "  only the Context op, so no code path can emit the line."
+              fi
+              import -window root "$ART/spike.png" 2>/dev/null || true
+              echo "shot_bytes=$(stat -c%s "$ART/spike.png" 2>/dev/null || echo 0)"
+
+              echo "=== 6. app.log evidence (OKT-96) ==="
+              echo "--- live: reflectors running ---"
+              grep -a "live: reflectors running" "$ART/app.log" | strip | tail -2 || true
+              echo "--- ALL pods snapshot lines (timestamped; the mutation delta) ---"
+              pods_lines | tail -25
+              echo "--- pods snapshot line count: $(pods_lines | wc -l) ---"
+              echo "--- UI: live: view rows (PodsTable) — last 10 ---"
+              grep -a "live: view rows" "$ART/app.log" | strip | grep -a "view=PodsTable" | tail -10 || true
+              echo "--- INFO/WARN/ERROR (last 40) ---"
+              grep -aE "INFO|WARN|ERROR" "$ART/app.log" | tail -40 || true
+              echo "--- PANIC message + context ---"
+              grep -a -n -A5 "panicked at" "$ART/app.log" | head -45 || echo "(no panic line found)"
+              echo "--- total app.log lines: $(wc -l < "$ART/app.log") ---"
+              echo "=== VERDICT (pod-side) ==="
+              echo "panics=$(grep -ac 'panicked at' "$ART/app.log" || true)  (expect 0)"
+              echo "REFLECTORS_STARTED=${REFLECT_START:-NO} PRE_PODS_ROWS=${PRE_ROWS:-none} POST_PODS_ROWS=${POST_ROWS:-none} POST_DELETE_PODS_ROWS=${DEL_ROWS:-none}"
+
+              echo "=== 7. screenshot (stash on the PVC + base64 to stdout) ==="
+              cp "$ART/spike_after.png" /cache/spike.png 2>/dev/null || cp "$ART/spike.png" /cache/spike.png 2>/dev/null || true
+              echo "PNG_ON_PVC=/cache/spike.png bytes=$(stat -c%s /cache/spike.png 2>/dev/null || echo 0)"
+              set +x
+              echo "B64_BEGIN_MARKER"
+              base64 -w0 "$ART/spike.png"
+              echo ""
+              echo "B64_END_MARKER"
+              echo "=== WEBVIEW VERIFY COMPLETE ==="
+          resources:
+            requests:
+              memory: 2Gi
+              cpu: "1"
+            limits:
+              memory: 6Gi
+              cpu: "4"
+          volumeMounts:
+            - name: cache
+              mountPath: /cache
+            - name: tmp
+              mountPath: /tmp
+            - name: kc
+              mountPath: /tmp/kc
+              readOnly: true
+      volumes:
+        - name: cache
+          persistentVolumeClaim:
+            claimName: openkite-cargo-cache
+        - name: tmp
+          emptyDir: {}
+        - name: kc
+          secret:
+            secretName: openkite-kubeconfig
