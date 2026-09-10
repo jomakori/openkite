@@ -68,6 +68,7 @@ pub fn route_from_path(path: &str) -> Route {
         "logs" => Route::Logs {},
         "terminal" => Route::Terminal {},
         "config" => Route::Config {},
+        "spike" => Route::Spike {},
         other => plugin_route(other),
     }
 }
@@ -94,6 +95,8 @@ pub enum Route {
     Terminal {},
     #[route("/config")]
     Config {},
+    #[route("/spike")]
+    Spike {},
     #[route("/:..path")]
     Plugin { path: Vec<String> },
 }
@@ -260,7 +263,7 @@ fn refresh_registrations(bridge: &Arc<Bridge>) {
 }
 
 /// Serialize an [`ApiResponse`] into a JSON HTTP response for the webview.
-fn json_response(resp: ApiResponse) -> AssetHttpResponse<Vec<u8>> {
+pub(crate) fn json_response(resp: ApiResponse) -> AssetHttpResponse<Vec<u8>> {
     let body = serde_json::to_vec(&resp).unwrap_or_else(|err| {
         serde_json::to_vec(&ApiResponse::Error {
             error: format!("serialize response: {err}"),
@@ -458,6 +461,12 @@ fn Config() -> Element {
     rsx! { h2 { "Config" } p { "Config views land in a later ticket." } }
 }
 
+/// OKT-67 spike route: mounts the React 19 + Tailwind 4 UI in the webview.
+#[component]
+fn Spike() -> Element {
+    rsx! { crate::react_spike::ReactSpike {} }
+}
+
 /// Wildcard dispatcher: reconstruct the path, look it up in the static
 /// Rust SDK route table, then fall back to the JS-registered renderer
 /// paths. A JS match renders a `JsRouteSlot`; otherwise the 404 fallback.
@@ -612,6 +621,7 @@ mod tests {
         assert_eq!(route_from_path("/logs"), Route::Logs {});
         assert_eq!(route_from_path("/terminal"), Route::Terminal {});
         assert_eq!(route_from_path("/config"), Route::Config {});
+        assert_eq!(route_from_path("/spike"), Route::Spike {});
     }
 
     #[test]
