@@ -30,6 +30,24 @@ static ROUTE_TABLE: GlobalSignal<HashMap<String, fn() -> Element>> = Signal::glo
 /// first AppShell mount (after the asset handler is registered).
 static EVALUATED_JS_PLUGINS: OnceLock<()> = OnceLock::new();
 
+/// Ping channel for the registration mirror.
+///
+/// `dispatch_bridge_post` answers `/openkite` on a **tokio worker thread**, but
+/// mirroring the registration store writes the reactive [`REGISTRATIONS`]
+/// signal, and Dioxus signals require the Dioxus runtime — calling one
+/// off-runtime panics with `Must be called from inside a Dioxus runtime`
+/// (`dioxus-core/src/runtime.rs:100`).
+///
+/// The runtime itself cannot be carried across the thread boundary (it is held
+/// as a `Rc`, which is `!Send + !Sync`), so the tokio side only *pings* this
+/// channel. The mirror write runs on the Dioxus side, in the receiver task
+/// started by [`AppShell`].
+///
+/// Latent until now: no JS plugin ever registered (`js plugins discovered
+/// count=0`), so nothing had exercised the bridge dispatch end-to-end. The
+/// React spike is the first caller. See OKT-94.
+static MIRROR_TX: OnceLock<tokio::sync::mpsc::UnboundedSender<()>> = OnceLock::new();
+
 /// Install plugin navigation + routes from the registry (once, in `main`).
 pub fn install_plugins(sections: Vec<SidebarSection>, routes: HashMap<String, fn() -> Element>) {
     *PLUGIN_SECTIONS.write() = sections;
@@ -103,6 +121,21 @@ pub enum Route {
 
 #[component]
 fn AppShell() -> Element {
+    // Start the Dioxus-side mirror task. The `/openkite` handler is polled on a
+    // tokio worker and cannot touch a Dioxus signal, so it pings `MIRROR_TX`
+    // instead and this receiver does the actual write, here, in-runtime.
+    use_hook(|| {
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<()>();
+        let _ = MIRROR_TX.set(tx);
+        spawn(async move {
+            while rx.recv().await.is_some() {
+                if let Some(bridge) = shared_bridge() {
+                    refresh_registrations(&bridge);
+                }
+            }
+        });
+    });
+
     // Test hook (OPENKITE_ROUTE=/cluster): boot the app directly onto a
     // route so E2E/visual-baseline captures are deterministic — no input
     // automation needed to reach a surface. Read once; navigate after the
@@ -243,8 +276,20 @@ fn dispatch_bridge_post(req: AssetRequest, responder: RequestAsyncResponder) {
     let text = text.to_string();
     tokio::spawn(async move {
         let resp = bridge.handle_post(&text).await;
-        refresh_registrations(&bridge);
+        // Answer first: a failure in the mirror below must never hang the
+        // bridge response the webview is awaiting.
         responder.respond(json_response(resp));
+        // This task runs on a tokio worker, i.e. OUTSIDE the Dioxus runtime, so
+        // it must not touch a Dioxus signal (that panics — see `MIRROR_TX` /
+        // OKT-94). Ping the Dioxus-side task instead; it does the write.
+        match MIRROR_TX.get() {
+            Some(tx) => {
+                let _ = tx.send(());
+            }
+            None => {
+                tracing::warn!("registration mirror skipped: Dioxus mirror task not started yet")
+            }
+        }
     });
 }
 
