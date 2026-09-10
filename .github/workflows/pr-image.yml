@@ -1,0 +1,87 @@
+name: pr-image
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    # Only PRs that can affect the served bundle warrant building an image.
+    # Unrelated PRs don't run this at all, so they no longer get a pointless
+    # (and, pre-OKT-73, always-failing) check.
+    paths:
+      - 'web/**'
+      - 'Dockerfile'
+      - '.dockerignore'
+      - '.github/workflows/pr-image.yml'
+
+# Least privilege: read the repo, write the PR image to GHCR with the
+# built-in GITHUB_TOKEN.
+permissions:
+  contents: read
+  packages: write
+
+# One build per PR; a new push supersedes the previous in-flight build.
+concurrency:
+  group: pr-image-${{ github.event.number }}
+  cancel-in-progress: true
+
+jobs:
+  image:
+    name: Build and push PR image
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Producing the bundle is OKT-73's job. Until it lands there is nothing to
+      # serve, so this step reports ready=false and the build/push steps are
+      # skipped: a green "nothing to do" beats failing every PR. Once OKT-73
+      # adds web/build.sh, this same job starts building for real — and if the
+      # build runs but emits no bundle, that IS a failure (see below).
+      #
+      # Note: `hashFiles()` is not available in a job-level `if:`, only in step
+      # contexts, which is why the gate is a step output rather than a job
+      # condition.
+      - name: Build web bundle
+        id: bundle
+        run: |
+          set -euo pipefail
+          if [ -x web/build.sh ]; then
+            ./web/build.sh
+            if [ ! -f web/dist/index.html ]; then
+              echo "::error title=Web build produced no bundle::web/build.sh ran but web/dist/index.html is missing. See web/README.md."
+              exit 1
+            fi
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice title=No web bundle yet::web/dist/index.html not found — the web target build (OKT-73) has not landed. Skipping the preview image build; the Dockerfile will refuse a UI-less image once it does."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Log in to GHCR
+        if: steps.bundle.outputs.ready == 'true'
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Build image
+        if: steps.bundle.outputs.ready == 'true'
+        env:
+          PR: ${{ github.event.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          image="ghcr.io/jomakori/openkite"
+          short_sha="$(printf '%s' "$HEAD_SHA" | cut -c1-7)"
+          docker build \
+            --tag "${image}:pr-${PR}" \
+            --tag "${image}:pr-${PR}-${short_sha}" \
+            .
+          {
+            echo "IMAGE=${image}"
+            echo "TAG_MUTABLE=pr-${PR}"
+            echo "TAG_IMMUTABLE=pr-${PR}-${short_sha}"
+          } >> "$GITHUB_ENV"
+
+      - name: Push image
+        if: steps.bundle.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          docker push "${IMAGE}:${TAG_MUTABLE}"
+          docker push "${IMAGE}:${TAG_IMMUTABLE}"
