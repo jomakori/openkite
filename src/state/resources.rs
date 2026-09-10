@@ -48,6 +48,20 @@ where
     /// Start watching an explicit [`Api`], letting callers attach list/field
     /// selectors before handing it over.
     pub fn watch(api: Api<T>) -> Self {
+        Self::watch_with(api, |_| {})
+    }
+
+    /// Like [`watch`], but also invokes `on_change` with each fresh snapshot.
+    ///
+    /// Used to feed the Rust → JS push channel (OKT-91) from the *same*
+    /// reflector run rather than standing up a second watcher for the same
+    /// kind. `on_change` runs on the reflector task, so it should stay cheap
+    /// and non-blocking — which is why callers serialise there instead of on
+    /// the render path.
+    pub fn watch_with<F>(api: Api<T>, mut on_change: F) -> Self
+    where
+        F: FnMut(Vec<Arc<T>>) + Send + 'static,
+    {
         let (store, writer) = store::<T>();
         let stream = watcher(api, watcher::Config::default()).default_backoff();
 
@@ -56,7 +70,10 @@ where
         let store_task = store.clone();
 
         let task = tokio::spawn(drive_reflector(writer, stream, store_task, move |rows| {
-            snapshot_task.set(rows)
+            // `rows` is a Vec of Arcs, so cloning is pointer copies — cheap
+            // enough to do per event.
+            snapshot_task.set(rows.clone());
+            on_change(rows)
         }));
 
         Self {
