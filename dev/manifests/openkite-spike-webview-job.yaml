@@ -102,9 +102,11 @@ spec:
               pods_lines() {
                 grep -a "live: snapshot" "$ART/app.log" 2>/dev/null | strip | grep -a "kind=pods"
               }
+              # tracing renders string fields quoted (`view="PodsTable"`), so the
+              # match allows quotes on both sides.
               view_rows() {
                 grep -a "live: view rows" "$ART/app.log" 2>/dev/null | strip \
-                  | grep -a "view=PodsTable" | tail -1 | grep -oE 'rows=[0-9]+' | head -1 | cut -d= -f2
+                  | grep -aE 'view="?PodsTable"?' | tail -1 | grep -oE 'rows=[0-9]+' | head -1 | cut -d= -f2
               }
 
               # Always remove the probe, even on an early failure.
@@ -191,13 +193,17 @@ spec:
               echo "REFLECTORS_STARTED=${REFLECT_START:-NO}"
 
               PRE_ROWS=""
+              PRE_VIEW=""
               for i in $(seq 1 "$SETTLE_S"); do
                 PRE_ROWS="$(pods_rows)"
-                if [ -n "$PRE_ROWS" ] && [ "$PRE_ROWS" -gt 0 ] 2>/dev/null; then break; fi
+                PRE_VIEW="$(view_rows)"
+                # Wait for BOTH layers: state has rows AND the view effect has
+                # rendered once, so there is a real pre-mutation UI baseline.
+                if [ -n "$PRE_ROWS" ] && [ "$PRE_ROWS" -gt 0 ] 2>/dev/null && [ -n "$PRE_VIEW" ]; then break; fi
                 sleep 1
               done
               echo "PRE_PODS_ROWS=${PRE_ROWS:-none} (settled after ${i}s)"
-              echo "PRE_VIEW_ROWS=$(view_rows)"
+              echo "PRE_VIEW_ROWS=${PRE_VIEW:-none}"
               echo "--- last pods snapshots BEFORE mutation ---"
               pods_lines | tail -3
               import -window root "$ART/spike_before.png" 2>/dev/null || true
@@ -229,7 +235,13 @@ spec:
                 sleep 1
               done
               echo "POST_PODS_ROWS=${POST_ROWS:-none} (after ${i}s; expected > PRE)"
-              echo "POST_VIEW_ROWS=$(view_rows)"
+              POST_VIEW="$(view_rows)"
+              for j in $(seq 1 5); do
+                if [ -n "$POST_VIEW" ] && [ -n "$PRE_VIEW" ] && [ "$POST_VIEW" -gt "$PRE_VIEW" ] 2>/dev/null; then break; fi
+                sleep 1
+                POST_VIEW="$(view_rows)"
+              done
+              echo "POST_VIEW_ROWS=${POST_VIEW:-none} (expected > PRE_VIEW ${PRE_VIEW:-none})"
               echo "--- last pods snapshots AFTER create ---"
               pods_lines | tail -3
               import -window root "$ART/spike_after.png" 2>/dev/null || true
@@ -245,7 +257,13 @@ spec:
                 sleep 1
               done
               echo "POST_DELETE_PODS_ROWS=${DEL_ROWS:-none} (after ${i}s; expected == PRE)"
-              echo "POST_DELETE_VIEW_ROWS=$(view_rows)"
+              POST_DELETE_VIEW="$(view_rows)"
+              for j in $(seq 1 5); do
+                if [ -n "$POST_DELETE_VIEW" ] && [ -n "$PRE_VIEW" ] && [ "$POST_DELETE_VIEW" -le "$PRE_VIEW" ] 2>/dev/null; then break; fi
+                sleep 1
+                POST_DELETE_VIEW="$(view_rows)"
+              done
+              echo "POST_DELETE_VIEW_ROWS=${POST_DELETE_VIEW:-none} (expected == PRE_VIEW ${PRE_VIEW:-none})"
               echo "--- last pods snapshots AFTER delete ---"
               pods_lines | tail -3
 
@@ -285,7 +303,7 @@ spec:
               pods_lines | tail -25
               echo "--- pods snapshot line count: $(pods_lines | wc -l) ---"
               echo "--- UI: live: view rows (PodsTable) — last 10 ---"
-              grep -a "live: view rows" "$ART/app.log" | strip | grep -a "view=PodsTable" | tail -10 || true
+              grep -a "live: view rows" "$ART/app.log" | strip | grep -aE 'view="?PodsTable"?' | tail -10 || true
               echo "--- INFO/WARN/ERROR (last 40) ---"
               grep -aE "INFO|WARN|ERROR" "$ART/app.log" | tail -40 || true
               echo "--- PANIC message + context ---"
@@ -294,6 +312,7 @@ spec:
               echo "=== VERDICT (pod-side) ==="
               echo "panics=$(grep -ac 'panicked at' "$ART/app.log" || true)  (expect 0)"
               echo "REFLECTORS_STARTED=${REFLECT_START:-NO} PRE_PODS_ROWS=${PRE_ROWS:-none} POST_PODS_ROWS=${POST_ROWS:-none} POST_DELETE_PODS_ROWS=${DEL_ROWS:-none}"
+              echo "PRE_VIEW_ROWS=${PRE_VIEW:-none} POST_VIEW_ROWS=${POST_VIEW:-none} POST_DELETE_VIEW_ROWS=${POST_DELETE_VIEW:-none}"
 
               echo "=== 7. screenshot (stash on the PVC + base64 to stdout) ==="
               cp "$ART/spike_after.png" /cache/spike.png 2>/dev/null || cp "$ART/spike.png" /cache/spike.png 2>/dev/null || true
