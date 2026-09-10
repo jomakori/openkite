@@ -144,11 +144,20 @@ impl Bridge {
                 Some(client) => list_resource(&client, &kind, ns.as_deref()).await,
                 None => Err(NO_CLUSTER.into()),
             },
-            // Watch serves a snapshot (no live reflector yet); the wire
-            // contract (promise resolving once) is unchanged either way.
-            ApiRequest::Watch { kind, ns } => match self.client() {
-                Some(client) => list_resource(&client, &kind, ns.as_deref()).await,
-                None => Err(NO_CLUSTER.into()),
+            // OKT-96: serve from live reflector state when the kind is being
+            // watched, so the response reflects cluster changes without a
+            // re-list. Kinds without a reflector fall back to a one-shot list.
+            // Either way the wire contract — a promise resolving once — is
+            // unchanged, so this is safe for existing callers.
+            ApiRequest::Watch { kind, ns } => match crate::state::live::snapshot_json(&kind) {
+                Some(rows) => Ok(Value::Array(crate::state::live::filter_ns(
+                    rows,
+                    ns.as_deref(),
+                ))),
+                None => match self.client() {
+                    Some(client) => list_resource(&client, &kind, ns.as_deref()).await,
+                    None => Err(NO_CLUSTER.into()),
+                },
             },
             ApiRequest::Get { kind, ns, name } => match self.client() {
                 Some(client) => get_resource(&client, &kind, &ns, &name).await,

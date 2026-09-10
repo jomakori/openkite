@@ -1,16 +1,9 @@
 //! The Workloads view: a kind selector plus a live table per workload kind.
 
 use dioxus::prelude::*;
-use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet};
-use k8s_openapi::api::batch::v1::{CronJob, Job};
-use k8s_openapi::api::core::v1::{Pod, Secret};
-use kube::api::Api;
-use kube::runtime::reflector::store;
-use kube::runtime::{watcher, WatchStreamExt};
 
 use crate::components::resource_table::{ResourceRow, ResourceTable, RowActions};
 use crate::runtime;
-use crate::state::resources::drive_reflector;
 use crate::workloads::{
     cron_job_columns, cron_job_row, daemon_set_columns, daemon_set_row, deployment_columns,
     deployment_row, job_columns, job_row, node_columns, node_row, pod_columns, pod_row,
@@ -18,40 +11,40 @@ use crate::workloads::{
     stateful_set_row, WorkloadKind,
 };
 
-/// Start a live reflector for one workload kind and render it as a table.
-/// `on_row_click` is optional; when supplied, the table exposes per-row
-/// click events so a slide-over (e.g. `SecretDetail`) can open.
+/// Render a workload kind from the shell's shared reflector (OKT-96).
+///
+/// The reflector itself lives in `state::live` — **one watch per kind for the
+/// whole app** — so this component only maps the live snapshot into rows. It
+/// used to spawn its own `drive_reflector` here, which is how a second global
+/// reflector for the same kind became possible; there is now exactly one owner.
+///
+/// `$live` is the matching signal accessor, e.g.
+/// `crate::state::live::pods_signal`. `on_row_click` is optional; when supplied
+/// the table exposes per-row click events so a slide-over can open.
 macro_rules! workload_table {
-    ($name:ident, $ty:path, $columns:path, $mapper:path) => {
+    ($name:ident, $columns:path, $mapper:path, $live:path) => {
         #[component]
         fn $name(
             row_actions: RowActions,
             #[props(default)] on_row_click: Option<EventHandler<ResourceRow>>,
         ) -> Element {
-            let rows = use_signal_sync(Vec::<ResourceRow>::new);
-            // Slot for the running reflector task: aborted on re-run so a
-            // switched client (ctrl-tab switcher) never leaves a stale
-            // watcher racing writes into the same rows signal.
-            let mut reflector_task =
-                use_hook(|| CopyValue::new(None::<tokio::task::JoinHandle<()>>));
+            let mut rows = use_signal_sync(Vec::<ResourceRow>::new);
 
+            // Reading `generation()` keeps this reactive. The shell installs the
+            // reflectors from an effect, which can run after this component's
+            // first render; the counter bumps when they appear, so this re-runs
+            // and picks up its signal instead of staying empty forever.
             use_effect(move || {
-                if let Some(task) = reflector_task.write().take() {
-                    task.abort();
-                }
-                let Some(client) = crate::runtime::client() else {
+                let _generation = crate::state::live::generation();
+                let Some(signal) = $live() else {
                     return;
                 };
-                let api = Api::<$ty>::all(client);
-                let (store, writer) = store::<$ty>();
-                let stream = watcher(api, watcher::Config::default()).default_backoff();
-                let mut rows_for_task = rows;
-                let task = tokio::spawn(drive_reflector(writer, stream, store, move |snapshot| {
-                    let mapped: Vec<ResourceRow> =
-                        snapshot.iter().map(|item| $mapper(item.as_ref())).collect();
-                    rows_for_task.set(mapped);
-                }));
-                *reflector_task.write() = Some(task);
+                let mapped: Vec<ResourceRow> = signal
+                    .read()
+                    .iter()
+                    .map(|item| $mapper(item.as_ref()))
+                    .collect();
+                rows.set(mapped);
             });
 
             rsx! {
@@ -66,40 +59,60 @@ macro_rules! workload_table {
     };
 }
 
-workload_table!(PodsTable, Pod, pod_columns, pod_row);
+workload_table!(
+    PodsTable,
+    pod_columns,
+    pod_row,
+    crate::state::live::pods_signal
+);
 workload_table!(
     NodesTable,
-    k8s_openapi::api::core::v1::Node,
     node_columns,
-    node_row
+    node_row,
+    crate::state::live::nodes_signal
 );
 workload_table!(
     DeploymentsTable,
-    Deployment,
     deployment_columns,
-    deployment_row
+    deployment_row,
+    crate::state::live::deployments_signal
 );
 workload_table!(
     StatefulSetsTable,
-    StatefulSet,
     stateful_set_columns,
-    stateful_set_row
+    stateful_set_row,
+    crate::state::live::stateful_sets_signal
 );
 workload_table!(
     DaemonSetsTable,
-    DaemonSet,
     daemon_set_columns,
-    daemon_set_row
+    daemon_set_row,
+    crate::state::live::daemon_sets_signal
 );
 workload_table!(
     ReplicaSetsTable,
-    ReplicaSet,
     replica_set_columns,
-    replica_set_row
+    replica_set_row,
+    crate::state::live::replica_sets_signal
 );
-workload_table!(JobsTable, Job, job_columns, job_row);
-workload_table!(CronJobsTable, CronJob, cron_job_columns, cron_job_row);
-workload_table!(SecretsTable, Secret, secret_columns, secret_row);
+workload_table!(
+    JobsTable,
+    job_columns,
+    job_row,
+    crate::state::live::jobs_signal
+);
+workload_table!(
+    CronJobsTable,
+    cron_job_columns,
+    cron_job_row,
+    crate::state::live::cron_jobs_signal
+);
+workload_table!(
+    SecretsTable,
+    secret_columns,
+    secret_row,
+    crate::state::live::secrets_signal
+);
 
 /// Split a row id (the `object_id` format: `ns/name` or bare `name`) back
 /// into namespace + name for the CRUD modal targets.
