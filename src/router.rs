@@ -136,6 +136,21 @@ fn AppShell() -> Element {
         });
     });
 
+    // OKT-91: drain the Rust → JS push channel, on the Dioxus side. The eval
+    // must happen here — `document::eval` resolves the document from the
+    // thread-local Dioxus runtime, and from a tokio worker it silently targets
+    // the no-op document (the push would evaporate with no error). Publishers
+    // only ever write into the channel.
+    use_hook(|| {
+        if let Some(mut rx) = crate::push::install() {
+            spawn(async move {
+                while let Some(msg) = rx.recv().await {
+                    document::eval(&msg.to_js());
+                }
+            });
+        }
+    });
+
     // Test hook (OPENKITE_ROUTE=/cluster): boot the app directly onto a
     // route so E2E/visual-baseline captures are deterministic — no input
     // automation needed to reach a surface. Read once; navigate after the
