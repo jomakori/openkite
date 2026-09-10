@@ -151,6 +151,24 @@ fn AppShell() -> Element {
         }
     });
 
+    // OKT-96: start live reflector state once a cluster client exists.
+    //
+    // This has to happen *inside* the Dioxus runtime — each kind creates a
+    // Signal — so it cannot live at the boot connect in `lib.rs`, which runs
+    // on a plain tokio runtime before the Dioxus runtime exists. Reading
+    // `runtime::client()` here is a reactive read, so this effect re-runs when
+    // the client appears (boot) or changes (context switch). `start` is
+    // idempotent per kind, so the re-runs are cheap.
+    use_effect(move || {
+        // Reactive read of the client: re-runs when it appears (boot) or
+        // changes (context switch). `start` is sync and idempotent per kind.
+        if let Some(client) = crate::runtime::client() {
+            if !crate::state::live::is_watching() {
+                crate::state::live::start(client);
+            }
+        }
+    });
+
     // Test hook (OPENKITE_ROUTE=/cluster): boot the app directly onto a
     // route so E2E/visual-baseline captures are deterministic — no input
     // automation needed to reach a surface. Read once; navigate after the
