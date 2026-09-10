@@ -62,7 +62,14 @@ where
             .iter()
             .filter_map(|obj| serde_json::to_value(obj.as_ref()).ok())
             .collect();
-        crate::push::publish(&kind, None, payload);
+        // `publish` returns how many subscriptions it delivered to. Logging it
+        // is what makes a live update observable from outside the process: the
+        // harness greps for this line after mutating the cluster, which is the
+        // difference between "the watch started" and "the watch actually reacts
+        // to a real cluster change". `delivered=0` is also the honest signal
+        // that state updated but nobody is subscribed yet.
+        let delivered = crate::push::publish(&kind, None, payload);
+        tracing::info!(kind = %kind, rows = rows.len(), delivered, "live: snapshot");
     })
 }
 
