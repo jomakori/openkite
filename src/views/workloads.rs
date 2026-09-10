@@ -44,7 +44,14 @@ macro_rules! workload_table {
                     .iter()
                     .map(|item| $mapper(item.as_ref()))
                     .collect();
+                // OKT-96 evidence: this effect has re-run because the live
+                // signal changed, and the mapped rows are about to be handed to
+                // `ResourceTable`. Logging the count makes the reflector→view
+                // hop observable from outside the process, which is the
+                // difference between "state updated" and "the UI reacted".
+                let count = mapped.len();
                 rows.set(mapped);
+                tracing::info!(view = stringify!($name), rows = count, "live: view rows");
             });
 
             rsx! {
