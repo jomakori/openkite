@@ -1,0 +1,108 @@
+{
+  "ticket": "OKT-67",
+  "engine": "chromium",
+  "measuredAt": "2026-09-10T09:39:45.662Z",
+  "env": {
+    "node": "v26.7.0",
+    "platform": "linux",
+    "arch": "arm64",
+    "cpus": 12
+  },
+  "bundle": {
+    "appJsBytes": 225901,
+    "appCssBytes": 10444,
+    "totalBytes": 236345
+  },
+  "baseline": false,
+  "coldStart": {
+    "bundleStartMs": 76.59999942779541,
+    "mountMs": 121.29999923706055,
+    "firstPaintMs": 74.10000038146973,
+    "loadedMs": 99.19999980926514,
+    "contextMs": 42.89999961853027,
+    "listMs": 5.399999618530273,
+    "rowCount": 30,
+    "bridgeMode": "shim",
+    "error": null,
+    "nav": {
+      "responseEndMs": 60.19999980926514,
+      "domContentLoadedMs": 121.39999961853027,
+      "loadMs": 123.89999961853027
+    },
+    "fcpMs": null,
+    "readyWallMs": 172
+  },
+  "renderBench": {
+    "samples": [
+      37.30000019073486,
+      4.700000762939453,
+      1.4000005722045898,
+      17.299999237060547,
+      18.300000190734863,
+      15.800000190734863,
+      16.699999809265137
+    ],
+    "minMs": 1.4000005722045898,
+    "medianMs": 16.699999809265137,
+    "maxMs": 37.30000019073486,
+    "rowsRendered": 500,
+    "renderCount": 5
+  },
+  "idleRss": {
+    "rendererKb": 34720,
+    "allKb": 90320,
+    "processes": [
+      {
+        "pid": 76895,
+        "rssKb": 14792,
+        "isRenderer": false
+      },
+      {
+        "pid": 76897,
+        "rssKb": 7724,
+        "isRenderer": false
+      },
+      {
+        "pid": 76898,
+        "rssKb": 7720,
+        "isRenderer": false
+      },
+      {
+        "pid": 76912,
+        "rssKb": 15432,
+        "isRenderer": false
+      },
+      {
+        "pid": 76915,
+        "rssKb": 9932,
+        "isRenderer": false
+      },
+      {
+        "pid": 76926,
+        "rssKb": 34720,
+        "isRenderer": true
+      }
+    ]
+  },
+  "idleRssBeforeGc": {
+    "rendererKb": 41832,
+    "allKb": 99540
+  },
+  "wire": {
+    "openkitePost": {
+      "id": 1,
+      "plugin": "openkite-react-spike",
+      "request": {
+        "op": "list",
+        "kind": "pods",
+        "ns": "default"
+      }
+    },
+    "spikePost": {
+      "op": "context"
+    },
+    "openkitePostCount": 1,
+    "spikePostCount": 1
+  },
+  "pageErrors": []
+}

@@ -1,0 +1,108 @@
+{
+  "ticket": "OKT-67",
+  "engine": "chromium",
+  "measuredAt": "2026-09-10T09:39:59.609Z",
+  "env": {
+    "node": "v26.7.0",
+    "platform": "linux",
+    "arch": "arm64",
+    "cpus": 12
+  },
+  "bundle": {
+    "appJsBytes": 225901,
+    "appCssBytes": 10444,
+    "totalBytes": 236345
+  },
+  "baseline": false,
+  "coldStart": {
+    "bundleStartMs": 62.5,
+    "mountMs": 122,
+    "firstPaintMs": 61.59999942779541,
+    "loadedMs": 76.59999942779541,
+    "contextMs": 7.799999237060547,
+    "listMs": 3.200000762939453,
+    "rowCount": 30,
+    "bridgeMode": "shim",
+    "error": null,
+    "nav": {
+      "responseEndMs": 41.79999923706055,
+      "domContentLoadedMs": 122.19999980926514,
+      "loadMs": 122.19999980926514
+    },
+    "fcpMs": 128,
+    "readyWallMs": 163
+  },
+  "renderBench": {
+    "samples": [
+      23,
+      110.30000019073486,
+      2.1999998092651367,
+      8.300000190734863,
+      16.300000190734863,
+      15,
+      16.800000190734863
+    ],
+    "minMs": 2.1999998092651367,
+    "medianMs": 16.300000190734863,
+    "maxMs": 110.30000019073486,
+    "rowsRendered": 500,
+    "renderCount": 5
+  },
+  "idleRss": {
+    "rendererKb": 32688,
+    "allKb": 86504,
+    "processes": [
+      {
+        "pid": 77236,
+        "rssKb": 13572,
+        "isRenderer": false
+      },
+      {
+        "pid": 77238,
+        "rssKb": 7596,
+        "isRenderer": false
+      },
+      {
+        "pid": 77239,
+        "rssKb": 7600,
+        "isRenderer": false
+      },
+      {
+        "pid": 77253,
+        "rssKb": 15312,
+        "isRenderer": false
+      },
+      {
+        "pid": 77256,
+        "rssKb": 9736,
+        "isRenderer": false
+      },
+      {
+        "pid": 77275,
+        "rssKb": 32688,
+        "isRenderer": true
+      }
+    ]
+  },
+  "idleRssBeforeGc": {
+    "rendererKb": 37260,
+    "allKb": 90980
+  },
+  "wire": {
+    "openkitePost": {
+      "id": 1,
+      "plugin": "openkite-react-spike",
+      "request": {
+        "op": "list",
+        "kind": "pods",
+        "ns": "default"
+      }
+    },
+    "spikePost": {
+      "op": "context"
+    },
+    "openkitePostCount": 1,
+    "spikePostCount": 1
+  },
+  "pageErrors": []
+}

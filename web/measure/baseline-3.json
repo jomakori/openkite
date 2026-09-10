@@ -1,0 +1,66 @@
+{
+  "ticket": "OKT-67",
+  "engine": "chromium",
+  "measuredAt": "2026-09-10T09:39:42.292Z",
+  "env": {
+    "node": "v26.7.0",
+    "platform": "linux",
+    "arch": "arm64",
+    "cpus": 12
+  },
+  "bundle": {
+    "appJsBytes": 225901,
+    "appCssBytes": 10444,
+    "totalBytes": 236345
+  },
+  "baseline": true,
+  "coldStart": null,
+  "renderBench": null,
+  "idleRss": {
+    "rendererKb": 17764,
+    "allKb": 70972,
+    "processes": [
+      {
+        "pid": 76812,
+        "rssKb": 13768,
+        "isRenderer": false
+      },
+      {
+        "pid": 76814,
+        "rssKb": 7672,
+        "isRenderer": false
+      },
+      {
+        "pid": 76815,
+        "rssKb": 7676,
+        "isRenderer": false
+      },
+      {
+        "pid": 76831,
+        "rssKb": 15276,
+        "isRenderer": false
+      },
+      {
+        "pid": 76833,
+        "rssKb": 8816,
+        "isRenderer": false
+      },
+      {
+        "pid": 76850,
+        "rssKb": 17764,
+        "isRenderer": true
+      }
+    ]
+  },
+  "idleRssBeforeGc": {
+    "rendererKb": 15444,
+    "allKb": 67964
+  },
+  "wire": {
+    "openkitePost": null,
+    "spikePost": null,
+    "openkitePostCount": 0,
+    "spikePostCount": 0
+  },
+  "pageErrors": []
+}
