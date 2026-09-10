@@ -4,3 +4,7 @@
 .opencode/local
 # Build-tool node_modules (vendored xterm, vendored codemirror).
 /tools/**/node_modules/
+# React spike build deps (OKT-67). The built bundle is vendored under
+# assets/vendored/openkite-react-spike/ and IS committed (include_str!).
+/web/node_modules/
+/web/dist/

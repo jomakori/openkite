@@ -1,0 +1,13 @@
+@import "tailwindcss" source(none);
+
+/* Explicit sources: automatic detection scans sibling build output (e.g. a
+   stale dist/*.css) and silently inflates the stylesheet. Keep the source set
+   deterministic: index.html + the TSX/TS under src/. */
+@source "../index.html";
+@source "./**/*.{ts,tsx}";
+
+/* The spike renders inside the existing Dioxus shell, so it is scoped under
+   #openkite-react-spike-root and never touches global chrome. */
+#openkite-react-spike-root {
+  color-scheme: dark;
+}
