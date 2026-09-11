@@ -15,6 +15,8 @@
 // `fetch('/openkite')`; the measurement harness fulfils both endpoints with
 // `page.route`.
 
+import { FIXTURE_CONTEXT, fixtureCall, type FixtureRequest } from './fixtures'
+
 export interface ResourceRow {
   name: string
   namespace: string
@@ -82,26 +84,49 @@ declare global {
 
 export type BridgeMode = 'host' | 'shim'
 
+/**
+ * Transport-level failure: no host asset handler, non-2xx, or a non-JSON
+ * reply (a static host's SPA fallback answers `index.html`). Distinct from a
+ * bridge-envelope error, which means the host IS present and answered.
+ */
+class BridgeTransportError extends Error {}
+
 let nextId = 1
 
 async function fetchJson(path: string, body: unknown): Promise<unknown> {
-  const res = await fetch(path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) throw new Error(`${path} HTTP ${res.status}`)
-  const envelope = (await res.json()) as ApiResponse
+  let res: Response
+  try {
+    res = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+  } catch (err) {
+    throw new BridgeTransportError(`${path} unreachable: ${String(err)}`)
+  }
+  if (!res.ok) throw new BridgeTransportError(`${path} HTTP ${res.status}`)
+  let envelope: ApiResponse
+  try {
+    envelope = (await res.json()) as ApiResponse
+  } catch {
+    throw new BridgeTransportError(`${path} returned a non-JSON body`)
+  }
   if (envelope.status === 'error') throw new Error(envelope.error)
   return envelope.result
 }
 
-// The host bridge's `call()` body, reproduced for wire parity.
-function call(request: unknown): Promise<unknown> {
+// The host bridge's `call()` body, reproduced for wire parity. When the host
+// transport is absent (static/staging host) the shim falls back to fixtures so
+// the UI renders content instead of empty states. A bridge-envelope error is a
+// real host answer and propagates unchanged.
+function call(request: FixtureRequest): Promise<unknown> {
   return fetchJson('/openkite', {
     id: nextId++,
     plugin: window.__openkite_plugin || 'openkite-react-spike',
     request,
+  }).catch((err: unknown) => {
+    if (err instanceof BridgeTransportError) return fixtureCall(request)
+    throw err
   })
 }
 
@@ -149,21 +174,51 @@ function installShim(): OpenKiteBridge {
   return bridge
 }
 
-/** The live host bridge inside the wry webview, else the measurement shim. */
-export function resolveBridge(): { bridge: OpenKiteBridge; mode: BridgeMode } {
-  const existing = window.openkite
-  if (existing && existing.api && typeof existing.api.list === 'function') {
-    return { bridge: existing, mode: 'host' }
-  }
-  return { bridge: installShim(), mode: 'shim' }
+/** Marks the shim so a second `resolveBridge()` does not mistake it for a host. */
+const SHIM_MARK = Symbol('openkite.shim')
+
+let installed: { bridge: OpenKiteBridge; mode: BridgeMode } | null = null
+
+function isHostBridge(bridge: OpenKiteBridge | undefined): bridge is OpenKiteBridge {
+  return Boolean(
+    bridge &&
+      bridge.api &&
+      typeof bridge.api.list === 'function' &&
+      (bridge as unknown as Record<symbol, unknown>)[SHIM_MARK] !== true,
+  )
 }
 
-/** Ask the host for the active kubeconfig context (spike-only read endpoint). */
+/**
+ * The live host bridge inside the wry webview, else the shim over
+ * `fetch('/openkite')` (measurement harness) with a fixture fallback
+ * (static/staging host). Cached so repeated calls return the same shim.
+ */
+export function resolveBridge(): { bridge: OpenKiteBridge; mode: BridgeMode } {
+  const existing = window.openkite
+  if (isHostBridge(existing)) {
+    return { bridge: existing, mode: 'host' }
+  }
+  if (installed) return installed
+  const bridge = installShim()
+  ;(bridge as unknown as Record<symbol, unknown>)[SHIM_MARK] = true
+  installed = { bridge, mode: 'shim' }
+  return installed
+}
+
+/**
+ * Ask the host for the active kubeconfig context (spike-only read endpoint).
+ *
+ * Never rejects: a static/staging host has no `/openkite-spike` handler, so a
+ * transport failure serves [`FIXTURE_CONTEXT`] (content, not an empty shell);
+ * a host error preserves the disconnected shell rather than inventing a
+ * cluster.
+ */
 export async function fetchClusterContext(): Promise<ClusterContext> {
   try {
     const result = await fetchJson('/openkite-spike', { op: 'context' })
     return result as ClusterContext
-  } catch {
+  } catch (err) {
+    if (err instanceof BridgeTransportError) return FIXTURE_CONTEXT
     return { context: null, connected: false, version: 'dev' }
   }
 }

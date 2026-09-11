@@ -10,11 +10,13 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:web": "vite build --mode web",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "measure": "node measure/measure.mjs",
     "bundle-size": "node scripts/bundle-size.mjs",
-    "check:bundle": "node scripts/check-bundle-freshness.mjs"
+    "check:bundle": "node scripts/check-bundle-freshness.mjs",
+    "test:parity": "npm run build:web && vite build --ssr test/parity.test.tsx --outDir test/.ssr --mode web && node test/.ssr/parity.test.js"
   },
   "dependencies": {
     "react": "^19.3.0",
