@@ -147,6 +147,88 @@ const ICONS = {
       </>
     ),
   },
+  workloads: {
+    content: (
+      <>
+        <rect x="4" y="4" width="6" height="6" rx="1.3" />
+        <rect x="14" y="4" width="6" height="6" rx="1.3" />
+        <rect x="4" y="14" width="6" height="6" rx="1.3" />
+        <rect x="14" y="14" width="6" height="6" rx="1.3" />
+      </>
+    ),
+  },
+  close: {
+    content: <path d="M6 6l12 12M18 6 6 18" />,
+  },
+  terminal: {
+    content: (
+      <>
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+        <path d="m7 9 3 3-3 3M12 15h5" />
+      </>
+    ),
+  },
+  logs: {
+    content: <path d="M5 6h14M5 10h14M5 14h14M5 18h9" />,
+  },
+  pause: {
+    content: <path d="M8 6v12M16 6v12" />,
+  },
+  clear: {
+    content: <path d="M5 7h14M9 7V4h6v3M8 10v10h8V10M10 13v4M14 13v4" />,
+  },
+  plus: {
+    content: <path d="M12 5v14M5 12h14" />,
+  },
+  check: {
+    content: <path d="m5 12 4.5 4.5L19 7" />,
+  },
+  warn: {
+    content: (
+      <>
+        <path d="M12 4 3.5 19h17L12 4z" />
+        <path d="M12 9v4M12 16.4v.1" />
+      </>
+    ),
+  },
+  error: {
+    content: (
+      <>
+        <circle cx="12" cy="12" r="8.5" />
+        <path d="M12 8v5M12 16v.1" />
+      </>
+    ),
+  },
+  clock: {
+    content: (
+      <>
+        <circle cx="12" cy="12" r="8.5" />
+        <path d="M12 7v5l3.5 2" />
+      </>
+    ),
+  },
+  filter: {
+    content: <path d="M4 6h16M7 12h10M10 18h4" />,
+  },
+  sync: {
+    content: (
+      <>
+        <path d="M19 8a7.5 7.5 0 1 0 2 6" />
+        <path d="M19 3v5h-5" />
+        <path d="M5 16a7.5 7.5 0 1 1-2-6" />
+        <path d="M5 21v-5h5" />
+      </>
+    ),
+  },
+  kebab: {
+    content: (
+      <>
+        <circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none" />
+        <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
+        <circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none" />
+      </>
+    ),
+  },
 } satisfies Record<string, IconDef>
 
 export type IconName = keyof typeof ICONS
