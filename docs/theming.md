@@ -56,3 +56,14 @@ theme.to_css_vars()   // "--bg-0: #1e1e2e;\n--bg-1: #181825;\n…"
 theme.save(path)      // pretty JSON to ~/.openkite/theme.json
 Theme::load(path)     // read back
 ```
+
+## OS decoration theme (OKT-100)
+
+The native window title bar / OS chrome theme is **separate** from the app
+theme above. It is controlled by `titleBarTheme = "system" | "light" | "dark"`
+in `~/.openkite/config.toml` (`system` = follow the OS) and changed live from
+the palette's View actions (`Title Bar Theme: System / Light / Dark`), which
+map onto tao's `Option<Theme>` (`None` = follow the OS). Per tao, the runtime
+call is per-window on Windows and app-wide on Linux/macOS. Opaline / the CSS
+variable contract is untouched; no automatic linkage between the two is
+applied.

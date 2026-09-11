@@ -1,6 +1,6 @@
 //! Integration tests for app configuration.
 
-use openkite::config::{MenuBarVisibility, OpenKiteConfig};
+use openkite::config::{MenuBarVisibility, OpenKiteConfig, TitleBarTheme};
 
 #[test]
 fn save_load_round_trip() {
@@ -14,6 +14,7 @@ fn save_load_round_trip() {
         font_size: Some(14),
         metrics_enabled: false,
         menu_bar: MenuBarVisibility::Hide,
+        title_bar_theme: TitleBarTheme::Dark,
     };
     config.save_to(&path).expect("save");
 
@@ -71,6 +72,66 @@ fn menu_bar_visibility_toggles_and_reports_visibility() {
     assert_eq!(MenuBarVisibility::Hide.toggled(), MenuBarVisibility::Show);
     assert!(MenuBarVisibility::Show.is_visible());
     assert!(!MenuBarVisibility::Hide.is_visible());
+}
+
+#[test]
+fn title_bar_theme_defaults_to_system_and_persists_as_camel_case() {
+    assert_eq!(
+        OpenKiteConfig::default().title_bar_theme,
+        TitleBarTheme::System
+    );
+
+    let dir = std::env::temp_dir().join(format!("openkite-titlebar-{}", std::process::id()));
+    let path = dir.join("config.toml");
+    let config = OpenKiteConfig {
+        title_bar_theme: TitleBarTheme::Light,
+        ..Default::default()
+    };
+    config.save_to(&path).expect("save");
+    let raw = std::fs::read_to_string(&path).unwrap();
+    assert!(raw.contains("titleBarTheme = \"light\""), "got: {raw}");
+
+    // An old file without the key loads as `system` (follow the OS).
+    std::fs::write(&path, "enabled_plugins = []\ndisabled_plugins = []\n").unwrap();
+    assert_eq!(
+        OpenKiteConfig::load_from(&path).title_bar_theme,
+        TitleBarTheme::System
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn title_bar_theme_round_trips_every_state() {
+    for theme in [
+        TitleBarTheme::System,
+        TitleBarTheme::Light,
+        TitleBarTheme::Dark,
+    ] {
+        let dir = std::env::temp_dir().join(format!(
+            "openkite-titlebar-rt-{}-{:?}",
+            std::process::id(),
+            theme
+        ));
+        let path = dir.join("config.toml");
+        let config = OpenKiteConfig {
+            title_bar_theme: theme,
+            ..Default::default()
+        };
+        config.save_to(&path).expect("save");
+        assert_eq!(OpenKiteConfig::load_from(&path).title_bar_theme, theme);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+#[test]
+fn title_bar_theme_exposes_persisted_and_display_labels() {
+    assert_eq!(TitleBarTheme::System.as_str(), "system");
+    assert_eq!(TitleBarTheme::Light.as_str(), "light");
+    assert_eq!(TitleBarTheme::Dark.as_str(), "dark");
+    assert_eq!(TitleBarTheme::System.label(), "System");
+    assert_eq!(TitleBarTheme::Light.label(), "Light");
+    assert_eq!(TitleBarTheme::Dark.label(), "Dark");
 }
 
 #[test]
@@ -156,6 +217,7 @@ fn save_and_load_use_the_home_config_path() {
         font_size: Some(13),
         metrics_enabled: false,
         menu_bar: MenuBarVisibility::Show,
+        title_bar_theme: TitleBarTheme::Light,
     };
     config
         .save()

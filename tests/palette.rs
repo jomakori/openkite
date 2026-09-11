@@ -12,8 +12,10 @@
 //! pattern as tests/runtime.rs). Pure functions (filter, cursor) don't need
 //! a runtime.
 
+use openkite::config::TitleBarTheme;
 use openkite::palette::{
-    advance_cursor, commands, filter_commands, CommandAction, PALETTE_OPEN, PALETTE_QUERY,
+    advance_cursor, annotate_system_with_effective, commands, filter_commands, CommandAction,
+    PALETTE_OPEN, PALETTE_QUERY,
 };
 use openkite::router::Route;
 // `.read()` / `.write()` on Global signals come from the dioxus prelude
@@ -126,6 +128,66 @@ fn menu_bar_toggle_is_registered_iff_hideable() {
             .expect("toggle command present when hideable");
         assert_eq!(toggle.section, "View");
         assert_eq!(toggle.label, "Toggle Menu Bar");
+    }
+}
+
+/// The title-bar theme actions (OKT-100) are offered exactly where the
+/// platform can theme the OS decorations, live in the View group, and cover
+/// the tri-state in System → Light → Dark order.
+#[test]
+fn title_bar_theme_actions_are_registered_iff_overridable() {
+    let cmds = commands();
+    let theme_actions: Vec<&openkite::palette::Command> = cmds
+        .iter()
+        .filter(|command| matches!(command.action, CommandAction::SetTitleBarTheme(_)))
+        .collect();
+
+    if !openkite::titlebar::overridable() {
+        assert!(theme_actions.is_empty(), "got: {theme_actions:?}");
+        return;
+    }
+
+    let labels: Vec<&str> = theme_actions.iter().map(|command| command.label).collect();
+    assert_eq!(
+        labels,
+        vec![
+            "Title Bar Theme: System",
+            "Title Bar Theme: Light",
+            "Title Bar Theme: Dark",
+        ]
+    );
+    for command in &theme_actions {
+        assert_eq!(command.section, "View");
+    }
+    assert_eq!(
+        theme_actions[0].action,
+        CommandAction::SetTitleBarTheme(TitleBarTheme::System)
+    );
+}
+
+/// The read-back annotation rewrites the System entry's description with the
+/// theme the OS reports; a `None` read-back leaves the registry untouched.
+#[test]
+fn system_description_reports_the_effective_theme() {
+    let mut cmds = commands();
+    annotate_system_with_effective(&mut cmds, None);
+    let original: Vec<String> = cmds.iter().map(|c| c.description.clone()).collect();
+
+    annotate_system_with_effective(&mut cmds, Some("dark"));
+    let annotated: Vec<String> = cmds.iter().map(|c| c.description.clone()).collect();
+
+    if openkite::titlebar::overridable() {
+        let system = cmds
+            .iter()
+            .find(|c| c.action == CommandAction::SetTitleBarTheme(TitleBarTheme::System))
+            .expect("System action registered when overridable");
+        assert!(
+            system.description.contains("dark"),
+            "got: {}",
+            system.description
+        );
+    } else {
+        assert_eq!(annotated, original);
     }
 }
 

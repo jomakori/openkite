@@ -31,6 +31,9 @@ pub enum CommandAction {
     /// Toggle the OS window menu bar (OKT-99). Linux/Windows only — the
     /// command is not registered where [`crate::menubar::hideable`] is false.
     ToggleMenuBar,
+    /// Set the OS decoration (title bar) theme (OKT-100). Registered only
+    /// where [`crate::titlebar::overridable`] is true (desktop).
+    SetTitleBarTheme(crate::config::TitleBarTheme),
     /// Open the CRUD modal for a new resource of the given `kind_str`
     /// (e.g. `"pods"`, `"deployments"`). Delegates to
     /// `runtime::open_new_for(kind_str)`.
@@ -48,8 +51,9 @@ pub struct Command {
     pub label: &'static str,
     /// Section group for the `.palette-section` row label.
     pub section: &'static str,
-    /// Optional secondary line (rendered today as a `title=` attribute).
-    pub description: &'static str,
+    /// Secondary line (rendered today as a `title=` attribute). Owned so the
+    /// `System` title-bar entry can append the theme the OS reports.
+    pub description: String,
     /// What running the command does.
     pub action: CommandAction,
 }
@@ -65,35 +69,35 @@ pub fn commands() -> Vec<Command> {
             id: "view.workloads",
             label: "Go to Workloads",
             section: "View",
-            description: "Open the workloads table",
+            description: "Open the workloads table".to_string(),
             action: CommandAction::Navigate(Route::Workloads {}),
         },
         Command {
             id: "view.logs",
             label: "Go to Logs",
             section: "View",
-            description: "Open the log viewer",
+            description: "Open the log viewer".to_string(),
             action: CommandAction::Navigate(Route::Logs {}),
         },
         Command {
             id: "view.cluster",
             label: "Go to Cluster",
             section: "View",
-            description: "Open the cluster overview",
+            description: "Open the cluster overview".to_string(),
             action: CommandAction::Navigate(Route::Cluster {}),
         },
         Command {
             id: "view.config",
             label: "Go to Config",
             section: "View",
-            description: "Open the config views",
+            description: "Open the config views".to_string(),
             action: CommandAction::Navigate(Route::Config {}),
         },
         Command {
             id: "view.home",
             label: "Go to Home",
             section: "View",
-            description: "Return to the home screen",
+            description: "Return to the home screen".to_string(),
             action: CommandAction::Navigate(Route::Home {}),
         },
         // ── Cluster ─────────────────────────────────────────────
@@ -101,7 +105,7 @@ pub fn commands() -> Vec<Command> {
             id: "cluster.switch",
             label: "Switch Cluster…",
             section: "Cluster",
-            description: "Open the cluster context switcher",
+            description: "Open the cluster context switcher".to_string(),
             action: CommandAction::SwitchCluster,
         },
         // ── Action (CRUD) ───────────────────────────────────────
@@ -109,35 +113,35 @@ pub fn commands() -> Vec<Command> {
             id: "new.pod",
             label: "New Pod…",
             section: "Action",
-            description: "Open the create-pod editor",
+            description: "Open the create-pod editor".to_string(),
             action: CommandAction::NewResource("pods"),
         },
         Command {
             id: "new.deployment",
             label: "New Deployment…",
             section: "Action",
-            description: "Open the create-deployment editor",
+            description: "Open the create-deployment editor".to_string(),
             action: CommandAction::NewResource("deployments"),
         },
         Command {
             id: "new.service",
             label: "New Service…",
             section: "Action",
-            description: "Open the create-service editor",
+            description: "Open the create-service editor".to_string(),
             action: CommandAction::NewResource("services"),
         },
         Command {
             id: "new.configmap",
             label: "New ConfigMap…",
             section: "Action",
-            description: "Open the create-configmap editor",
+            description: "Open the create-configmap editor".to_string(),
             action: CommandAction::NewResource("configmaps"),
         },
         Command {
             id: "new.secret",
             label: "New Secret…",
             section: "Action",
-            description: "Open the create-secret editor",
+            description: "Open the create-secret editor".to_string(),
             action: CommandAction::NewResource("secrets"),
         },
         // ── Settings ────────────────────────────────────────────
@@ -145,14 +149,14 @@ pub fn commands() -> Vec<Command> {
             id: "settings.theme",
             label: "Cycle Theme",
             section: "Settings",
-            description: "Switch to the next opaline theme",
+            description: "Switch to the next opaline theme".to_string(),
             action: CommandAction::CycleTheme,
         },
     ];
 
-    // Keep the View group contiguous: the menu-bar toggle is a view setting,
-    // so it slots in after the Go-to-* navigation entries. Registered only
-    // where the platform can actually hide the bar (Linux/Windows).
+    // Keep the View group contiguous: these view settings slot in after the
+    // Go-to-* navigation entries. The menu-bar toggle is registered only where
+    // the platform can actually hide the bar (Linux/Windows).
     if crate::menubar::hideable() {
         let after_home = commands
             .iter()
@@ -165,10 +169,54 @@ pub fn commands() -> Vec<Command> {
                 id: "view.toggle-menu-bar",
                 label: "Toggle Menu Bar",
                 section: "View",
-                description: "Hide or show the OS menu bar",
+                description: "Hide or show the OS menu bar".to_string(),
                 action: CommandAction::ToggleMenuBar,
             },
         );
+    }
+
+    // OKT-100: OS decoration theme override. tao's `Theme` has no "system"
+    // variant, so "follow the OS" (`None`) plus the two forced themes are
+    // offered as explicit View actions. Registered wherever runtime theming is
+    // supported (every desktop platform).
+    if crate::titlebar::overridable() {
+        let after_home = commands
+            .iter()
+            .position(|command| command.id == "view.home")
+            .map(|index| index + 1)
+            .unwrap_or(0);
+        let themes = [
+            (
+                "view.title-bar-theme-system",
+                "Title Bar Theme: System",
+                "Follow the OS decoration theme",
+                crate::config::TitleBarTheme::System,
+            ),
+            (
+                "view.title-bar-theme-light",
+                "Title Bar Theme: Light",
+                "Force the light OS decoration theme",
+                crate::config::TitleBarTheme::Light,
+            ),
+            (
+                "view.title-bar-theme-dark",
+                "Title Bar Theme: Dark",
+                "Force the dark OS decoration theme",
+                crate::config::TitleBarTheme::Dark,
+            ),
+        ];
+        for (offset, (id, label, description, theme)) in themes.into_iter().enumerate() {
+            commands.insert(
+                after_home + offset,
+                Command {
+                    id,
+                    label,
+                    section: "View",
+                    description: description.to_string(),
+                    action: CommandAction::SetTitleBarTheme(theme),
+                },
+            );
+        }
     }
 
     commands
@@ -186,6 +234,20 @@ pub fn filter_commands(commands: &[Command], query: &str) -> Vec<Command> {
         .into_iter()
         .map(|(_, c)| c)
         .collect()
+}
+
+/// Append the concrete theme the OS reports to the `System` entry's
+/// description, so a user on "follow the OS" can see which decoration theme is
+/// actually in effect. Pure — the caller supplies the read-back value.
+pub fn annotate_system_with_effective(commands: &mut [Command], effective: Option<&str>) {
+    let Some(effective) = effective else {
+        return;
+    };
+    if let Some(command) = commands.iter_mut().find(|command| {
+        command.action == CommandAction::SetTitleBarTheme(crate::config::TitleBarTheme::System)
+    }) {
+        command.description = format!("Follow the OS decoration theme (OS reports {effective})");
+    }
 }
 
 /// Advance the selection by `delta` with wrapping. `None` when the
@@ -299,6 +361,10 @@ fn run_command(cmd: Command, nav: Navigator) {
             close_palette();
             crate::menubar::toggle();
         }
+        CommandAction::SetTitleBarTheme(theme) => {
+            close_palette();
+            crate::titlebar::set(theme);
+        }
         CommandAction::NewResource(kind) => {
             close_palette();
             crate::runtime::open_new_for(kind.to_string());
@@ -337,7 +403,8 @@ fn cycle_theme() {
 #[component]
 fn PalettePanel() -> Element {
     let nav = use_navigator();
-    let all = commands();
+    let mut all = commands();
+    annotate_system_with_effective(&mut all, crate::titlebar::effective_label());
     let query = PALETTE_QUERY.read().clone();
     let candidates = filter_commands(&all, &query);
     let mut selected = use_signal(|| 0usize);
