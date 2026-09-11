@@ -16,6 +16,11 @@ import { useResourceRows } from './shell/useResourceRows'
 
 interface ShellProps {
   /**
+   * The nav id the host booted the console onto (e.g. `pods` for
+   * `/workloads`, `configmaps` for `/config`). Defaults to `pods`.
+   */
+  route?: string
+  /**
    * Pre-resolved count/context for SSR and parity tests. When omitted the
    * shell loads them from the live bridge (the desktop path).
    */
@@ -23,17 +28,21 @@ interface ShellProps {
   initialContext?: ClusterContext
 }
 
-export function Shell({ initialCounts, initialContext }: ShellProps = {}) {
+export function Shell({ route, initialCounts, initialContext }: ShellProps = {}) {
   return (
     <ToastProvider>
-      <ShellChrome initialCounts={initialCounts} initialContext={initialContext} />
+      <ShellChrome
+        route={route}
+        initialCounts={initialCounts}
+        initialContext={initialContext}
+      />
     </ToastProvider>
   )
 }
 
-function ShellChrome({ initialCounts, initialContext }: ShellProps) {
+function ShellChrome({ route, initialCounts, initialContext }: ShellProps) {
   const toast = useToast()
-  const [activeId, setActiveId] = useState('pods')
+  const [activeId, setActiveId] = useState(route ?? 'pods')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [selected, setSelected] = useState<ResourceRow | null>(null)
   const [logOpen, setLogOpen] = useState(true)
@@ -68,6 +77,16 @@ function ShellChrome({ initialCounts, initialContext }: ShellProps) {
     setActiveId(id)
     setSelected(null)
   }
+
+  // The host can re-point the console (native palette navigation, deep link)
+  // without remounting it; follow that here instead of resetting on every
+  // render, so an in-console nav click is not undone by an unrelated update.
+  useEffect(() => {
+    if (route) {
+      setActiveId(route)
+      setSelected(null)
+    }
+  }, [route])
 
   useEffect(() => {
     setCleared(false)

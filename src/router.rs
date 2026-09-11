@@ -100,8 +100,25 @@ fn full_path(path: &[String]) -> String {
     format!("/{}", path.join("/"))
 }
 
-/// The `#[layout(AppShell)]` stays open for every route that follows, so the
-/// sidebar + status footer wrap core routes and the plugin catch-all alike.
+/// Core routes that render the React console instead of the native RSX views,
+/// mapped to the console nav id they open on. `None` keeps the route on the
+/// native shell — logs, terminal, and the plugin wildcard are not ported.
+fn console_route(route: &Route) -> Option<&'static str> {
+    match route {
+        Route::Home {} | Route::Workloads {} | Route::Spike {} => Some("pods"),
+        Route::Cluster {} => Some("overview"),
+        Route::Config {} => Some("configmaps"),
+        Route::Logs {} | Route::Terminal {} | Route::Plugin { .. } => None,
+    }
+}
+
+fn nav_for(route: Route) -> String {
+    console_route(&route).unwrap_or("pods").to_string()
+}
+
+/// Every route renders inside [`AppShell`]: the React console takes over the
+/// core browse routes, while logs, terminal, and plugin routes keep the native
+/// chrome.
 #[derive(Routable, Clone, Debug, PartialEq, Eq)]
 pub enum Route {
     #[layout(AppShell)]
@@ -236,6 +253,9 @@ fn AppShell() -> Element {
         }
     });
 
+    let current = use_route::<Route>();
+    let console = console_route(&current).is_some();
+
     rsx! {
         div { class: "app-shell",
             SwitcherKeybind {}
@@ -245,13 +265,19 @@ fn AppShell() -> Element {
             crate::components::secret_detail::SecretDetail {}
             crate::components::crud_modal::CrudOverlay {}
             CommandPalette {}
-            Sidebar {}
+            if !console {
+                Sidebar {}
+            }
             div { class: "main-col",
-                TopBar {}
+                if !console {
+                    TopBar {}
+                }
                 main { class: "content",
                     Outlet::<Route> {}
                 }
-                StatusFooter {}
+                if !console {
+                    StatusFooter {}
+                }
             }
         }
     }
@@ -534,20 +560,17 @@ fn StatusFooter() -> Element {
 
 #[component]
 fn Home() -> Element {
-    rsx! {
-        h2 { "OpenKite" }
-        p { "Connect a cluster context to begin." }
-    }
+    rsx! { ReactConsoleMount { route: nav_for(Route::Home {}) } }
 }
 
 #[component]
 fn Cluster() -> Element {
-    rsx! { h2 { "Cluster" } p { "Cluster overview lands in a later ticket." } }
+    rsx! { ReactConsoleMount { route: nav_for(Route::Cluster {}) } }
 }
 
 #[component]
 fn Workloads() -> Element {
-    rsx! { crate::views::workloads::WorkloadView {} }
+    rsx! { ReactConsoleMount { route: nav_for(Route::Workloads {}) } }
 }
 
 #[component]
@@ -562,24 +585,31 @@ fn Terminal() -> Element {
 
 #[component]
 fn Config() -> Element {
-    rsx! { h2 { "Config" } p { "Config views land in a later ticket." } }
+    rsx! { ReactConsoleMount { route: nav_for(Route::Config {}) } }
 }
 
-/// OKT-67 spike route: mounts the React 19 + Tailwind 4 UI in the webview.
+#[component]
+fn Spike() -> Element {
+    rsx! { ReactConsoleMount { route: nav_for(Route::Spike {}) } }
+}
+
+/// Mount the React console inside the real webview.
 #[cfg(feature = "desktop")]
 #[component]
-fn Spike() -> Element {
-    rsx! { crate::react_spike::ReactSpike {} }
+fn ReactConsoleMount(route: String) -> Element {
+    rsx! { crate::react_spike::ReactConsole { route: route } }
 }
 
-/// Non-desktop builds serve the React UI from the static web bundle.
+/// The console is served from the static browser bundle when the desktop
+/// renderer is compiled out, so this build only names the surface.
 #[cfg(not(feature = "desktop"))]
 #[component]
-fn Spike() -> Element {
+fn ReactConsoleMount(route: String) -> Element {
+    let _ = route;
     rsx! {
         div { class: "not-found",
-            h2 { "Spike" }
-            p { "The React UI is served from the static web bundle." }
+            h2 { "OpenKite" }
+            p { "The React console is served from the static web bundle." }
         }
     }
 }
@@ -751,6 +781,32 @@ mod tests {
             Route::Plugin { path } => assert_eq!(path, vec!["argocd"]),
             other => panic!("expected Plugin variant, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn console_route_takes_over_core_browse_routes_and_leaves_native_ones() {
+        for route in [Route::Home {}, Route::Workloads {}, Route::Spike {}] {
+            assert_eq!(console_route(&route), Some("pods"), "{route:?}");
+        }
+        assert_eq!(console_route(&Route::Cluster {}), Some("overview"));
+        assert_eq!(console_route(&Route::Config {}), Some("configmaps"));
+
+        for route in [Route::Logs {}, Route::Terminal {}] {
+            assert_eq!(console_route(&route), None, "{route:?}");
+        }
+        match route_from_path("/argocd/apps") {
+            plugin @ Route::Plugin { .. } => assert_eq!(console_route(&plugin), None),
+            other => panic!("expected Plugin variant, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn nav_for_returns_the_console_nav_id_for_each_taken_over_route() {
+        assert_eq!(nav_for(Route::Home {}), "pods");
+        assert_eq!(nav_for(Route::Cluster {}), "overview");
+        assert_eq!(nav_for(Route::Workloads {}), "pods");
+        assert_eq!(nav_for(Route::Config {}), "configmaps");
+        assert_eq!(nav_for(Route::Spike {}), "pods");
     }
 
     #[test]

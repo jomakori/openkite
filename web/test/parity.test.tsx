@@ -120,6 +120,25 @@ for (const label of ['Nodes', 'Pods', 'Deployments', 'Services', 'ConfigMaps', '
   assert.ok(shellHtml.includes(`>${label}<`), `shell DOM missing nav label '${label}'`)
 }
 
+// 2b. The host hands the console the nav id of the taken-over route; the
+// shell must open on that view (and its breadcrumb) rather than always Pods.
+const configHtml = renderToStaticMarkup(
+  <Shell route="configmaps" initialCounts={counts} initialContext={FIXTURE_CONTEXT} />,
+)
+assert.ok(configHtml.includes('<h1>ConfigMaps</h1>'), 'config route opens ConfigMaps')
+assert.ok(configHtml.includes('Config &amp; Storage'), 'config route breadcrumbs its section')
+assert.ok(
+  configHtml.includes('class="nav-item active"') &&
+    configHtml.includes('aria-current="page"'),
+  'config route marks a nav item active',
+)
+
+const overviewHtml = renderToStaticMarkup(
+  <Shell route="overview" initialCounts={counts} initialContext={FIXTURE_CONTEXT} />,
+)
+assert.ok(overviewHtml.includes('<h1>Overview</h1>'), 'cluster route opens Overview')
+assert.ok(overviewHtml.includes('class="eyebrow">Cluster<'), 'cluster route breadcrumbs its section')
+
 // 3. The spike table renders rows from fixture data, not the empty state.
 const pods = rowsFromList(fixtureList('pods', null), Date.now())
 const defaultPods = rowsFromList(fixtureList('pods', 'default'), Date.now())
@@ -345,6 +364,7 @@ for (const selector of [
 // 10. Desktop (vendored) and web (dist) bundles ship the same UI markers.
 const markers = [
   'openkite-react-spike-root',
+  '__openkite_react_console',
   'brand-word',
   'cluster-btn',
   'nav-badge',
