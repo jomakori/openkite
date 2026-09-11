@@ -1,6 +1,6 @@
 //! Integration tests for app configuration.
 
-use openkite::config::OpenKiteConfig;
+use openkite::config::{MenuBarVisibility, OpenKiteConfig};
 
 #[test]
 fn save_load_round_trip() {
@@ -13,6 +13,7 @@ fn save_load_round_trip() {
         theme: Some("Tokyo Night".into()),
         font_size: Some(14),
         metrics_enabled: false,
+        menu_bar: MenuBarVisibility::Hide,
     };
     config.save_to(&path).expect("save");
 
@@ -38,6 +39,38 @@ fn default_enables_metrics_and_omits_optional() {
     assert!(d.metrics_enabled);
     assert!(d.theme.is_none());
     assert!(d.font_size.is_none());
+}
+
+#[test]
+fn menu_bar_defaults_to_show_and_persists_as_camel_case() {
+    assert_eq!(OpenKiteConfig::default().menu_bar, MenuBarVisibility::Show);
+
+    let dir = std::env::temp_dir().join(format!("openkite-menubar-{}", std::process::id()));
+    let path = dir.join("config.toml");
+    let config = OpenKiteConfig {
+        menu_bar: MenuBarVisibility::Hide,
+        ..Default::default()
+    };
+    config.save_to(&path).expect("save");
+    let raw = std::fs::read_to_string(&path).unwrap();
+    assert!(raw.contains("menuBar = \"hide\""), "got: {raw}");
+
+    // An old file without the key loads as `show`.
+    std::fs::write(&path, "enabled_plugins = []\ndisabled_plugins = []\n").unwrap();
+    assert_eq!(
+        OpenKiteConfig::load_from(&path).menu_bar,
+        MenuBarVisibility::Show
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn menu_bar_visibility_toggles_and_reports_visibility() {
+    assert_eq!(MenuBarVisibility::Show.toggled(), MenuBarVisibility::Hide);
+    assert_eq!(MenuBarVisibility::Hide.toggled(), MenuBarVisibility::Show);
+    assert!(MenuBarVisibility::Show.is_visible());
+    assert!(!MenuBarVisibility::Hide.is_visible());
 }
 
 #[test]
@@ -122,6 +155,7 @@ fn save_and_load_use_the_home_config_path() {
         theme: Some("catppuccin-mocha".into()),
         font_size: Some(13),
         metrics_enabled: false,
+        menu_bar: MenuBarVisibility::Show,
     };
     config
         .save()

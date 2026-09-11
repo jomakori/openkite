@@ -8,6 +8,7 @@ pub mod crud;
 pub mod design;
 pub mod fuzzy;
 pub mod logs;
+pub mod menubar;
 pub mod metrics;
 pub mod network;
 pub mod palette;
@@ -46,6 +47,8 @@ pub fn run() {
 
     // Load the static (feature-gated) plugins.
     let config = config::OpenKiteConfig::load();
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    let menu_bar_hidden = config.menu_bar == config::MenuBarVisibility::Hide;
     let mut registry = plugin_host::PluginRegistry::new();
     registry.load_static(&config);
     for plugin in registry.plugins() {
@@ -112,7 +115,27 @@ pub fn run() {
     let contexts = cluster.contexts().to_vec();
     let _ = cluster::SHARED.set(tokio::sync::Mutex::new(cluster));
 
-    let config = dioxus::desktop::Config::new().with_custom_head(head);
+    #[allow(unused_mut)]
+    let mut desktop_config = dioxus::desktop::Config::new().with_custom_head(head);
+
+    // OKT-99: own the platform menu bar so the palette can toggle it at
+    // runtime. On Linux/Windows the host passes its own menu (or `None` to
+    // suppress the default when the persisted setting is `hide`); macOS keeps
+    // dioxus-desktop's default because its global menu bar cannot be hidden
+    // and carries the cut/copy/paste accelerators.
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    if menubar::hideable() {
+        let menu = menubar::build_menu();
+        menubar::install(menu.clone());
+        desktop_config = if menu_bar_hidden {
+            desktop_config.with_menu(None::<dioxus::desktop::muda::Menu>)
+        } else {
+            desktop_config.with_menu(menu)
+        };
+    } else if menu_bar_hidden {
+        tracing::warn!("menu bar cannot be hidden on this platform; keeping the system menu");
+    }
+
     let vdom = dioxus::prelude::VirtualDom::new(router::app);
     vdom.in_runtime(|| {
         router::install_plugins(sections, routes);
@@ -129,7 +152,7 @@ pub fn run() {
         crate::runtime::set_contexts(contexts);
         crate::runtime::set_js_plugins(bundles);
     });
-    dioxus::desktop::launch::launch_virtual_dom(vdom, config);
+    dioxus::desktop::launch::launch_virtual_dom(vdom, desktop_config);
 }
 
 /// Non-desktop builds have no native renderer to launch; the browser UI is the
