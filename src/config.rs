@@ -37,6 +37,45 @@ impl MenuBarVisibility {
     }
 }
 
+/// Which OS window decoration (title bar / chrome) theme to request (OKT-100).
+///
+/// Persisted in the same `OpenKiteConfig` store under the `titleBarTheme` key
+/// (camelCase, matching the setting's UI name) as `"system"`, `"light"`, or
+/// `"dark"`. tao's window `Theme` has no "system" variant, so this is a
+/// tri-state: [`Self::System`] maps to `None` (follow the OS) and the other
+/// two force the decoration theme.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TitleBarTheme {
+    /// Follow the OS decoration theme (the default).
+    #[default]
+    System,
+    /// Force the light decoration theme.
+    Light,
+    /// Force the dark decoration theme.
+    Dark,
+}
+
+impl TitleBarTheme {
+    /// The lowercase persisted value (`titleBarTheme = "system" | ...`).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::System => "system",
+            Self::Light => "light",
+            Self::Dark => "dark",
+        }
+    }
+
+    /// Title-cased palette label for the choice.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::System => "System",
+            Self::Light => "Light",
+            Self::Dark => "Dark",
+        }
+    }
+}
+
 /// Local OpenKite configuration: plugin enable/disable state plus appearance
 /// and metrics settings. New fields are `#[serde(default)]`ed so config files
 /// written by older builds keep loading.
@@ -59,6 +98,12 @@ pub struct OpenKiteConfig {
     /// `menuBar = "show" | "hide"`; missing in older files → `show`.
     #[serde(default, rename = "menuBar")]
     pub menu_bar: MenuBarVisibility,
+    /// OS window decoration (title bar) theme override (OKT-100). Persisted
+    /// as `titleBarTheme = "system" | "light" | "dark"`; missing in older
+    /// files → `system` (follow the OS). Independent of the in-page app theme
+    /// (`theme`).
+    #[serde(default, rename = "titleBarTheme")]
+    pub title_bar_theme: TitleBarTheme,
 }
 
 impl Default for OpenKiteConfig {
@@ -70,6 +115,7 @@ impl Default for OpenKiteConfig {
             font_size: None,
             metrics_enabled: true,
             menu_bar: MenuBarVisibility::Show,
+            title_bar_theme: TitleBarTheme::System,
         }
     }
 }

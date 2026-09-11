@@ -31,6 +31,7 @@ pub mod terminal;
 pub mod theme;
 pub mod theme_catalog;
 pub mod theme_opaline;
+pub mod titlebar;
 pub mod views;
 pub mod workloads;
 pub mod yaml;
@@ -134,6 +135,16 @@ pub fn run() {
         };
     } else if menu_bar_hidden {
         tracing::warn!("menu bar cannot be hidden on this platform; keeping the system menu");
+    }
+
+    // OKT-100: apply the persisted OS decoration theme override at window
+    // creation. `System` is tao's `None` (follow the OS), so only an explicit
+    // Light/Dark reconstructs the builder; dioxus-desktop's own default stays
+    // untouched otherwise.
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    if config.title_bar_theme != config::TitleBarTheme::System {
+        desktop_config =
+            desktop_config.with_window(titlebar::window_builder(config.title_bar_theme));
     }
 
     let vdom = dioxus::prelude::VirtualDom::new(router::app);
