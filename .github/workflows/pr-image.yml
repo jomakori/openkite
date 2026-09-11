@@ -31,11 +31,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Producing the bundle is OKT-73's job. Until it lands there is nothing to
-      # serve, so this step reports ready=false and the build/push steps are
-      # skipped: a green "nothing to do" beats failing every PR. Once OKT-73
-      # adds web/build.sh, this same job starts building for real — and if the
-      # build runs but emits no bundle, that IS a failure (see below).
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '26'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      # web/build.sh produces the browser bundle the image serves. This step
+      # reports ready=false and skips the build/push steps when the script is
+      # absent (a branch that has not landed it yet); when it runs, a missing
+      # web/dist/index.html is a hard failure. If the build succeeds, the same
+      # job publishes the image and the preview host can consume it.
       #
       # Note: `hashFiles()` is not available in a job-level `if:`, only in step
       # contexts, which is why the gate is a step output rather than a job
@@ -52,7 +59,7 @@ jobs:
             fi
             echo "ready=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::notice title=No web bundle yet::web/dist/index.html not found — the web target build (OKT-73) has not landed. Skipping the preview image build; the Dockerfile will refuse a UI-less image once it does."
+            echo "::notice title=No web bundle yet::web/build.sh is not executable or missing; skipping the preview image build. The Dockerfile will refuse a UI-less image once it runs."
             echo "ready=false" >> "$GITHUB_OUTPUT"
           fi
 
