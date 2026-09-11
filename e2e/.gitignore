@@ -2,4 +2,5 @@ artifacts/
 artifacts-flows/
 artifacts-junit/
 artifacts-bats-tmp/
+artifacts-bridge-guard/
 *.log

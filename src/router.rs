@@ -7,7 +7,7 @@
 
 use crate::bridge::Bridge;
 #[cfg(feature = "desktop")]
-use crate::plugin_api::ApiResponse;
+use crate::plugin_api::{ApiRequest, ApiResponse, BridgeRequest};
 use crate::runtime::{bridge as shared_bridge, js_plugins, REGISTRATIONS};
 #[cfg(feature = "desktop")]
 use dioxus::desktop::wry;
@@ -313,8 +313,19 @@ fn dispatch_bridge_post(req: AssetRequest, responder: RequestAsyncResponder) {
         return;
     };
     let text = text.to_string();
+    // The register path feeds the Dioxus-side mirror, so record its exact
+    // response envelope: a contained panic there could leave the UI looking
+    // healthy (OKT-94), and the E2E bridge guard keys on this greppable line.
+    let is_register = serde_json::from_str::<BridgeRequest>(&text)
+        .map(|envelope| matches!(envelope.request, ApiRequest::Register { .. }))
+        .unwrap_or(false);
     tokio::spawn(async move {
         let resp = bridge.handle_post(&text).await;
+        if is_register {
+            let envelope =
+                serde_json::to_string(&resp).unwrap_or_else(|err| format!("serialize: {err}"));
+            tracing::info!(envelope = %envelope, "bridge register response");
+        }
         // Answer first: a failure in the mirror below must never hang the
         // bridge response the webview is awaiting.
         responder.respond(json_response(resp));
@@ -339,7 +350,15 @@ fn dispatch_bridge_post(req: AssetRequest, responder: RequestAsyncResponder) {
 /// skip, the next register POST re-mirrors.
 fn refresh_registrations(bridge: &Arc<Bridge>) {
     match REGISTRATIONS.try_write_unchecked() {
-        Ok(mut mirror) => *mirror = bridge.snapshot(),
+        Ok(mut mirror) => {
+            let snapshot = bridge.snapshot();
+            if *mirror != snapshot {
+                *mirror = snapshot;
+                // Greppable by the E2E bridge guard (OKT-95): proves the mirror
+                // write executed on the Dioxus side after the tokio ping.
+                tracing::info!(plugins = ?mirror.plugins(), "registration mirror updated");
+            }
+        }
         Err(_) => {
             tracing::warn!("registration mirror busy; sidebar refresh deferred to next register")
         }
