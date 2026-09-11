@@ -1,0 +1,6 @@
+{
+  "name": "okt95-guard",
+  "version": "0.1.0",
+  "entry": "guard.js",
+  "description": "Test-only plugin that walks the /openkite register dispatch path (OKT-95 bridge guard)"
+}
