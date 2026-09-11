@@ -509,3 +509,921 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── Page header & buttons (console render) ─────────────────────────── */
+
+#openkite-react-spike-root .page-sub {
+  color: var(--muted);
+  font-size: 13px;
+  max-width: 65ch;
+  margin: 0;
+}
+
+#openkite-react-spike-root .page-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+#openkite-react-spike-root .btn {
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+#openkite-react-spike-root .btn-primary {
+  background: var(--accent);
+  color: white;
+  box-shadow: var(--shadow-rest);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+#openkite-react-spike-root .btn-primary:hover {
+  background: color-mix(in oklab, var(--accent) 86%, black);
+  box-shadow: var(--shadow-hover);
+}
+
+#openkite-react-spike-root .btn-primary:active,
+#openkite-react-spike-root .btn-secondary:active {
+  transform: translateY(1px);
+}
+
+#openkite-react-spike-root .btn-secondary {
+  background: var(--surface-solid);
+  border-color: var(--border);
+  box-shadow: var(--shadow-rest);
+}
+
+#openkite-react-spike-root .btn-secondary:hover {
+  box-shadow: var(--shadow-hover);
+}
+
+/* ── Toolbar: namespace chips + search + density ────────────────────── */
+
+#openkite-react-spike-root .toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+#openkite-react-spike-root .chip-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+#openkite-react-spike-root .chip {
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-solid);
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: 0.01em;
+}
+
+#openkite-react-spike-root .chip.active {
+  background: var(--fg);
+  border-color: var(--fg);
+  color: white;
+}
+
+#openkite-react-spike-root .chip:hover {
+  box-shadow: var(--shadow-rest);
+}
+
+#openkite-react-spike-root .chip:active {
+  transform: translateY(1px);
+}
+
+#openkite-react-spike-root .chip .count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
+}
+
+#openkite-react-spike-root .chip.active .count {
+  color: inherit;
+  opacity: 0.8;
+}
+
+#openkite-react-spike-root .search-field {
+  position: relative;
+  width: min(260px, 100%);
+}
+
+#openkite-react-spike-root .search-field .icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 15px;
+  height: 15px;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+#openkite-react-spike-root .search-field input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px 0 36px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-solid);
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+  box-shadow: var(--shadow-rest);
+}
+
+#openkite-react-spike-root .search-field input::placeholder {
+  color: var(--subtle);
+}
+
+/* ── Resource table panel ───────────────────────────────────────────── */
+
+#openkite-react-spike-root .panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-rest);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  overflow: hidden;
+}
+
+#openkite-react-spike-root .table-wrap {
+  overflow-x: auto;
+}
+
+#openkite-react-spike-root .resource-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+#openkite-react-spike-root .resource-table th {
+  text-align: left;
+  font-family: var(--font-sans);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.075em;
+  color: var(--muted);
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: oklch(1 0 0 / 0.5);
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+#openkite-react-spike-root .resource-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+#openkite-react-spike-root .resource-table.compact th,
+#openkite-react-spike-root .resource-table.compact td {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+#openkite-react-spike-root .resource-table tbody tr {
+  cursor: pointer;
+  transition: background 0.14s ease;
+}
+
+#openkite-react-spike-root .resource-table tbody tr:hover {
+  background: oklch(1 0 0 / 0.56);
+}
+
+#openkite-react-spike-root .resource-table tbody tr:active {
+  background: oklch(1 0 0 / 0.72);
+}
+
+#openkite-react-spike-root .resource-table tbody tr.selected {
+  background: color-mix(in oklab, var(--accent) 7%, white);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 22%, transparent);
+}
+
+#openkite-react-spike-root .resource-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+#openkite-react-spike-root .th-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border-radius: 0;
+  font: inherit;
+  color: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+}
+
+#openkite-react-spike-root .th-sort:hover {
+  color: var(--fg);
+}
+
+#openkite-react-spike-root .sort-mark {
+  font-size: 11px;
+}
+
+#openkite-react-spike-root .resource-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  color: var(--fg);
+}
+
+#openkite-react-spike-root .resource-name .icon {
+  width: 14px;
+  height: 14px;
+  color: var(--muted);
+}
+
+#openkite-react-spike-root .namespace {
+  color: var(--muted);
+}
+
+#openkite-react-spike-root .health-dots {
+  display: inline-flex;
+  gap: 4px;
+}
+
+#openkite-react-spike-root .dot.ok {
+  background: var(--success);
+}
+
+#openkite-react-spike-root .dot.warn {
+  background: var(--warn);
+}
+
+#openkite-react-spike-root .dot.err {
+  background: var(--danger);
+}
+
+#openkite-react-spike-root .restarts {
+  font-family: var(--font-mono);
+  color: var(--fg);
+}
+
+#openkite-react-spike-root .restarts.warn {
+  color: var(--warn);
+  font-weight: 500;
+}
+
+#openkite-react-spike-root .controller {
+  color: color-mix(in oklab, var(--violet) 58%, black);
+}
+
+#openkite-react-spike-root .node {
+  color: var(--fg);
+}
+
+#openkite-react-spike-root .qos {
+  color: var(--muted);
+}
+
+#openkite-react-spike-root .empty-state {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--muted);
+  font-family: var(--font-sans);
+}
+
+#openkite-react-spike-root .pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+#openkite-react-spike-root .pill.success {
+  color: color-mix(in oklab, var(--success) 62%, black);
+  background: color-mix(in oklab, var(--success) 11%, white);
+  border-color: color-mix(in oklab, var(--success) 24%, transparent);
+}
+
+#openkite-react-spike-root .pill.warn {
+  color: color-mix(in oklab, var(--warn) 66%, black);
+  background: color-mix(in oklab, var(--warn) 12%, white);
+  border-color: color-mix(in oklab, var(--warn) 26%, transparent);
+}
+
+#openkite-react-spike-root .pill.danger {
+  color: color-mix(in oklab, var(--danger) 62%, black);
+  background: color-mix(in oklab, var(--danger) 11%, white);
+  border-color: color-mix(in oklab, var(--danger) 24%, transparent);
+}
+
+#openkite-react-spike-root .pill.neutral {
+  color: var(--muted);
+  background: color-mix(in oklab, var(--border) 45%, white);
+  border-color: var(--border);
+}
+
+#openkite-react-spike-root .panel-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 11px;
+}
+
+#openkite-react-spike-root .pager {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#openkite-react-spike-root .pager button {
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid var(--border);
+  background: var(--surface-solid);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+#openkite-react-spike-root .pager button.active {
+  background: var(--fg);
+  border-color: var(--fg);
+  color: white;
+}
+
+#openkite-react-spike-root .pager button[disabled] {
+  opacity: 0.45;
+  cursor: default;
+}
+
+#openkite-react-spike-root .pager-gap {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* ── Log dock ───────────────────────────────────────────────────────── */
+
+#openkite-react-spike-root .log-panel {
+  margin-top: 16px;
+  background: var(--terminal-bg);
+  color: var(--terminal-fg);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-terminal);
+  overflow: hidden;
+}
+
+#openkite-react-spike-root .log-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--terminal-fg);
+}
+
+#openkite-react-spike-root .log-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+#openkite-react-spike-root .log-title .icon {
+  color: var(--log-method);
+}
+
+#openkite-react-spike-root .log-pod {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#openkite-react-spike-root .log-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+
+#openkite-react-spike-root .log-actions .icon-btn {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.1);
+  color: var(--terminal-fg);
+  box-shadow: none;
+}
+
+#openkite-react-spike-root .log-actions .icon-btn[aria-pressed='true'] .icon {
+  color: var(--accent);
+}
+
+#openkite-react-spike-root .log-handle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  color: rgba(255, 255, 255, 0.55);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+#openkite-react-spike-root .log-body {
+  padding: 10px 0;
+  overflow: auto;
+  max-height: 268px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.75;
+}
+
+#openkite-react-spike-root .log-line {
+  display: flex;
+  gap: 12px;
+  padding: 0 16px;
+  white-space: pre;
+  min-height: 21px;
+}
+
+#openkite-react-spike-root .log-line:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+#openkite-react-spike-root .log-time {
+  color: rgba(255, 255, 255, 0.34);
+  flex: 0 0 auto;
+}
+
+#openkite-react-spike-root .log-level {
+  flex: 0 0 48px;
+  color: var(--log-info);
+}
+
+#openkite-react-spike-root .log-level.warn {
+  color: var(--warn);
+}
+
+#openkite-react-spike-root .log-level.error {
+  color: var(--log-error);
+}
+
+#openkite-react-spike-root .log-method {
+  color: var(--log-method);
+}
+
+#openkite-react-spike-root .log-msg {
+  color: var(--terminal-fg);
+}
+
+#openkite-react-spike-root .log-msg.error {
+  color: var(--log-error);
+}
+
+#openkite-react-spike-root .log-paused {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  color: rgba(255, 255, 255, 0.62);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+#openkite-react-spike-root .log-panel.paused .log-paused {
+  display: flex;
+}
+
+#openkite-react-spike-root .log-panel.collapsed .log-body,
+#openkite-react-spike-root .log-panel.collapsed .log-paused {
+  display: none;
+}
+
+/* ── Toast ──────────────────────────────────────────────────────────── */
+
+#openkite-react-spike-root .toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%) translateY(16px);
+  z-index: 90;
+  padding: 10px 14px;
+  border-radius: var(--r-md);
+  background: var(--fg);
+  color: white;
+  font-size: 12px;
+  box-shadow: var(--shadow-hover);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  max-width: min(340px, calc(100vw - 32px));
+  text-align: center;
+}
+
+#openkite-react-spike-root .toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ── Inspector slide-over ───────────────────────────────────────────── */
+
+#openkite-react-spike-root .inspector-scrim {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 65;
+  background: rgba(15, 23, 42, 0.28);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+#openkite-react-spike-root .inspector-scrim.show {
+  display: block;
+}
+
+#openkite-react-spike-root .inspector {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(420px, 100%);
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-solid);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-terminal);
+  transform: translateX(100%);
+  transition: transform 0.24s ease;
+}
+
+#openkite-react-spike-root .inspector.open {
+  transform: translateX(0);
+}
+
+#openkite-react-spike-root .inspector-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+#openkite-react-spike-root .inspector-header h2 {
+  font-size: 15px;
+  margin: 0;
+  letter-spacing: -0.01em;
+  font-weight: 600;
+}
+
+#openkite-react-spike-root .inspector-header .icon {
+  color: var(--muted);
+}
+
+#openkite-react-spike-root .inspector-header .icon-btn {
+  margin-left: auto;
+}
+
+#openkite-react-spike-root .inspector-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px;
+}
+
+#openkite-react-spike-root .inspector-eyebrow {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--muted);
+  margin-bottom: 14px;
+}
+
+#openkite-react-spike-root .kv-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  background: var(--surface);
+}
+
+#openkite-react-spike-root .kv-row {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 12px;
+  padding: 11px 12px;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  align-items: baseline;
+}
+
+#openkite-react-spike-root .kv-row:last-child {
+  border-bottom: 0;
+}
+
+#openkite-react-spike-root .kv-row dt {
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+
+#openkite-react-spike-root .kv-row dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--fg);
+  word-break: break-word;
+}
+
+#openkite-react-spike-root .inspector-actions {
+  display: flex;
+  gap: 8px;
+  padding-top: 16px;
+}
+
+/* ── Bottom nav (mobile) ────────────────────────────────────────────── */
+
+#openkite-react-spike-root .bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  height: 66px;
+  padding-bottom: env(safe-area-inset-bottom);
+  background: color-mix(in oklab, var(--bg) 74%, transparent);
+  border-top: 1px solid var(--border);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+#openkite-react-spike-root .bottom-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  height: 100%;
+}
+
+#openkite-react-spike-root .bottom-tab {
+  flex-direction: column;
+  gap: 3px;
+  min-height: 66px;
+  font-size: 10px;
+  color: var(--muted);
+  border-radius: 0;
+}
+
+#openkite-react-spike-root .bottom-tab .icon {
+  width: 19px;
+  height: 19px;
+  color: var(--muted);
+}
+
+#openkite-react-spike-root .bottom-tab.active {
+  color: var(--fg);
+}
+
+#openkite-react-spike-root .bottom-tab.active .icon {
+  color: var(--accent);
+}
+
+#openkite-react-spike-root .bottom-tab.argo.active .icon {
+  color: var(--argo);
+}
+
+/* ── Pull-to-refresh indicator ──────────────────────────────────────── */
+
+#openkite-react-spike-root .pull-indicator {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%) translateY(-100%);
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-hover);
+  color: var(--fg);
+  font-size: 12px;
+  transition: transform 0.2s ease;
+  pointer-events: none;
+}
+
+#openkite-react-spike-root .pull-indicator.show {
+  transform: translateX(-50%) translateY(12px);
+}
+
+#openkite-react-spike-root .spinner {
+  width: 15px;
+  height: 15px;
+  border: 2px solid color-mix(in oklab, var(--accent) 24%, transparent);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: okt-spin 0.8s linear infinite;
+}
+
+@keyframes okt-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Tablet ─────────────────────────────────────────────────────────── */
+
+@media (max-width: 1024px) and (min-width: 768px) {
+  #openkite-react-spike-root .log-body {
+    max-height: 240px;
+  }
+}
+
+/* ── Mobile ─────────────────────────────────────────────────────────── */
+
+@media (max-width: 767px) {
+  #openkite-react-spike-root .main {
+    padding-bottom: 74px;
+  }
+
+  #openkite-react-spike-root .page-actions {
+    width: 100%;
+  }
+
+  #openkite-react-spike-root .page-actions .btn {
+    flex: 1;
+  }
+
+  #openkite-react-spike-root .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  #openkite-react-spike-root .search-field {
+    width: 100%;
+  }
+
+  #openkite-react-spike-root .chip-row {
+    flex-wrap: wrap;
+    padding-bottom: 4px;
+  }
+
+  #openkite-react-spike-root .chip {
+    flex: 0 0 auto;
+  }
+
+  #openkite-react-spike-root .resource-table thead {
+    display: none;
+  }
+
+  #openkite-react-spike-root .resource-table,
+  #openkite-react-spike-root .resource-table tbody,
+  #openkite-react-spike-root .resource-table tr,
+  #openkite-react-spike-root .resource-table td {
+    display: block;
+    width: 100%;
+  }
+
+  #openkite-react-spike-root .resource-table tbody tr {
+    padding: 0;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  #openkite-react-spike-root .resource-table tbody tr:last-child {
+    border-bottom: 0;
+  }
+
+  #openkite-react-spike-root .resource-table td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 11px 14px;
+    border-bottom: 1px solid color-mix(in oklab, var(--border) 55%, transparent);
+    white-space: normal;
+    text-align: right;
+  }
+
+  #openkite-react-spike-root .resource-table td:last-child {
+    border-bottom: 0;
+  }
+
+  #openkite-react-spike-root .resource-table td::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    font-family: var(--font-sans);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.075em;
+    color: var(--muted);
+    text-align: left;
+  }
+
+  #openkite-react-spike-root .resource-table td .cell-value {
+    margin-left: auto;
+  }
+
+  #openkite-react-spike-root .resource-table td[data-label='Name'] {
+    padding-top: 14px;
+  }
+
+  #openkite-react-spike-root .resource-name {
+    justify-content: flex-end;
+  }
+
+  #openkite-react-spike-root .log-panel {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: 78px;
+    height: min(58vh, 430px);
+    z-index: 60;
+    margin-top: 0;
+    transform: translateY(calc(100% + 78px));
+    transition: transform 0.28s ease;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #openkite-react-spike-root .log-panel.open {
+    transform: translateY(0);
+  }
+
+  #openkite-react-spike-root .log-handle {
+    display: flex;
+  }
+
+  #openkite-react-spike-root .log-header {
+    padding: 8px 12px;
+  }
+
+  #openkite-react-spike-root .log-body {
+    flex: 1;
+    max-height: none;
+    overflow-y: auto;
+  }
+
+  #openkite-react-spike-root .bottom-nav {
+    display: block;
+  }
+
+  #openkite-react-spike-root .inspector {
+    width: 100%;
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+
+  #openkite-react-spike-root .kv-row {
+    grid-template-columns: 110px 1fr;
+  }
+}
+
+@media (min-width: 768px) {
+  #openkite-react-spike-root .bottom-nav {
+    display: none;
+  }
+}
