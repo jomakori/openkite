@@ -6,10 +6,14 @@
 #![allow(non_snake_case)]
 
 use crate::bridge::Bridge;
+#[cfg(feature = "desktop")]
 use crate::plugin_api::ApiResponse;
 use crate::runtime::{bridge as shared_bridge, js_plugins, REGISTRATIONS};
+#[cfg(feature = "desktop")]
 use dioxus::desktop::wry;
+#[cfg(feature = "desktop")]
 use dioxus::desktop::wry::http::Response as AssetHttpResponse;
+#[cfg(feature = "desktop")]
 use dioxus::desktop::{use_asset_handler, AssetRequest, RequestAsyncResponder};
 use dioxus::prelude::*;
 use openkite_plugin_sdk::{SidebarEntry, SidebarSection};
@@ -196,6 +200,7 @@ fn AppShell() -> Element {
     // the first URL path segment, so the handler name `openkite` is the route.
     // The shared bridge lives in a process-wide `OnceLock` (set in `run`
     // before launch), so re-renders never re-mount or race it.
+    #[cfg(feature = "desktop")]
     use_asset_handler(
         "openkite",
         |req: AssetRequest, responder: RequestAsyncResponder| {
@@ -287,6 +292,7 @@ fn TopBar() -> Element {
 /// envelope; real work runs on the ambient tokio runtime (the same runtime
 /// dioxus uses for its own protocol handlers) and answers through the async
 /// responder, keeping the UI thread free.
+#[cfg(feature = "desktop")]
 fn dispatch_bridge_post(req: AssetRequest, responder: RequestAsyncResponder) {
     if req.method() != wry::http::Method::POST {
         responder.respond(json_response(ApiResponse::Error {
@@ -341,6 +347,7 @@ fn refresh_registrations(bridge: &Arc<Bridge>) {
 }
 
 /// Serialize an [`ApiResponse`] into a JSON HTTP response for the webview.
+#[cfg(feature = "desktop")]
 pub(crate) fn json_response(resp: ApiResponse) -> AssetHttpResponse<Vec<u8>> {
     let body = serde_json::to_vec(&resp).unwrap_or_else(|err| {
         serde_json::to_vec(&ApiResponse::Error {
@@ -540,9 +547,22 @@ fn Config() -> Element {
 }
 
 /// OKT-67 spike route: mounts the React 19 + Tailwind 4 UI in the webview.
+#[cfg(feature = "desktop")]
 #[component]
 fn Spike() -> Element {
     rsx! { crate::react_spike::ReactSpike {} }
+}
+
+/// Non-desktop builds serve the React UI from the static web bundle.
+#[cfg(not(feature = "desktop"))]
+#[component]
+fn Spike() -> Element {
+    rsx! {
+        div { class: "not-found",
+            h2 { "Spike" }
+            p { "The React UI is served from the static web bundle." }
+        }
+    }
 }
 
 /// Wildcard dispatcher: reconstruct the path, look it up in the static

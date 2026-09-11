@@ -18,6 +18,7 @@ pub mod pod;
 pub mod prometheus;
 pub mod promql;
 pub mod push;
+#[cfg(feature = "desktop")]
 pub mod react_spike;
 pub mod router;
 pub mod runtime;
@@ -34,6 +35,7 @@ pub mod workloads;
 pub mod yaml;
 
 /// Bootstrap OpenKite: load config, plugins, and kubeconfig, then launch the UI.
+#[cfg(feature = "desktop")]
 pub fn run() {
     // Route tracing to stderr, not stdout: under wry/WebKit (and headless CI
     // in particular) stdout is not reliably flushed to a redirected log,
@@ -130,10 +132,16 @@ pub fn run() {
     dioxus::desktop::launch::launch_virtual_dom(vdom, config);
 }
 
+/// Non-desktop builds have no native renderer to launch; the browser UI is the
+/// static bundle built from `web/` (see `web/README.md`).
+#[cfg(not(feature = "desktop"))]
+pub fn run() {}
+
 /// The page-`<head>` bootstrap handed to the desktop window: the shell
 /// stylesheet plus the `window.openkite` bridge script, inlined so shell
 /// chrome paints before any plugin bundle evaluates. Pure — the sole
 /// sub-logic of [`run`] that is testable without a desktop event loop.
+#[cfg(feature = "desktop")]
 fn bootstrap_head() -> String {
     format!(
         "<style>{}</style>\n<script>{}</script>",
@@ -142,7 +150,7 @@ fn bootstrap_head() -> String {
     )
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "desktop"))]
 mod tests {
     use super::*;
 

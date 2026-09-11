@@ -1,14 +1,27 @@
 import { useState } from 'react'
+import type { ClusterContext } from './bridge'
 import { Sidebar } from './shell/Sidebar'
 import { Topbar } from './shell/Topbar'
 import { findNavItem } from './shell/nav'
 import { useClusterContext, useLiveCounts } from './shell/useLiveCounts'
 
-export function Shell() {
+interface ShellProps {
+  /**
+   * Pre-resolved count/context for SSR and parity tests. When omitted the
+   * shell loads them from the live bridge (the desktop path).
+   */
+  initialCounts?: Record<string, number | undefined>
+  initialContext?: ClusterContext
+}
+
+export function Shell({ initialCounts, initialContext }: ShellProps = {}) {
   const [activeId, setActiveId] = useState('pods')
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const { counts, refresh } = useLiveCounts()
-  const context = useClusterContext()
+  const live = useLiveCounts()
+  const liveContext = useClusterContext()
+  const counts = initialCounts ?? live.counts
+  const refresh = live.refresh
+  const context = initialContext ?? liveContext
 
   const found = findNavItem(activeId)
   const section = found?.section.label ?? ''

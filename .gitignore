@@ -10,3 +10,5 @@
 # assets/vendored/openkite-react-spike/ and IS committed (include_str!).
 /web/node_modules/
 /web/dist/
+# SSR build output for the fixture parity check (web/test/parity.test.tsx).
+/web/test/.ssr/

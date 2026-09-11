@@ -142,6 +142,8 @@ jobs:
         run: npm run bundle-size
       - name: Verify vendored bundle is fresh
         run: npm run check:bundle
+      - name: Check browser-target fixture parity
+        run: npm run test:parity
 
   # ──────────────────────────────────────────────────────────────────────
   # Cross-platform portability gate (OKT-63)
@@ -182,6 +184,23 @@ jobs:
       - if: needs.changes.outputs.src == 'true'
         name: Test
         run: cargo test -p openkite-plugin-sdk
+
+  # The `openkite` crate's `desktop` feature gates the native wry/WebKitGTK
+  # renderer and its asset-handler transport. Checking without it proves a
+  # host-less/browser target is not blocked by that code, and needs no WebKit.
+  web-target:
+    name: Non-desktop feature gate
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.src == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: web-target
+      - name: Check without the desktop feature
+        run: cargo check -p openkite --no-default-features
 
   coverage:
     name: Coverage gate

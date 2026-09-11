@@ -15,8 +15,15 @@ license.workspace = true
 publish = false
 description = "OpenKite — Kubernetes from above. Pure Rust K8s IDE (Dioxus 0.7 + kube-rs)."
 
+[features]
+default = ["desktop"]
+# Native desktop renderer (wry/WebKitGTK) plus its asset-handler transport.
+# A host-less/browser target builds without it; the browser UI is the static
+# bundle built from web/ (see web/README.md).
+desktop = ["dioxus/desktop"]
+
 [dependencies]
-dioxus = { version = "0.7", features = ["desktop", "router"] }
+dioxus = { version = "0.7", features = ["router"] }
 openkite-plugin-sdk = { path = "crates/plugin-sdk" }
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"

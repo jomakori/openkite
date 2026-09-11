@@ -3,11 +3,10 @@
 # ─────────────────────────────────────────────────────────────────────
 # Stage 1 — bundle: stage the prebuilt web bundle; fail loudly if absent.
 #
-# The bundle is produced by the web target build in the PR pipeline
-# (.github/workflows/pr-image.yml), not inside this image. That build
-# depends on OKT-73 (feature-gate desktop-only code for the web target);
-# see web/README.md. Validating here too means a local `docker build .`
-# cannot quietly publish an image with nothing to serve.
+# The bundle is produced by web/build.sh, which the PR pipeline
+# (.github/workflows/pr-image.yml) runs before this build, not inside this
+# image. Validating here too means a local `docker build .` cannot quietly
+# publish an image with nothing to serve. See web/README.md.
 # ─────────────────────────────────────────────────────────────────────
 FROM alpine:3.24 AS bundle
 WORKDIR /bundle
@@ -15,8 +14,8 @@ COPY web/ ./web/
 RUN test -f web/dist/index.html || { \
       echo "ERROR: web/dist/index.html is missing — there is no bundle to serve."; \
       echo "The preview image serves the prebuilt web bundle from web/dist/."; \
-      echo "Building it depends on OKT-73 (feature-gate desktop-only code);"; \
-      echo "see web/README.md. Refusing to build a UI-less image."; \
+      echo "Build it with web/build.sh (see web/README.md)."; \
+      echo "Refusing to build a UI-less image."; \
       exit 1; \
     }
 
