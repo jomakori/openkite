@@ -8,6 +8,35 @@ fn default_true() -> bool {
     true
 }
 
+/// Whether the OS window menu bar is shown (OKT-99).
+///
+/// Persisted in the same `OpenKiteConfig` store under the `menuBar` key
+/// (camelCase, matching the setting's UI name) as `"show"` or `"hide"`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MenuBarVisibility {
+    /// Show the platform menu bar (the default).
+    #[default]
+    Show,
+    /// Hide the menu bar where the platform supports it (Linux/Windows).
+    Hide,
+}
+
+impl MenuBarVisibility {
+    /// The other visibility — what a palette toggle flips to.
+    pub fn toggled(self) -> Self {
+        match self {
+            Self::Show => Self::Hide,
+            Self::Hide => Self::Show,
+        }
+    }
+
+    /// Whether the menu bar should be visible.
+    pub fn is_visible(self) -> bool {
+        matches!(self, Self::Show)
+    }
+}
+
 /// Local OpenKite configuration: plugin enable/disable state plus appearance
 /// and metrics settings. New fields are `#[serde(default)]`ed so config files
 /// written by older builds keep loading.
@@ -26,6 +55,10 @@ pub struct OpenKiteConfig {
     /// Whether metrics columns render by default.
     #[serde(default = "default_true")]
     pub metrics_enabled: bool,
+    /// Whether the OS window menu bar is shown (OKT-99). Persisted as
+    /// `menuBar = "show" | "hide"`; missing in older files → `show`.
+    #[serde(default, rename = "menuBar")]
+    pub menu_bar: MenuBarVisibility,
 }
 
 impl Default for OpenKiteConfig {
@@ -36,6 +69,7 @@ impl Default for OpenKiteConfig {
             theme: None,
             font_size: None,
             metrics_enabled: true,
+            menu_bar: MenuBarVisibility::Show,
         }
     }
 }

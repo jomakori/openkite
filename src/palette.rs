@@ -28,6 +28,9 @@ pub enum CommandAction {
     SwitchCluster,
     /// Cycle through the opaline theme catalog.
     CycleTheme,
+    /// Toggle the OS window menu bar (OKT-99). Linux/Windows only — the
+    /// command is not registered where [`crate::menubar::hideable`] is false.
+    ToggleMenuBar,
     /// Open the CRUD modal for a new resource of the given `kind_str`
     /// (e.g. `"pods"`, `"deployments"`). Delegates to
     /// `runtime::open_new_for(kind_str)`.
@@ -56,7 +59,7 @@ pub struct Command {
 /// when the query is blank; the fuzzy rank overrides on a non-blank
 /// query.
 pub fn commands() -> Vec<Command> {
-    vec![
+    let mut commands = vec![
         // ── View ────────────────────────────────────────────────
         Command {
             id: "view.workloads",
@@ -145,7 +148,30 @@ pub fn commands() -> Vec<Command> {
             description: "Switch to the next opaline theme",
             action: CommandAction::CycleTheme,
         },
-    ]
+    ];
+
+    // Keep the View group contiguous: the menu-bar toggle is a view setting,
+    // so it slots in after the Go-to-* navigation entries. Registered only
+    // where the platform can actually hide the bar (Linux/Windows).
+    if crate::menubar::hideable() {
+        let after_home = commands
+            .iter()
+            .position(|command| command.id == "view.home")
+            .map(|index| index + 1)
+            .unwrap_or(0);
+        commands.insert(
+            after_home,
+            Command {
+                id: "view.toggle-menu-bar",
+                label: "Toggle Menu Bar",
+                section: "View",
+                description: "Hide or show the OS menu bar",
+                action: CommandAction::ToggleMenuBar,
+            },
+        );
+    }
+
+    commands
 }
 
 /// Filter commands by a fuzzy query. A blank (or whitespace-only)
@@ -268,6 +294,10 @@ fn run_command(cmd: Command, nav: Navigator) {
         CommandAction::CycleTheme => {
             close_palette();
             cycle_theme();
+        }
+        CommandAction::ToggleMenuBar => {
+            close_palette();
+            crate::menubar::toggle();
         }
         CommandAction::NewResource(kind) => {
             close_palette();

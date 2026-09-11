@@ -109,6 +109,26 @@ fn nonsense_query_yields_no_candidates() {
     assert!(filtered.is_empty());
 }
 
+/// The menu-bar toggle (OKT-99) is offered exactly where the platform can
+/// hide the bar, and it lives in the View group so it renders next to the
+/// Go-to-* entries.
+#[test]
+fn menu_bar_toggle_is_registered_iff_hideable() {
+    let has_toggle = commands()
+        .iter()
+        .any(|c| c.action == CommandAction::ToggleMenuBar);
+    assert_eq!(has_toggle, openkite::menubar::hideable());
+
+    if has_toggle {
+        let toggle = commands()
+            .into_iter()
+            .find(|c| c.action == CommandAction::ToggleMenuBar)
+            .expect("toggle command present when hideable");
+        assert_eq!(toggle.section, "View");
+        assert_eq!(toggle.label, "Toggle Menu Bar");
+    }
+}
+
 /// Cursor advancement wraps both directions and clamps a stale
 /// out-of-range selection (regression: palette must never index OOB).
 #[test]
