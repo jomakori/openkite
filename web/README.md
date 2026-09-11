@@ -4,6 +4,31 @@ The per-PR preview image serves a **prebuilt static web bundle** from this
 directory's `dist/` subfolder. The image recipe is the repo-root `Dockerfile`;
 the build/push pipeline is `.github/workflows/pr-image.yml`.
 
+## Vendored React bundle (compile-time input)
+
+Separately from the preview image, Vite builds the React UI layer into
+`assets/vendored/openkite-react-spike/{app.js,app.css}`. The Rust host
+(`src/react_spike.rs`) `include_str!`s both files at compile time, so the
+committed bundle is a **source input**, not a release artifact. It uses fixed
+filenames with no hash/manifest — the host does a plain `include_str!`, matching
+the repo's existing vendoring convention (`tools/build-xterm`,
+`assets/vendored/codemirror/`).
+
+**Vendor step — run after ANY change under `web/src/`:**
+
+```sh
+cd web
+npm ci
+npm run typecheck    # TypeScript gate
+npm run build        # writes assets/vendored/openkite-react-spike/{app.js,app.css}
+npm run bundle-size  # refreshes assets/vendored/openkite-react-spike/SOURCE.txt
+```
+
+Commit the regenerated `app.js`, `app.css`, and `SOURCE.txt` together with the
+source change. A bundle that has drifted from `web/src/` still compiles (the
+Rust build only sees the committed file), so re-running the step is what keeps
+the two in sync. `npm run dev` serves the same source for browser iteration.
+
 ## Dependency on OKT-73 (not yet landed)
 
 The bundle is produced by the web target build, which is gated behind

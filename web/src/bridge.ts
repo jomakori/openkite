@@ -26,6 +26,21 @@ export interface ResourceRow {
 export interface ClusterContext {
   context: string | null
   connected: boolean
+  version?: string
+}
+
+/** One delivery from the host's additive Rust → JS push channel. */
+export interface PushUpdate {
+  sub: number
+  kind: string
+  ns: string | null
+  /**
+   * The initial snapshot is the host's full kube `List` object; later pushes
+   * carry a bare array of serialised objects. `countRows` normalises both.
+   */
+  rows: unknown
+  revision: number
+  initial?: boolean
 }
 
 type ApiResponse =
@@ -46,6 +61,13 @@ export interface OpenKiteBridge {
   registerStatusItem(item: unknown): void
   registerRouteRenderer(path: string): void
   _renderRoute(path: string, container: HTMLElement): () => void
+  /** Live updates for a kind; returns an unsubscribe fn. */
+  subscribe(
+    opts: string | { kind: string; ns?: string | null },
+    handler: (msg: PushUpdate) => void,
+  ): () => void
+  _pushHandlers?: Map<number, (msg: PushUpdate) => void>
+  _pushState?: (msg: PushUpdate) => void
   api: OpenKiteApi
 }
 
@@ -84,12 +106,35 @@ function call(request: unknown): Promise<unknown> {
 }
 
 function installShim(): OpenKiteBridge {
+  const handlers = new Map<number, (msg: PushUpdate) => void>()
   const bridge: OpenKiteBridge = {
     registerSidebar: () => {},
     registerRoute: () => {},
     registerStatusItem: () => {},
     registerRouteRenderer: () => {},
     _renderRoute: () => () => {},
+    _pushHandlers: handlers,
+    _pushState: (msg) => {
+      handlers.get(msg.sub)?.(msg)
+    },
+    subscribe: (opts, handler) => {
+      const kind = typeof opts === 'string' ? opts : opts.kind
+      const ns = typeof opts === 'string' ? null : (opts.ns ?? null)
+      let cancelled = false
+      void (async () => {
+        try {
+          const result = await bridge.api.list(kind, ns)
+          if (!cancelled) {
+            handler({ sub: 0, kind, ns, rows: result, revision: 0, initial: true })
+          }
+        } catch {
+          // Unknown kind or no cluster: leave the count undefined.
+        }
+      })()
+      return () => {
+        cancelled = true
+      }
+    },
     api: {
       list: (kind, ns) => call({ op: 'list', kind, ns: ns ?? null }),
       get: (kind, ns, name) => call({ op: 'get', kind, ns, name }),
@@ -115,8 +160,21 @@ export function resolveBridge(): { bridge: OpenKiteBridge; mode: BridgeMode } {
 
 /** Ask the host for the active kubeconfig context (spike-only read endpoint). */
 export async function fetchClusterContext(): Promise<ClusterContext> {
-  const result = await fetchJson('/openkite-spike', { op: 'context' })
-  return result as ClusterContext
+  try {
+    const result = await fetchJson('/openkite-spike', { op: 'context' })
+    return result as ClusterContext
+  } catch {
+    return { context: null, connected: false, version: 'dev' }
+  }
+}
+
+/** Item count for either push payload shape (a kube `List` or a bare array). */
+export function countRows(rows: unknown): number {
+  if (Array.isArray(rows)) return rows.length
+  if (rows && typeof rows === 'object' && Array.isArray((rows as { items?: unknown }).items)) {
+    return (rows as { items: unknown[] }).items.length
+  }
+  return 0
 }
 
 /** Number of items in a kube `List` result (0 for anything else). */

@@ -224,7 +224,7 @@ page.on('console', (msg) => {
 })
 
 const wallStart = Date.now()
-await page.goto(url, { waitUntil: 'load', timeout: 30_000 })
+await page.goto(`${url}?measure=1`, { waitUntil: 'load', timeout: 30_000 })
 let readyWallMs = null
 let cold = null
 let renderBench = null

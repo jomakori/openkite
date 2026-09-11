@@ -36,6 +36,7 @@ enum SpikeRequest {
 struct SpikeContext {
     context: Option<String>,
     connected: bool,
+    version: String,
 }
 
 /// Mount the React spike: render its container, then evaluate the vendored
@@ -77,6 +78,7 @@ fn dispatch(req: AssetRequest, responder: RequestAsyncResponder) {
         Ok(SpikeRequest::Context) => serde_json::to_value(SpikeContext {
             context: crate::runtime::context_name(),
             connected: crate::runtime::client().is_some(),
+            version: env!("CARGO_PKG_VERSION").to_string(),
         })
         .map_err(|err| format!("serialize context: {err}")),
         Err(err) => Err(format!("parse spike request: {err}")),
@@ -86,4 +88,34 @@ fn dispatch(req: AssetRequest, responder: RequestAsyncResponder) {
         Err(error) => ApiResponse::Error { error },
     };
     responder.respond(json_response(response));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn context_payload_carries_cluster_connection_and_version() {
+        let value = serde_json::to_value(SpikeContext {
+            context: Some("prod-us-east-1".into()),
+            connected: true,
+            version: "0.1.0".into(),
+        })
+        .unwrap();
+        assert_eq!(value["context"], "prod-us-east-1");
+        assert_eq!(value["connected"].as_bool(), Some(true));
+        assert_eq!(value["version"], "0.1.0");
+    }
+
+    #[test]
+    fn context_payload_serializes_a_disconnected_shell() {
+        let value = serde_json::to_value(SpikeContext {
+            context: None,
+            connected: false,
+            version: "0.1.0".into(),
+        })
+        .unwrap();
+        assert!(value["context"].is_null());
+        assert_eq!(value["connected"].as_bool(), Some(false));
+    }
 }

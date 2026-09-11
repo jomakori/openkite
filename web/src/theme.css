@@ -1,0 +1,511 @@
+/* Design tokens and shell primitives ported from the console render.
+   Every rule is scoped under the React mount root: the Dioxus host document
+   already defines bare .sidebar/.topbar/.status/.brand/.nav-item in
+   assets/main.css, so unscoped selectors would collide. */
+
+#openkite-react-spike-root {
+  --bg: oklch(0.9755 0.0045 258.3);
+  --surface: oklch(1 0 0 / 0.85);
+  --surface-solid: oklch(1 0 0 / 0.97);
+  --fg: oklch(0.29 0.018 258);
+  --muted: oklch(0.56 0.02 262);
+  --subtle: oklch(0.70 0.015 262);
+  --border: oklch(0.9188 0.0071 268.5);
+  --accent: oklch(0.6420 0.1531 257.9);
+  --progress: oklch(0.6420 0.1531 257.9);
+  --success: oklch(0.6212 0.1182 149.1);
+  --warn: oklch(0.6629 0.1331 72.6);
+  --danger: oklch(0.6294 0.1776 23.7);
+  --violet: oklch(0.6056 0.2189 292.7);
+  --argo: oklch(0.7069 0.1554 41.6);
+  --brand: oklch(0.6002 0.1038 184.7);
+  --on-accent: oklch(0.16 0.02 250);
+  --font-sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --shadow-rest: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.06);
+  --shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.08), 0 8px 24px rgba(0, 0, 0, 0.06);
+  --shadow-terminal: 0 8px 32px rgba(0, 0, 0, 0.12);
+  --r-sm: 6px;
+  --r-md: 8px;
+  height: 100%;
+}
+
+#openkite-react-spike-root,
+#openkite-react-spike-root *,
+#openkite-react-spike-root *::before,
+#openkite-react-spike-root *::after {
+  box-sizing: border-box;
+}
+
+#openkite-react-spike-root {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.5;
+  letter-spacing: 0;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+#openkite-react-spike-root button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: var(--r-sm);
+  padding: 0;
+}
+
+#openkite-react-spike-root button:focus-visible,
+#openkite-react-spike-root input:focus-visible,
+#openkite-react-spike-root [tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+#openkite-react-spike-root .icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+
+#openkite-react-spike-root .app {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  height: 100dvh;
+  background:
+    radial-gradient(760px 420px at 84% -8%, oklch(0.95 0.035 250 / 0.42), transparent 70%),
+    radial-gradient(560px 360px at 18% 108%, oklch(0.92 0.045 185 / 0.24), transparent 72%),
+    var(--bg);
+}
+
+#openkite-react-spike-root .sidebar {
+  width: 252px;
+  flex: 0 0 252px;
+  display: flex;
+  flex-direction: column;
+  background: oklch(1 0 0 / 0.76);
+  border-right: 1px solid var(--border);
+  backdrop-filter: blur(24px) saturate(1.25);
+  -webkit-backdrop-filter: blur(24px) saturate(1.25);
+  z-index: 40;
+}
+
+#openkite-react-spike-root .brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 16px 14px;
+}
+
+#openkite-react-spike-root .brand-mark {
+  width: 30px;
+  height: 30px;
+  color: var(--brand);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#openkite-react-spike-root .brand-word {
+  font-size: 16px;
+  line-height: 1;
+  letter-spacing: -0.015em;
+  font-weight: 400;
+}
+
+#openkite-react-spike-root .brand-word strong {
+  font-weight: 700;
+}
+
+#openkite-react-spike-root .cluster-btn {
+  width: calc(100% - 24px);
+  margin: 0 12px 12px;
+  min-height: 44px;
+  justify-content: flex-start;
+  padding: 0 10px;
+  gap: 9px;
+  border: 1px solid var(--border);
+  background: var(--surface-solid);
+  box-shadow: var(--shadow-rest);
+  border-radius: var(--r-md);
+  font-size: 12px;
+  color: var(--fg);
+}
+
+#openkite-react-spike-root .cluster-btn .cluster-text {
+  min-width: 0;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+#openkite-react-spike-root .cluster-btn small {
+  font-size: 10px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+}
+
+#openkite-react-spike-root .cluster-btn .icon:last-child {
+  margin-left: auto;
+  color: var(--muted);
+}
+
+#openkite-react-spike-root .nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 12px 16px;
+}
+
+#openkite-react-spike-root .nav-section {
+  margin-top: 14px;
+}
+
+#openkite-react-spike-root .nav-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.085em;
+  color: var(--muted);
+  padding: 0 10px 6px;
+}
+
+#openkite-react-spike-root .nav-section.argo .nav-title {
+  color: var(--argo);
+}
+
+#openkite-react-spike-root .nav-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 12px 10px 2px;
+}
+
+#openkite-react-spike-root .nav-item {
+  width: 100%;
+  min-height: 44px;
+  justify-content: flex-start;
+  padding: 0 10px;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--fg);
+  border-radius: var(--r-sm);
+  margin: 1px 0;
+}
+
+#openkite-react-spike-root .nav-item .icon {
+  color: var(--muted);
+}
+
+#openkite-react-spike-root .nav-item:hover {
+  background: oklch(1 0 0 / 0.62);
+}
+
+#openkite-react-spike-root .nav-item:active {
+  background: oklch(1 0 0 / 0.85);
+}
+
+#openkite-react-spike-root .nav-item.active {
+  background: var(--surface-solid);
+  box-shadow: var(--shadow-rest);
+}
+
+#openkite-react-spike-root .nav-item.active .icon {
+  color: var(--accent);
+}
+
+#openkite-react-spike-root .nav-section.argo .nav-item.active .icon {
+  color: var(--argo);
+}
+
+#openkite-react-spike-root .nav-item[data-disabled] {
+  opacity: 0.62;
+}
+
+#openkite-react-spike-root .nav-item .nav-badge {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: 2px 6px;
+  border-radius: 999px;
+}
+
+#openkite-react-spike-root .sidebar-footer {
+  padding: 12px 14px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+#openkite-react-spike-root .sidebar-footer .version {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+#openkite-react-spike-root .status-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+#openkite-react-spike-root .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex: 0 0 auto;
+}
+
+#openkite-react-spike-root .status-line .dot {
+  width: 7px;
+  height: 7px;
+  background: var(--success);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--success) 18%, transparent);
+}
+
+#openkite-react-spike-root .status-line .dot.err {
+  background: var(--danger);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--danger) 18%, transparent);
+}
+
+#openkite-react-spike-root .main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  position: relative;
+}
+
+#openkite-react-spike-root .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  min-height: 56px;
+  background: color-mix(in oklab, var(--bg) 78%, transparent);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+#openkite-react-spike-root .menu-toggle {
+  display: none;
+}
+
+#openkite-react-spike-root .breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+#openkite-react-spike-root .breadcrumbs .icon {
+  width: 13px;
+  height: 13px;
+  color: var(--subtle);
+}
+
+#openkite-react-spike-root .breadcrumbs .current {
+  color: var(--fg);
+  font-weight: 500;
+}
+
+#openkite-react-spike-root .topbar-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#openkite-react-spike-root .icon-btn {
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-rest);
+  color: var(--fg);
+}
+
+#openkite-react-spike-root .icon-btn:hover {
+  box-shadow: var(--shadow-hover);
+}
+
+#openkite-react-spike-root .icon-btn:active {
+  transform: translateY(1px);
+}
+
+#openkite-react-spike-root .avatar {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  border-radius: 50%;
+  background: var(--brand);
+  color: var(--on-accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+#openkite-react-spike-root .view {
+  display: none;
+  padding: 20px;
+}
+
+#openkite-react-spike-root .view.active {
+  display: block;
+}
+
+#openkite-react-spike-root .page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 16px;
+}
+
+#openkite-react-spike-root .page-head h1 {
+  font-size: clamp(24px, 2vw, 32px);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  margin: 3px 0 6px;
+  font-weight: 600;
+}
+
+#openkite-react-spike-root .eyebrow {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--muted);
+}
+
+#openkite-react-spike-root .sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  background: rgba(15, 23, 42, 0.32);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+#openkite-react-spike-root .sidebar-backdrop.show {
+  display: block;
+}
+
+@media (max-width: 1024px) and (min-width: 768px) {
+  #openkite-react-spike-root .sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    transform: translateX(-100%);
+    transition: transform 0.24s ease;
+  }
+
+  #openkite-react-spike-root .sidebar.open {
+    transform: translateX(0);
+  }
+
+  #openkite-react-spike-root .menu-toggle {
+    display: inline-flex;
+  }
+
+  #openkite-react-spike-root .sidebar-backdrop.show {
+    display: block;
+  }
+
+  #openkite-react-spike-root .topbar {
+    padding-left: 12px;
+    padding-right: 16px;
+  }
+
+  #openkite-react-spike-root .view {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 767px) {
+  #openkite-react-spike-root .sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: min(290px, 86vw);
+    transform: translateX(-100%);
+    transition: transform 0.24s ease;
+  }
+
+  #openkite-react-spike-root .sidebar.open {
+    transform: translateX(0);
+  }
+
+  #openkite-react-spike-root .sidebar-backdrop.show {
+    display: block;
+  }
+
+  #openkite-react-spike-root .topbar {
+    position: sticky;
+    padding: 8px 12px;
+    min-height: 54px;
+  }
+
+  #openkite-react-spike-root .menu-toggle {
+    display: inline-flex;
+  }
+
+  #openkite-react-spike-root .breadcrumbs {
+    font-size: 11px;
+  }
+
+  #openkite-react-spike-root .view {
+    padding: 14px 12px 12px;
+  }
+
+  #openkite-react-spike-root .page-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+}
+
+@media (min-width: 1025px) {
+  #openkite-react-spike-root .menu-toggle {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #openkite-react-spike-root * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
