@@ -18,6 +18,11 @@ export const FIXTURE_CONTEXT: ClusterContext = {
   version: 'staging',
 }
 
+interface PodOwner {
+  kind: string
+  name: string
+}
+
 interface KubeObject {
   apiVersion: string
   kind: string
@@ -25,10 +30,13 @@ interface KubeObject {
     name: string
     namespace?: string
     creationTimestamp: string
+    ownerReferences?: PodOwner[]
   }
+  spec?: { nodeName?: string }
   status?: {
     phase?: string
-    containerStatuses?: Array<{ ready: boolean }>
+    qosClass?: string
+    containerStatuses?: Array<{ ready: boolean; restartCount?: number }>
   }
 }
 
@@ -37,14 +45,38 @@ function ago(minutes: number): string {
   return new Date(Date.now() - minutes * 60_000).toISOString()
 }
 
-function pod(name: string, namespace: string, phase: string, ready: boolean, minutes: number): KubeObject {
+interface PodOptions {
+  restarts?: number
+  node?: string
+  qos?: string
+  controller?: PodOwner
+}
+
+function pod(
+  name: string,
+  namespace: string,
+  phase: string,
+  ready: boolean,
+  minutes: number,
+  options: PodOptions = {},
+): KubeObject {
   return {
     apiVersion: 'v1',
     kind: 'Pod',
-    metadata: { name, namespace, creationTimestamp: ago(minutes) },
+    metadata: {
+      name,
+      namespace,
+      creationTimestamp: ago(minutes),
+      ...(options.controller ? { ownerReferences: [options.controller] } : {}),
+    },
+    spec: { nodeName: options.node ?? 'staging-worker-a' },
     status: {
       phase,
-      containerStatuses: [{ ready }, { ready: true }],
+      qosClass: options.qos ?? 'Burstable',
+      containerStatuses: [
+        { ready, restartCount: options.restarts ?? 0 },
+        { ready: true, restartCount: 0 },
+      ],
     },
   }
 }
@@ -74,18 +106,67 @@ const FIXTURE_ITEMS: Record<string, KubeObject[]> = {
     object('Node', 'okt-staging-worker-b', undefined, 7000, 'Running'),
   ],
   pods: [
-    pod('openkite-api-6d9f4b7c8-2xk4p', 'default', 'Running', true, 240),
-    pod('openkite-api-6d9f4b7c8-7jq2n', 'default', 'Running', true, 240),
-    pod('openkite-web-5c8d7f4b6-9m2vq', 'default', 'Running', true, 180),
-    pod('openkite-web-5c8d7f4b6-p4rtx', 'default', 'Pending', false, 3),
-    pod('postgres-0', 'default', 'Running', true, 1440),
-    pod('redis-7b9c5d6f8-h2klm', 'default', 'Succeeded', false, 620),
-    pod('coredns-6f4b8c9d2-wq7zx', 'kube-system', 'Running', true, 9000),
-    pod('coredns-6f4b8c9d2-tz3pl', 'kube-system', 'Running', true, 9000),
-    pod('kube-proxy-9x2mn', 'kube-system', 'Running', true, 9000),
-    pod('metrics-server-4d7f9b2c6-q8wnr', 'kube-system', 'Running', true, 540),
-    pod('argocd-application-controller-0', 'argocd', 'Running', true, 4320),
-    pod('argocd-repo-server-7f5c9d3b4-mn2pq', 'argocd', 'Running', true, 4320),
+    pod('openkite-api-6d9f4b7c8-2xk4p', 'default', 'Running', true, 240, {
+      node: 'staging-worker-a',
+      qos: 'Burstable',
+      controller: { kind: 'Deployment', name: 'openkite-api' },
+    }),
+    pod('openkite-api-6d9f4b7c8-7jq2n', 'default', 'Running', true, 240, {
+      node: 'staging-worker-a',
+      qos: 'Burstable',
+      controller: { kind: 'Deployment', name: 'openkite-api' },
+    }),
+    pod('openkite-web-5c8d7f4b6-9m2vq', 'default', 'Running', true, 180, {
+      node: 'staging-worker-b',
+      qos: 'Burstable',
+      controller: { kind: 'Deployment', name: 'openkite-web' },
+    }),
+    pod('openkite-web-5c8d7f4b6-p4rtx', 'default', 'Pending', false, 3, {
+      node: 'staging-worker-b',
+      qos: 'BestEffort',
+      controller: { kind: 'Deployment', name: 'openkite-web' },
+    }),
+    pod('postgres-0', 'default', 'Running', true, 1440, {
+      node: 'staging-worker-a',
+      qos: 'Guaranteed',
+      controller: { kind: 'StatefulSet', name: 'postgres' },
+    }),
+    pod('redis-7b9c5d6f8-h2klm', 'default', 'CrashLoopBackOff', false, 620, {
+      restarts: 14,
+      node: 'staging-worker-b',
+      qos: 'Burstable',
+      controller: { kind: 'Deployment', name: 'redis' },
+    }),
+    pod('coredns-6f4b8c9d2-wq7zx', 'kube-system', 'Running', true, 9000, {
+      node: 'staging-control',
+      qos: 'Guaranteed',
+      controller: { kind: 'Deployment', name: 'coredns' },
+    }),
+    pod('coredns-6f4b8c9d2-tz3pl', 'kube-system', 'Running', true, 9000, {
+      node: 'staging-control',
+      qos: 'Guaranteed',
+      controller: { kind: 'Deployment', name: 'coredns' },
+    }),
+    pod('kube-proxy-9x2mn', 'kube-system', 'Running', true, 9000, {
+      node: 'staging-control',
+      qos: 'Guaranteed',
+      controller: { kind: 'DaemonSet', name: 'kube-proxy' },
+    }),
+    pod('metrics-server-4d7f9b2c6-q8wnr', 'kube-system', 'Running', true, 540, {
+      node: 'staging-worker-a',
+      qos: 'Guaranteed',
+      controller: { kind: 'Deployment', name: 'metrics-server' },
+    }),
+    pod('argocd-application-controller-0', 'argocd', 'Running', true, 4320, {
+      node: 'staging-worker-a',
+      qos: 'Guaranteed',
+      controller: { kind: 'StatefulSet', name: 'argocd-application-controller' },
+    }),
+    pod('argocd-repo-server-7f5c9d3b4-mn2pq', 'argocd', 'Running', true, 4320, {
+      node: 'staging-worker-b',
+      qos: 'Burstable',
+      controller: { kind: 'Deployment', name: 'argocd-repo-server' },
+    }),
   ],
   deployments: [
     object('Deployment', 'openkite-api', 'default', 2400, 'Running'),
