@@ -39,10 +39,15 @@ struct SpikeContext {
     version: String,
 }
 
-/// Mount the React spike: render its container, then evaluate the vendored
-/// bundle once the container is in the DOM (the bundle self-mounts).
+/// Mount the React console: register its context endpoint, render the
+/// container, then evaluate the vendored bundle once (the bundle self-mounts).
+///
+/// `route` is the console nav id that matches the host route; changes are
+/// pushed into the already-running bundle so host-side navigation (e.g. the
+/// command palette) re-points the console without a remount. The bundle also
+/// reads the `data-console-route` attribute on first mount.
 #[component]
-pub fn ReactSpike() -> Element {
+pub fn ReactConsole(route: String) -> Element {
     use_asset_handler(
         "openkite-spike",
         |req: AssetRequest, responder: RequestAsyncResponder| {
@@ -54,9 +59,21 @@ pub fn ReactSpike() -> Element {
         document::eval(SPIKE_JS);
     });
 
+    use_effect(use_reactive((&route,), |(route,)| {
+        let source = format!(
+            "window.__openkite_react_console && \
+             window.__openkite_react_console.setRoute({route:?});"
+        );
+        document::eval(&source);
+    }));
+
     rsx! {
         style { dangerous_inner_html: SPIKE_CSS }
-        div { id: "openkite-react-spike-root", class: "openkite-react-spike" }
+        div {
+            id: "openkite-react-spike-root",
+            class: "openkite-react-spike",
+            "data-console-route": "{route}",
+        }
     }
 }
 
