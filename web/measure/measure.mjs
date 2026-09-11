@@ -22,7 +22,8 @@ import { fileURLToPath } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const webRoot = resolve(here, '..')
-const bundleDir = resolve(webRoot, '../assets/vendored/openkite-react-spike')
+const pkg = JSON.parse(readFileSync(join(webRoot, 'package.json'), 'utf8'))
+const bundleDir = resolve(webRoot, pkg.openkite.vendoredBundleDir)
 
 const args = Object.fromEntries(
   process.argv.slice(2).map((arg) => {

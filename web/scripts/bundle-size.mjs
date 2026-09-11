@@ -6,10 +6,10 @@ import { fileURLToPath } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const webRoot = resolve(here, '..')
-const outDir = resolve(webRoot, '../assets/vendored/openkite-react-spike')
+const pkg = JSON.parse(readFileSync(join(webRoot, 'package.json'), 'utf8'))
+const outDir = resolve(webRoot, pkg.openkite.vendoredBundleDir)
 const files = ['app.js', 'app.css']
 
-const pkg = JSON.parse(readFileSync(join(webRoot, 'package.json'), 'utf8'))
 const deps = { ...pkg.dependencies, ...pkg.devDependencies }
 
 const rows = files.map((name) => {
