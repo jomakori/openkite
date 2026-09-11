@@ -23,6 +23,14 @@ export interface ResourceRow {
   phase: string
   ready: string
   age: string
+  /** Age in seconds, so the Age column sorts numerically. */
+  ageSeconds: number
+  /** Per-container readiness, rendered as the render's health dots. */
+  health: boolean[]
+  restarts: number
+  controller: string
+  node: string
+  qos: string
 }
 
 export interface ClusterContext {
@@ -241,14 +249,52 @@ export function countItems(result: unknown): number {
   return 0
 }
 
+interface KubeOwnerReference {
+  kind?: string
+  name?: string
+}
 interface KubeMeta {
   name?: string
   namespace?: string
   creationTimestamp?: string
+  ownerReferences?: KubeOwnerReference[]
+}
+interface KubeContainerStatus {
+  ready?: boolean
+  restartCount?: number
 }
 interface KubeObject {
   metadata?: KubeMeta
-  status?: { phase?: string; containerStatuses?: Array<{ ready?: boolean }> }
+  spec?: { nodeName?: string }
+  status?: {
+    phase?: string
+    containerStatuses?: KubeContainerStatus[]
+    qosClass?: string
+  }
+}
+
+/** Map one kube object into a flat table row (shared by list and push paths). */
+export function rowFromObject(obj: KubeObject, now: number): ResourceRow {
+  const containers = obj.status?.containerStatuses ?? []
+  const health = containers.map((container) => container.ready === true)
+  const ready = containers.length
+    ? `${health.filter(Boolean).length}/${containers.length}`
+    : '—'
+  const owner = obj.metadata?.ownerReferences?.[0]
+  const controller = owner?.kind && owner.name ? `${owner.kind}/${owner.name}` : '—'
+  return {
+    name: obj.metadata?.name ?? '<unnamed>',
+    namespace: obj.metadata?.namespace ?? '',
+    phase: obj.status?.phase ?? 'Unknown',
+    ready,
+    age: formatAge(obj.metadata?.creationTimestamp, now),
+    ageSeconds: ageSeconds(obj.metadata?.creationTimestamp, now),
+    health,
+    restarts: containers.reduce((sum, container) => sum + (container.restartCount ?? 0), 0),
+    controller,
+    node: obj.spec?.nodeName ?? '—',
+    qos: obj.status?.qosClass ?? '—',
+  }
 }
 
 /** Map a kube `List` of core objects into flat table rows. */
@@ -256,20 +302,23 @@ export function rowsFromList(result: unknown, now: number): ResourceRow[] {
   if (!result || typeof result !== 'object' || !('items' in result)) return []
   const items = (result as { items?: unknown }).items
   if (!Array.isArray(items)) return []
-  return items.map((raw) => {
-    const obj = raw as KubeObject
-    const containers = obj.status?.containerStatuses ?? []
-    const ready = containers.length
-      ? `${containers.filter((c) => c.ready).length}/${containers.length}`
-      : '—'
-    return {
-      name: obj.metadata?.name ?? '<unnamed>',
-      namespace: obj.metadata?.namespace ?? '',
-      phase: obj.status?.phase ?? 'Unknown',
-      ready,
-      age: formatAge(obj.metadata?.creationTimestamp, now),
-    }
-  })
+  return items.map((raw) => rowFromObject(raw as KubeObject, now))
+}
+
+/**
+ * Rows for either push payload shape: the initial kube `List` object or a
+ * later bare array of serialised objects (see {@link PushUpdate}).
+ */
+export function rowsFromPayload(payload: unknown, now: number): ResourceRow[] {
+  if (Array.isArray(payload)) return payload.map((raw) => rowFromObject(raw as KubeObject, now))
+  return rowsFromList(payload, now)
+}
+
+function ageSeconds(timestamp: string | undefined, now: number): number {
+  if (!timestamp) return Number.MAX_SAFE_INTEGER
+  const created = Date.parse(timestamp)
+  if (Number.isNaN(created)) return Number.MAX_SAFE_INTEGER
+  return Math.max(0, Math.floor((now - created) / 1000))
 }
 
 function formatAge(timestamp: string | undefined, now: number): string {

@@ -95,3 +95,23 @@ cargo build --workspace
 cd e2e
 BIN=../target/debug/openkite ART_ROOT=artifacts-flows bats user_flows.bats
 ```
+
+---
+
+## Bridge dispatch guard
+
+`e2e/bridge-guard.sh` is a focused regression guard for the `/openkite`
+dispatch path. It boots the app under Xvfb with the test-only plugin in
+`e2e/fixtures/okt95-guard/` installed into an isolated `$HOME`, then asserts a
+`register` POST returned a well-formed JSON envelope, the Dioxus-side
+registration mirror wrote, and no panic reached `app.log`.
+
+The no-panic check is the point: a runtime-mirror regression panics on the
+tokio worker, which is contained (the surface looks healthy) and only visible
+in `app.log`. The corresponding CI job is `Bridge dispatch guard` in `e2e.yml`.
+
+```bash
+cargo build --workspace
+cd e2e
+./bridge-guard.sh ../target/debug/openkite artifacts-bridge-guard
+```
