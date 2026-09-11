@@ -1,18 +1,20 @@
 import { StrictMode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { App, controller } from './App'
+import { App } from './App'
+import { Spike, controller } from './Spike'
 import './index.css'
 
 let root: Root | null = null
 
-/** Mount the spike into `container` (idempotent). */
+/** Mount the console shell into `container` (idempotent). */
 export function mount(container: HTMLElement): void {
   if (root) return
+  // `?measure=1` renders the spike surface the measurement harness reads;
+  // every other entry renders the console shell.
+  const measure = new URLSearchParams(window.location.search).has('measure')
   root = createRoot(container)
   root.render(
-    <StrictMode>
-      <App />
-    </StrictMode>,
+    <StrictMode>{measure ? <Spike /> : <App />}</StrictMode>,
   )
 }
 
