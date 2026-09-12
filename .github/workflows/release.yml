@@ -122,9 +122,21 @@ jobs:
         # Cargo.toml stays at 0.0.0 on main (branch protection blocks the
         # semantic-release-cargo bump commit), so inject the analyzed version
         # here — env!("CARGO_PKG_VERSION") must match the release tag.
+        #
+        # `shell: bash` is mandatory: without it Windows runs the POSIX
+        # `version=...` assignment under pwsh and dies with
+        # "The term 'version=0.28.0' is not recognized as a name of a cmdlet".
+        #
+        # `sed -i.bak` (not bare `-i`) is mandatory: macOS ships BSD sed, which
+        # treats the next arg as the backup suffix and fails with
+        # `sed: 1: "Cargo.toml\n": invalid command code C`. GNU and BSD sed both
+        # accept the attached-suffix form. `cargo build` then re-syncs
+        # Cargo.lock with the new workspace version (the build is not --locked).
+        shell: bash
         run: |
           version="${{ needs.analyze.outputs.new_release_version }}"
-          sed -i "s/^version = \"[0-9][0-9.]*\"/version = \"${version}\"/" Cargo.toml
+          sed -i.bak "s/^version = \"[0-9][0-9.]*\"/version = \"${version}\"/" Cargo.toml
+          rm -f Cargo.toml.bak
           grep -n '^version' Cargo.toml | head -2
       - name: Build release binary
         run: cargo build --release --target ${{ matrix.target }}
@@ -226,7 +238,8 @@ jobs:
         run: |
           set -euo pipefail
           CASK=Casks/openkite.rb
-          sed -i "s/^  version .*/  version \"${VERSION}\"/" "$CASK"
+          sed -i.bak "s/^  version .*/  version \"${VERSION}\"/" "$CASK"
+          rm -f "$CASK.bak"
           awk -v arm="$ARM_SHA" -v amd="$AMD_SHA" '
             /on_arm do/ { in_arm=1 }
             in_arm && /sha256/ { sub(/sha256 ".*"/, "sha256 \"" arm "\""); in_arm=0 }
@@ -241,8 +254,10 @@ jobs:
         run: |
           set -euo pipefail
           FORMULA=Formula/openkite.rb
-          sed -i "s|refs/tags/v[0-9.]*\.tar.gz|refs/tags/v${VERSION}.tar.gz|" "$FORMULA"
-          sed -i "s/^  sha256 .*/  sha256 \"${SRC_SHA}\"/" "$FORMULA"
+          sed -i.bak "s|refs/tags/v[0-9.]*\.tar.gz|refs/tags/v${VERSION}.tar.gz|" "$FORMULA"
+          rm -f "$FORMULA.bak"
+          sed -i.bak "s/^  sha256 .*/  sha256 \"${SRC_SHA}\"/" "$FORMULA"
+          rm -f "$FORMULA.bak"
           grep -q "refs/tags/v${VERSION}.tar.gz" "$FORMULA"
           grep -q "sha256 \"${SRC_SHA}\"" "$FORMULA"
       - name: Commit + push
