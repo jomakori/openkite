@@ -8,7 +8,9 @@ name: build-artifacts
 # re-runs on the synthetic `merge_group` ref, so a change that only breaks one
 # platform fails before it can land. In the queue the matrix is BUILD-ONLY: a
 # compile failure is the bug class this gate exists for, and DMG/MSI packaging
-# stays on the release path until the queue's cost profile is measured.
+# stays on the release path until the queue's cost profile is measured. GitHub
+# only offers the queue on organization-owned repos, so on a personal repo the
+# `merge_group` trigger is dormant and the gate still runs on every PR.
 #
 # The artifact is version-agnostic: semantic-release computes the version on
 # main AFTER merge, so a PR build cannot embed it. See the `version` input on

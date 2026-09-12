@@ -56,19 +56,28 @@ the **same** code:
 > broader release fail-safe gate is owned by **OKT-106**; this does not try to
 > reproduce it.
 
-## Merge queue gate
+## Multi-platform merge gate
 
-`main` uses a merge queue. The branch's existing required checks (fmt, clippy,
-tests, build, coverage, plugin-SDK cross-platform) all run on
-`ubuntu-latest`, so **none of them compiled for macOS or Windows** — the
-GNU-sed-on-BSD-sed defect that took `Release` red on five consecutive pushes
-was invisible until a macOS build ran. The merge queue therefore re-runs the
-six-target native matrix on its synthetic `merge_group` ref, and
-`build-artifacts.yml` reports one stable required context, **`Multi-platform
-build`**, that a broken change cannot satisfy.
+The branch's existing required checks (fmt, clippy, tests, build, coverage,
+plugin-SDK cross-platform) all run on `ubuntu-latest`, so **none of them
+compiled for macOS or Windows** — the GNU-sed-on-BSD-sed defect that took
+`Release` red on five consecutive pushes was invisible until a macOS build ran.
+`build-artifacts.yml` now reports one stable required context,
+**`Multi-platform build`**, that a broken change cannot satisfy, and carries a
+`merge_group` trigger so a GitHub merge queue can re-run the six-target native
+matrix on its synthetic ref.
+
+> **Merge queue availability.** GitHub gates the merge queue to
+> **organization-owned** repositories (public, or private on Enterprise Cloud).
+> This repository is owned by a personal user account, so the ruleset API
+> rejects a `merge_queue` rule with `422 Invalid rule 'merge_queue'` and the
+> queue cannot be enabled here. The `merge_group` trigger and the build-only
+> path are already in place and become live the moment the repo belongs to an
+> organization (or a custom queue is adopted); until then the gate still
+> enforces the six-target native build on every artifact-affecting PR.
 
 ```
-PR (artifact-affecting)                 merge queue
+PR (artifact-affecting)                 merge queue (when available)
   build-artifacts.yml                    build-artifacts.yml
   changes → build (package)              changes (always builds) → build (build-only)
         │                                      │
@@ -76,10 +85,10 @@ PR (artifact-affecting)                 merge queue
                     required: Multi-platform build
 ```
 
-- **Build-only in the queue.** The queue calls the reusable workflow with
-  `package: false` and `upload-artifacts: false`: a compile failure is the bug
-  class the gate exists for. PR builds still package (so `release.yml` can reuse
-  the set), and packaging stays off the queue until its cost profile is
+- **Build-only in the queue.** A merge-group run calls the reusable workflow
+  with `package: false` and `upload-artifacts: false`: a compile failure is the
+  bug class the gate exists for. PR builds still package (so `release.yml` can
+  reuse the set), and packaging stays off the queue until its cost profile is
   measured.
 - **Path filters.** Filtering lives in the `changes` job, not
   `on.pull_request.paths`, because the gate is a **required** check: a workflow
@@ -93,17 +102,13 @@ PR (artifact-affecting)                 merge queue
   artifact-touching PR re-runs the matrix even if the latest commit is
   docs-only. This is accepted rather than gated per-commit: the six-target build
   is not commit-incremental, and `concurrency.cancel-in-progress` keeps only the
-  newest PR run alive. A queued merge re-builds on the merge group regardless.
-- **Cost.** Only the queue's `merge_group` run is added; it is build-only and
-  does not upload. Per-target `Swatinem/rust-cache` keys are unchanged, PR runs
-  cancel in flight, and the queue's build concurrency is limited to one
-  synthetic merge at a time (see the ruleset parameters). macOS and Windows
-  runners are billable, so the gate keeps six targets but removes packaging and
-  upload from the queue path.
-
-> The queue is enabled by a repository ruleset (`merge_queue`) that targets
-> `refs/heads/main`; classic branch protection still owns the required-check
-> list. Both are read back via the API in the PR that added the gate.
+  newest PR run alive.
+- **Cost.** The gate adds no run on docs-only PRs (the matrix is skipped) and
+  reuses the existing per-target `Swatinem/rust-cache` keys. A future queue run
+  is build-only, does not upload, and is limited to one synthetic merge at a
+  time (see the ruleset parameters) so at most one extra six-target build is in
+  flight. macOS and Windows runners are billable, so six targets stay but
+  packaging and upload are removed from the queue path.
 
 ## Version handling
 
