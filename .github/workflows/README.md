@@ -9,9 +9,10 @@ container — see [`dev/capture/README.md`](../../dev/capture/README.md)).
 | [`lint-test.yml`](lint-test.yml) | PR, push `main` | fmt / clippy / test / build / bundle-freshness / cross-platform / coverage, plus the `check-portable-sed.sh` hygiene gate. |
 | [`e2e.yml`](e2e.yml) | PR, push `main`, dispatch | Desktop E2E, user flows, bridge guard, visual-regression baselines. |
 | [`pr-image.yml`](pr-image.yml) | PR on `web/**` | Build the console bundle and publish a PR preview image to GHCR. |
-| [`build-artifacts.yml`](build-artifacts.yml) | PR on artifact-affecting paths | Build the six native release packages **once per commit** (calls the reusable workflow below). |
-| [`build-release-artifacts.yml`](build-release-artifacts.yml) | `workflow_call` | Reusable six-target native build + `cargo-packager` + upload. No cross-compilation: packaging needs `hdiutil` (DMG) and WiX/NSIS (Windows). |
-| [`release.yml`](release.yml) | push `main` on Rust paths, dispatch | semantic-release tag/notes, then download-and-attach the PR-built packages (or rebuild as a fallback), then update the Homebrew tap and Chocolatey package. |
+| [`build-artifacts.yml`](build-artifacts.yml) | PR on artifact-affecting paths, `merge_group` | Build the six native release packages **once per commit** as a PR, and gate the **merge queue** with a build-only run on the synthetic merge group (calls the reusable workflow below). |
+| [`build-release-artifacts.yml`](build-release-artifacts.yml) | `workflow_call` | Reusable six-target native build + optional `cargo-packager` + optional upload. No cross-compilation: packaging needs `hdiutil` (DMG) and WiX/NSIS (Windows). |
+| [`release.yml`](release.yml) | push `main` on Rust paths, dispatch | semantic-release tag/notes, then download-and-attach the PR-built packages (or rebuild as a fallback), then update the Homebrew tap and Chocolatey package. `Publish release` runs a preflight that refuses a partial artifact set (see below). |
+| [`main-failure-tracker.yml`](main-failure-tracker.yml) | `workflow_run` on `main` failure, dispatch | Open or update exactly one tracking issue per failed workflow on `main`, naming the failing job(s) and the log link. |
 
 ## Build once, reuse at release (OKT-104)
 
@@ -52,9 +53,121 @@ the **same** code:
 - `normalize-release-assets.sh <dist-dir> <version>` — rewrite the version token
   in every asset name and refuse a partial set.
 
-> The artifact-set completeness check is deliberate and local to OKT-104. The
-> broader release fail-safe gate is owned by **OKT-106**; this does not try to
-> reproduce it.
+## Release fail-safe
+
+`Publish release` starts with a preflight — `normalize-release-assets.sh <dist>
+<version> [targets]` — that refuses a partial release:
+
+- **Default (no input): all six targets are required.** A missing asset fails
+  the job with `::error title=Incomplete release artifact set::missing: …` and
+  nothing is tagged or uploaded. This is the only value a push-triggered run
+  can produce, so a partial release is impossible by accident.
+- **A deliberate subset requires the explicit `workflow_dispatch` input
+  `targets`** (comma-separated, e.g. `linux_amd64,macos_arm64`). When set, only
+  those assets are required and the others are pruned, so publishing fewer
+  targets is a conscious act rather than a silent outcome.
+- **`dry_run=true`** runs `analyze` + the preflight without tagging, uploading,
+  or touching the Homebrew/Chocolatey package managers. It never publishes, so
+  it is safe to use to exercise the gate.
+
+The gate extends the OKT-104 completeness check in the same script instead of
+adding a second, competing preflight.
+
+## Post-merge surfacing
+
+`main-failure-tracker.yml` runs when `lint-test`, `e2e`, or `Release` completes
+on `main`. A failure opens exactly one issue per workflow, naming the workflow,
+the failing job(s) and their log links; a later failure comments on that same
+issue instead of filing a duplicate. Manual re-report:
+`gh workflow run main-failure-tracker.yml -f run_id=<id> -f workflow_name=Release`.
+
+## Process rule: verify the workflows a change can trigger
+
+A green set of **required** checks is not evidence that the workflows a merge
+triggers succeeded. `release.yml` is path-filtered and is not a required check,
+so it can be red while every required check is green — the failure mode that let
+`Release` fail on five consecutive pushes to `main` unnoticed.
+
+**Before presenting a PR**, enumerate every workflow the diff can trigger (from
+the trigger column above — include `lint-test`, `e2e`, `pr-image`, `build-artifacts`,
+and `Release`, plus any path-filtered workflow whose paths the changed files
+match) and read each job's **real** conclusion. A `success` status can hide a
+skipped or unrun step:
+
+```sh
+gh run view <run-id> --repo jomakori/openkite --json conclusion,jobs \
+  --jq '.jobs[] | "\(.conclusion)\t\(.name)"'
+gh run view <run-id> --repo jomakori/openkite --log-failed
+```
+
+Treat `skipped` as "not verified", not "passed".
+
+**After every merge to `main`**, list the runs the merge triggered and check
+their conclusions — `Release` first:
+
+```sh
+gh run list --repo jomakori/openkite --commit "$(git rev-parse HEAD)" \
+  --json name,conclusion,url --jq '.[] | "\(.conclusion)\t\(.name)\t\(.url)"'
+```
+
+A workflow-only merge (`.github/**`, docs) does **not** trigger `Release`, so the
+release pipeline stays unverified until a Rust/Cargo change merges or someone
+dispatches it deliberately — and a dispatch publishes. The red-release runbook is
+[`docs/release-runbook.md`](../../docs/release-runbook.md).
+
+## Multi-platform merge gate
+
+The branch's existing required checks (fmt, clippy, tests, build, coverage,
+plugin-SDK cross-platform) all run on `ubuntu-latest`, so **none of them
+compiled for macOS or Windows** — the GNU-sed-on-BSD-sed defect that took
+`Release` red on five consecutive pushes was invisible until a macOS build ran.
+`build-artifacts.yml` now reports one stable required context,
+**`Multi-platform build`**, that a broken change cannot satisfy, and carries a
+`merge_group` trigger so a GitHub merge queue can re-run the six-target native
+matrix on its synthetic ref.
+
+> **Merge queue availability.** GitHub gates the merge queue to
+> **organization-owned** repositories (public, or private on Enterprise Cloud).
+> This repository is owned by a personal user account, so the ruleset API
+> rejects a `merge_queue` rule with `422 Invalid rule 'merge_queue'` and the
+> queue cannot be enabled here. The `merge_group` trigger and the build-only
+> path are already in place and become live the moment the repo belongs to an
+> organization (or a custom queue is adopted); until then the gate still
+> enforces the six-target native build on every artifact-affecting PR.
+
+```
+PR (artifact-affecting)                 merge queue (when available)
+  build-artifacts.yml                    build-artifacts.yml
+  changes → build (package)              changes (always builds) → build (build-only)
+        │                                      │
+        └──────────────► gate ◄────────────────┘
+                    required: Multi-platform build
+```
+
+- **Build-only in the queue.** A merge-group run calls the reusable workflow
+  with `package: false` and `upload-artifacts: false`: a compile failure is the
+  bug class the gate exists for. PR builds still package (so `release.yml` can
+  reuse the set), and packaging stays off the queue until its cost profile is
+  measured.
+- **Path filters.** Filtering lives in the `changes` job, not
+  `on.pull_request.paths`, because the gate is a **required** check: a workflow
+  skipped by a top-level path filter reports no check at all, and a docs-only PR
+  would sit forever on "Expected". The job always runs and the gate always
+  reports; a docs-only PR simply skips the matrix. A `merge_group` has no cheap
+  base/head pair to filter on and is the queue's whole purpose, so it always
+  builds.
+- **Whole-diff semantics.** `dorny/paths-filter` evaluates a pull request
+  against the **whole** `base...head` diff, so any commit on an
+  artifact-touching PR re-runs the matrix even if the latest commit is
+  docs-only. This is accepted rather than gated per-commit: the six-target build
+  is not commit-incremental, and `concurrency.cancel-in-progress` keeps only the
+  newest PR run alive.
+- **Cost.** The gate adds no run on docs-only PRs (the matrix is skipped) and
+  reuses the existing per-target `Swatinem/rust-cache` keys. A future queue run
+  is build-only, does not upload, and is limited to one synthetic merge at a
+  time (see the ruleset parameters) so at most one extra six-target build is in
+  flight. macOS and Windows runners are billable, so six targets stay but
+  packaging and upload are removed from the queue path.
 
 ## Version handling
 

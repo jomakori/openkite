@@ -16,6 +16,16 @@
 - One ticket per PR. Move the ticket across the kanban as you go.
 - Branch → PR → CI green → squash-merge. No direct pushes to main for ticket
   work.
+- **Green required checks are not enough.** Before presenting a PR, enumerate
+  the workflows the diff can trigger (`lint-test`, `e2e`, `pr-image`,
+  `build-artifacts`, `Release`, plus any path-filtered workflow whose paths the
+  diff matches) and read each job's real conclusion — a `success` status can
+  hide a skipped or unrun step. After a merge to `main`, check the runs it
+  triggered, `Release` first (it is path-filtered and not a required check).
+  Full procedure:
+  [`.github/workflows/README.md`](.github/workflows/README.md#process-rule-verify-the-workflows-a-change-can-trigger).
+  When `Release` is red, use the
+  [release runbook](docs/release-runbook.md).
 
 ## Conventions
 
