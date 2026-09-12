@@ -12,3 +12,5 @@
 /web/dist/
 # SSR build output for the fixture parity check (web/test/parity.test.tsx).
 /web/test/.ssr/
+# Visual-capture wrapper log (dev/capture/capture.sh).
+/.capture.log
