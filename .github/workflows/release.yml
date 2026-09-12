@@ -2,6 +2,27 @@ name: Release
 
 on:
   workflow_dispatch:
+    inputs:
+      targets:
+        description: >-
+          Comma-separated subset of release targets to require, e.g.
+          "linux_amd64,macos_arm64". Accepted values: linux_amd64, linux_arm64,
+          macos_amd64, macos_arm64, windows_amd64, windows_arm64. Leave empty
+          (the default) to require ALL SIX — a partial release then fails the
+          preflight. Only an explicit dispatch may narrow the set.
+        required: false
+        default: ''
+        type: string
+      dry_run:
+        description: >-
+          Validate the release (analyze + artifact preflight) without tagging,
+          uploading, or updating any package manager. Never publishes.
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
   push:
     branches:
       - main
@@ -62,7 +83,9 @@ jobs:
     name: Locate reusable artifacts
     runs-on: ubuntu-latest
     needs: analyze
-    if: needs.analyze.outputs.new_release_published == 'true'
+    if: >-
+      needs.analyze.outputs.new_release_published == 'true' ||
+      inputs.dry_run == 'true'
     outputs:
       reuse: ${{ steps.locate.outputs.reuse }}
       run_id: ${{ steps.locate.outputs.run_id }}
@@ -83,7 +106,13 @@ jobs:
   build-artifacts:
     name: Rebuild release artifacts (fallback)
     needs: [analyze, prepare]
-    if: needs.analyze.outputs.new_release_published == 'true' && needs.prepare.outputs.reuse != 'true'
+    # A dry run never rebuilds: its job is to exercise the preflight against
+    # whatever (possibly empty) set the downloads produced, not to burn six
+    # native builds.
+    if: >-
+      needs.analyze.outputs.new_release_published == 'true' &&
+      needs.prepare.outputs.reuse != 'true' &&
+      inputs.dry_run != 'true'
     uses: ./.github/workflows/build-release-artifacts.yml
     with:
       version: ${{ needs.analyze.outputs.new_release_version }}
@@ -95,12 +124,15 @@ jobs:
     runs-on: ubuntu-latest
     needs: [analyze, prepare, build-artifacts]
     # Succeed when the reusable set was reused (build-artifacts skipped) or the
-    # fallback rebuilt successfully; never publish a partial set.
+    # fallback rebuilt successfully; never publish a partial set. A dry run is
+    # allowed through even without a release decision so the preflight can be
+    # exercised; its publishing steps are separately gated off below.
     if: >-
       always() &&
-      needs.analyze.outputs.new_release_published == 'true' &&
-      needs.prepare.result == 'success' &&
-      (needs.build-artifacts.result == 'success' || needs.build-artifacts.result == 'skipped')
+      (inputs.dry_run == 'true' ||
+       (needs.analyze.outputs.new_release_published == 'true' &&
+        needs.prepare.result == 'success' &&
+        (needs.build-artifacts.result == 'success' || needs.build-artifacts.result == 'skipped')))
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -124,17 +156,23 @@ jobs:
           path: dist
           merge-multiple: true
       - name: Download fallback-built artifacts
-        if: needs.prepare.outputs.reuse != 'true'
+        if: needs.prepare.outputs.reuse != 'true' && inputs.dry_run != 'true'
         uses: actions/download-artifact@v4
         with:
           pattern: openkite_*
           path: dist
           merge-multiple: true
-      - name: Apply release version to asset names (refuse a partial set)
+      # The fail-safe gate (OKT-106). It runs unconditionally on every publish
+      # attempt, requires all six targets by default, and fails the job before
+      # anything is tagged or uploaded. `targets` can only come from an explicit
+      # workflow_dispatch.
+      - name: Preflight — refuse an incomplete release
         env:
-          VERSION: ${{ needs.analyze.outputs.new_release_version }}
-        run: bash .github/scripts/normalize-release-assets.sh dist "$VERSION"
+          VERSION: ${{ needs.analyze.outputs.new_release_version || '0.0.0' }}
+          TARGETS: ${{ inputs.targets }}
+        run: bash .github/scripts/normalize-release-assets.sh dist "$VERSION" "$TARGETS"
       - name: Publish release (tag + notes)
+        if: inputs.dry_run != 'true'
         uses: cycjimmy/semantic-release-action@v4
         with:
           extra_plugins: |
@@ -145,6 +183,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Upload artifacts to release
+        if: inputs.dry_run != 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ needs.analyze.outputs.new_release_version }}
@@ -156,7 +195,7 @@ jobs:
     name: Update homebrew tap (jomakori/homebrew-tap)
     runs-on: ubuntu-latest
     needs: [analyze, publish]
-    if: needs.analyze.outputs.new_release_published == 'true'
+    if: needs.analyze.outputs.new_release_published == 'true' && inputs.dry_run != 'true'
     steps:
       # Digests set by release-digest (GITHUB_ENV) persist across the tap
       # checkout below — env file is job-scoped, applied after every step.
@@ -229,7 +268,7 @@ jobs:
     name: Publish chocolatey package (GH Packages)
     runs-on: windows-latest
     needs: [analyze, publish]
-    if: needs.analyze.outputs.new_release_published == 'true'
+    if: needs.analyze.outputs.new_release_published == 'true' && inputs.dry_run != 'true'
     permissions:
       contents: write
       packages: write
