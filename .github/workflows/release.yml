@@ -14,6 +14,9 @@ permissions:
   contents: write
   issues: write
   pull-requests: write
+  # `prepare` reads the PR build run + its artifacts from the API to decide
+  # between reusing them and rebuilding.
+  actions: read
 
 # Serialize release runs: rapid consecutive merges race the checkout and
 # semantic-release skips publishing ("local branch main is behind the remote"),
@@ -51,118 +54,53 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  build-artifacts:
-    name: openkite_${{ matrix.package_os }}_${{ matrix.package_arch }}
+  # Build-once reuse (OKT-104): find the six native packages the PR already
+  # built for this commit, instead of rebuilding them here. The artifacts are
+  # version-agnostic; the analyzed version is applied to the asset names at
+  # publish time.
+  prepare:
+    name: Locate reusable artifacts
+    runs-on: ubuntu-latest
     needs: analyze
     if: needs.analyze.outputs.new_release_published == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-24.04
-            target: x86_64-unknown-linux-gnu
-            package_os: linux
-            package_arch: amd64
-            formats: appimage
-            ext: AppImage
-          - os: ubuntu-24.04-arm
-            target: aarch64-unknown-linux-gnu
-            package_os: linux
-            package_arch: arm64
-            formats: appimage
-            ext: AppImage
-          - os: macos-26
-            target: aarch64-apple-darwin
-            package_os: macos
-            package_arch: arm64
-            formats: dmg
-            ext: dmg
-          - os: macos-26-intel
-            target: x86_64-apple-darwin
-            package_os: macos
-            package_arch: amd64
-            formats: dmg
-            ext: dmg
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            package_os: windows
-            package_arch: amd64
-            formats: nsis
-            ext: exe
-          - os: windows-latest
-            target: aarch64-pc-windows-msvc
-            package_os: windows
-            package_arch: arm64
-            formats: nsis
-            ext: exe
-    runs-on: ${{ matrix.os }}
+    outputs:
+      reuse: ${{ steps.locate.outputs.reuse }}
+      run_id: ${{ steps.locate.outputs.run_id }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: "."
-          key: ${{ matrix.target }}
-      - name: Install Linux system deps (Dioxus desktop)
-        if: matrix.package_os == 'linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev libgtk-3-dev libglib2.0-dev \
-            libayatana-appindicator3-dev librsvg2-dev libxdo-dev \
-            libssl-dev libfuse2
-      - name: Install cargo-packager
-        run: cargo install cargo-packager --locked
-      - name: Embed release version
-        # Cargo.toml stays at 0.0.0 on main (branch protection blocks the
-        # semantic-release-cargo bump commit), so inject the analyzed version
-        # here — env!("CARGO_PKG_VERSION") must match the release tag.
-        #
-        # `shell: bash` is mandatory: without it Windows runs the POSIX
-        # `version=...` assignment under pwsh and dies with
-        # "The term 'version=0.28.0' is not recognized as a name of a cmdlet".
-        #
-        # `sed -i.bak` (not bare `-i`) is mandatory: macOS ships BSD sed, which
-        # treats the next arg as the backup suffix and fails with
-        # `sed: 1: "Cargo.toml\n": invalid command code C`. GNU and BSD sed both
-        # accept the attached-suffix form. `cargo build` then re-syncs
-        # Cargo.lock with the new workspace version (the build is not --locked).
-        shell: bash
-        run: |
-          version="${{ needs.analyze.outputs.new_release_version }}"
-          sed -i.bak "s/^version = \"[0-9][0-9.]*\"/version = \"${version}\"/" Cargo.toml
-          rm -f Cargo.toml.bak
-          grep -n '^version' Cargo.toml | head -2
-      - name: Build release binary
-        run: cargo build --release --target ${{ matrix.target }}
-      - name: Package via cargo-packager (DMG / AppImage / MSI)
-        shell: bash
-        run: |
-          cargo packager --release --target ${{ matrix.target }} \
-            --formats ${{ matrix.formats }} --out-dir dist
-      - name: Rename to openkite_<semver>_<os>_<arch>.<ext>
-        shell: bash
-        run: |
-          version="${{ needs.analyze.outputs.new_release_version }}"
-          artifact="$(find dist -maxdepth 1 -name '*.${{ matrix.ext }}' | head -1)"
-          test -n "$artifact" || { echo "no .${{ matrix.ext }} artifact produced"; exit 1; }
-          mv "$artifact" "dist/openkite_${version}_${{ matrix.package_os }}_${{ matrix.package_arch }}.${{ matrix.ext }}"
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: openkite_${{ matrix.package_os }}_${{ matrix.package_arch }}
-          path: dist/openkite_*_${{ matrix.package_os }}_${{ matrix.package_arch }}.${{ matrix.ext }}
+      # Squash merges mint a new SHA, so this maps the merged commit back to
+      # the PR head the build ran on, then verifies a complete, unexpired set
+      # exists. `reuse=false` engages the rebuild fallback below.
+      - name: Locate PR-built artifacts for the merged commit
+        id: locate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash .github/scripts/locate-release-artifacts.sh "${{ github.sha }}"
+
+  # Fallback only: no complete reusable artifact set exists for this commit
+  # (artifact expiry, force-push, a cancelled/failed PR build, or a direct push
+  # to main). Publishing must never be blocked by artifact GC, so rebuild with
+  # the analyzed version embedded. Same reusable workflow the PRs run.
+  build-artifacts:
+    name: Rebuild release artifacts (fallback)
+    needs: [analyze, prepare]
+    if: needs.analyze.outputs.new_release_published == 'true' && needs.prepare.outputs.reuse != 'true'
+    uses: ./.github/workflows/build-release-artifacts.yml
+    with:
+      version: ${{ needs.analyze.outputs.new_release_version }}
+      package: true
+      retention-days: 7
 
   publish:
     name: Publish release
     runs-on: ubuntu-latest
-    needs: [analyze, build-artifacts]
-    if: needs.analyze.outputs.new_release_published == 'true'
+    needs: [analyze, prepare, build-artifacts]
+    # Succeed when the reusable set was reused (build-artifacts skipped) or the
+    # fallback rebuilt successfully; never publish a partial set.
+    if: >-
+      always() &&
+      needs.analyze.outputs.new_release_published == 'true' &&
+      needs.prepare.result == 'success' &&
+      (needs.build-artifacts.result == 'success' || needs.build-artifacts.result == 'skipped')
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -176,11 +114,26 @@ jobs:
         run: |
           git config user.name "semantic-release-bot"
           git config user.email "semantic-release-bot@users.noreply.github.com"
-      - name: Download artifacts
+      - name: Download reused artifacts
+        if: needs.prepare.outputs.reuse == 'true'
         uses: actions/download-artifact@v4
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ needs.prepare.outputs.run_id }}
+          pattern: openkite_*
           path: dist
           merge-multiple: true
+      - name: Download fallback-built artifacts
+        if: needs.prepare.outputs.reuse != 'true'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: openkite_*
+          path: dist
+          merge-multiple: true
+      - name: Apply release version to asset names (refuse a partial set)
+        env:
+          VERSION: ${{ needs.analyze.outputs.new_release_version }}
+        run: bash .github/scripts/normalize-release-assets.sh dist "$VERSION"
       - name: Publish release (tag + notes)
         uses: cycjimmy/semantic-release-action@v4
         with:

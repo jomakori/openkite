@@ -1,0 +1,44 @@
+name: build-artifacts
+
+# Build the six native release packages ONCE per commit, on code-affecting PRs,
+# so `release.yml` can download and attach them instead of rebuilding when a
+# release fires (OKT-104).
+#
+# The artifact is version-agnostic: semantic-release computes the version on
+# main AFTER merge, so a PR build cannot embed it. See the `version` input on
+# `.github/workflows/build-release-artifacts.yml` and the version audit in the
+# PR that introduced this workflow.
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'crates/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'web/**'
+      - 'assets/**'
+      # Changing the build definition itself affects the artifact.
+      - '.github/workflows/build-artifacts.yml'
+      - '.github/workflows/build-release-artifacts.yml'
+
+# Least privilege: the build only reads the repo and uploads artifacts with the
+# runtime token (`actions/upload-artifact` needs no GITHUB_TOKEN scope).
+permissions:
+  contents: read
+
+# One build per PR; a new push supersedes the previous in-flight build. Six
+# native builds (two macOS DMG, two Windows NSIS, two Linux AppImage) are not
+# worth running twice while a PR is being iterated on.
+concurrency:
+  group: build-artifacts-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build release artifacts
+    uses: ./.github/workflows/build-release-artifacts.yml
+    with:
+      # `version` is intentionally omitted: it is unknowable before merge.
+      package: true
+      # PR artifacts must outlive review + merge so the release can reuse them.
+      retention-days: 90

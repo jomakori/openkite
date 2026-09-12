@@ -1,0 +1,119 @@
+# TEMP verify OKT-104 (do not keep)
+#
+# DISPOSABLE. Proves the three OKT-104 paths against the production reusable
+# workflow and scripts without publishing anything:
+#
+#   mode=download  (b) cross-run download of a real six-asset set + the
+#                      production normalize/attach script — no release.
+#   mode=fallback  (c) the production locator reports reuse=false, then the
+#                      reusable workflow rebuilds and the assets re-normalize.
+#
+# TRIGGER NOTE: GitHub will not dispatch a workflow whose file is absent from
+# the default branch until it has run at least once (github/docs#34884). The
+# branch-scoped push trigger is a one-shot registration shim: all real work is
+# gated to workflow_dispatch below.
+#
+# DELETE THIS FILE before the PR is ready for review.
+
+name: TEMP verify OKT-104 (do not keep)
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'download = exercise the release download path; fallback = prove the rebuild path'
+        type: choice
+        options:
+          - download
+          - fallback
+        default: download
+      source_run_id:
+        description: 'Run id holding the openkite_* artifacts to download (mode=download)'
+        type: string
+        required: false
+        default: ''
+      sha:
+        description: 'Commit SHA to probe for reusable artifacts (mode=fallback)'
+        type: string
+        required: false
+        default: ''
+  push:
+    branches:
+      - ci/okt104-build-reuse
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  register:
+    name: Register workflow (no-op)
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "branch-scoped push only registers this workflow for dispatch"
+
+  # (c) selector: the production locator must report reuse=false for a commit
+  # with no reusable artifact set.
+  locate:
+    name: Locate reusable artifacts
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'fallback'
+    runs-on: ubuntu-latest
+    outputs:
+      reuse: ${{ steps.locate.outputs.reuse }}
+      run_id: ${{ steps.locate.outputs.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe for a reusable set
+        id: locate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash .github/scripts/locate-release-artifacts.sh "${{ inputs.sha || github.sha }}"
+
+  # (c) rebuild: the production reusable workflow, called exactly as
+  # release.yml calls it on the fallback path (version embedded at build time).
+  fallback-rebuild:
+    name: Fallback rebuild
+    needs: locate
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'fallback' && needs.locate.outputs.reuse != 'true'
+    uses: ./.github/workflows/build-release-artifacts.yml
+    with:
+      version: '0.0.0'
+      package: true
+      retention-days: 1
+
+  fallback-attach:
+    name: Fallback download + attach
+    needs: [locate, fallback-rebuild]
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'fallback' && needs.fallback-rebuild.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download fallback-built artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: openkite_*
+          path: dist
+          merge-multiple: true
+      - name: Apply release version to asset names (refuse a partial set)
+        run: bash .github/scripts/normalize-release-assets.sh dist 0.0.0
+
+  # (b) release-path dry run: download a real six-asset set from another run and
+  # run the production normalize/attach script. No semantic-release, no tag, no
+  # GitHub release — the publish side is deliberately omitted.
+  download-and-attach:
+    name: Download and attach (dry run)
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'download'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download reused artifacts
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ inputs.source_run_id }}
+          pattern: openkite_*
+          path: dist
+          merge-multiple: true
+      - name: Apply release version to asset names (refuse a partial set)
+        run: bash .github/scripts/normalize-release-assets.sh dist 0.0.0
