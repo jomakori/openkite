@@ -1,0 +1,81 @@
+# OpenKite visual-capture Job — rendered from this template by capture.sh.
+#
+# Produces the documentation media (full-window stills of the React console and
+# the native log route, plus animated GIFs for the live resource table, the
+# inspector slide-over, toasts, the log dock and the command palette). The
+# payload lives in capture-script.sh and is mounted as a ConfigMap, so this file
+# stays a thin, parameterised runner.
+#
+# Every @@NAME@@ placeholder is filled by capture.sh from OK_CAPTURE_*
+# environment variables; nothing here is tied to a particular live cluster. The
+# Job needs:
+#   - the throwaway namespace @@NAMESPACE@@ to exist,
+#   - a kubeconfig Secret named @@KUBECONFIG_SECRET@@ in that namespace
+#     (created out of band; never committed),
+#   - a scratch namespace @@SCRATCH_NS@@ for the short-lived sample workloads,
+#   - a PersistentVolumeClaim @@PVC_NAME@@ for the cargo cache and artifacts.
+#
+# Never target a GitOps-managed namespace: ArgoCD self-heal reverts manual
+# deploys, so the capture fights the controller. ok-debug is throwaway.
+#
+# Never build the openkite binary on the review host: a Dioxus link needs
+# >2.5 GiB and OOMs a small container (the Hermes agent pod is capped ~3 GiB;
+# an OOM there restarts the gateway). See dev/capture/README.md.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: @@JOB_NAME@@
+  namespace: @@NAMESPACE@@
+  labels:
+    app: openkite-capture
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  activeDeadlineSeconds: 3600
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: capture
+          image: @@IMAGE@@
+          env:
+            - { name: CARGO_HOME, value: "@@DATA_MOUNT@@/cargo" }
+            - { name: CARGO_TARGET_DIR, value: "@@DATA_MOUNT@@/target" }
+            - { name: KUBECONFIG, value: /tmp/kc/config }
+            - { name: BRANCH, value: "@@BRANCH@@" }
+            - { name: SETTLE_S, value: "@@SETTLE_S@@" }
+            - { name: SAMPLE_PODS, value: "@@SAMPLE_PODS@@" }
+            - { name: SCRATCH_NS, value: "@@SCRATCH_NS@@" }
+            - { name: MEDIA_DIR, value: "@@MEDIA_DIR@@" }
+            - { name: SHELL_ROUTE, value: "@@SHELL_ROUTE@@" }
+            - { name: CAPTURE_FLOWS, value: "@@CAPTURE_FLOWS@@" }
+            - { name: NATIVE_ROUTE, value: "@@NATIVE_ROUTE@@" }
+            - { name: EXTRA_ROUTES, value: "@@EXTRA_ROUTES@@" }
+            - { name: WIN_W, value: "@@WIN_W@@" }
+            - { name: WIN_H, value: "@@WIN_H@@" }
+          command: ["/bin/bash", "/scripts/capture-script.sh"]
+          resources:
+            requests:
+              memory: 2Gi
+              cpu: "1"
+            limits:
+              memory: 6Gi
+              cpu: "4"
+          volumeMounts:
+            - { name: data, mountPath: @@DATA_MOUNT@@ }
+            - { name: tmp, mountPath: /tmp }
+            - { name: kc, mountPath: /tmp/kc, readOnly: true }
+            - { name: script, mountPath: /scripts, readOnly: true }
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: @@PVC_NAME@@
+        - name: tmp
+          emptyDir: {}
+        - name: kc
+          secret:
+            secretName: @@KUBECONFIG_SECRET@@
+        - name: script
+          configMap:
+            name: @@CONFIGMAP_NAME@@
+            defaultMode: 0755
