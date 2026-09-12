@@ -69,27 +69,34 @@ export function LogDock({
         Log stream paused
       </div>
       <div className="log-body">
-        {lines.length === 0 ? (
-          <div className="log-line">
-            <span className="log-time">--:--:--.---</span>
-            <span className="log-level">INFO</span>
-            <span className="log-msg">log buffer cleared</span>
-          </div>
-        ) : (
-          lines.map((line, index) => (
-            <div className="log-line" key={index}>
-              <span className="log-time">{line.time}</span>
-              <span className={`log-level ${line.level.toLowerCase()}`}>{line.level}</span>
-              {line.method ? <span className="log-method">{line.method}</span> : null}
-              <span
-                className={line.level.toLowerCase() === 'error' ? 'log-msg error' : 'log-msg'}
-              >
-                {line.message}
-              </span>
-            </div>
-          ))
-        )}
+        <LogLineList lines={lines} />
       </div>
     </section>
+  )
+}
+
+export function LogLineList({ lines }: { lines: LogLine[] }) {
+  if (lines.length === 0) {
+    return (
+      <div className="log-line">
+        <span className="log-time">--:--:--.---</span>
+        <span className="log-level">INFO</span>
+        <span className="log-msg">log buffer cleared</span>
+      </div>
+    )
+  }
+  return (
+    <>
+      {lines.map((line, index) => (
+        <div className="log-line" key={index}>
+          <span className="log-time">{line.time}</span>
+          <span className={`log-level ${line.level.toLowerCase()}`}>{line.level}</span>
+          {line.method ? <span className="log-method">{line.method}</span> : null}
+          <span className={line.level.toLowerCase() === 'error' ? 'log-msg error' : 'log-msg'}>
+            {line.message}
+          </span>
+        </div>
+      ))}
+    </>
   )
 }

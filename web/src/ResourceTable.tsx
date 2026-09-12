@@ -1,5 +1,8 @@
 import type { ReactNode } from 'react'
+import { rowActions, type RowActionId } from './actions'
 import type { ResourceRow } from './bridge'
+import { RowActionsMenu } from './ResourceActions'
+import type { Capabilities } from './settings'
 import { Icon, type IconName } from './shell/icons'
 import { SORT_COLUMNS, statusTone, toneDot, type SortDir, type SortKey } from './table'
 
@@ -7,8 +10,11 @@ export interface ResourceTableProps {
   rows: ResourceRow[]
   source?: string
   icon?: IconName
+  kind?: string
   selectedKey?: string | null
   onSelect?: (row: ResourceRow) => void
+  onAction?: (row: ResourceRow, action: RowActionId) => void
+  capabilities?: Capabilities
   dense?: boolean
   sortKey?: SortKey
   sortDir?: SortDir
@@ -35,14 +41,18 @@ export function ResourceTable({
   rows,
   source,
   icon = 'pods',
+  kind = 'pods',
   selectedKey,
   onSelect,
+  onAction,
+  capabilities,
   dense,
   sortKey,
   sortDir,
   onSort,
   footer,
 }: ResourceTableProps) {
+  const caps = capabilities ?? { mutations: false, logs: true, events: true }
   return (
     <div className="panel">
       <div className="table-wrap">
@@ -78,6 +88,7 @@ export function ResourceTable({
                   </th>
                 )
               })}
+              <th className="actions-head" aria-label="Actions" />
             </tr>
           </thead>
           <tbody>
@@ -86,7 +97,7 @@ export function ResourceTable({
                 <td
                   data-testid="empty-state"
                   className="empty-state"
-                  colSpan={SORT_COLUMNS.length}
+                  colSpan={SORT_COLUMNS.length + 1}
                 >
                   waiting for bridge data{source ? ` (${source})` : ''}
                 </td>
@@ -155,6 +166,16 @@ export function ResourceTable({
                       <span className="cell-value">
                         <StatusPill phase={row.phase} />
                       </span>
+                    </td>
+                    <td
+                      data-label="Actions"
+                      className="row-actions"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <RowActionsMenu
+                        actions={rowActions(kind, row, caps)}
+                        onAction={(action) => onAction?.(row, action)}
+                      />
                     </td>
                   </tr>
                 )

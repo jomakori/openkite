@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { RowActionId } from './actions'
 import type { ResourceRow } from './bridge'
+import type { Capabilities } from './settings'
 import { Icon, type IconName } from './shell/icons'
 import { ResourceTable } from './ResourceTable'
 import {
   filterRows,
-  namespaceCounts,
   pageCount,
   pageItems,
   paginate,
@@ -21,7 +22,9 @@ export interface ResourceViewProps {
   source: string
   icon?: IconName
   selectedKey?: string | null
+  capabilities?: Capabilities
   onSelect: (row: ResourceRow) => void
+  onAction?: (row: ResourceRow, action: RowActionId) => void
   onToast: (message: string) => void
 }
 
@@ -33,17 +36,17 @@ export function ResourceView({
   source,
   icon,
   selectedKey,
+  capabilities,
   onSelect,
+  onAction,
   onToast,
 }: ResourceViewProps) {
-  const [namespace, setNamespace] = useState('all')
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<SortState>({ key: 'name', dir: 'asc' })
   const [dense, setDense] = useState(false)
   const [page, setPage] = useState(1)
 
-  const namespaces = useMemo(() => namespaceCounts(rows), [rows])
-  const filtered = useMemo(() => filterRows(rows, namespace, query), [rows, namespace, query])
+  const filtered = useMemo(() => filterRows(rows, 'all', query), [rows, query])
   const sorted = useMemo(() => sortRows(filtered, sort.key, sort.dir), [filtered, sort])
   const pages = pageCount(sorted.length)
   const current = Math.min(page, pages)
@@ -51,7 +54,7 @@ export function ResourceView({
 
   useEffect(() => {
     setPage(1)
-  }, [namespace, query, rows])
+  }, [query, rows])
 
   const singular = noun.endsWith('s') ? noun.slice(0, -1) : noun
 
@@ -62,8 +65,8 @@ export function ResourceView({
           <div className="eyebrow">{section}</div>
           <h1>{title}</h1>
           <p className="page-sub">
-            Live {noun} inventory across the cluster. Select a row for details, or filter by
-            namespace below.
+            Live {noun} inventory across the cluster. Select a row for details, or use the
+            namespace filter in the top bar.
           </p>
         </div>
         <div className="page-actions">
@@ -87,25 +90,6 @@ export function ResourceView({
       </div>
 
       <div className="toolbar">
-        <div className="chip-row" role="group" aria-label="Namespace filter">
-          <button
-            className={namespace === 'all' ? 'chip active' : 'chip'}
-            type="button"
-            onClick={() => setNamespace('all')}
-          >
-            All <span className="count">{rows.length}</span>
-          </button>
-          {namespaces.map((entry) => (
-            <button
-              key={entry.namespace}
-              className={namespace === entry.namespace ? 'chip active' : 'chip'}
-              type="button"
-              onClick={() => setNamespace(entry.namespace)}
-            >
-              {entry.namespace} <span className="count">{entry.count}</span>
-            </button>
-          ))}
-        </div>
         <label className="search-field">
           <Icon name="search" />
           <input
@@ -131,8 +115,11 @@ export function ResourceView({
         rows={visible}
         source={source}
         icon={icon}
+        kind={noun}
+        capabilities={capabilities}
         selectedKey={selectedKey}
         onSelect={onSelect}
+        onAction={onAction}
         dense={dense}
         sortKey={sort.key}
         sortDir={sort.dir}

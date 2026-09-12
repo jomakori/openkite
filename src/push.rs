@@ -125,21 +125,29 @@ impl PushRegistry {
         self.subs.is_empty()
     }
 
-    /// Subscription ids currently watching `kind`, matching namespace rules:
-    /// a subscription with `ns: None` wants every namespace, one with
-    /// `Some(ns)` only that namespace.
-    fn matching(&self, kind: &str, ns: Option<&str>) -> Vec<u64> {
+    /// Subscription ids (and their namespace scope) currently watching `kind`.
+    ///
+    /// Namespace rules:
+    /// - a subscription with `ns: None` wants every namespace and matches any
+    ///   publish;
+    /// - a namespaced publish (`Some`) matches a wildcard subscription and the
+    ///   exact namespace, but not another namespace;
+    /// - a global publish (`None`) matches every subscription watching the kind,
+    ///   including namespaced ones. Those namespaced rows are narrowed before
+    ///   delivery ([`deliver_rows`]) so a namespace-scoped view still receives
+    ///   live updates even though the reflector publishes all namespaces.
+    fn matching(&self, kind: &str, ns: Option<&str>) -> Vec<(u64, Option<String>)> {
         self.subs
             .iter()
             .filter(|(_, s)| {
                 s.kind == kind
                     && match (&s.ns, ns) {
                         (None, _) => true,
+                        (Some(_), None) => true,
                         (Some(want), Some(got)) => want == got,
-                        (Some(_), None) => false,
                     }
             })
-            .map(|(id, _)| *id)
+            .map(|(id, s)| (*id, s.ns.clone()))
             .collect()
     }
 
@@ -185,6 +193,19 @@ pub fn is_installed() -> bool {
     PUSH_TX.get().is_some()
 }
 
+/// Narrow a publish's rows to one subscription's namespace.
+///
+/// A global publish carries every namespace, so a namespaced subscription must
+/// filter. A namespaced publish is already scoped by the publisher. Cluster-
+/// scoped objects (no `metadata.namespace`) survive either way, so a
+/// namespace-scoped view of nodes never blanks out.
+fn deliver_rows(rows: Vec<Value>, publish_ns: Option<&str>, sub_ns: Option<&str>) -> Vec<Value> {
+    match (publish_ns, sub_ns) {
+        (None, Some(ns)) if !ns.is_empty() => crate::state::live::filter_ns(rows, Some(ns)),
+        _ => rows,
+    }
+}
+
 /// Publish rows for `kind`/`ns` to every matching subscription.
 ///
 /// Returns how many messages were queued. Zero means nobody was listening —
@@ -200,14 +221,18 @@ pub fn publish(kind: &str, ns: Option<&str>, rows: Vec<Value>) -> usize {
             // request is not.
             Err(poisoned) => poisoned.into_inner(),
         };
-        reg.matching(kind, ns)
+        let matched = reg.matching(kind, ns);
+        matched
             .into_iter()
-            .map(|sub| PushMessage {
-                sub,
-                kind: kind.to_string(),
-                ns: ns.map(str::to_string),
-                rows: rows.clone(),
-                revision: reg.advance(sub),
+            .map(|(sub, sub_ns)| {
+                let delivered = deliver_rows(rows.clone(), ns, sub_ns.as_deref());
+                PushMessage {
+                    sub,
+                    kind: kind.to_string(),
+                    ns: sub_ns.or_else(|| ns.map(str::to_string)),
+                    rows: delivered,
+                    revision: reg.advance(sub),
+                }
             })
             .collect::<Vec<_>>()
     };
@@ -248,18 +273,55 @@ mod tests {
         let one = reg.subscribe("pods", Some("default".into()));
         let other = reg.subscribe("pods", Some("kube-system".into()));
 
-        // A cluster-wide publish reaches the wildcard subscription.
-        let got = reg.matching("pods", None);
-        assert_eq!(got, vec![all]);
+        // A cluster-wide publish reaches every pods subscription.
+        let mut got: Vec<u64> = reg
+            .matching("pods", None)
+            .into_iter()
+            .map(|(id, _)| id)
+            .collect();
+        got.sort();
+        assert_eq!(got, vec![all, one, other]);
 
-        // A namespaced publish reaches the wildcard AND the exact match.
-        let mut got = reg.matching("pods", Some("default"));
+        // A namespaced publish reaches the wildcard AND the exact match only.
+        let mut got: Vec<u64> = reg
+            .matching("pods", Some("default"))
+            .into_iter()
+            .map(|(id, _)| id)
+            .collect();
         got.sort();
         assert_eq!(got, vec![all, one]);
         assert!(!got.contains(&other));
 
         // Different kind matches nothing.
         assert!(reg.matching("secrets", Some("default")).is_empty());
+    }
+
+    #[test]
+    fn deliver_rows_narrows_a_global_publish_to_a_namespaced_subscription() {
+        let rows = vec![
+            serde_json::json!({"metadata": {"namespace": "default", "name": "a"}}),
+            serde_json::json!({"metadata": {"namespace": "kube-system", "name": "b"}}),
+            serde_json::json!({"metadata": {"name": "node-1"}}),
+        ];
+        let namespaced = deliver_rows(rows.clone(), None, Some("default"));
+        assert_eq!(namespaced.len(), 2, "default row + cluster-scoped node");
+        assert!(namespaced
+            .iter()
+            .any(|row| row.pointer("/metadata/name").and_then(|v| v.as_str()) == Some("a")));
+        assert!(namespaced
+            .iter()
+            .any(|row| row.pointer("/metadata/name").and_then(|v| v.as_str()) == Some("node-1")));
+
+        assert_eq!(
+            deliver_rows(rows.clone(), None, None).len(),
+            3,
+            "wildcard keeps all"
+        );
+        assert_eq!(
+            deliver_rows(rows, Some("default"), Some("default")).len(),
+            3,
+            "an already-scoped publish passes through"
+        );
     }
 
     #[test]

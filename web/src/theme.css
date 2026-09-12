@@ -1427,3 +1427,473 @@
     display: none;
   }
 }
+
+/* ── Namespace filter (topbar) ──────────────────────────────────────── */
+
+#openkite-react-spike-root .namespace-filter {
+  position: relative;
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+}
+
+#openkite-react-spike-root .namespace-filter .icon {
+  position: absolute;
+  left: 10px;
+  width: 14px;
+  height: 14px;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+#openkite-react-spike-root .namespace-filter select {
+  min-height: 40px;
+  max-width: 220px;
+  padding: 0 30px 0 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-solid);
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+  box-shadow: var(--shadow-rest);
+  appearance: none;
+}
+
+#openkite-react-spike-root .topbar .topbar-actions {
+  margin-left: 10px;
+}
+
+/* ── Per-row kebab actions ──────────────────────────────────────────── */
+
+#openkite-react-spike-root .actions-head,
+#openkite-react-spike-root .row-actions {
+  width: 56px;
+  text-align: right;
+}
+
+#openkite-react-spike-root .row-menu-wrap {
+  display: inline-flex;
+  justify-content: flex-end;
+  position: relative;
+}
+
+#openkite-react-spike-root .row-menu-btn {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+#openkite-react-spike-root .row-menu-btn:hover {
+  background: var(--surface-solid);
+  border-color: var(--border);
+}
+
+#openkite-react-spike-root .row-menu {
+  z-index: 95;
+  min-width: 176px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-solid);
+  box-shadow: var(--shadow-hover);
+}
+
+#openkite-react-spike-root .row-menu-item {
+  min-height: 36px;
+  justify-content: flex-start;
+  padding: 0 10px;
+  border-radius: var(--r-sm);
+  font-size: 12.5px;
+  color: var(--fg);
+}
+
+#openkite-react-spike-root .row-menu-item:hover:not([disabled]) {
+  background: var(--bg);
+}
+
+#openkite-react-spike-root .row-menu-item[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+#openkite-react-spike-root .row-menu-item.destructive:not([disabled]) {
+  color: var(--danger);
+}
+
+/* ── Detail panel tabs ──────────────────────────────────────────────── */
+
+#openkite-react-spike-root .inspector-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+#openkite-react-spike-root .inspector-tab {
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+#openkite-react-spike-root .inspector-tab:hover {
+  color: var(--fg);
+}
+
+#openkite-react-spike-root .inspector-tab.active {
+  color: var(--fg);
+  border-bottom-color: var(--accent);
+}
+
+#openkite-react-spike-root .detail-empty {
+  color: var(--muted);
+  font-size: 12.5px;
+  padding: 12px 0;
+}
+
+#openkite-react-spike-root .inspector-logs {
+  background: var(--terminal-bg);
+  border-radius: var(--r-md);
+  padding: 8px 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.75;
+  overflow: auto;
+  max-height: 60vh;
+}
+
+#openkite-react-spike-root .event-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#openkite-react-spike-root .event-row {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 10px 12px;
+  background: var(--surface);
+}
+
+#openkite-react-spike-root .event-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 11px;
+}
+
+#openkite-react-spike-root .event-type {
+  font-weight: 600;
+  color: var(--success);
+}
+
+#openkite-react-spike-root .event-type.warning {
+  color: var(--warn);
+}
+
+#openkite-react-spike-root .event-reason {
+  color: var(--fg);
+}
+
+#openkite-react-spike-root .event-count,
+#openkite-react-spike-root .event-age {
+  color: var(--muted);
+  margin-left: auto;
+}
+
+#openkite-react-spike-root .event-age {
+  margin-left: 0;
+}
+
+#openkite-react-spike-root .event-message {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--muted);
+  word-break: break-word;
+}
+
+/* ── Settings surface ───────────────────────────────────────────────── */
+
+#openkite-react-spike-root .settings-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 85;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+#openkite-react-spike-root .settings-modal {
+  display: flex;
+  width: min(760px, 100%);
+  height: min(560px, 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-solid);
+  box-shadow: var(--shadow-terminal);
+  overflow: hidden;
+}
+
+#openkite-react-spike-root .settings-sidebar {
+  flex: 0 0 200px;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  padding: 16px 10px;
+}
+
+#openkite-react-spike-root .settings-title {
+  font-size: 15px;
+  font-weight: 600;
+  padding: 0 10px 12px;
+}
+
+#openkite-react-spike-root .settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+#openkite-react-spike-root .settings-nav-item {
+  min-height: 40px;
+  justify-content: flex-start;
+  padding: 0 10px;
+  border-radius: var(--r-sm);
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+#openkite-react-spike-root .settings-nav-item:hover {
+  background: var(--bg);
+  color: var(--fg);
+}
+
+#openkite-react-spike-root .settings-nav-item.active {
+  background: var(--surface-solid);
+  color: var(--fg);
+  box-shadow: var(--shadow-rest);
+}
+
+#openkite-react-spike-root .settings-panel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+#openkite-react-spike-root .settings-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+#openkite-react-spike-root .settings-header h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+#openkite-react-spike-root .settings-header .icon-btn {
+  margin-left: auto;
+}
+
+#openkite-react-spike-root .settings-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 18px;
+}
+
+#openkite-react-spike-root .setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 14px 0;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+}
+
+#openkite-react-spike-root .setting-row:last-child {
+  border-bottom: 0;
+}
+
+#openkite-react-spike-root .setting-label {
+  font-size: 13px;
+  color: var(--fg);
+}
+
+#openkite-react-spike-root .setting-hint {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+#openkite-react-spike-root .settings-select {
+  min-height: 40px;
+  max-width: 240px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-solid);
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+  box-shadow: var(--shadow-rest);
+}
+
+#openkite-react-spike-root .settings-select[disabled] {
+  opacity: 0.55;
+}
+
+#openkite-react-spike-root .settings-checkbox {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--accent);
+}
+
+#openkite-react-spike-root .settings-value {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+#openkite-react-spike-root .segmented {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  background: var(--surface-solid);
+}
+
+#openkite-react-spike-root .segment {
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 0;
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: capitalize;
+}
+
+#openkite-react-spike-root .segment + .segment {
+  border-left: 1px solid var(--border);
+}
+
+#openkite-react-spike-root .segment.active {
+  background: var(--fg);
+  color: white;
+}
+
+#openkite-react-spike-root .segment[disabled] {
+  opacity: 0.5;
+}
+
+/* ── YAML view ──────────────────────────────────────────────────────── */
+
+#openkite-react-spike-root .yaml-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 92;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+#openkite-react-spike-root .yaml-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(760px, 100%);
+  max-height: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-solid);
+  box-shadow: var(--shadow-terminal);
+  overflow: hidden;
+}
+
+#openkite-react-spike-root .yaml-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+#openkite-react-spike-root .yaml-header h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+}
+
+#openkite-react-spike-root .yaml-header .icon-btn {
+  margin-left: auto;
+}
+
+#openkite-react-spike-root .yaml-body {
+  margin: 0;
+  padding: 16px 18px;
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--fg);
+  white-space: pre;
+}
+
+@media (max-width: 767px) {
+  #openkite-react-spike-root .namespace-filter {
+    margin-left: 0;
+  }
+
+  #openkite-react-spike-root .namespace-filter select {
+    max-width: 150px;
+  }
+
+  #openkite-react-spike-root .settings-modal {
+    flex-direction: column;
+    height: min(640px, 100%);
+  }
+
+  #openkite-react-spike-root .settings-sidebar {
+    flex: 0 0 auto;
+    flex-direction: row;
+    align-items: center;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+    padding: 10px;
+  }
+
+  #openkite-react-spike-root .settings-title {
+    display: none;
+  }
+
+  #openkite-react-spike-root .settings-nav {
+    flex-direction: row;
+  }
+}
+

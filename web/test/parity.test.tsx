@@ -13,18 +13,24 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { rowActions } from '../src/actions'
 import { Inspector } from '../src/Inspector'
 import { LogDock } from '../src/LogDock'
 import { ResourceTable } from '../src/ResourceTable'
 import { ResourceView } from '../src/ResourceView'
 import { Shell } from '../src/Shell'
 import { countRows, rowsFromList, rowsFromPayload } from '../src/bridge'
+import { eventsForResource, resourceKind } from '../src/events'
 import { FIXTURE_CONTEXT, fixtureList } from '../src/fixtures'
 import { fixtureLogLines, parseLogLines } from '../src/logs'
 import { BottomNav } from '../src/shell/BottomNav'
 import { PullIndicator } from '../src/shell/PullIndicator'
+import { Settings } from '../src/shell/Settings'
 import { ToastViewport } from '../src/shell/Toast'
+import { Topbar } from '../src/shell/Topbar'
+import { namespacesFromList } from '../src/shell/useNamespaces'
 import { COUNTED_KINDS } from '../src/shell/nav'
+import { consoleThemeTokens, DEFAULT_SETTINGS } from '../src/settings'
 import {
   filterRows,
   namespaceCounts,
@@ -35,6 +41,7 @@ import {
   sortRows,
   statusTone,
 } from '../src/table'
+import { toYaml } from '../src/yaml'
 
 const webRoot = process.cwd()
 const repoRoot = resolve(webRoot, '..')
@@ -119,6 +126,36 @@ for (const marker of [
 for (const label of ['Nodes', 'Pods', 'Deployments', 'Services', 'ConfigMaps', 'Argo CD']) {
   assert.ok(shellHtml.includes(`>${label}<`), `shell DOM missing nav label '${label}'`)
 }
+
+// 2a. The topbar hosts the namespace filter, defaulting to all namespaces.
+assertClasses(shellHtml, ['namespace-filter'], 'topbar namespace filter')
+assert.ok(shellHtml.includes('All namespaces'), 'namespace filter defaults to all namespaces')
+assert.ok(
+  shellHtml.includes('aria-label="Namespace filter"'),
+  'namespace filter is labelled for a11y',
+)
+assert.deepEqual(
+  namespacesFromList(fixtureList('namespaces', null)),
+  ['argocd', 'default', 'kube-system'],
+  'namespace list parsed from a kube list',
+)
+
+const topbarHtml = renderToStaticMarkup(
+  <Topbar
+    context="staging (fixtures)"
+    section="Workloads"
+    current="Pods"
+    namespaces={['default', 'kube-system']}
+    namespace="default"
+    onNamespace={() => {}}
+    onMenu={() => {}}
+    onRefresh={() => {}}
+    onOpenSettings={() => {}}
+  />,
+)
+assert.ok(topbarHtml.includes('All namespaces'), 'topbar offers all namespaces')
+assert.ok(topbarHtml.includes('value="kube-system"'), 'topbar lists the served namespaces')
+assert.ok(topbarHtml.includes('aria-label="Settings"'), 'topbar settings button opens the surface')
 
 // 2b. The host hands the console the nav id of the taken-over route; the
 // shell must open on that view (and its breadcrumb) rather than always Pods.
@@ -219,14 +256,14 @@ assertClasses(
     'btn-primary',
     'btn-secondary',
     'toolbar',
-    'chip-row',
     'chip',
-    'active',
     'search-field',
     'panel',
     'table-wrap',
     'resource-table',
     'th-sort',
+    'row-actions',
+    'row-menu-btn',
     'pill',
     'success',
     'health-dots',
@@ -245,16 +282,63 @@ assert.equal(
   'resource view first page row count',
 )
 assert.ok(viewHtml.includes('Showing 8 of 12 pods'), 'pagination summary')
-assert.ok(viewHtml.includes('chip active'), 'namespace "All" chip active')
+assert.ok(viewHtml.includes('Compact'), 'compact density toggle present')
+assert.equal(
+  (viewHtml.match(/aria-label="Resource actions"/g) ?? []).length,
+  PAGE_SIZE,
+  'every visible row carries a kebab action menu',
+)
 
-// 6. Inspector slide-over is an overlay rendered on top of the current view.
+// 5b. Kebab entries use the Lens vocabulary and honour backend capability.
+const podActions = rowActions('pods', pods[0], { mutations: false, logs: true, events: true })
+assert.deepEqual(
+  podActions.map((action) => action.id),
+  ['view-yaml', 'logs', 'delete'],
+  'pod kebab vocabulary omits Scale/Restart',
+)
+assert.ok(podActions[0].enabled, 'View YAML is always available')
+assert.ok(podActions[1].enabled, 'Logs is available for pods')
+assert.ok(!podActions[2].enabled && podActions[2].reason, 'Delete disabled with a reason')
+
+const deployActions = rowActions('deployments', pods[0], {
+  mutations: false,
+  logs: true,
+  events: true,
+})
+assert.deepEqual(
+  deployActions.map((action) => action.id),
+  ['view-yaml', 'scale', 'restart', 'delete'],
+  'deployment kebab vocabulary',
+)
+assert.ok(
+  deployActions.filter((action) => action.id !== 'view-yaml').every((action) => !action.enabled),
+  'mutation actions are disabled while the backend is Phase 1',
+)
+const enabledActions = rowActions('deployments', pods[0], {
+  mutations: true,
+  logs: true,
+  events: true,
+})
+assert.ok(
+  enabledActions.filter((action) => action.id !== 'view-yaml').every((action) => action.enabled),
+  'mutation actions enable when capabilities.mutations is true',
+)
+assert.equal(resourceKind('deployments'), 'Deployment', 'noun maps to a kube Kind')
+
+// 6. Inspector is the Lens-shaped Details/Events/Logs detail panel.
 const inspectorHtml = renderToStaticMarkup(
   <Inspector
     row={pods[0]}
+    kind="pods"
     open
+    tab="details"
+    onTab={() => {}}
     onClose={() => {}}
     onViewLogs={() => {}}
+    onViewYaml={() => {}}
     onToast={() => {}}
+    lines={fixtureLogLines(pods[0].name)}
+    events={[]}
   />,
 )
 assertClasses(
@@ -265,6 +349,9 @@ assertClasses(
     'inspector-scrim',
     'show',
     'inspector-header',
+    'inspector-tabs',
+    'inspector-tab',
+    'active',
     'inspector-body',
     'inspector-eyebrow',
     'kv-list',
@@ -276,6 +363,55 @@ assertClasses(
 )
 assert.ok(inspectorHtml.includes('Resource summary'), 'inspector summary heading')
 assert.ok(inspectorHtml.includes(pods[0].name), 'inspector carries the selected row name')
+for (const tab of ['Details', 'Events', 'Logs']) {
+  assert.ok(inspectorHtml.includes(`>${tab}<`), `inspector tab '${tab}'`)
+}
+
+const events = eventsForResource(
+  fixtureList('events', null),
+  'pods',
+  'redis-7b9c5d6f8-h2klm',
+  'default',
+)
+assert.equal(events.length, 1, 'event filter matches the involved pod')
+assert.equal(events[0].reason, 'BackOff', 'event reason mapped')
+const eventsHtml = renderToStaticMarkup(
+  <Inspector
+    row={pods.find((pod) => pod.name.startsWith('redis-')) ?? pods[0]}
+    kind="pods"
+    open
+    tab="events"
+    onTab={() => {}}
+    onClose={() => {}}
+    onViewLogs={() => {}}
+    onViewYaml={() => {}}
+    onToast={() => {}}
+    lines={[]}
+    events={events}
+  />,
+)
+assertClasses(eventsHtml, ['event-list', 'event-row', 'event-reason', 'event-message'], 'events tab')
+assert.ok(eventsHtml.includes('BackOff'), 'events tab shows the fetched event')
+
+const nonPodLogsHtml = renderToStaticMarkup(
+  <Inspector
+    row={pods[0]}
+    kind="deployments"
+    open
+    tab="logs"
+    onTab={() => {}}
+    onClose={() => {}}
+    onViewLogs={() => {}}
+    onViewYaml={() => {}}
+    onToast={() => {}}
+    lines={[]}
+    events={[]}
+  />,
+)
+assert.ok(
+  nonPodLogsHtml.includes('Logs are available for pods only'),
+  'logs tab is honest for non-pod kinds',
+)
 
 // 7. Log dock is an inline collapsible panel fed by log lines.
 const logHtml = renderToStaticMarkup(
@@ -335,6 +471,105 @@ assertClasses(
   'bottom nav',
 )
 
+// 8b. Settings surface: grouped the Lens way and hosting the persisted fields.
+const settingsHtml = renderToStaticMarkup(
+  <Settings
+    open
+    snapshot={DEFAULT_SETTINGS}
+    context="staging (fixtures)"
+    onClose={() => {}}
+    onChange={() => {}}
+  />,
+)
+assertClasses(
+  settingsHtml,
+  [
+    'settings-backdrop',
+    'settings-modal',
+    'settings-sidebar',
+    'settings-title',
+    'settings-nav',
+    'settings-nav-item',
+    'active',
+    'settings-panel',
+    'settings-header',
+    'settings-body',
+    'setting-row',
+    'setting-label',
+    'setting-hint',
+    'setting-control',
+    'settings-select',
+    'segmented',
+    'segment',
+  ],
+  'settings surface',
+)
+for (const group of ['Appearance', 'Kubernetes', 'Terminal', 'Application']) {
+  assert.ok(settingsHtml.includes(`>${group}<`), `settings group '${group}'`)
+}
+for (const label of ['Theme', 'Font size', 'Title bar theme']) {
+  assert.ok(settingsHtml.includes(label), `settings control '${label}'`)
+}
+
+const kubernetesSettingsHtml = renderToStaticMarkup(
+  <Settings
+    open
+    initialCategory="kubernetes"
+    snapshot={DEFAULT_SETTINGS}
+    context="staging (fixtures)"
+    onClose={() => {}}
+    onChange={() => {}}
+  />,
+)
+assert.ok(kubernetesSettingsHtml.includes('Metrics columns'), 'kubernetes group control')
+
+const terminalSettingsHtml = renderToStaticMarkup(
+  <Settings
+    open
+    initialCategory="terminal"
+    snapshot={DEFAULT_SETTINGS}
+    context="staging (fixtures)"
+    onClose={() => {}}
+    onChange={() => {}}
+  />,
+)
+assert.ok(terminalSettingsHtml.includes('Default shell'), 'terminal group control')
+
+const applicationSettingsHtml = renderToStaticMarkup(
+  <Settings
+    open
+    initialCategory="application"
+    snapshot={DEFAULT_SETTINGS}
+    context="staging (fixtures)"
+    onClose={() => {}}
+    onChange={() => {}}
+  />,
+)
+assert.ok(applicationSettingsHtml.includes('Menu bar'), 'application group control')
+assert.ok(applicationSettingsHtml.includes('Version'), 'application group shows the version')
+
+// 8c. Theme tokens + YAML rendering used by the new surfaces.
+assert.deepEqual(
+  consoleThemeTokens({ '--bg-0': '#111', '--fg-0': '#eee', '--accent': '#abc' }),
+  {
+    '--bg': '#111',
+    '--fg': '#eee',
+    '--accent': '#abc',
+    '--progress': '#abc',
+    '--terminal-fg': '#eee',
+  },
+  'opaline vars map onto console tokens',
+)
+const yamlText = toYaml({
+  apiVersion: 'v1',
+  kind: 'Pod',
+  metadata: { name: 'demo-pod' },
+  containers: [{ name: 'app' }],
+})
+assert.ok(yamlText.includes('apiVersion: v1'), 'yaml renders scalar keys')
+assert.ok(yamlText.includes('name: demo-pod'), 'yaml renders nested scalars')
+assert.ok(yamlText.includes('-'), 'yaml renders list items')
+
 // 9. theme.css defines every scoped selector these primitives rely on.
 const css = readFileSync(resolve(webRoot, 'src/theme.css'), 'utf8').replace(/\s+/g, ' ')
 for (const selector of [
@@ -357,6 +592,17 @@ for (const selector of [
   '#openkite-react-spike-root .bottom-nav',
   '#openkite-react-spike-root .pull-indicator.show',
   '#openkite-react-spike-root .spinner',
+  '#openkite-react-spike-root .namespace-filter select',
+  '#openkite-react-spike-root .row-menu',
+  '#openkite-react-spike-root .row-menu-item',
+  '#openkite-react-spike-root .inspector-tabs',
+  '#openkite-react-spike-root .inspector-tab.active',
+  '#openkite-react-spike-root .event-list',
+  '#openkite-react-spike-root .settings-modal',
+  '#openkite-react-spike-root .settings-nav-item.active',
+  '#openkite-react-spike-root .setting-row',
+  '#openkite-react-spike-root .segment.active',
+  '#openkite-react-spike-root .yaml-modal',
 ]) {
   assert.ok(css.includes(selector), `theme.css missing scoped selector '${selector}'`)
 }
@@ -380,6 +626,13 @@ const markers = [
   'bottom-nav',
   'pull-indicator',
   'pager',
+  'namespace-filter',
+  'row-menu',
+  'inspector-tabs',
+  'event-list',
+  'settings-modal',
+  'yaml-modal',
+  'View YAML',
 ]
 const desktopBundle = readFileSync(
   resolve(repoRoot, 'assets/vendored/openkite-react-spike/app.js'),
