@@ -168,6 +168,51 @@ pub fn js_plugins() -> Vec<crate::plugin_js::JsBundle> {
     JS_PLUGINS.get().cloned().unwrap_or_default()
 }
 
+/// Ping channel for applying persisted settings on the Dioxus side.
+///
+/// The `/openkite-spike` settings handler runs on the webview asset-handler
+/// thread, where `dioxus::desktop::window()` (a Dioxus context lookup) and the
+/// Dioxus runtime are unavailable. It only *pings* this channel; the receiver
+/// started by `router::AppShell` reads the persisted config and applies the
+/// OS-level settings in-runtime.
+static SETTINGS_TX: OnceLock<tokio::sync::mpsc::UnboundedSender<()>> = OnceLock::new();
+
+/// Start the settings-apply receiver (idempotent; first caller wins).
+pub fn install_settings_apply() -> Option<tokio::sync::mpsc::UnboundedReceiver<()>> {
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+    match SETTINGS_TX.set(tx) {
+        Ok(()) => Some(rx),
+        Err(_) => None,
+    }
+}
+
+/// Ask the Dioxus-side receiver to apply the persisted OS settings.
+///
+/// Safe from any thread; a missing receiver (before the first AppShell mount)
+/// logs and returns rather than panicking.
+pub fn request_settings_apply() {
+    match SETTINGS_TX.get() {
+        Some(tx) => {
+            let _ = tx.send(());
+        }
+        None => tracing::warn!("settings apply skipped: Dioxus apply task not started yet"),
+    }
+}
+
+/// Apply the persisted OS-level settings to the live window.
+///
+/// Must run on the Dioxus side: `menubar` and `titlebar` reach the window
+/// through a Dioxus context lookup.
+pub fn apply_persisted_os_settings() {
+    let config = crate::config::OpenKiteConfig::load();
+    if crate::menubar::hideable() {
+        crate::menubar::set(config.menu_bar);
+    }
+    if crate::titlebar::overridable() {
+        crate::titlebar::set(config.title_bar_theme);
+    }
+}
+
 /// Publish the namespace list for the multi-select chips.
 pub fn set_namespaces(ns: Vec<String>) {
     *NAMESPACES.write() = ns;
