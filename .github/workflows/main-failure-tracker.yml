@@ -1,0 +1,57 @@
+name: main-failure-tracker
+
+# Post-merge fail-safe (OKT-106). A green set of *required* checks does not prove
+# the workflows a merge triggered actually succeeded: `release.yml` is
+# path-filtered to Rust/Cargo paths, so a workflow-only merge never runs it, and
+# its red state is otherwise invisible. This workflow turns any failed run on
+# main into exactly one tracking issue per workflow and updates that same issue
+# on later failures instead of filing duplicates.
+on:
+  workflow_run:
+    workflows: ["lint-test", "e2e", "Release"]
+    types: [completed]
+    branches: [main]
+  # Manual re-report: point at a specific run id. Used to file a missed failure
+  # or to replay a known one through the same code path.
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Actions run id to report'
+        required: true
+        type: string
+      workflow_name:
+        description: 'Workflow name to attribute the failure to'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+  issues: write
+
+# One tracking issue per workflow: serialize reports so two failures completing
+# at once cannot both create the issue.
+concurrency:
+  group: main-failure-tracker
+  cancel-in-progress: false
+
+jobs:
+  report:
+    name: Open or update the tracking issue
+    # Only failures are reported; a successful run is the normal case and a
+    # cancelled run is usually our own concurrency controls, not a regression.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'failure' ||
+      github.event.workflow_run.conclusion == 'timed_out' ||
+      github.event.workflow_run.conclusion == 'startup_failure'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Report the failure
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ID: ${{ inputs.run_id || github.event.workflow_run.id }}
+          WORKFLOW_NAME: ${{ inputs.workflow_name || github.event.workflow_run.name }}
+        run: bash .github/scripts/report-main-failure.sh
