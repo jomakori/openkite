@@ -37,6 +37,8 @@ export interface ClusterContext {
   context: string | null
   connected: boolean
   version?: string
+  /** Whether the backend can apply cluster mutations today (crud.rs Phase 1). */
+  mutations?: boolean
 }
 
 /** One delivery from the host's additive Rust → JS push channel. */
@@ -97,7 +99,7 @@ export type BridgeMode = 'host' | 'shim'
  * reply (a static host's SPA fallback answers `index.html`). Distinct from a
  * bridge-envelope error, which means the host IS present and answered.
  */
-class BridgeTransportError extends Error {}
+export class BridgeTransportError extends Error {}
 
 let nextId = 1
 
@@ -136,6 +138,16 @@ function call(request: FixtureRequest): Promise<unknown> {
     if (err instanceof BridgeTransportError) return fixtureCall(request)
     throw err
   })
+}
+
+/**
+ * POST one request to the console's `/openkite-spike` endpoint (settings,
+ * context). Reuses the bridge transport so callers can distinguish a missing
+ * host ([`BridgeTransportError`]) from a real host error and fall back to
+ * local defaults in the browser target.
+ */
+export async function spikeRequest(body: unknown): Promise<unknown> {
+  return fetchJson('/openkite-spike', body)
 }
 
 function installShim(): OpenKiteBridge {

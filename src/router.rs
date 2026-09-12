@@ -157,6 +157,19 @@ fn AppShell() -> Element {
         });
     });
 
+    // Apply persisted OS settings (menu bar visibility, title bar
+    // theme) on the Dioxus side. The settings handler runs off-runtime and can
+    // only ping; this receiver does the `desktop::window()` work in-runtime.
+    use_hook(|| {
+        if let Some(mut rx) = crate::runtime::install_settings_apply() {
+            spawn(async move {
+                while rx.recv().await.is_some() {
+                    crate::runtime::apply_persisted_os_settings();
+                }
+            });
+        }
+    });
+
     // OKT-91: drain the Rust → JS push channel, on the Dioxus side. The eval
     // must happen here — `document::eval` resolves the document from the
     // thread-local Dioxus runtime, and from a tokio worker it silently targets

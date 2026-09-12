@@ -13,7 +13,7 @@
 //! carries the cut/copy/paste accelerators. [`hideable`] is false there, so
 //! the palette never offers a switch that would silently no-op.
 
-use crate::config::OpenKiteConfig;
+use crate::config::{MenuBarVisibility, OpenKiteConfig};
 
 #[cfg(all(
     feature = "desktop",
@@ -146,6 +146,20 @@ pub fn toggle() {
         tracing::warn!(%error, "failed to persist the menu bar setting");
     }
     apply(next.is_visible());
+}
+
+/// Persist and apply an explicit menu-bar visibility choice.
+///
+/// Unlike [`toggle`], the caller supplies the target state — the settings
+/// surface writes the value it showed the user, so a stale read cannot flip the
+/// bar the wrong way.
+pub fn set(visibility: MenuBarVisibility) {
+    let mut config = OpenKiteConfig::load();
+    config.menu_bar = visibility;
+    if let Err(error) = config.save() {
+        tracing::warn!(%error, "failed to persist the menu bar setting");
+    }
+    apply(visibility.is_visible());
 }
 
 /// Apply a visibility change to the live window (no-op off Linux/Windows).

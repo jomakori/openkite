@@ -1,18 +1,33 @@
 import { useEffect, useRef, useState, type TouchEvent } from 'react'
-import type { ClusterContext, ResourceRow } from './bridge'
-import { Inspector } from './Inspector'
+import type { RowActionId } from './actions'
+import { resolveBridge, type ClusterContext, type ResourceRow } from './bridge'
+import { useResourceEvents } from './events'
+import { Inspector, type DetailTab } from './Inspector'
 import { LogDock } from './LogDock'
+import { YamlModal } from './ResourceActions'
 import { ResourceView } from './ResourceView'
 import { rowKey } from './ResourceTable'
+import {
+  applySettingsToDom,
+  asSettings,
+  DEFAULT_SETTINGS,
+  fetchSettings,
+  saveSettings,
+  type AppSettings,
+  type SettingsSnapshot,
+} from './settings'
 import { BottomNav } from './shell/BottomNav'
 import { PullIndicator } from './shell/PullIndicator'
+import { Settings } from './shell/Settings'
 import { Sidebar } from './shell/Sidebar'
 import { ToastProvider, useToast } from './shell/Toast'
 import { Topbar } from './shell/Topbar'
 import { findNavItem } from './shell/nav'
 import { useClusterContext, useLiveCounts } from './shell/useLiveCounts'
 import { useLogLines } from './shell/useLogLines'
+import { useNamespaces } from './shell/useNamespaces'
 import { useResourceRows } from './shell/useResourceRows'
+import { toYaml } from './yaml'
 
 interface ShellProps {
   /**
@@ -51,21 +66,81 @@ function ShellChrome({ route, initialCounts, initialContext }: ShellProps) {
   const [cleared, setCleared] = useState(false)
   const [rowNonce, setRowNonce] = useState(0)
   const [pull, setPull] = useState<{ show: boolean; text: string }>({ show: false, text: '' })
+  const [namespace, setNamespace] = useState('all')
+  const [detailTab, setDetailTab] = useState<DetailTab>('details')
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settings, setSettings] = useState<SettingsSnapshot>(DEFAULT_SETTINGS)
+  const [yaml, setYaml] = useState<{ title: string; text: string } | null>(null)
   const touchStart = useRef<number | null>(null)
 
   const live = useLiveCounts()
   const liveContext = useClusterContext()
   const counts = initialCounts ?? live.counts
   const context = initialContext ?? liveContext
+  const namespaces = useNamespaces()
 
   const found = findNavItem(activeId)
   const section = found?.section.label ?? ''
   const title = found?.item.label ?? ''
   const kind = found?.item.countKind ?? found?.item.id ?? 'pods'
   const activeSection = found?.section.id ?? ''
-  const rows = useResourceRows(kind, rowNonce)
+  const rows = useResourceRows(kind, namespace, rowNonce)
   const logTarget = selected ?? rows[0] ?? null
   const logLines = useLogLines(logTarget, rowNonce)
+  const events = useResourceEvents(kind, selected?.name ?? null, selected?.namespace ?? null)
+  const capabilities = {
+    mutations: context.mutations ?? false,
+    logs: true,
+    events: true,
+  }
+
+  useEffect(() => {
+    let cancelled = false
+    void fetchSettings()
+      .then((next) => {
+        if (cancelled) return
+        setSettings(next)
+        applySettingsToDom(next)
+      })
+      .catch(() => {
+        // A host settings failure leaves the defaults in place.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const changeSettings = async (patch: Partial<AppSettings>) => {
+    const next = { ...asSettings(settings), ...patch }
+    try {
+      const saved = await saveSettings(next)
+      setSettings(saved)
+      applySettingsToDom(saved)
+      toast.show('Settings saved')
+    } catch (error) {
+      toast.show(`Settings: ${String(error)}`)
+    }
+  }
+
+  const runRowAction = async (row: ResourceRow, action: RowActionId) => {
+    if (action === 'view-yaml') {
+      try {
+        const result = await resolveBridge().bridge.api.get(kind, row.namespace, row.name)
+        setYaml({ title: `${row.namespace}/${row.name}`, text: toYaml(result) })
+      } catch (error) {
+        toast.show(`View YAML: ${String(error)}`)
+      }
+      return
+    }
+    if (action === 'logs') {
+      setSelected(row)
+      setDetailTab('logs')
+      setLogOpen(true)
+      setLogsCollapsed(false)
+      return
+    }
+    toast.show('That action is not available in this build')
+  }
 
   const refresh = () => {
     live.refresh()
@@ -76,6 +151,7 @@ function ShellChrome({ route, initialCounts, initialContext }: ShellProps) {
   const selectNav = (id: string) => {
     setActiveId(id)
     setSelected(null)
+    setDetailTab('details')
   }
 
   // The host can re-point the console (native palette navigation, deep link)
@@ -85,6 +161,7 @@ function ShellChrome({ route, initialCounts, initialContext }: ShellProps) {
     if (route) {
       setActiveId(route)
       setSelected(null)
+      setDetailTab('details')
     }
   }, [route])
 
@@ -98,6 +175,8 @@ function ShellChrome({ route, initialCounts, initialContext }: ShellProps) {
       setSidebarOpen(false)
       setSelected(null)
       setLogOpen(false)
+      setSettingsOpen(false)
+      setYaml(null)
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
@@ -154,8 +233,12 @@ function ShellChrome({ route, initialCounts, initialContext }: ShellProps) {
           context={context.context}
           section={section}
           current={title}
+          namespaces={namespaces}
+          namespace={namespace}
+          onNamespace={setNamespace}
           onMenu={() => setSidebarOpen(true)}
           onRefresh={refresh}
+          onOpenSettings={() => setSettingsOpen(true)}
         />
         <PullIndicator show={pull.show} text={pull.text} />
 
@@ -166,10 +249,15 @@ function ShellChrome({ route, initialCounts, initialContext }: ShellProps) {
               section={section}
               title={title}
               noun={kind}
-              source={`openkite.api.list(${kind})`}
+              source={`openkite.api.list(${kind}, ${namespace === 'all' ? 'null' : `"${namespace}"`})`}
               icon={found.item.icon}
+              capabilities={capabilities}
               selectedKey={selected ? rowKey(selected) : null}
-              onSelect={setSelected}
+              onSelect={(row) => {
+                setSelected(row)
+                setDetailTab('details')
+              }}
+              onAction={(row, action) => void runRowAction(row, action)}
               onToast={toast.show}
             />
           ) : (
@@ -207,11 +295,33 @@ function ShellChrome({ route, initialCounts, initialContext }: ShellProps) {
 
       <Inspector
         row={selected}
+        kind={kind}
         open={selected !== null}
+        tab={detailTab}
+        onTab={setDetailTab}
         onClose={() => setSelected(null)}
-        onViewLogs={() => setLogOpen(true)}
+        onViewLogs={() => {
+          setDetailTab('logs')
+          setLogOpen(true)
+          setLogsCollapsed(false)
+        }}
+        onViewYaml={(row) => void runRowAction(row, 'view-yaml')}
         onToast={toast.show}
+        lines={cleared ? [] : logLines}
+        events={events}
       />
+
+      <Settings
+        open={settingsOpen}
+        snapshot={settings}
+        context={context.context}
+        onClose={() => setSettingsOpen(false)}
+        onChange={(patch) => void changeSettings(patch)}
+      />
+
+      {yaml ? (
+        <YamlModal title={yaml.title} text={yaml.text} onClose={() => setYaml(null)} />
+      ) : null}
     </div>
   )
 }

@@ -16,6 +16,7 @@ export const FIXTURE_CONTEXT: ClusterContext = {
   context: 'staging (fixtures)',
   connected: true,
   version: 'staging',
+  mutations: false,
 }
 
 interface PodOwner {
@@ -38,6 +39,11 @@ interface KubeObject {
     qosClass?: string
     containerStatuses?: Array<{ ready: boolean; restartCount?: number }>
   }
+  involvedObject?: { kind: string; name: string; namespace?: string }
+  reason?: string
+  message?: string
+  type?: string
+  count?: number
 }
 
 /** ISO timestamp `minutes` before process start (keeps fixture ages readable). */
@@ -97,6 +103,30 @@ function object(
   }
 }
 
+/** One namespace Event attached to an involved object. */
+function event(
+  name: string,
+  namespace: string,
+  kind: string,
+  objectName: string,
+  type: string,
+  reason: string,
+  message: string,
+  count: number,
+  minutes: number,
+): KubeObject {
+  return {
+    apiVersion: 'v1',
+    kind: 'Event',
+    metadata: { name, namespace, creationTimestamp: ago(minutes) },
+    involvedObject: { kind, name: objectName, namespace },
+    type,
+    reason,
+    message,
+    count,
+  }
+}
+
 // Fixtures cover every counted kind in the shell nav (`COUNTED_KINDS`) plus
 // `pods`, which the OKT-67 spike table lists, so neither surface renders empty.
 const FIXTURE_ITEMS: Record<string, KubeObject[]> = {
@@ -104,6 +134,46 @@ const FIXTURE_ITEMS: Record<string, KubeObject[]> = {
     object('Node', 'okt-staging-control', undefined, 9000, 'Running'),
     object('Node', 'okt-staging-worker-a', undefined, 8500, 'Running'),
     object('Node', 'okt-staging-worker-b', undefined, 7000, 'Running'),
+  ],
+  namespaces: [
+    object('Namespace', 'default', undefined, 9000, 'Active'),
+    object('Namespace', 'kube-system', undefined, 9000, 'Active'),
+    object('Namespace', 'argocd', undefined, 4320, 'Active'),
+  ],
+  events: [
+    event(
+      'openkite-api.17f0a1',
+      'default',
+      'Pod',
+      'openkite-api-6d9f4b7c8-2xk4p',
+      'Normal',
+      'Scheduled',
+      'Successfully assigned default/openkite-api-6d9f4b7c8-2xk4p to staging-worker-a',
+      1,
+      240,
+    ),
+    event(
+      'redis.17f0b2',
+      'default',
+      'Pod',
+      'redis-7b9c5d6f8-h2klm',
+      'Warning',
+      'BackOff',
+      'Back-off restarting failed container redis in pod redis-7b9c5d6f8-h2klm',
+      14,
+      30,
+    ),
+    event(
+      'coredns.17f0c3',
+      'kube-system',
+      'Pod',
+      'coredns-6f4b8c9d2-wq7zx',
+      'Normal',
+      'Started',
+      'Started container coredns',
+      1,
+      9000,
+    ),
   ],
   pods: [
     pod('openkite-api-6d9f4b7c8-2xk4p', 'default', 'Running', true, 240, {
