@@ -92,8 +92,7 @@ jobs:
     steps:
       # Without a checkout the workspace has no `.github/scripts/`, so the
       # locator below died with "No such file or directory" (exit 127) and the
-      # whole reuse/rebuild path was unreachable. OKT-106 found and fixed this
-      # while exercising the pipeline against a real run.
+      # whole reuse/rebuild path was unreachable.
       - name: Checkout
         uses: actions/checkout@v4
       # Squash merges mint a new SHA, so this maps the merged commit back to
@@ -168,7 +167,7 @@ jobs:
           pattern: openkite_*
           path: dist
           merge-multiple: true
-      # The fail-safe gate (OKT-106). It runs unconditionally on every publish
+      # The fail-safe gate. It runs unconditionally on every publish
       # attempt, requires all six targets by default, and fails the job before
       # anything is tagged or uploaded. `targets` can only come from an explicit
       # workflow_dispatch.

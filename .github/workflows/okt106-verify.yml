@@ -1,6 +1,6 @@
-# TEMP verify OKT-106 (do not keep)
+# TEMP verify release fail-safe (do not keep)
 #
-# DISPOSABLE. Exercises the OKT-106 fail-safe against the production scripts
+# DISPOSABLE. Exercises the release fail-safe against the production scripts
 # without publishing anything:
 #
 #   case=refuse         incomplete artifact set -> the publish preflight FAILS
@@ -15,7 +15,7 @@
 #
 # DELETE THIS FILE before the PR is ready for review.
 
-name: TEMP verify OKT-106 (do not keep)
+name: TEMP verify release fail-safe (do not keep)
 
 on:
   workflow_dispatch:

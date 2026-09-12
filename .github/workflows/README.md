@@ -53,7 +53,7 @@ the **same** code:
 - `normalize-release-assets.sh <dist-dir> <version>` — rewrite the version token
   in every asset name and refuse a partial set.
 
-## Release fail-safe (OKT-106)
+## Release fail-safe
 
 `Publish release` starts with a preflight — `normalize-release-assets.sh <dist>
 <version> [targets]` — that refuses a partial release:
@@ -73,7 +73,7 @@ the **same** code:
 The gate extends the OKT-104 completeness check in the same script instead of
 adding a second, competing preflight.
 
-## Post-merge surfacing (OKT-106)
+## Post-merge surfacing
 
 `main-failure-tracker.yml` runs when `lint-test`, `e2e`, or `Release` completes
 on `main`. A failure opens exactly one issue per workflow, naming the workflow,

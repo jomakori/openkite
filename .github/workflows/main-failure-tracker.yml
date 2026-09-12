@@ -1,6 +1,6 @@
 name: main-failure-tracker
 
-# Post-merge fail-safe (OKT-106). A green set of *required* checks does not prove
+# Post-merge fail-safe. A green set of *required* checks does not prove
 # the workflows a merge triggered actually succeeded: `release.yml` is
 # path-filtered to Rust/Cargo paths, so a workflow-only merge never runs it, and
 # its red state is otherwise invisible. This workflow turns any failed run on

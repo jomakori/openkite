@@ -3,7 +3,7 @@
 How to diagnose and recover when the [Release workflow](../.github/workflows/release.yml)
 fails. It is accurate against the workflows as they are after OKT-103 (portable
 version embed + Windows fix) and OKT-104 (build artifacts once, reuse at
-release), plus the OKT-106 fail-safe in this repository.
+release), plus the release fail-safe in this repository.
 
 `Release` is **not** a required check. It is path-filtered to `**.rs`,
 `**/Cargo.toml` and `Cargo.lock`, so it can be red while every required check is

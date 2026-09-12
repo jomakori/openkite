@@ -25,9 +25,9 @@
 #     `openkite_*` asset is removed so the release carries exactly the
 #     requested targets instead of silently publishing more than asked.
 #
-# OKT-106 extends this same script into the release fail-safe gate rather than
-# adding a second, competing preflight: `Publish release` calls it
-# unconditionally, defaulting to the strict six-target set.
+# This is the release fail-safe gate itself, not a second competing preflight:
+# `Publish release` calls it unconditionally and defaults to the strict
+# six-target set.
 set -euo pipefail
 
 dist="${1:?usage: normalize-release-assets.sh <dist-dir> <version> [expected-targets]}"
