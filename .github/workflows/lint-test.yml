@@ -46,6 +46,10 @@ jobs:
             web:
               - 'web/**'
               - 'assets/vendored/openkite-react-spike/**'
+      # Gate every downstream job on workflow hygiene: runs before the heavy
+      # Rust work, so a GNU-only `sed -i` is caught in seconds, not on macOS.
+      - name: Check workflows for GNU-only sed
+        run: bash .github/scripts/check-portable-sed.sh
 
   fmt:
     name: Check formatting
