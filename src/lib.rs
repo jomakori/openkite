@@ -36,6 +36,11 @@ pub mod views;
 pub mod workloads;
 pub mod yaml;
 
+#[cfg(target_os = "macos")]
+fn macos_only_compile_probe() {
+    let _broken: u8 = "not a u8";
+}
+
 /// Bootstrap OpenKite: load config, plugins, and kubeconfig, then launch the UI.
 #[cfg(feature = "desktop")]
 pub fn run() {
