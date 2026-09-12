@@ -139,6 +139,7 @@ cargo build --release
 - [Architecture](docs/architecture.md)
 - [Plugin development](docs/plugin-development.md)
 - [Theming](docs/theming.md)
+- [Release runbook](docs/release-runbook.md)
 - [Contributing](CONTRIBUTING.md)
 
 ## License
