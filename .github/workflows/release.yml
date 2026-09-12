@@ -90,6 +90,12 @@ jobs:
       reuse: ${{ steps.locate.outputs.reuse }}
       run_id: ${{ steps.locate.outputs.run_id }}
     steps:
+      # Without a checkout the workspace has no `.github/scripts/`, so the
+      # locator below died with "No such file or directory" (exit 127) and the
+      # whole reuse/rebuild path was unreachable. OKT-106 found and fixed this
+      # while exercising the pipeline against a real run.
+      - name: Checkout
+        uses: actions/checkout@v4
       # Squash merges mint a new SHA, so this maps the merged commit back to
       # the PR head the build ran on, then verifies a complete, unexpired set
       # exists. `reuse=false` engages the rebuild fallback below.
@@ -170,7 +176,9 @@ jobs:
         env:
           VERSION: ${{ needs.analyze.outputs.new_release_version || '0.0.0' }}
           TARGETS: ${{ inputs.targets }}
-        run: bash .github/scripts/normalize-release-assets.sh dist "$VERSION" "$TARGETS"
+        run: |
+          mkdir -p dist
+          bash .github/scripts/normalize-release-assets.sh dist "$VERSION" "$TARGETS"
       - name: Publish release (tag + notes)
         if: inputs.dry_run != 'true'
         uses: cycjimmy/semantic-release-action@v4
