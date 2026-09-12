@@ -118,6 +118,10 @@ jobs:
             libayatana-appindicator3-dev librsvg2-dev libxdo-dev \
             libssl-dev libfuse2
       - name: Install cargo-packager
+        # Only the packaging paths need the packager. The merge-queue gate is
+        # build-only, and installing this costs minutes per target — measured
+        # at 1.5-5 min on the six native runners — so skip it when package=false.
+        if: inputs.package
         run: cargo install cargo-packager --locked
       - name: Embed release version
         # Only the release FALLBACK path passes a version. PR builds leave it
