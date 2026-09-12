@@ -1,0 +1,168 @@
+name: Build release artifacts
+
+# Reusable workflow: build and package the six native release targets ONCE.
+#
+# Called from two places:
+#   - `build-artifacts.yml` on code-affecting pull requests (version unknown,
+#     so the artifact is version-agnostic — see the `version` input).
+#   - `release.yml` only as the rebuild FALLBACK when no reusable artifact
+#     exists for the merged commit (artifact expiry, force-push, failed PR
+#     build). In that path the analyzed release version is passed in and
+#     embedded at build time.
+#
+# The matrix MUST stay native: packaging needs hdiutil (DMG) and WiX/NSIS
+# (Window installers), so there is deliberately no cross-compilation here.
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: >
+          Release version to embed (e.g. 0.28.0). Empty (the PR default) builds
+          a version-agnostic artifact: semantic-release only computes the
+          version on main AFTER merge, so the version is supplied by the
+          release path at publish time instead.
+        required: false
+        type: string
+        default: ''
+      package:
+        description: >
+          Package the built binary (AppImage / DMG / NSIS) and upload the
+          installer. When false the raw release binary is uploaded instead.
+        required: false
+        type: boolean
+        default: true
+      retention-days:
+        description: >
+          Artifact retention in days (GitHub caps at 90). PR builds must
+          outlive the review + merge window so the release can reuse them.
+        required: false
+        type: number
+        default: 90
+
+permissions:
+  contents: read
+
+jobs:
+  build-artifacts:
+    name: openkite_${{ matrix.package_os }}_${{ matrix.package_arch }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            package_os: linux
+            package_arch: amd64
+            formats: appimage
+            ext: AppImage
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            package_os: linux
+            package_arch: arm64
+            formats: appimage
+            ext: AppImage
+          - os: macos-26
+            target: aarch64-apple-darwin
+            package_os: macos
+            package_arch: arm64
+            formats: dmg
+            ext: dmg
+          - os: macos-26-intel
+            target: x86_64-apple-darwin
+            package_os: macos
+            package_arch: amd64
+            formats: dmg
+            ext: dmg
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            package_os: windows
+            package_arch: amd64
+            formats: nsis
+            ext: exe
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            package_os: windows
+            package_arch: arm64
+            formats: nsis
+            ext: exe
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "."
+          key: ${{ matrix.target }}
+      - name: Install Linux system deps (Dioxus desktop)
+        if: matrix.package_os == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libglib2.0-dev \
+            libayatana-appindicator3-dev librsvg2-dev libxdo-dev \
+            libssl-dev libfuse2
+      - name: Install cargo-packager
+        run: cargo install cargo-packager --locked
+      - name: Embed release version
+        # Only the release FALLBACK path passes a version. PR builds leave it
+        # empty and stay version-agnostic; the release supplies the version at
+        # publish time. `env!("CARGO_PKG_VERSION")` therefore reports the source
+        # tree's workspace version (0.0.0) for a reused PR artifact — see the
+        # version audit in the PR that introduced this workflow.
+        #
+        # `shell: bash` is mandatory: without it Windows runs the POSIX
+        # `version=...` assignment under pwsh and dies with
+        # "The term 'version=0.28.0' is not recognized as a name of a cmdlet".
+        #
+        # `sed -i.bak` (not bare `-i`) is mandatory: macOS ships BSD sed, which
+        # treats the next arg as the backup suffix and fails with
+        # `sed: 1: "Cargo.toml\n": invalid command code C`. GNU and BSD sed both
+        # accept the attached-suffix form. `cargo build` then re-syncs
+        # Cargo.lock with the new workspace version (the build is not --locked).
+        if: inputs.version != ''
+        shell: bash
+        run: |
+          version="${{ inputs.version }}"
+          sed -i.bak "s/^version = \"[0-9][0-9.]*\"/version = \"${version}\"/" Cargo.toml
+          rm -f Cargo.toml.bak
+          grep -n '^version' Cargo.toml | head -2
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }}
+      - name: Package via cargo-packager (DMG / AppImage / NSIS)
+        if: inputs.package
+        shell: bash
+        run: |
+          cargo packager --release --target ${{ matrix.target }} \
+            --formats ${{ matrix.formats }} --out-dir dist
+      - name: Name the artifact openkite_<version>_<os>_<arch>.<ext>
+        # The file token is a placeholder (0.0.0) for version-agnostic PR
+        # builds; release.yml rewrites it to the analyzed semver after download.
+        # The filename is NOT what the binary reports — it is only the release
+        # asset convention.
+        shell: bash
+        env:
+          VERSION_TOKEN: ${{ inputs.version != '' && inputs.version || '0.0.0' }}
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.package }}" = "true" ]; then
+            artifact="$(find dist -maxdepth 1 -name '*.${{ matrix.ext }}' | head -1)"
+            test -n "$artifact" || { echo "no .${{ matrix.ext }} artifact produced"; exit 1; }
+            mv "$artifact" "dist/openkite_${VERSION_TOKEN}_${{ matrix.package_os }}_${{ matrix.package_arch }}.${{ matrix.ext }}"
+          else
+            bin="target/${{ matrix.target }}/release/openkite"
+            if [ "${{ matrix.package_os }}" = "windows" ]; then bin="${bin}.exe"; fi
+            test -f "$bin" || { echo "release binary not found at $bin"; exit 1; }
+            mkdir -p dist
+            cp "$bin" "dist/openkite_${VERSION_TOKEN}_${{ matrix.package_os }}_${{ matrix.package_arch }}.${{ matrix.ext }}"
+          fi
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openkite_${{ matrix.package_os }}_${{ matrix.package_arch }}
+          path: dist/openkite_*_${{ matrix.package_os }}_${{ matrix.package_arch }}.${{ matrix.ext }}
+          retention-days: ${{ inputs.retention-days }}
