@@ -28,6 +28,17 @@ on:
         description: >
           Package the built binary (AppImage / DMG / NSIS) and upload the
           installer. When false the raw release binary is uploaded instead.
+          The merge-queue gate passes false: it only needs the compile to
+          succeed, and DMG/MSI packaging stays on the release path.
+        required: false
+        type: boolean
+        default: true
+      upload-artifacts:
+        description: >
+          Upload the built artifact. The merge-queue gate is build-only and its
+          throwaway per-target output has no consumer, so it passes false to
+          avoid retaining six raw binaries per queued merge. PR and release
+          builds keep the artifact for the release reuse path.
         required: false
         type: boolean
         default: true
@@ -161,6 +172,7 @@ jobs:
             cp "$bin" "dist/openkite_${VERSION_TOKEN}_${{ matrix.package_os }}_${{ matrix.package_arch }}.${{ matrix.ext }}"
           fi
       - name: Upload artifact
+        if: inputs.upload-artifacts
         uses: actions/upload-artifact@v4
         with:
           name: openkite_${{ matrix.package_os }}_${{ matrix.package_arch }}

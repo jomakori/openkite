@@ -2,7 +2,13 @@ name: build-artifacts
 
 # Build the six native release packages ONCE per commit, on code-affecting PRs,
 # so `release.yml` can download and attach them instead of rebuilding when a
-# release fires (OKT-104).
+# release fires.
+#
+# Merge queue: the SAME reusable matrix is the required gate that a merge queue
+# re-runs on the synthetic `merge_group` ref, so a change that only breaks one
+# platform fails before it can land. In the queue the matrix is BUILD-ONLY: a
+# compile failure is the bug class this gate exists for, and DMG/MSI packaging
+# stays on the release path until the queue's cost profile is measured.
 #
 # The artifact is version-agnostic: semantic-release computes the version on
 # main AFTER merge, so a PR build cannot embed it. See the `version` input on
@@ -10,35 +16,118 @@ name: build-artifacts
 # PR that introduced this workflow.
 on:
   pull_request:
-    paths:
-      - 'src/**'
-      - 'crates/**'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'web/**'
-      - 'assets/**'
-      # Changing the build definition itself affects the artifact.
-      - '.github/workflows/build-artifacts.yml'
-      - '.github/workflows/build-release-artifacts.yml'
+  # The merge queue dispatches this event on its temporary `gh-readonly-queue`
+  # ref. It is separate from `pull_request`/`push`, and a required check that
+  # never runs on it would stall the queue until the timeout.
+  merge_group:
 
-# Least privilege: the build only reads the repo and uploads artifacts with the
-# runtime token (`actions/upload-artifact` needs no GITHUB_TOKEN scope).
+# Least privilege. `pull-requests: read` is for the in-job path filter, which
+# reads the PR file list. The reusable build only needs `contents: read`.
 permissions:
   contents: read
+  pull-requests: read
 
 # One build per PR; a new push supersedes the previous in-flight build. Six
-# native builds (two macOS DMG, two Windows NSIS, two Linux AppImage) are not
-# worth running twice while a PR is being iterated on.
+# native builds (two macOS, two Windows, two Linux) are not worth running twice
+# while a PR is being iterated on. A merge-group build is never cancelled in
+# flight: it is the last line of defence for the target branch.
 concurrency:
-  group: build-artifacts-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  group: build-artifacts-${{ github.event.pull_request.number || github.event.merge_group.head_sha || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Path filtering lives in a job (not `on.pull_request.paths`) because the
+  # platform build is a REQUIRED check. A workflow skipped by a top-level path
+  # filter reports no check at all, so a docs-only PR would sit forever on
+  # "Expected". This job always runs and always reports, which lets docs-only
+  # PRs skip the *matrix* without becoming unmergeable.
+  #
+  # The filter is evaluated against the WHOLE pull-request diff (`base...head`),
+  # so any commit on an artifact-touching PR re-runs the matrix even if the
+  # latest commit is docs-only. That is accepted rather than gated per-commit:
+  # the six-target build is not commit-incremental, and the cancel-in-progress
+  # concurrency above keeps only the newest run alive. See README.md.
+  changes:
+    name: Detect artifact-affecting changes
+    runs-on: ubuntu-latest
+    outputs:
+      artifacts: ${{ steps.decide.outputs.artifacts }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Filter artifact-affecting paths
+        id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            artifacts:
+              - 'src/**'
+              - 'crates/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'web/**'
+              - 'assets/**'
+              # Changing the build definition itself affects the artifact.
+              - '.github/workflows/build-artifacts.yml'
+              - '.github/workflows/build-release-artifacts.yml'
+      # A merge group is a synthetic commit on top of the target branch. There
+      # is no cheap base/head pair to filter on, and the queue's whole purpose
+      # is to compile the synthetic merge, so it always builds.
+      - name: Decide whether the matrix must run
+        id: decide
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "artifacts=${{ steps.filter.outputs.artifacts }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "artifacts=true" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
     name: Build release artifacts
+    needs: [changes]
+    if: github.event_name == 'merge_group' || needs.changes.outputs.artifacts == 'true'
     uses: ./.github/workflows/build-release-artifacts.yml
     with:
       # `version` is intentionally omitted: it is unknowable before merge.
-      package: true
-      # PR artifacts must outlive review + merge so the release can reuse them.
+      #
+      # PRs package so the release path can reuse the set. The merge queue is
+      # build-only: packaging stays on release until the queue's cost profile
+      # is measured.
+      package: ${{ github.event_name == 'pull_request' }}
+      # Queue output is throwaway; PR artifacts must outlive review + merge so
+      # the release can reuse them.
+      upload-artifacts: ${{ github.event_name == 'pull_request' }}
       retention-days: 90
+
+  # The single, stable required check. Without it the required contexts would be
+  # six per-target names that vanish whenever the path filter skips the matrix.
+  # It reports success when the matrix is legitimately skipped (docs-only PR)
+  # and mirrors the matrix result otherwise.
+  gate:
+    name: Multi-platform build
+    needs: [changes, build]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce the multi-platform build result
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          BUILD: ${{ needs.build.result }}
+        run: |
+          set -euo pipefail
+          echo "detect-changes=${CHANGES} build=${BUILD}"
+          if [ "${CHANGES}" != "success" ]; then
+            echo "::error title=Multi-platform build::change detection did not succeed (${CHANGES})"
+            exit 1
+          fi
+          case "${BUILD}" in
+            success|skipped)
+              # skipped == no artifact-affecting path changed (docs-only PR).
+              echo "multi-platform build gate passed (build=${BUILD})"
+              ;;
+            *)
+              echo "::error title=Multi-platform build::build result was ${BUILD}"
+              exit 1
+              ;;
+          esac
