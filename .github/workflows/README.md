@@ -11,7 +11,8 @@ container — see [`dev/capture/README.md`](../../dev/capture/README.md)).
 | [`pr-image.yml`](pr-image.yml) | PR on `web/**` | Build the console bundle and publish a PR preview image to GHCR. |
 | [`build-artifacts.yml`](build-artifacts.yml) | PR on artifact-affecting paths | Build the six native release packages **once per commit** (calls the reusable workflow below). |
 | [`build-release-artifacts.yml`](build-release-artifacts.yml) | `workflow_call` | Reusable six-target native build + `cargo-packager` + upload. No cross-compilation: packaging needs `hdiutil` (DMG) and WiX/NSIS (Windows). |
-| [`release.yml`](release.yml) | push `main` on Rust paths, dispatch | semantic-release tag/notes, then download-and-attach the PR-built packages (or rebuild as a fallback), then update the Homebrew tap and Chocolatey package. |
+| [`release.yml`](release.yml) | push `main` on Rust paths, dispatch | semantic-release tag/notes, then download-and-attach the PR-built packages (or rebuild as a fallback), then update the Homebrew tap and Chocolatey package. `Publish release` runs a preflight that refuses a partial artifact set (see below). |
+| [`main-failure-tracker.yml`](main-failure-tracker.yml) | `workflow_run` on `main` failure, dispatch | Open or update exactly one tracking issue per failed workflow on `main`, naming the failing job(s) and the log link. |
 
 ## Build once, reuse at release (OKT-104)
 
@@ -52,9 +53,67 @@ the **same** code:
 - `normalize-release-assets.sh <dist-dir> <version>` — rewrite the version token
   in every asset name and refuse a partial set.
 
-> The artifact-set completeness check is deliberate and local to OKT-104. The
-> broader release fail-safe gate is owned by **OKT-106**; this does not try to
-> reproduce it.
+## Release fail-safe (OKT-106)
+
+`Publish release` starts with a preflight — `normalize-release-assets.sh <dist>
+<version> [targets]` — that refuses a partial release:
+
+- **Default (no input): all six targets are required.** A missing asset fails
+  the job with `::error title=Incomplete release artifact set::missing: …` and
+  nothing is tagged or uploaded. This is the only value a push-triggered run
+  can produce, so a partial release is impossible by accident.
+- **A deliberate subset requires the explicit `workflow_dispatch` input
+  `targets`** (comma-separated, e.g. `linux_amd64,macos_arm64`). When set, only
+  those assets are required and the others are pruned, so publishing fewer
+  targets is a conscious act rather than a silent outcome.
+- **`dry_run=true`** runs `analyze` + the preflight without tagging, uploading,
+  or touching the Homebrew/Chocolatey package managers. It never publishes, so
+  it is safe to use to exercise the gate.
+
+The gate extends the OKT-104 completeness check in the same script instead of
+adding a second, competing preflight.
+
+## Post-merge surfacing (OKT-106)
+
+`main-failure-tracker.yml` runs when `lint-test`, `e2e`, or `Release` completes
+on `main`. A failure opens exactly one issue per workflow, naming the workflow,
+the failing job(s) and their log links; a later failure comments on that same
+issue instead of filing a duplicate. Manual re-report:
+`gh workflow run main-failure-tracker.yml -f run_id=<id> -f workflow_name=Release`.
+
+## Process rule: verify the workflows a change can trigger
+
+A green set of **required** checks is not evidence that the workflows a merge
+triggers succeeded. `release.yml` is path-filtered and is not a required check,
+so it can be red while every required check is green — the failure mode that let
+`Release` fail on five consecutive pushes to `main` unnoticed.
+
+**Before presenting a PR**, enumerate every workflow the diff can trigger (from
+the trigger column above — include `lint-test`, `e2e`, `pr-image`, `build-artifacts`,
+and `Release`, plus any path-filtered workflow whose paths the changed files
+match) and read each job's **real** conclusion. A `success` status can hide a
+skipped or unrun step:
+
+```sh
+gh run view <run-id> --repo jomakori/openkite --json conclusion,jobs \
+  --jq '.jobs[] | "\(.conclusion)\t\(.name)"'
+gh run view <run-id> --repo jomakori/openkite --log-failed
+```
+
+Treat `skipped` as "not verified", not "passed".
+
+**After every merge to `main`**, list the runs the merge triggered and check
+their conclusions — `Release` first:
+
+```sh
+gh run list --repo jomakori/openkite --commit "$(git rev-parse HEAD)" \
+  --json name,conclusion,url --jq '.[] | "\(.conclusion)\t\(.name)\t\(.url)"'
+```
+
+A workflow-only merge (`.github/**`, docs) does **not** trigger `Release`, so the
+release pipeline stays unverified until a Rust/Cargo change merges or someone
+dispatches it deliberately — and a dispatch publishes. The red-release runbook is
+[`docs/release-runbook.md`](../../docs/release-runbook.md).
 
 ## Version handling
 
