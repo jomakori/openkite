@@ -10,8 +10,8 @@ Packages:
 
 Sizes:
   app.js: 274424 B (gzip 83511 B)
-  app.css: 47994 B (gzip 9020 B)
-  total: 322418 B (gzip 92531 B)
+  app.css: 48109 B (gzip 9037 B)
+  total: 322533 B (gzip 92548 B)
 
 Rebuild:
   cd web && npm install && npm run build && npm run bundle-size

@@ -1000,8 +1000,16 @@
   line-height: 1.75;
   /* The dock's own collapse animates here. `max-height` rather than
      `display` so the collapse is a real transition (the render moves its dock
-     at 0.28s; this is the same curve and duration on the desktop layout). */
-  transition: max-height 0.28s ease, opacity 0.28s ease, padding 0.28s ease;
+     at 0.28s; this is the same curve and duration on the desktop layout).
+     `visibility` rides along with a 0s duration so it flips instantly when
+     expanding; the collapsed rule below delays it to the end of the collapse,
+     which is the part that keeps the collapsed body out of the accessibility
+     tree — a zero-height, zero-opacity element is still announced. */
+  transition:
+    max-height 0.28s ease,
+    opacity 0.28s ease,
+    padding 0.28s ease,
+    visibility 0s linear 0s;
 }
 
 #openkite-react-spike-root .log-line {
@@ -1068,6 +1076,15 @@
   padding-top: 0;
   padding-bottom: 0;
   pointer-events: none;
+  /* Hidden only once the collapse has finished, so the animation is visible
+     while it runs and the collapsed logs leave the accessibility tree and the
+     tab order when it is done. */
+  visibility: hidden;
+  transition:
+    max-height 0.28s ease,
+    opacity 0.28s ease,
+    padding 0.28s ease,
+    visibility 0s linear 0.28s;
 }
 
 #openkite-react-spike-root .log-panel.collapsed .log-paused {

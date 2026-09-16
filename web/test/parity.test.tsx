@@ -621,7 +621,7 @@ const motionBlocks: Array<[string, RegExp]> = [
   ['log dock drawer (mobile)', /\.log-panel \{[^}]*transition: transform 0\.28s ease/],
   [
     'log dock collapse (desktop)',
-    /\.log-body \{[^}]*transition: max-height 0\.28s ease, opacity 0\.28s ease, padding 0\.28s ease/,
+    /\.log-body \{[^}]*transition: max-height 0\.28s ease, opacity 0\.28s ease, padding 0\.28s ease, visibility 0s linear 0s/,
   ],
   ['spinner', /\.spinner \{[^}]*animation: okt-spin 0\.8s linear infinite/],
 ]
@@ -639,6 +639,23 @@ assert.ok(
 assert.ok(
   !/\.log-panel\.collapsed \.log-body \{[^}]*display: none/.test(css),
   'collapsed log dock must not snap via display: none',
+)
+
+// ...and it must still leave the accessibility tree. `display: none` used to
+// provide that for free; a zero-height, zero-opacity element is still announced,
+// so the collapsed body has to be hidden explicitly once the collapse finishes.
+const collapsedBody = css.match(/\.log-panel\.collapsed \.log-body \{([^}]*)\}/)?.[1] ?? ''
+assert.ok(
+  collapsedBody.includes('visibility: hidden'),
+  'collapsed log dock must leave the accessibility tree (visibility: hidden)',
+)
+assert.ok(
+  collapsedBody.includes('visibility 0s linear 0.28s'),
+  'visibility must flip only after the collapse animation completes',
+)
+assert.ok(
+  collapsedBody.includes('pointer-events: none'),
+  'collapsed log dock must not stay clickable',
 )
 
 // Reduced motion must neutralise every block above.
