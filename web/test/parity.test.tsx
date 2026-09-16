@@ -607,7 +607,68 @@ for (const selector of [
   assert.ok(css.includes(selector), `theme.css missing scoped selector '${selector}'`)
 }
 
-// 10. Desktop (vendored) and web (dist) bundles ship the same UI markers.
+// 10. Motion parity (OKT-70). Every render motion block the console owns must
+// be declared with the render's timing — a dropped `transition` is a silent
+// downgrade to an instant swap, which no other check here would catch. The
+// ArgoCD grid's two blocks live in the plugin's own stylesheet
+// (plugin-argocd main.js) and are asserted there.
+const motionBlocks: Array<[string, RegExp]> = [
+  ['table row hover', /\.resource-table tbody tr \{[^}]*transition: background 0\.14s ease/],
+  ['inspector slide-over', /\.inspector \{[^}]*transition: transform 0\.24s ease/],
+  ['pull indicator', /\.pull-indicator \{[^}]*transition: transform 0\.2s ease/],
+  ['toast fade', /\.toast \{[^}]*transition: opacity 0\.2s ease, transform 0\.2s ease/],
+  ['sidebar off-canvas', /\.sidebar \{[^}]*transition: transform 0\.24s ease/],
+  ['log dock drawer (mobile)', /\.log-panel \{[^}]*transition: transform 0\.28s ease/],
+  [
+    'log dock collapse (desktop)',
+    /\.log-body \{[^}]*transition: max-height 0\.28s ease, opacity 0\.28s ease, padding 0\.28s ease, visibility 0s linear 0s/,
+  ],
+  ['spinner', /\.spinner \{[^}]*animation: okt-spin 0\.8s linear infinite/],
+]
+const missingMotion = motionBlocks
+  .filter(([, pattern]) => !pattern.test(css))
+  .map(([label]) => label)
+assert.deepEqual(missingMotion, [], `theme.css dropped motion block(s): ${missingMotion.join(', ')}`)
+
+// The dock's collapse must stay a transition, not a `display` swap — this is
+// the specific regression OKT-70 fixed.
+assert.ok(
+  /\.log-panel\.collapsed \.log-body \{[^}]*max-height: 0/.test(css),
+  'collapsed log dock must animate via max-height',
+)
+assert.ok(
+  !/\.log-panel\.collapsed \.log-body \{[^}]*display: none/.test(css),
+  'collapsed log dock must not snap via display: none',
+)
+
+// ...and it must still leave the accessibility tree. `display: none` used to
+// provide that for free; a zero-height, zero-opacity element is still announced,
+// so the collapsed body has to be hidden explicitly once the collapse finishes.
+const collapsedBody = css.match(/\.log-panel\.collapsed \.log-body \{([^}]*)\}/)?.[1] ?? ''
+assert.ok(
+  collapsedBody.includes('visibility: hidden'),
+  'collapsed log dock must leave the accessibility tree (visibility: hidden)',
+)
+assert.ok(
+  collapsedBody.includes('visibility 0s linear 0.28s'),
+  'visibility must flip only after the collapse animation completes',
+)
+assert.ok(
+  collapsedBody.includes('pointer-events: none'),
+  'collapsed log dock must not stay clickable',
+)
+
+// Reduced motion must neutralise every block above.
+assert.ok(
+  css.includes('@media (prefers-reduced-motion: reduce)'),
+  'theme.css missing the reduced-motion media query',
+)
+assert.ok(
+  css.includes('transition-duration: 0.01ms !important'),
+  'reduced-motion must override transition-duration',
+)
+
+// 11. Desktop (vendored) and web (dist) bundles ship the same UI markers.
 const markers = [
   'openkite-react-spike-root',
   '__openkite_react_console',

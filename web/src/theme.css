@@ -1,7 +1,29 @@
 /* Design tokens and shell primitives ported from the console render.
    Every rule is scoped under the React mount root: the Dioxus host document
    already defines bare .sidebar/.topbar/.status/.brand/.nav-item in
-   assets/main.css, so unscoped selectors would collide. */
+   assets/main.css, so unscoped selectors would collide.
+
+   Motion inventory (OKT-70). The render defines nine transition/animation
+   blocks; this file owns the ones the console renders itself and mirrors the
+   render's timing exactly:
+
+     render selector      timing                              where
+     .resource-table tr   background 0.14s ease               here
+     .sidebar             transform 0.24s ease (tablet/mobile) here
+     .inspector           transform 0.24s ease                here
+     .log-panel           transform 0.28s ease (mobile drawer) here
+     .log-panel.collapsed desktop collapse, 0.28s             here (see below)
+     .pull-indicator      transform 0.2s ease                 here
+     .toast               opacity + transform 0.2s ease       here
+     .spinner             spin 0.8s linear infinite           here
+     .app-card            transform + box-shadow 0.18s ease   plugin-argocd
+     .card-main           transform 0.22s cubic-bezier(.2,.7,.2,1)  plugin-argocd
+
+   The last two are the ArgoCD grid, which the plugin renders in its own DOM
+   (plugin-argocd main.js) — not reachable from this stylesheet.
+
+   `prefers-reduced-motion` collapses every one of them to 0.01ms below, so
+   the timings above are never the only motion path. */
 
 #openkite-react-spike-root {
   --bg: oklch(0.9755 0.0045 258.3);
@@ -976,6 +998,18 @@
   font-family: var(--font-mono);
   font-size: 12px;
   line-height: 1.75;
+  /* The dock's own collapse animates here. `max-height` rather than
+     `display` so the collapse is a real transition (the render moves its dock
+     at 0.28s; this is the same curve and duration on the desktop layout).
+     `visibility` rides along with a 0s duration so it flips instantly when
+     expanding; the collapsed rule below delays it to the end of the collapse,
+     which is the part that keeps the collapsed body out of the accessibility
+     tree — a zero-height, zero-opacity element is still announced. */
+  transition:
+    max-height 0.28s ease,
+    opacity 0.28s ease,
+    padding 0.28s ease,
+    visibility 0s linear 0s;
 }
 
 #openkite-react-spike-root .log-line {
@@ -1036,7 +1070,23 @@
   display: flex;
 }
 
-#openkite-react-spike-root .log-panel.collapsed .log-body,
+#openkite-react-spike-root .log-panel.collapsed .log-body {
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  pointer-events: none;
+  /* Hidden only once the collapse has finished, so the animation is visible
+     while it runs and the collapsed logs leave the accessibility tree and the
+     tab order when it is done. */
+  visibility: hidden;
+  transition:
+    max-height 0.28s ease,
+    opacity 0.28s ease,
+    padding 0.28s ease,
+    visibility 0s linear 0.28s;
+}
+
 #openkite-react-spike-root .log-panel.collapsed .log-paused {
   display: none;
 }
