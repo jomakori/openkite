@@ -26,10 +26,24 @@ on:
   push:
     branches:
       - main
+    # `web/**` and `assets/**` are here because they change the shipped binary:
+    # the vendored React bundle under assets/vendored/ is `include_str!`d into
+    # it. Leaving them out is how releases stopped happening — a web-only merge
+    # ran all six platform builds, passed the required multi-platform gate, and
+    # then triggered no Release at all (no tag, no release).
+    #
+    # Keep this list in step with the `artifacts:` filter in build-artifacts.yml,
+    # which is the repo's definition of artifact-affecting paths. The two lists
+    # are written independently and drifting apart is what caused the gap.
     paths:
       - '**.rs'
       - '**/Cargo.toml'
       - 'Cargo.lock'
+      - 'web/**'
+      - 'assets/**'
+      # Changing the build definition itself affects the artifact.
+      - '.github/workflows/build-artifacts.yml'
+      - '.github/workflows/build-release-artifacts.yml'
 
 permissions:
   contents: write
