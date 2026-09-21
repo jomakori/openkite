@@ -37,7 +37,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use dioxus::prelude::*;
 use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet};
 use k8s_openapi::api::batch::v1::{CronJob, Job};
-use k8s_openapi::api::core::v1::{Node, Pod, Secret};
+use k8s_openapi::api::core::v1::{Node, Pod, Secret, Service};
 use kube::{Api, Client, Resource};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -92,6 +92,7 @@ pub struct LiveResources {
     jobs: Option<ResourceState<Job>>,
     cron_jobs: Option<ResourceState<CronJob>>,
     secrets: Option<ResourceState<Secret>>,
+    services: Option<ResourceState<Service>>,
 }
 
 impl LiveResources {
@@ -106,6 +107,7 @@ impl LiveResources {
             self.jobs.is_some(),
             self.cron_jobs.is_some(),
             self.secrets.is_some(),
+            self.services.is_some(),
         ]
         .iter()
         .filter(|started| **started)
@@ -136,6 +138,8 @@ impl LiveResources {
             .get_or_insert_with(|| start_kind::<CronJob>(client.clone(), "cronjobs"));
         self.secrets
             .get_or_insert_with(|| start_kind::<Secret>(client.clone(), "secrets"));
+        self.services
+            .get_or_insert_with(|| start_kind::<Service>(client.clone(), "services"));
 
         let started = self.count() - before;
         if started > 0 {
@@ -165,7 +169,8 @@ impl LiveResources {
             replica_sets,
             jobs,
             cron_jobs,
-            secrets
+            secrets,
+            services
         );
     }
 
@@ -206,6 +211,10 @@ impl LiveResources {
         self.secrets.as_ref().map(|s| s.signal())
     }
 
+    pub fn services_signal(&self) -> Option<Signal<Vec<Arc<Service>>, SyncStorage>> {
+        self.services.as_ref().map(|s| s.signal())
+    }
+
     /// Serialised rows for `kind`, or `None` when it is not watched.
     ///
     /// Used by the bridge's `Watch` op so a watched kind is served from the
@@ -228,6 +237,7 @@ impl LiveResources {
             "jobs" | "job" => self.jobs.as_ref().map(|s| to_rows(s.state())),
             "cronjobs" | "cronjob" => self.cron_jobs.as_ref().map(|s| to_rows(s.state())),
             "secrets" | "secret" => self.secrets.as_ref().map(|s| to_rows(s.state())),
+            "services" | "service" => self.services.as_ref().map(|s| to_rows(s.state())),
             _ => None,
         }
     }
@@ -319,6 +329,10 @@ pub fn secrets_signal() -> Option<Signal<Vec<Arc<Secret>>, SyncStorage>> {
     guard().secrets_signal()
 }
 
+pub fn services_signal() -> Option<Signal<Vec<Arc<Service>>, SyncStorage>> {
+    guard().services_signal()
+}
+
 /// Serialised rows for `kind` when it is watched live, else `None` so the
 /// caller falls back to a one-shot list.
 pub fn snapshot_json(kind: &str) -> Option<Vec<Value>> {
@@ -368,7 +382,7 @@ mod tests {
         // `None` (not `Some(vec![])`) is what tells the bridge to fall back to a
         // real list, so an unwatched kind must never report as watched.
         let resources = LiveResources::default();
-        for kind in ["pods", "deployments", "secrets", "nonsense"] {
+        for kind in ["pods", "deployments", "secrets", "services", "nonsense"] {
             assert!(resources.snapshot_json(kind).is_none(), "{kind}");
         }
     }

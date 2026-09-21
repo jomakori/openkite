@@ -764,6 +764,37 @@ for (const marker of markers) {
   assert.ok(webBundle.includes(marker), `web bundle missing '${marker}'`)
 }
 
+// 12. Services: a Service carries no `status.phase` and no container statuses,
+// so its row takes the exposure type as the status and dashes the rest.
+const services = rowsFromList(fixtureList('services', null), Date.now())
+assert.equal(services.length, 3, 'service fixture row count')
+const apiService = services.find((row) => row.name === 'openkite-api')
+assert.equal(apiService?.phase, 'ClusterIP', 'service status is its exposure type')
+assert.equal(statusTone(apiService?.phase ?? ''), 'neutral', 'service exposure type pill')
+assert.equal(apiService?.ready, '—', 'a Service has no replica readiness')
+assert.equal(apiService?.restarts, 0, 'a Service has no restart count')
+assert.equal(apiService?.controller, '—', 'a Service has no controller')
+assert.equal(apiService?.node, '—', 'a Service is not scheduled onto a node')
+assert.equal(
+  services.find((row) => row.name === 'openkite-web')?.phase,
+  'NodePort',
+  'NodePort service status',
+)
+
+// 12a. Deployments and Services are enabled views, so the host opens their
+// table rather than a bare heading.
+const enabledRoutes: Array<[string, string]> = [
+  ['deployments', 'Deployments'],
+  ['services', 'Services'],
+]
+for (const [route, title] of enabledRoutes) {
+  const html = renderToStaticMarkup(
+    <Shell route={route} initialCounts={counts} initialContext={FIXTURE_CONTEXT} />,
+  )
+  assert.ok(html.includes(`<h1>${title}</h1>`), `${route} route opens ${title}`)
+  assert.ok(html.includes('data-testid="resource-table"'), `${route} renders the resource table`)
+}
+
 console.log(
   `parity ok: fixtures for ${COUNTED_KINDS.length} kinds, shell + table + inspector + log dock + toast DOM asserted, ` +
     `${markers.length} markers present in both bundles`,

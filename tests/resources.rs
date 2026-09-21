@@ -2,11 +2,13 @@
 
 use std::sync::{Arc, Mutex};
 
-use k8s_openapi::api::core::v1::ConfigMap;
+use k8s_openapi::api::core::v1::{ConfigMap, Service, ServicePort, ServiceSpec};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 use kube::runtime::reflector::store;
 use kube::runtime::watcher;
 use openkite::state::resources::drive_reflector;
+use serde_json::{json, Value};
 
 fn config_map(name: &str) -> ConfigMap {
     ConfigMap {
@@ -121,4 +123,78 @@ async fn error_events_log_and_skip_snapshot_but_keep_stream_alive() {
     assert_eq!(store.state().len(), 1, "Apply after error still lands");
     let lens = snapshot_lens.lock().unwrap();
     assert_eq!(lens.as_slice(), &[1], "only the Apply fires a snapshot");
+}
+
+/// Service fixture: the row the reflector seeds and the push channel serialises.
+fn service_fixture() -> Service {
+    Service {
+        metadata: ObjectMeta {
+            name: Some("openkite-web".to_string()),
+            namespace: Some("default".to_string()),
+            ..Default::default()
+        },
+        spec: Some(ServiceSpec {
+            cluster_ip: Some("10.96.0.42".to_string()),
+            ports: Some(vec![ServicePort {
+                name: Some("http".to_string()),
+                port: 80,
+                protocol: Some("TCP".to_string()),
+                target_port: Some(IntOrString::Int(8080)),
+                ..Default::default()
+            }]),
+            selector: Some(
+                [("app".to_string(), "openkite-web".to_string())]
+                    .into_iter()
+                    .collect(),
+            ),
+            type_: Some("NodePort".to_string()),
+            ..Default::default()
+        }),
+        ..Default::default()
+    }
+}
+
+#[tokio::test]
+async fn service_events_seed_the_store_and_publish_the_fixture_manifest() {
+    let (store, writer) = store::<Service>();
+    let published = Arc::new(Mutex::new(Vec::<Vec<Value>>::new()));
+
+    let events = futures::stream::iter(vec![Ok(watcher::Event::Apply(service_fixture()))]);
+
+    let captured = published.clone();
+    drive_reflector(writer, events, store.clone(), move |rows| {
+        captured.lock().unwrap().push(
+            rows.iter()
+                .map(|obj| serde_json::to_value(obj.as_ref()).unwrap())
+                .collect::<Vec<_>>(),
+        );
+    })
+    .await;
+
+    assert_eq!(
+        store.state().len(),
+        1,
+        "the seeded service lands in the store"
+    );
+    let manifest = published
+        .lock()
+        .unwrap()
+        .last()
+        .cloned()
+        .unwrap_or_default();
+    assert_eq!(
+        manifest,
+        vec![json!({
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {"name": "openkite-web", "namespace": "default"},
+            "spec": {
+                "clusterIP": "10.96.0.42",
+                "ports": [{"name": "http", "port": 80, "protocol": "TCP", "targetPort": 8080}],
+                "selector": {"app": "openkite-web"},
+                "type": "NodePort",
+            },
+        })],
+        "the published row is the fixture manifest"
+    );
 }
