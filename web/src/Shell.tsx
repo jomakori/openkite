@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState, type TouchEvent } from 'react'
+import { useEffect, useRef, useState, type ComponentType, type TouchEvent } from 'react'
 import type { RowActionId } from './actions'
 import { resolveBridge, type ClusterContext, type ResourceRow } from './bridge'
 import { useResourceEvents } from './events'
 import { Inspector, type DetailTab } from './Inspector'
 import { LogDock } from './LogDock'
+import { Overview } from './Overview'
 import { YamlModal } from './ResourceActions'
 import { ResourceView } from './ResourceView'
 import { rowKey } from './ResourceTable'
@@ -41,6 +42,27 @@ interface ShellProps {
    */
   initialCounts?: Record<string, number | undefined>
   initialContext?: ClusterContext
+}
+
+/**
+ * What a bespoke nav view receives from the shell: the nav labels it titles
+ * itself with, plus the shell's live counts, cluster context and refresh.
+ */
+export interface NavViewProps {
+  section: string
+  title: string
+  counts: Record<string, number | undefined>
+  context: ClusterContext
+  onRefresh: () => void
+}
+
+/**
+ * Nav ids that render their own component instead of the generic resource
+ * table — the ids the bridge has no single resource kind for (`overview`
+ * carries no `countKind`).
+ */
+const NAV_VIEWS: Partial<Record<string, ComponentType<NavViewProps>>> = {
+  overview: Overview,
 }
 
 export function Shell({ route, initialCounts, initialContext }: ShellProps = {}) {
@@ -84,6 +106,9 @@ function ShellChrome({ route, initialCounts, initialContext }: ShellProps) {
   const title = found?.item.label ?? ''
   const kind = found?.item.countKind ?? found?.item.id ?? 'pods'
   const activeSection = found?.section.id ?? ''
+  const CustomView = NAV_VIEWS[activeId]
+  // The log dock streams pods, so it belongs to the table views only.
+  const tableView = Boolean(found?.item.enabled) && CustomView === undefined
   const rows = useResourceRows(kind, namespace, rowNonce)
   const logTarget = selected ?? rows[0] ?? null
   const logLines = useLogLines(logTarget, rowNonce)
@@ -243,7 +268,15 @@ function ShellChrome({ route, initialCounts, initialContext }: ShellProps) {
         <PullIndicator show={pull.show} text={pull.text} />
 
         <section className="view active">
-          {found?.item.enabled ? (
+          {CustomView ? (
+            <CustomView
+              section={section}
+              title={title}
+              counts={counts}
+              context={context}
+              onRefresh={refresh}
+            />
+          ) : found?.item.enabled ? (
             <ResourceView
               rows={rows}
               section={section}
@@ -269,7 +302,7 @@ function ShellChrome({ route, initialCounts, initialContext }: ShellProps) {
             </div>
           )}
 
-          {found?.item.enabled ? (
+          {tableView ? (
             <LogDock
               open={logOpen}
               paused={logsPaused}

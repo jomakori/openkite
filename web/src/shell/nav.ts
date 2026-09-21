@@ -35,8 +35,8 @@ export const NAV_SECTIONS: NavSection[] = [
     id: 'cluster',
     label: 'Cluster',
     items: [
-      { id: 'overview', label: 'Overview', icon: 'cluster', enabled: false },
-      { id: 'nodes', label: 'Nodes', icon: 'node', countKind: 'nodes', enabled: false },
+      { id: 'overview', label: 'Overview', icon: 'cluster', enabled: true },
+      { id: 'nodes', label: 'Nodes', icon: 'node', countKind: 'nodes', enabled: true },
     ],
   },
   {
