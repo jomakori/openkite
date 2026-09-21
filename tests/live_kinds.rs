@@ -51,7 +51,12 @@ where
     )
     .await;
 
-    captured.lock().unwrap().clone()
+    last_snapshot(&captured)
+}
+
+/// Last snapshot the reflector callback wrote into `cell`.
+fn last_snapshot(cell: &Mutex<Vec<Value>>) -> Vec<Value> {
+    cell.lock().unwrap().clone()
 }
 
 fn meta(name: &str, namespace: &str) -> ObjectMeta {
