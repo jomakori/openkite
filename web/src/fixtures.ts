@@ -94,9 +94,10 @@ function object(
   namespace: string | undefined,
   minutes: number,
   phase?: string,
+  apiVersion = 'v1',
 ): KubeObject {
   return {
-    apiVersion: 'v1',
+    apiVersion,
     kind,
     metadata: { name, ...(namespace ? { namespace } : {}), creationTimestamp: ago(minutes) },
     ...(phase ? { status: { phase } } : {}),
@@ -261,6 +262,16 @@ const FIXTURE_ITEMS: Record<string, KubeObject[]> = {
   repositories: [
     object('Repository', 'openkite', 'argocd', 9000),
     object('Repository', 'gke-gitops', 'argocd', 8000),
+  ],
+  persistentvolumeclaims: [
+    object('PersistentVolumeClaim', 'postgres-data', 'default', 1440, 'Bound'),
+    object('PersistentVolumeClaim', 'openkite-api-data', 'default', 2400, 'Bound'),
+    object('PersistentVolumeClaim', 'prometheus-storage', 'kube-system', 540, 'Pending'),
+  ],
+  ingresses: [
+    object('Ingress', 'openkite-api', 'default', 2400, undefined, 'networking.k8s.io/v1'),
+    object('Ingress', 'openkite-web', 'default', 1800, undefined, 'networking.k8s.io/v1'),
+    object('Ingress', 'grafana', 'kube-system', 4320, undefined, 'networking.k8s.io/v1'),
   ],
 }
 

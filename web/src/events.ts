@@ -30,6 +30,8 @@ const KIND_BY_NOUN: Record<string, string> = {
   applications: 'Application',
   projects: 'AppProject',
   repositories: 'Repository',
+  persistentvolumeclaims: 'PersistentVolumeClaim',
+  ingresses: 'Ingress',
 }
 
 /** Kubernetes Kind for a console noun (`pods` → `Pod`). */
