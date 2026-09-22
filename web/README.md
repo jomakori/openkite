@@ -86,3 +86,5 @@ With a bundle in place:
 docker build -t openkite-web .
 docker run --rm -p 8080:8080 openkite-web
 ```
+
+<!-- probe -->
