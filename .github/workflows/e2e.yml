@@ -7,6 +7,8 @@ on:
       - 'src/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
+      - 'web/**'
+      - 'assets/**'
   push:
     branches: [main]
     paths:
@@ -14,6 +16,8 @@ on:
       - 'src/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
+      - 'web/**'
+      - 'assets/**'
   workflow_dispatch:
     inputs:
       capture_baselines:
