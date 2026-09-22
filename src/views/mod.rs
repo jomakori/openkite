@@ -2,4 +2,3 @@
 pub mod logs;
 pub mod pod_detail;
 pub mod terminal;
-pub mod workloads;
