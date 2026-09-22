@@ -63,16 +63,34 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     id: 'config',
     label: 'Config & Storage',
+    // Storage and Network are section names, not resource kinds, so each item
+    // carries an explicit `countKind`. Storage resolves to
+    // `persistentvolumeclaims` — namespaced, so the topbar namespace filter
+    // applies; StorageClasses and PersistentVolumes are cluster-scoped and
+    // need a cluster-scoped surface. Network resolves to `ingresses`; Services
+    // live in the Workloads section.
     items: [
       {
         id: 'configmaps',
         label: 'ConfigMaps',
         icon: 'config',
         countKind: 'configmaps',
-        enabled: false,
+        enabled: true,
       },
-      { id: 'storage', label: 'Storage', icon: 'storage', enabled: false },
-      { id: 'network', label: 'Network', icon: 'network', enabled: false },
+      {
+        id: 'storage',
+        label: 'Storage',
+        icon: 'storage',
+        countKind: 'persistentvolumeclaims',
+        enabled: true,
+      },
+      {
+        id: 'network',
+        label: 'Network',
+        icon: 'network',
+        countKind: 'ingresses',
+        enabled: true,
+      },
     ],
   },
   {

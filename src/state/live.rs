@@ -37,7 +37,8 @@ use std::sync::{Arc, Mutex, OnceLock};
 use dioxus::prelude::*;
 use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet};
 use k8s_openapi::api::batch::v1::{CronJob, Job};
-use k8s_openapi::api::core::v1::{Node, Pod, Secret, Service};
+use k8s_openapi::api::core::v1::{ConfigMap, Node, PersistentVolumeClaim, Pod, Secret, Service};
+use k8s_openapi::api::networking::v1::Ingress;
 use kube::{Api, Client, Resource};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -93,6 +94,9 @@ pub struct LiveResources {
     cron_jobs: Option<ResourceState<CronJob>>,
     secrets: Option<ResourceState<Secret>>,
     services: Option<ResourceState<Service>>,
+    config_maps: Option<ResourceState<ConfigMap>>,
+    persistent_volume_claims: Option<ResourceState<PersistentVolumeClaim>>,
+    ingresses: Option<ResourceState<Ingress>>,
 }
 
 impl LiveResources {
@@ -108,6 +112,9 @@ impl LiveResources {
             self.cron_jobs.is_some(),
             self.secrets.is_some(),
             self.services.is_some(),
+            self.config_maps.is_some(),
+            self.persistent_volume_claims.is_some(),
+            self.ingresses.is_some(),
         ]
         .iter()
         .filter(|started| **started)
@@ -140,6 +147,13 @@ impl LiveResources {
             .get_or_insert_with(|| start_kind::<Secret>(client.clone(), "secrets"));
         self.services
             .get_or_insert_with(|| start_kind::<Service>(client.clone(), "services"));
+        self.config_maps
+            .get_or_insert_with(|| start_kind::<ConfigMap>(client.clone(), "configmaps"));
+        self.persistent_volume_claims.get_or_insert_with(|| {
+            start_kind::<PersistentVolumeClaim>(client.clone(), "persistentvolumeclaims")
+        });
+        self.ingresses
+            .get_or_insert_with(|| start_kind::<Ingress>(client.clone(), "ingresses"));
 
         let started = self.count() - before;
         if started > 0 {
@@ -170,7 +184,10 @@ impl LiveResources {
             jobs,
             cron_jobs,
             secrets,
-            services
+            services,
+            config_maps,
+            persistent_volume_claims,
+            ingresses
         );
     }
 
@@ -215,6 +232,20 @@ impl LiveResources {
         self.services.as_ref().map(|s| s.signal())
     }
 
+    pub fn config_maps_signal(&self) -> Option<Signal<Vec<Arc<ConfigMap>>, SyncStorage>> {
+        self.config_maps.as_ref().map(|s| s.signal())
+    }
+
+    pub fn persistent_volume_claims_signal(
+        &self,
+    ) -> Option<Signal<Vec<Arc<PersistentVolumeClaim>>, SyncStorage>> {
+        self.persistent_volume_claims.as_ref().map(|s| s.signal())
+    }
+
+    pub fn ingresses_signal(&self) -> Option<Signal<Vec<Arc<Ingress>>, SyncStorage>> {
+        self.ingresses.as_ref().map(|s| s.signal())
+    }
+
     /// Serialised rows for `kind`, or `None` when it is not watched.
     ///
     /// Used by the bridge's `Watch` op so a watched kind is served from the
@@ -238,6 +269,12 @@ impl LiveResources {
             "cronjobs" | "cronjob" => self.cron_jobs.as_ref().map(|s| to_rows(s.state())),
             "secrets" | "secret" => self.secrets.as_ref().map(|s| to_rows(s.state())),
             "services" | "service" => self.services.as_ref().map(|s| to_rows(s.state())),
+            "configmaps" | "configmap" => self.config_maps.as_ref().map(|s| to_rows(s.state())),
+            "persistentvolumeclaims" | "persistentvolumeclaim" => self
+                .persistent_volume_claims
+                .as_ref()
+                .map(|s| to_rows(s.state())),
+            "ingresses" | "ingress" => self.ingresses.as_ref().map(|s| to_rows(s.state())),
             _ => None,
         }
     }
@@ -331,6 +368,19 @@ pub fn secrets_signal() -> Option<Signal<Vec<Arc<Secret>>, SyncStorage>> {
 
 pub fn services_signal() -> Option<Signal<Vec<Arc<Service>>, SyncStorage>> {
     guard().services_signal()
+}
+
+pub fn config_maps_signal() -> Option<Signal<Vec<Arc<ConfigMap>>, SyncStorage>> {
+    guard().config_maps_signal()
+}
+
+pub fn persistent_volume_claims_signal(
+) -> Option<Signal<Vec<Arc<PersistentVolumeClaim>>, SyncStorage>> {
+    guard().persistent_volume_claims_signal()
+}
+
+pub fn ingresses_signal() -> Option<Signal<Vec<Arc<Ingress>>, SyncStorage>> {
+    guard().ingresses_signal()
 }
 
 /// Serialised rows for `kind` when it is watched live, else `None` so the

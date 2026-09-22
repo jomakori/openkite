@@ -9,9 +9,9 @@ Packages:
   vite@^8.2.2
 
 Sizes:
-  app.js: 277309 B (gzip 84172 B)
+  app.js: 277904 B (gzip 84333 B)
   app.css: 48109 B (gzip 9037 B)
-  total: 325418 B (gzip 93209 B)
+  total: 326013 B (gzip 93370 B)
 
 Rebuild:
   cd web && npm install && npm run build && npm run bundle-size
