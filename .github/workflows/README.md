@@ -8,7 +8,7 @@ container — see [`dev/capture/README.md`](../../dev/capture/README.md)).
 |---|---|---|
 | [`lint-test.yml`](lint-test.yml) | PR, push `main` | fmt / clippy / test / build / bundle-freshness / cross-platform / coverage, plus the `check-portable-sed.sh` hygiene gate. |
 | [`e2e.yml`](e2e.yml) | PR, push `main`, dispatch | Desktop E2E, user flows, bridge guard, visual-regression baselines. |
-| [`pr-image.yml`](pr-image.yml) | PR on `web/**` | Build the console bundle and publish a PR preview image to GHCR. |
+| [`pr-image.yml`](pr-image.yml) | PR on `web/**`, push `main` | Build the console bundle and publish the image to GHCR: `pr-<N>` for a PR preview, `main` for the persistent main host. |
 | [`build-artifacts.yml`](build-artifacts.yml) | PR on artifact-affecting paths, `merge_group` | Build the six native release packages **once per commit** as a PR, and gate the **merge queue** with a build-only run on the synthetic merge group (calls the reusable workflow below). |
 | [`build-release-artifacts.yml`](build-release-artifacts.yml) | `workflow_call` | Reusable six-target native build + optional `cargo-packager` + optional upload. No cross-compilation: packaging needs `hdiutil` (DMG) and WiX/NSIS (Windows). |
 | [`release.yml`](release.yml) | push `main` on Rust paths, dispatch | semantic-release tag/notes, then download-and-attach the PR-built packages (or rebuild as a fallback), then update the Homebrew tap and Chocolatey package. `Publish release` runs a preflight that refuses a partial artifact set (see below). |
@@ -89,7 +89,7 @@ so it can be red while every required check is green — the failure mode that l
 `Release` fail on five consecutive pushes to `main` unnoticed.
 
 **Before presenting a PR**, enumerate every workflow the diff can trigger (from
-the trigger column above — include `lint-test`, `e2e`, `pr-image`, `build-artifacts`,
+the trigger column above — include `lint-test`, `e2e`, `image`, `build-artifacts`,
 and `Release`, plus any path-filtered workflow whose paths the changed files
 match) and read each job's **real** conclusion. A `success` status can hide a
 skipped or unrun step:

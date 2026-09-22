@@ -1,4 +1,4 @@
-name: pr-image
+name: image
 
 on:
   pull_request:
@@ -11,21 +11,33 @@ on:
       - 'Dockerfile'
       - '.dockerignore'
       - '.github/workflows/pr-image.yml'
+  push:
+    branches: [main]
+    # Same paths as a PR: a merge that cannot change the served bundle has
+    # nothing to re-publish, and the persistent main host keeps serving the
+    # image from the last merge that could.
+    paths:
+      - 'web/**'
+      - 'Dockerfile'
+      - '.dockerignore'
+      - '.github/workflows/pr-image.yml'
 
-# Least privilege: read the repo, write the PR image to GHCR with the
-# built-in GITHUB_TOKEN.
+# Least privilege: read the repo, write the image to GHCR with the built-in
+# GITHUB_TOKEN.
 permissions:
   contents: read
   packages: write
 
-# One build per PR; a new push supersedes the previous in-flight build.
+# One build per ref. On a PR a new push supersedes the in-flight build; a main
+# build is never cancelled in flight, because it is what the persistent main
+# host serves.
 concurrency:
-  group: pr-image-${{ github.event.number }}
-  cancel-in-progress: true
+  group: image-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   image:
-    name: Build and push PR image
+    name: Build and push image
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
@@ -42,7 +54,8 @@ jobs:
       # reports ready=false and skips the build/push steps when the script is
       # absent (a branch that has not landed it yet); when it runs, a missing
       # web/dist/index.html is a hard failure. If the build succeeds, the same
-      # job publishes the image and the preview host can consume it.
+      # job publishes the image and its consumer can pick it up: a PR preview
+      # host, or the persistent main host.
       #
       # Note: `hashFiles()` is not available in a job-level `if:`, only in step
       # contexts, which is why the gate is a step output rather than a job
@@ -59,7 +72,7 @@ jobs:
             fi
             echo "ready=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::notice title=No web bundle yet::web/build.sh is not executable or missing; skipping the preview image build. The Dockerfile will refuse a UI-less image once it runs."
+            echo "::notice title=No web bundle yet::web/build.sh is not executable or missing; skipping the image build. The Dockerfile will refuse a UI-less image once it runs."
             echo "ready=false" >> "$GITHUB_OUTPUT"
           fi
 
@@ -70,20 +83,31 @@ jobs:
       - name: Build image
         if: steps.bundle.outputs.ready == 'true'
         env:
+          EVENT: ${{ github.event_name }}
           PR: ${{ github.event.number }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          # A PR builds its head; a main push is the merge commit itself.
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           image="ghcr.io/jomakori/openkite"
           short_sha="$(printf '%s' "$HEAD_SHA" | cut -c1-7)"
+          # A PR preview is keyed by its number and superseded on every push.
+          # main is tagged `main` (mutable, what the persistent host tracks)
+          # plus an immutable `main-<sha>` pin, so a rollout can be traced back
+          # to the commit it serves.
+          if [ "$EVENT" = "pull_request" ]; then
+            tag="pr-${PR}"
+          else
+            tag="main"
+          fi
           docker build \
-            --tag "${image}:pr-${PR}" \
-            --tag "${image}:pr-${PR}-${short_sha}" \
+            --tag "${image}:${tag}" \
+            --tag "${image}:${tag}-${short_sha}" \
             .
           {
             echo "IMAGE=${image}"
-            echo "TAG_MUTABLE=pr-${PR}"
-            echo "TAG_IMMUTABLE=pr-${PR}-${short_sha}"
+            echo "TAG_MUTABLE=${tag}"
+            echo "TAG_IMMUTABLE=${tag}-${short_sha}"
           } >> "$GITHUB_ENV"
 
       - name: Push image
