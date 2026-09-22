@@ -2,12 +2,11 @@
 //!
 //! ## Why this module exists
 //!
-//! Live state was previously created *inside the view layer*: `views/workloads.rs`
-//! had a `workload_table!` macro that spawned a `drive_reflector` per kind in a
-//! `use_effect`, with its own task-abort bookkeeping. `state::resources::ResourceState`
-//! — a reusable wrapper for exactly that — had zero callers.
+//! Live state is owned by this module, not by the view layer. Each kind has one
+//! reflector, started once per connection by the shell, and views read it through
+//! signals.
 //!
-//! Two consequences followed, and both are why this module is the owner now:
+//! Two consequences make that ownership matter:
 //!
 //! 1. **The push channel could not work app-wide.** A reflector that only runs
 //!    while a view is mounted cannot push anything from another screen.
@@ -15,10 +14,10 @@
 //!    reflector here while the view already spawned its own produced two
 //!    concurrent watch streams on the same kind — doubled API-server load, two
 //!    caches, no error anywhere. Neither the build nor the runtime log can see
-//!    that; only reading both files reveals it.
+//!    that; only reading every owner of a kind reveals it.
 //!
 //! So: one reflector per kind, owned here, started once per connection, and
-//! consumed by whoever needs it (the workloads tables *and* the push channel).
+//! consumed by whoever needs it (the console tables *and* the push channel).
 //!
 //! ## Lifecycle
 //!
