@@ -158,8 +158,14 @@ impl LiveResources {
         if started > 0 {
             tracing::info!(started, total = self.count(), "live: reflectors running");
             // Bump the reactive generation so views that rendered before the
-            // reflectors existed re-run and pick up their signal.
-            *LIVE_GEN.write() += 1;
+            // reflectors existed re-run and pick up their signal. A global
+            // signal resolves through the current Dioxus runtime, so the bump is
+            // skipped where there is none — the web host (`crates/openkite-web`)
+            // starts these same reflectors from a plain tokio process, where a
+            // runtime-backed global has nothing to write into.
+            if dioxus::core::Runtime::try_current().is_some() {
+                *LIVE_GEN.write() += 1;
+            }
         }
         started
     }
@@ -192,57 +198,59 @@ impl LiveResources {
 
     /// Signal of pod rows, or `None` while pods are not being watched.
     pub fn pods_signal(&self) -> Option<Signal<Vec<Arc<Pod>>, SyncStorage>> {
-        self.pods.as_ref().map(|s| s.signal())
+        self.pods.as_ref().and_then(|s| s.signal())
     }
 
     pub fn nodes_signal(&self) -> Option<Signal<Vec<Arc<Node>>, SyncStorage>> {
-        self.nodes.as_ref().map(|s| s.signal())
+        self.nodes.as_ref().and_then(|s| s.signal())
     }
 
     pub fn deployments_signal(&self) -> Option<Signal<Vec<Arc<Deployment>>, SyncStorage>> {
-        self.deployments.as_ref().map(|s| s.signal())
+        self.deployments.as_ref().and_then(|s| s.signal())
     }
 
     pub fn stateful_sets_signal(&self) -> Option<Signal<Vec<Arc<StatefulSet>>, SyncStorage>> {
-        self.stateful_sets.as_ref().map(|s| s.signal())
+        self.stateful_sets.as_ref().and_then(|s| s.signal())
     }
 
     pub fn daemon_sets_signal(&self) -> Option<Signal<Vec<Arc<DaemonSet>>, SyncStorage>> {
-        self.daemon_sets.as_ref().map(|s| s.signal())
+        self.daemon_sets.as_ref().and_then(|s| s.signal())
     }
 
     pub fn replica_sets_signal(&self) -> Option<Signal<Vec<Arc<ReplicaSet>>, SyncStorage>> {
-        self.replica_sets.as_ref().map(|s| s.signal())
+        self.replica_sets.as_ref().and_then(|s| s.signal())
     }
 
     pub fn jobs_signal(&self) -> Option<Signal<Vec<Arc<Job>>, SyncStorage>> {
-        self.jobs.as_ref().map(|s| s.signal())
+        self.jobs.as_ref().and_then(|s| s.signal())
     }
 
     pub fn cron_jobs_signal(&self) -> Option<Signal<Vec<Arc<CronJob>>, SyncStorage>> {
-        self.cron_jobs.as_ref().map(|s| s.signal())
+        self.cron_jobs.as_ref().and_then(|s| s.signal())
     }
 
     pub fn secrets_signal(&self) -> Option<Signal<Vec<Arc<Secret>>, SyncStorage>> {
-        self.secrets.as_ref().map(|s| s.signal())
+        self.secrets.as_ref().and_then(|s| s.signal())
     }
 
     pub fn services_signal(&self) -> Option<Signal<Vec<Arc<Service>>, SyncStorage>> {
-        self.services.as_ref().map(|s| s.signal())
+        self.services.as_ref().and_then(|s| s.signal())
     }
 
     pub fn config_maps_signal(&self) -> Option<Signal<Vec<Arc<ConfigMap>>, SyncStorage>> {
-        self.config_maps.as_ref().map(|s| s.signal())
+        self.config_maps.as_ref().and_then(|s| s.signal())
     }
 
     pub fn persistent_volume_claims_signal(
         &self,
     ) -> Option<Signal<Vec<Arc<PersistentVolumeClaim>>, SyncStorage>> {
-        self.persistent_volume_claims.as_ref().map(|s| s.signal())
+        self.persistent_volume_claims
+            .as_ref()
+            .and_then(|s| s.signal())
     }
 
     pub fn ingresses_signal(&self) -> Option<Signal<Vec<Arc<Ingress>>, SyncStorage>> {
-        self.ingresses.as_ref().map(|s| s.signal())
+        self.ingresses.as_ref().and_then(|s| s.signal())
     }
 
     /// Serialised rows for `kind`, or `None` when it is not watched.

@@ -1,4 +1,5 @@
-//! Live resource state — kube reflector store wrapped in a Dioxus signal.
+//! Live resource state — a kube reflector store, mirrored into a Dioxus signal
+//! wherever a runtime owns one.
 //!
 //! A background task runs the kube watcher (auto-reconnecting with backoff) and
 //! republishes a fresh snapshot into a sync signal after every event, so views
@@ -30,7 +31,10 @@ where
     T::DynamicType: Eq + Hash + Clone + Default,
 {
     store: Store<T>,
-    snapshot: Signal<Vec<Arc<T>>, SyncStorage>,
+    /// Reactive snapshot for the view layer, or `None` where this ran with no
+    /// Dioxus runtime to own it — the web host reflects the same store with no
+    /// view to re-render.
+    snapshot: Option<Signal<Vec<Arc<T>>, SyncStorage>>,
     task: Option<tokio::task::JoinHandle<()>>,
 }
 
@@ -65,14 +69,20 @@ where
         let (store, writer) = store::<T>();
         let stream = watcher(api, watcher::Config::default()).default_backoff();
 
-        let snapshot: Signal<Vec<Arc<T>>, SyncStorage> = Signal::new_maybe_sync(Vec::new());
-        let mut snapshot_task = snapshot;
+        // A signal is owned by the current Dioxus runtime, so it is created only
+        // where there is one. The web host (`crates/openkite-web`) starts these
+        // reflectors from a plain tokio process and serves rows from `store`,
+        // which needs no owner.
+        let mut snapshot: Option<Signal<Vec<Arc<T>>, SyncStorage>> =
+            dioxus::core::Runtime::try_current().map(|_| Signal::new_maybe_sync(Vec::new()));
         let store_task = store.clone();
 
         let task = tokio::spawn(drive_reflector(writer, stream, store_task, move |rows| {
             // `rows` is a Vec of Arcs, so cloning is pointer copies — cheap
             // enough to do per event.
-            snapshot_task.set(rows.clone());
+            if let Some(snapshot) = snapshot.as_mut() {
+                snapshot.set(rows.clone());
+            }
             on_change(rows)
         }));
 
@@ -88,8 +98,9 @@ where
         self.store.state()
     }
 
-    /// The reactive signal views read to re-render on change.
-    pub fn signal(&self) -> Signal<Vec<Arc<T>>, SyncStorage> {
+    /// The reactive signal views read to re-render on change, or `None` when the
+    /// watcher was started with no Dioxus runtime to own a signal.
+    pub fn signal(&self) -> Option<Signal<Vec<Arc<T>>, SyncStorage>> {
         self.snapshot
     }
 
