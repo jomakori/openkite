@@ -277,7 +277,7 @@ interface KubeContainerStatus {
 }
 interface KubeObject {
   metadata?: KubeMeta
-  spec?: { nodeName?: string }
+  spec?: { nodeName?: string; type?: string }
   status?: {
     phase?: string
     containerStatuses?: KubeContainerStatus[]
@@ -297,7 +297,8 @@ export function rowFromObject(obj: KubeObject, now: number): ResourceRow {
   return {
     name: obj.metadata?.name ?? '<unnamed>',
     namespace: obj.metadata?.namespace ?? '',
-    phase: obj.status?.phase ?? 'Unknown',
+    // A Service has no `status.phase`; its exposure type is the status shown.
+    phase: obj.status?.phase ?? obj.spec?.type ?? 'Unknown',
     ready,
     age: formatAge(obj.metadata?.creationTimestamp, now),
     ageSeconds: ageSeconds(obj.metadata?.creationTimestamp, now),

@@ -33,7 +33,7 @@ interface KubeObject {
     creationTimestamp: string
     ownerReferences?: PodOwner[]
   }
-  spec?: { nodeName?: string }
+  spec?: { nodeName?: string; type?: string }
   status?: {
     phase?: string
     qosClass?: string
@@ -101,6 +101,11 @@ function object(
     metadata: { name, ...(namespace ? { namespace } : {}), creationTimestamp: ago(minutes) },
     ...(phase ? { status: { phase } } : {}),
   }
+}
+
+/** A namespaced Service fixture carrying the exposure type the Status shows. */
+function service(name: string, namespace: string, minutes: number, type: string): KubeObject {
+  return { ...object('Service', name, namespace, minutes), spec: { type } }
 }
 
 /** One namespace Event attached to an involved object. */
@@ -245,9 +250,9 @@ const FIXTURE_ITEMS: Record<string, KubeObject[]> = {
     object('Deployment', 'argocd-repo-server', 'argocd', 4320, 'Running'),
   ],
   services: [
-    object('Service', 'openkite-api', 'default', 2400),
-    object('Service', 'openkite-web', 'default', 1800),
-    object('Service', 'redis', 'default', 620),
+    service('openkite-api', 'default', 2400, 'ClusterIP'),
+    service('openkite-web', 'default', 1800, 'NodePort'),
+    service('redis', 'default', 620, 'ClusterIP'),
   ],
   configmaps: [
     object('ConfigMap', 'openkite-config', 'default', 2400),
