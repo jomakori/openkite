@@ -16,6 +16,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { rowActions } from '../src/actions'
 import { Inspector } from '../src/Inspector'
 import { LogDock } from '../src/LogDock'
+import { clusterHealth } from '../src/Overview'
 import { ResourceTable } from '../src/ResourceTable'
 import { ResourceView } from '../src/ResourceView'
 import { Shell } from '../src/Shell'
@@ -175,6 +176,58 @@ const overviewHtml = renderToStaticMarkup(
 )
 assert.ok(overviewHtml.includes('<h1>Overview</h1>'), 'cluster route opens Overview')
 assert.ok(overviewHtml.includes('class="eyebrow">Cluster<'), 'cluster route breadcrumbs its section')
+
+// 2c. Overview is a summary, not a table: counts, context and pod health.
+assertClasses(
+  overviewHtml,
+  [
+    'page-head',
+    'page-sub',
+    'page-actions',
+    'toolbar',
+    'chip-row',
+    'chip',
+    'count',
+    'kv-list',
+    'kv-row',
+  ],
+  'cluster overview',
+)
+assert.equal(
+  (overviewHtml.match(/class="chip"/g) ?? []).length,
+  COUNTED_KINDS.length,
+  'overview carries a count chip per counted kind',
+)
+assert.ok(overviewHtml.includes('class="count">12<'), 'overview counts the fixture pods')
+assert.ok(overviewHtml.includes('staging (fixtures)'), 'overview reads the live cluster context')
+assert.ok(overviewHtml.includes('Read-only'), 'overview reports the mutation capability')
+assert.ok(
+  overviewHtml.includes('Waiting for pod data'),
+  'overview health waits for the first pod snapshot',
+)
+
+const fixturePods = rowsFromList(fixtureList('pods', null), Date.now())
+assert.equal(clusterHealth(fixturePods).tone, 'danger', 'health flags the crash-looping pod')
+assert.equal(clusterHealth(fixturePods).total, 12, 'health covers every pod')
+assert.equal(clusterHealth([]).tone, 'neutral', 'health is neutral before any pod arrives')
+
+// 2d. Both cluster nav items are live, so the sidebar renders them enabled.
+const clusterNav = shellHtml.slice(
+  shellHtml.indexOf('class="nav-title">Cluster'),
+  shellHtml.indexOf('class="nav-title">Workloads'),
+)
+assert.ok(clusterNav.includes('Nodes'), 'cluster nav section carries the node entry')
+assert.ok(!clusterNav.includes('data-disabled'), 'cluster nav items are enabled')
+
+const nodesHtml = renderToStaticMarkup(
+  <Shell route="nodes" initialCounts={counts} initialContext={FIXTURE_CONTEXT} />,
+)
+assert.ok(nodesHtml.includes('<h1>Nodes</h1>'), 'nodes route opens the node table')
+assert.ok(nodesHtml.includes('data-testid="resource-table"'), 'nodes renders a resource table')
+assert.ok(
+  nodesHtml.includes('openkite.api.list(nodes,'),
+  'nodes reads the node kind rather than the nav id',
+)
 
 // 3. The spike table renders rows from fixture data, not the empty state.
 const pods = rowsFromList(fixtureList('pods', null), Date.now())
