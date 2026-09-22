@@ -37,7 +37,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use dioxus::prelude::*;
 use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet};
 use k8s_openapi::api::batch::v1::{CronJob, Job};
-use k8s_openapi::api::core::v1::{ConfigMap, Node, PersistentVolumeClaim, Pod, Secret};
+use k8s_openapi::api::core::v1::{ConfigMap, Node, PersistentVolumeClaim, Pod, Secret, Service};
 use k8s_openapi::api::networking::v1::Ingress;
 use kube::{Api, Client, Resource};
 use serde::de::DeserializeOwned;
@@ -93,6 +93,7 @@ pub struct LiveResources {
     jobs: Option<ResourceState<Job>>,
     cron_jobs: Option<ResourceState<CronJob>>,
     secrets: Option<ResourceState<Secret>>,
+    services: Option<ResourceState<Service>>,
     config_maps: Option<ResourceState<ConfigMap>>,
     persistent_volume_claims: Option<ResourceState<PersistentVolumeClaim>>,
     ingresses: Option<ResourceState<Ingress>>,
@@ -110,6 +111,7 @@ impl LiveResources {
             self.jobs.is_some(),
             self.cron_jobs.is_some(),
             self.secrets.is_some(),
+            self.services.is_some(),
             self.config_maps.is_some(),
             self.persistent_volume_claims.is_some(),
             self.ingresses.is_some(),
@@ -143,6 +145,8 @@ impl LiveResources {
             .get_or_insert_with(|| start_kind::<CronJob>(client.clone(), "cronjobs"));
         self.secrets
             .get_or_insert_with(|| start_kind::<Secret>(client.clone(), "secrets"));
+        self.services
+            .get_or_insert_with(|| start_kind::<Service>(client.clone(), "services"));
         self.config_maps
             .get_or_insert_with(|| start_kind::<ConfigMap>(client.clone(), "configmaps"));
         self.persistent_volume_claims.get_or_insert_with(|| {
@@ -180,6 +184,7 @@ impl LiveResources {
             jobs,
             cron_jobs,
             secrets,
+            services,
             config_maps,
             persistent_volume_claims,
             ingresses
@@ -223,6 +228,10 @@ impl LiveResources {
         self.secrets.as_ref().map(|s| s.signal())
     }
 
+    pub fn services_signal(&self) -> Option<Signal<Vec<Arc<Service>>, SyncStorage>> {
+        self.services.as_ref().map(|s| s.signal())
+    }
+
     pub fn config_maps_signal(&self) -> Option<Signal<Vec<Arc<ConfigMap>>, SyncStorage>> {
         self.config_maps.as_ref().map(|s| s.signal())
     }
@@ -259,6 +268,7 @@ impl LiveResources {
             "jobs" | "job" => self.jobs.as_ref().map(|s| to_rows(s.state())),
             "cronjobs" | "cronjob" => self.cron_jobs.as_ref().map(|s| to_rows(s.state())),
             "secrets" | "secret" => self.secrets.as_ref().map(|s| to_rows(s.state())),
+            "services" | "service" => self.services.as_ref().map(|s| to_rows(s.state())),
             "configmaps" | "configmap" => self.config_maps.as_ref().map(|s| to_rows(s.state())),
             "persistentvolumeclaims" | "persistentvolumeclaim" => self
                 .persistent_volume_claims
@@ -356,6 +366,10 @@ pub fn secrets_signal() -> Option<Signal<Vec<Arc<Secret>>, SyncStorage>> {
     guard().secrets_signal()
 }
 
+pub fn services_signal() -> Option<Signal<Vec<Arc<Service>>, SyncStorage>> {
+    guard().services_signal()
+}
+
 pub fn config_maps_signal() -> Option<Signal<Vec<Arc<ConfigMap>>, SyncStorage>> {
     guard().config_maps_signal()
 }
@@ -418,7 +432,7 @@ mod tests {
         // `None` (not `Some(vec![])`) is what tells the bridge to fall back to a
         // real list, so an unwatched kind must never report as watched.
         let resources = LiveResources::default();
-        for kind in ["pods", "deployments", "secrets", "nonsense"] {
+        for kind in ["pods", "deployments", "secrets", "services", "nonsense"] {
             assert!(resources.snapshot_json(kind).is_none(), "{kind}");
         }
     }
