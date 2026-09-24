@@ -1,0 +1,134 @@
+name: release-image
+
+# The production deployment (gke_GitOps, apps/helm spec → openkite.maklab.net) runs a
+# RELEASED image, so a release has to publish one.
+#
+# Neither existing path produces a reference the cluster can run:
+#   - pr-image.yml pushes `pr-<N>` only, on pull requests.
+#   - release.yml publishes the six native desktop targets (AppImage/DMG/MSI) and
+#     does not build a container image at all.
+# So nothing pins `latest released` today. This workflow closes that gap by
+# publishing the git tag as the image tag — `v0.32.1` — because the deployment pins
+# that exact string and the pin-bump workflow in gke_GitOps moves the pin to it.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: >-
+          Release tag to publish an image for, e.g. v0.32.1. Leave empty to use the
+          newest published release.
+        required: false
+        default: ""
+        type: string
+
+# Read the repo (checkout of the tag, `releases/latest` lookup), write the image to
+# GHCR with the built-in token.
+permissions:
+  contents: read
+  packages: write
+
+# A release image is immutable, so a later event must not cancel it in flight —
+# unlike the PR build, which supersedes the previous run for the same PR.
+concurrency:
+  group: release-image-${{ github.event.release.tag_name || inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    name: Resolve the release tag
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - name: Resolve and validate the tag
+        id: tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT_TAG: ${{ github.event.release.tag_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          tag="${EVENT_TAG:-${INPUT_TAG:-}}"
+          if [ -z "$tag" ]; then
+            tag="$(gh api "repos/${{ github.repository }}/releases/latest" --jq .tag_name)"
+          fi
+          # The tag becomes an image tag AND the value the deployment pins, so a
+          # malformed one would publish a reference nothing can consume. Fail here
+          # rather than push something invented.
+          if ! [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error title=Not a release tag::'${tag}' is not v<major>.<minor>.<patch>."
+            exit 1
+          fi
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "Resolved release tag: ${tag}"
+
+  image:
+    name: Build and push release image
+    needs: [resolve]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout the release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.tag }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "26"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      # Same requirement as pr-image.yml: the image serves the browser bundle, and a
+      # missing bundle used to be reported as `ready=false` with the build skipped —
+      # a green job that pushed nothing. Fail instead.
+      - name: Build web bundle
+        run: |
+          set -euo pipefail
+          if [ ! -x web/build.sh ]; then
+            echo "::error title=No web bundle script::web/build.sh is missing or not executable, so no bundle can be produced and no release image published. See web/README.md."
+            exit 1
+          fi
+          ./web/build.sh
+          if [ ! -f web/dist/index.html ]; then
+            echo "::error title=Web build produced no bundle::web/build.sh ran but web/dist/index.html is missing. See web/README.md."
+            exit 1
+          fi
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      # The git tag IS the image tag: the prod deployment pins `${image}:v0.32.1`,
+      # and gke_GitOps' pin-bump workflow writes that same string, so building any
+      # other reference would leave the pin pointing at nothing.
+      - name: Build image
+        env:
+          TAG: ${{ needs.resolve.outputs.tag }}
+        run: |
+          set -euo pipefail
+          image="ghcr.io/jomakori/openkite"
+          docker build --tag "${image}:${TAG}" .
+          {
+            echo "IMAGE=${image}"
+            echo "TAG=${TAG}"
+          } >> "$GITHUB_ENV"
+
+      - name: Push image
+        run: |
+          set -euo pipefail
+          docker push "${IMAGE}:${TAG}"
+
+      - name: Record the published reference
+        run: |
+          set -euo pipefail
+          {
+            echo "### Release image published"
+            echo ""
+            echo "| consumer | reference |"
+            echo "|---|---|"
+            echo "| prod deployment (\`image.tag\`) | \`${IMAGE}:${TAG}\` |"
+            echo "| prod host | \`https://openkite.maklab.net\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
