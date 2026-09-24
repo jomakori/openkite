@@ -44,6 +44,9 @@ on:
       # Changing the build definition itself affects the artifact.
       - '.github/workflows/build-artifacts.yml'
       - '.github/workflows/build-release-artifacts.yml'
+      # The container image is built from the same source, by the workflow the
+      # release job calls below.
+      - '.github/workflows/build-image.yml'
 
 permissions:
   contents: write
@@ -211,6 +214,27 @@ jobs:
           files: dist/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  image:
+    name: Publish container image
+    needs: [analyze, publish]
+    # Same gate as the package jobs: only a real release publishes, and a dry run
+    # never does. Waiting on `publish` rather than `analyze` is deliberate — the
+    # image is named after the tag, so the tag has to exist first, and `v<X.Y.Z>`
+    # can then never point at an image with no release behind it.
+    if: needs.analyze.outputs.new_release_published == 'true' && inputs.dry_run != 'true'
+    # The workflow-level permissions above have no `packages: write`, so the image
+    # job declares its own.
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/build-image.yml
+    with:
+      # The released commit, by tag: the git tag IS the image tag, so building the
+      # tag guarantees the image and the release are the same source.
+      ref: v${{ needs.analyze.outputs.new_release_version }}
+      tag: v${{ needs.analyze.outputs.new_release_version }}
+      host: openkite.maklab.net
 
   publish-tap:
     name: Update homebrew tap (jomakori/homebrew-tap)
