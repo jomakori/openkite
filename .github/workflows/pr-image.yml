@@ -3,17 +3,19 @@ name: pr-image
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    # Only PRs that can affect the served bundle warrant building an image.
-    # Unrelated PRs don't run this at all, so they no longer get a pointless
-    # (and, pre-OKT-73, always-failing) check.
-    paths:
-      - 'web/**'
-      - 'Dockerfile'
-      - '.dockerignore'
-      - '.github/workflows/pr-image.yml'
+
+# Every PR, not a path-filtered subset. The image IS the preview contract: the
+# gke_GitOps ApplicationSet deploys ghcr.io/jomakori/openkite:pr-<N> for any PR
+# whose image was published, so a PR this workflow skips is a PR whose preview
+# cannot start. The `paths:` filter that used to sit here listed only `web/**`,
+# `Dockerfile` and `.dockerignore`, so Rust-only PRs (132, 133) never ran it,
+# never published pr-132/pr-133, and still got a preview Application from the
+# unfiltered ApplicationSet — which sat in ImagePullBackOff with nothing on the
+# PR saying why. Building ~30s on every PR is the cheaper failure mode.
 
 # Least privilege: read the repo, write the PR image to GHCR with the
-# built-in GITHUB_TOKEN.
+# built-in GITHUB_TOKEN. The gate job at the bottom widens this for itself only
+# (it needs to write a PR label).
 permissions:
   contents: read
   packages: write
@@ -38,37 +40,35 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
 
-      # web/build.sh produces the browser bundle the image serves. This step
-      # reports ready=false and skips the build/push steps when the script is
-      # absent (a branch that has not landed it yet); when it runs, a missing
-      # web/dist/index.html is a hard failure. If the build succeeds, the same
-      # job publishes the image and the preview host can consume it.
-      #
-      # Note: `hashFiles()` is not available in a job-level `if:`, only in step
-      # contexts, which is why the gate is a step output rather than a job
-      # condition.
+      # web/build.sh produces the browser bundle the image serves. It is
+      # REQUIRED: a missing bundle used to be reported as `ready=false` and the
+      # build/push steps skipped, so the job finished GREEN having pushed
+      # nothing — indistinguishable, from the PR, from a PR that published an
+      # image. It now fails, which is what the preview gate reads: no bundle →
+      # no image → no `preview` label → no preview Application, and a red check
+      # on the PR instead of a silent ImagePullBackOff.
       - name: Build web bundle
-        id: bundle
         run: |
           set -euo pipefail
-          if [ -x web/build.sh ]; then
-            ./web/build.sh
-            if [ ! -f web/dist/index.html ]; then
-              echo "::error title=Web build produced no bundle::web/build.sh ran but web/dist/index.html is missing. See web/README.md."
-              exit 1
-            fi
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::notice title=No web bundle yet::web/build.sh is not executable or missing; skipping the preview image build. The Dockerfile will refuse a UI-less image once it runs."
-            echo "ready=false" >> "$GITHUB_OUTPUT"
+          if [ ! -x web/build.sh ]; then
+            echo "::error title=No web bundle script::web/build.sh is missing or not executable, so no bundle can be produced and no preview image published. See web/README.md."
+            exit 1
+          fi
+          ./web/build.sh
+          if [ ! -f web/dist/index.html ]; then
+            echo "::error title=Web build produced no bundle::web/build.sh ran but web/dist/index.html is missing. See web/README.md."
+            exit 1
           fi
 
       - name: Log in to GHCR
-        if: steps.bundle.outputs.ready == 'true'
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
+      # `pr-<N>` is the tag the preview chart consumes by name
+      # (gke_GitOps apps/openkite-preview/values.yaml → tagTemplate: pr-{{ .number }},
+      # passed to the workload chart as image.tag). It must be THE tag built
+      # here, or every preview pulls a reference nothing ever pushed.
+      # `pr-<N>-<sha>` is the immutable pin for tracing a preview back to a commit.
       - name: Build image
-        if: steps.bundle.outputs.ready == 'true'
         env:
           PR: ${{ github.event.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -87,8 +87,75 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Push image
-        if: steps.bundle.outputs.ready == 'true'
         run: |
           set -euo pipefail
           docker push "${IMAGE}:${TAG_MUTABLE}"
           docker push "${IMAGE}:${TAG_IMMUTABLE}"
+
+      - name: Record the published tag contract
+        run: |
+          set -euo pipefail
+          {
+            echo "### Preview image published"
+            echo ""
+            echo "| consumer | reference |"
+            echo "|---|---|"
+            echo "| preview ApplicationSet (\`image.tag\`) | \`${IMAGE}:${TAG_MUTABLE}\` |"
+            echo "| pinned to this commit | \`${IMAGE}:${TAG_IMMUTABLE}\` |"
+            echo "| preview host | \`https://pr-${{ github.event.number }}.openkite.maklab.net\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ── Preview gate ─────────────────────────────────────────────────────────
+  # A preview environment is only worth deploying if the image it serves
+  # exists. The `preview` label is the single switch that
+  # jomakori/gke_GitOps' ApplicationSet pullRequest generator filters on, so it
+  # is applied here — and only here — after `docker push` has succeeded. A PR
+  # whose build fails keeps no label, so the generator emits no Application and
+  # nothing is deployed for it. Losing the label on a failed build also tears
+  # down a preview left over from an earlier successful one.
+  # See gke_GitOps/apps/openkite-preview/README.md § "The image gate".
+  gate:
+    name: Gate the preview label on a published image
+    needs: [image]
+    # Run even when `image` failed — that is exactly the case in which a label
+    # earned by an earlier successful build has to be withdrawn.
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write        # the label catalogue (gh label create)
+      pull-requests: write # add/remove the label on the PR
+    steps:
+      - name: Ensure the `preview` label exists
+        if: needs.image.result == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh label create preview \
+            --repo "$GITHUB_REPOSITORY" \
+            --description "Preview environment: this PR's pr-<N> image built and published successfully" \
+            --color 1d76db \
+            --force
+
+      - name: Add the `preview` label
+        if: needs.image.result == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.number }}
+        run: |
+          set -euo pipefail
+          gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --add-label preview
+          echo "::notice title=Preview armed::pr-${PR} image published — labelled so the preview ApplicationSet deploys it."
+
+      - name: Withdraw the `preview` label
+        if: needs.image.result != 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.number }}
+          IMAGE_RESULT: ${{ needs.image.result }}
+        run: |
+          set -euo pipefail
+          echo "::notice title=No preview::no pr-${PR} image was published (image job: ${IMAGE_RESULT}) — withdrawing the 'preview' label so no preview is deployed."
+          # No label on the PR (the common case) → the labels API 404s → benign.
+          gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --remove-label preview || true
