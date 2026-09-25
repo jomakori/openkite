@@ -3,10 +3,10 @@
 //!
 //! The console's data path is already HTTP. `web/src/bridge.ts` POSTs the
 //! `{id, plugin, request}` envelope to `/openkite` and falls back to its bundled
-//! fixtures whenever that POST is not an HTTP 2xx. A static host answers it
-//! `405 Not Allowed`, which is why the browser build renders fixture data today.
-//! This crate is the missing half: the same [`Bridge`] dispatch the desktop
-//! webview reaches through its wry asset handler, mounted on axum instead.
+//! fixtures whenever that POST is not an HTTP 2xx — a static host, answering
+//! `405 Not Allowed`, is one of those. This crate is the missing half: the same
+//! [`Bridge`] dispatch the desktop webview reaches through its wry asset
+//! handler, mounted on axum instead.
 //!
 //! Nothing in the desktop path changes. The kube client, the reflectors
 //! ([`openkite::state::live`]) and the bridge are the core crate's own; the only

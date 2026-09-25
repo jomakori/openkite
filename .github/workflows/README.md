@@ -23,8 +23,7 @@ so a preview can never point at an image that was never built (the failure mode
 that left previews 132/133 in `ImagePullBackOff`).
 
 That runtime is the Rust host (`crates/openkite-web`), the same image the release
-path publishes — so a preview exercises exactly what prod will run, rather than
-nginx serving a static bundle.
+path publishes — so a preview exercises exactly what prod will run.
 
 `pr-image.yml` owns that label, exclusively:
 

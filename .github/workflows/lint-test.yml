@@ -246,11 +246,10 @@ jobs:
         name: Add coverage to job summary
         run: cat code-coverage-results.md >> "$GITHUB_STEP_SUMMARY"
 
-  # The console image compiles the Rust host (build-image.yml). Only caches
-  # written on the default branch are restorable from another branch, and the
-  # image workflow never runs on `main` — so this job writes the cache the PR
-  # path reads. Push-to-main only, for the same reason it saves: on a PR it
-  # would repeat a compile build-image.yml is already doing.
+  # Writes the release-profile cache build-image.yml restores: only default-branch
+  # caches are restorable from another branch, and that workflow never runs on
+  # `main`. Push-to-main only — on a PR it would repeat a compile that workflow is
+  # already doing.
   image-build-cache:
     name: Warm the console image build cache
     runs-on: ubuntu-24.04
