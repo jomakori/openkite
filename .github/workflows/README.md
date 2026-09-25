@@ -8,11 +8,47 @@ container — see [`dev/capture/README.md`](../../dev/capture/README.md)).
 |---|---|---|
 | [`lint-test.yml`](lint-test.yml) | PR, push `main` | fmt / clippy / test / build / bundle-freshness / cross-platform / coverage, plus the `check-portable-sed.sh` hygiene gate. |
 | [`e2e.yml`](e2e.yml) | PR, push `main`, dispatch | Desktop E2E, user flows, bridge guard, visual-regression baselines. |
-| [`pr-image.yml`](pr-image.yml) | PR on `web/**` | Build the console bundle and publish a PR preview image to GHCR. |
+| [`pr-image.yml`](pr-image.yml) | PR | Build the console bundle and publish the preview image to GHCR as `pr-<N>`, then label the PR `preview` — the one label `gke_GitOps` deploys a preview for. A failed build withdraws the label instead. |
 | [`build-artifacts.yml`](build-artifacts.yml) | PR on artifact-affecting paths, `merge_group` | Build the six native release packages **once per commit** as a PR, and gate the **merge queue** with a build-only run on the synthetic merge group (calls the reusable workflow below). |
 | [`build-release-artifacts.yml`](build-release-artifacts.yml) | `workflow_call` | Reusable six-target native build + optional `cargo-packager` + optional upload. No cross-compilation: packaging needs `hdiutil` (DMG) and WiX/NSIS (Windows). |
 | [`release.yml`](release.yml) | push `main` on Rust paths, dispatch | semantic-release tag/notes, then download-and-attach the PR-built packages (or rebuild as a fallback), then update the Homebrew tap and Chocolatey package. `Publish release` runs a preflight that refuses a partial artifact set (see below). |
 | [`main-failure-tracker.yml`](main-failure-tracker.yml) | `workflow_run` on `main` failure, dispatch | Open or update exactly one tracking issue per failed workflow on `main`, naming the failing job(s) and the log link. |
+
+## Preview gate — no image, no preview
+
+`gke_GitOps` runs an `ApplicationSet` that turns **labelled** open PRs into preview
+environments at `pr-<N>.openkite.maklab.net`, rendering
+`ghcr.io/jomakori/openkite:pr-<N>` into that PR's own namespace. It is label-gated
+so a preview can never point at an image that was never built (the failure mode
+that left previews 132/133 in `ImagePullBackOff`).
+
+`pr-image.yml` owns that label, exclusively:
+
+| Image outcome | Label | Result |
+|---|---|---|
+| built and pushed as `pr-<N>` | `preview` applied | preview Application created, deployed |
+| build fails | `preview` withdrawn | preview Application removed, namespace and resources pruned |
+| `pr-<N>-<sha>` only (superseded push) | unchanged | the mutable `pr-<N>` tag is re-pushed by the newer run |
+
+The gate keys off the `image` job's success, and the job can only succeed having
+pushed both tags: the bundle step hard-fails when `web/build.sh` is absent or
+produces no `web/dist/index.html`, so there is no green-without-pushing path left.
+A PR from a fork has a read-only token (no image, no label) and so never gets a
+preview.
+
+This workflow runs on **every** PR, not a path-filtered subset. The image is the
+whole preview contract, so a PR this workflow skipped was a PR whose preview could
+not start: the old `paths:` filter listed only `web/**`, `Dockerfile` and
+`.dockerignore`, so Rust-only PRs 132/133 never published `pr-132`/`pr-133` while
+the then-unfiltered ApplicationSet deployed them anyway.
+
+Consequence to expect: a preview URL only exists once this workflow has gone green
+for the PR head. If `pr-<N>.openkite.maklab.net` 404s, check the label before
+debugging the cluster:
+
+```bash
+gh pr view <N> --json labels --jq '.labels[].name'
+```
 
 ## Build once, reuse at release (OKT-104)
 
