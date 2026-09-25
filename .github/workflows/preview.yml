@@ -22,6 +22,8 @@ jobs:
       group: preview-image-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
       - name: Build and publish pr-<N> with its sha pin
         uses: ./.github/actions/build-image
         with:
@@ -113,6 +115,8 @@ jobs:
       group: ci-failure-${{ github.workflow }}
       cancel-in-progress: false
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
       - name: Open, update, or close the tracking issue
         uses: ./.github/actions/notify-failure
         with:

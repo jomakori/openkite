@@ -161,6 +161,8 @@ jobs:
             formats: nsis
             ext: exe
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
       - name: Build, package, and upload the release asset
         uses: ./.github/actions/build-release-artifacts
         with:
@@ -294,6 +296,8 @@ jobs:
     outputs:
       image_digest: ${{ steps.build.outputs.digest }}
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
       - name: Build and publish v<version>
         id: build
         uses: ./.github/actions/build-image
@@ -315,6 +319,8 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
       - name: Read the package digests
         uses: ./.github/actions/release-digest
         with:
@@ -520,6 +526,8 @@ jobs:
       group: ci-failure-${{ github.workflow }}
       cancel-in-progress: false
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
       - name: Open, update, or close the tracking issue
         uses: ./.github/actions/notify-failure
         with:
