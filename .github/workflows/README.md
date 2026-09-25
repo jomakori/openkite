@@ -7,7 +7,7 @@ container — see [`dev/capture/README.md`](../../dev/capture/README.md)).
 | Workflow | Trigger | Role |
 |---|---|---|
 | [`lint-test.yml`](lint-test.yml) | PR, push `main` | fmt / clippy / test / build / bundle-freshness / cross-platform / coverage, plus the `check-portable-sed.sh` hygiene gate. |
-| [`e2e.yml`](e2e.yml) | PR, push `main`, dispatch | Desktop E2E, user flows, bridge guard, visual-regression baselines. |
+| [`e2e.yml`](e2e.yml) | PR, push `main`, dispatch | Desktop E2E, user flows, bridge guard, visual-regression baselines, console parity (browser vs desktop pixel diff). |
 | [`pr-image.yml`](pr-image.yml) | PR | Build the console bundle and publish the preview image to GHCR as `pr-<N>`, then label the PR `preview` — the one label `gke_GitOps` deploys a preview for. A failed build withdraws the label instead. |
 | [`build-artifacts.yml`](build-artifacts.yml) | PR on artifact-affecting paths, `merge_group` | Build the six native release packages **once per commit** as a PR, and gate the **merge queue** with a build-only run on the synthetic merge group (calls the reusable workflow below). |
 | [`build-release-artifacts.yml`](build-release-artifacts.yml) | `workflow_call` | Reusable six-target native build + optional `cargo-packager` + optional upload. No cross-compilation: packaging needs `hdiutil` (DMG) and WiX/NSIS (Windows). |
