@@ -3,10 +3,10 @@
 //!
 //! The console's data path is already HTTP. `web/src/bridge.ts` POSTs the
 //! `{id, plugin, request}` envelope to `/openkite` and falls back to its bundled
-//! fixtures only when that request cannot be made at all — a static host answers
-//! 404, which is why the browser build renders fixture data today. This crate is
-//! the missing half: the same [`Bridge`] dispatch the desktop webview reaches
-//! through its wry asset handler, mounted on axum instead.
+//! fixtures whenever that POST is not an HTTP 2xx. A static host answers it
+//! `405 Not Allowed`, which is why the browser build renders fixture data today.
+//! This crate is the missing half: the same [`Bridge`] dispatch the desktop
+//! webview reaches through its wry asset handler, mounted on axum instead.
 //!
 //! Nothing in the desktop path changes. The kube client, the reflectors
 //! ([`openkite::state::live`]) and the bridge are the core crate's own; the only
@@ -18,7 +18,7 @@ pub mod routes;
 pub mod spike;
 
 use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::Context;
@@ -63,13 +63,26 @@ pub async fn bind_and_serve(
     serve(listener, web_root, client).await
 }
 
+/// Refuse to boot when the console bundle is not on disk.
+fn assert_bundle(web_root: &Path) -> anyhow::Result<()> {
+    let index = web_root.join("index.html");
+    if index.is_file() {
+        return Ok(());
+    }
+    anyhow::bail!(
+        "no console bundle at {} — refusing to serve a console-less host",
+        web_root.display()
+    )
+}
+
 /// Boot the host on an already-bound listener: install the bridge, start the
 /// reflectors, then serve.
 ///
 /// The listener belongs to the caller so that a port clash fails before the
 /// reflectors start, and so a test can bind `127.0.0.1:0` and read the port
-/// back.
+/// back. The bundle is asserted first, for the same reason.
 pub async fn serve(listener: TcpListener, web_root: PathBuf, client: Client) -> anyhow::Result<()> {
+    assert_bundle(&web_root)?;
     let bridge = Arc::new(Bridge::connected(client.clone()));
 
     // One reflector per kind: `watch` ops answer from these snapshots instead of

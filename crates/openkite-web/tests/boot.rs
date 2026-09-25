@@ -112,3 +112,24 @@ async fn booted_host_answers_the_console_over_http() {
         "context response: {response}"
     );
 }
+
+#[tokio::test]
+async fn booted_host_refuses_a_missing_bundle() {
+    // An empty directory is what a failed COPY into the runtime image looks
+    // like: no index.html, so nothing to serve. Booting anyway would answer
+    // 404 for every path and drop the console back to fixtures.
+    let dir = tempfile::tempdir().expect("tempdir");
+    let client = fake_api_client().await;
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind host");
+
+    let err = serve(listener, dir.path().to_path_buf(), client)
+        .await
+        .expect_err("a bundle-less host must refuse to serve");
+    let message = format!("{err:#}");
+    assert!(
+        message.contains("no console bundle"),
+        "unexpected error: {message}"
+    );
+}
