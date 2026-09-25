@@ -4,48 +4,63 @@ Continuous integration, packaging, and release automation. GitHub Actions only:
 nothing here runs on a developer host (the `openkite` Dioxus link OOMs a small
 container — see [`e2e/visual/cluster/README.md`](../../e2e/visual/cluster/README.md)).
 
-| Workflow | Trigger | Role |
+Four workflows, one job each of them owns:
+
+| Workflow | Trigger | Jobs |
 |---|---|---|
-| [`lint-test.yml`](lint-test.yml) | PR, push `main` | fmt / clippy / test / build / bundle-freshness / cross-platform / coverage, plus the `check-portable-sed.sh` hygiene gate. |
-| [`e2e.yml`](e2e.yml) | PR, push `main`, dispatch | Desktop E2E, user flows, bridge guard, visual-regression baselines. |
-| [`pr-image.yml`](pr-image.yml) | PR | Build the console bundle and publish the preview image to GHCR as `pr-<N>`, then label the PR `preview` — the one label `gke_GitOps` deploys a preview for. A failed build withdraws the label instead. |
-| [`build-artifacts.yml`](build-artifacts.yml) | PR on artifact-affecting paths, `merge_group` | Build the six native release packages **once per commit** as a PR, and gate the **merge queue** with a build-only run on the synthetic merge group (calls the reusable workflow below). |
-| [`build-release-artifacts.yml`](build-release-artifacts.yml) | `workflow_call` | Reusable six-target native build + optional `cargo-packager` + optional upload. No cross-compilation: packaging needs `hdiutil` (DMG) and WiX/NSIS (Windows). |
-| [`release.yml`](release.yml) | push `main` on Rust paths, dispatch | semantic-release tag/notes, then download-and-attach the PR-built packages (or rebuild as a fallback), then update the Homebrew tap and Chocolatey package. `Publish release` runs a preflight that refuses a partial artifact set (see below). |
-| [`main-failure-tracker.yml`](main-failure-tracker.yml) | `workflow_run` on `main` failure, dispatch | Open or update exactly one tracking issue per failed workflow on `main`, naming the failing job(s) and the log link. |
-| [`pr-artifacts-cleanup.yml`](pr-artifacts-cleanup.yml) | PR closed, dispatch, weekly | Delete the container image versions a closed PR published, so a preview leaves nothing behind in the registry. |
+| [`lint-test.yml`](lint-test.yml) | `pull_request` (drafts included), push `main` | `changes` · `fmt` · `clippy` · `test` · `build` · `bundle-freshness` · `cross-platform` · `web-target` · `coverage` · `report` |
+| [`build-e2e.yml`](build-e2e.yml) | `pull_request` (not draft), push `main` | `changes` · `binaries` (6 targets) · `e2e-binary` · `desktop-e2e` · `user-flows` · `bridge-guard` · `desktop-e2e-connected` · `visual-regression` · `gate` · `report` |
+| [`preview.yml`](preview.yml) | `pull_request` on the `preview` label | `image` · `ready` · `prune` · `report` |
+| [`release.yml`](release.yml) | push `main` (Rust/web/CI paths), dispatch | `analyze` · `locate` · `packages` · `publish` · `image` · `image-rebuild` · `manifest` · `tap` · `choco` · `report` |
 
-## Preview gate — no image, no preview
+Everything shared lives in [`../actions/`](../actions) as composite actions:
+`rust-setup` (toolchain + the one apt list + cache), `build-image` (the one image
+build and push), `build-release-artifacts` (one native target), `notify-failure`
+(the `ci-failure` issue), `release-digest` (asset digests).
 
-`gke_GitOps` runs an `ApplicationSet` that turns **labelled** open PRs into preview
-environments at `pr<N>-openkite.maklab.net`, rendering
-`ghcr.io/jomakori/openkite:pr-<N>` into that PR's own namespace. It is label-gated
-so a preview can never point at an image that was never built (the failure mode
-that left previews 132/133 in `ImagePullBackOff`).
+Validate a change locally before pushing:
 
-`pr-image.yml` owns that label, exclusively:
+```bash
+pre-commit run --files <changed files>
+actionlint .github/workflows/<file>
+yamllint .github/workflows .github/actions   # config: ../../.yamllint.yml
+```
+
+## Draft → ready replaces the merge queue
+
+A PR opens as a draft: `lint-test.yml` runs (fast feedback, nothing heavy) and
+`build-e2e.yml` runs nothing expensive. Marking it ready fires `ready_for_review`
+and starts the six-target matrix, the e2e binary, the five suites, and the
+`gate`. Later pushes while ready keep it running; a return to draft stops it
+again. Every expensive job carries the same job-level guard
+(`github.event.pull_request.draft == false` plus the path filter) — never a
+per-step one — so a required context can only report a real result.
+
+A draft cannot be merged, so nothing skips the gate: the `gate` context exists
+exactly when the PR is mergeable. The cost, stated plainly: a PR marked ready
+before it is genuinely ready pays a full matrix and the e2e suites. `draft` is a
+workflow control here, not just a signal.
+
+## Preview — one label, no image no preview
+
+`gke_GitOps` runs an `ApplicationSet` that turns **labelled** open PRs into
+preview environments, rendering `ghcr.io/jomakori/openkite:pr-<N>` into that
+PR's own namespace. The label is the switch, and `preview.yml` owns it:
 
 | Image outcome | Label | Result |
 |---|---|---|
-| built and pushed as `pr-<N>` | `preview` applied | preview Application created, deployed |
-| build fails | `preview` withdrawn | preview Application removed, namespace and resources pruned |
-| `pr-<N>-<sha>` only (superseded push) | unchanged | the mutable `pr-<N>` tag is re-pushed by the newer run |
+| built and pushed as `pr-<N>` + `pr-<N>-<sha>` | left in place | preview Application created, deployed |
+| build fails | `preview` removed | preview Application removed, namespace pruned |
 
-The gate keys off the `image` job's success, and the job can only succeed having
-pushed both tags: the bundle step hard-fails when `web/build.sh` is absent or
-produces no `web/dist/index.html`, so there is no green-without-pushing path left.
-A PR from a fork has a read-only token (no image, no label) and so never gets a
-preview.
+The label is a human input: apply `preview` to a PR and the workflow builds the
+PR head. Nothing in CI creates the label. If a build fails the label is withdrawn
+so the deploy switch never lies about an image that does not exist — re-apply it
+after a fix. A PR from a fork has a read-only token (no image, no label) and so
+never gets a preview.
 
-This workflow runs on **every** PR, not a path-filtered subset. The image is the
-whole preview contract, so a PR this workflow skipped was a PR whose preview could
-not start: the old `paths:` filter listed only `web/**`, `Dockerfile` and
-`.dockerignore`, so Rust-only PRs 132/133 never published `pr-132`/`pr-133` while
-the then-unfiltered ApplicationSet deployed them anyway.
-
-Consequence to expect: a preview URL only exists once this workflow has gone green
-for the PR head. If `pr<N>-openkite.maklab.net` 404s, check the label before
-debugging the cluster:
+Consequence to expect: a preview only exists once `preview.yml` has gone green
+for the PR head. If the preview URL 404s, check the label before debugging the
+cluster:
 
 ```bash
 gh pr view <N> --json labels --jq '.labels[].name'
@@ -53,22 +68,20 @@ gh pr view <N> --json labels --jq '.labels[].name'
 
 ## Teardown — what a closed PR leaves behind
 
-Three sides, three owners, and only one of them needs configuration:
-
 | Artifact | Owner | On close or merge |
 |---|---|---|
 | Namespace, Application, workload | the `ApplicationSet` in `gke_GitOps` | pruned by the generator |
-| Image versions `pr-<N>` and `pr-<N>-<sha>` | `pr-artifacts-cleanup.yml` | deleted by the script below |
-| Cloudflare DNS and Access objects | the zone wildcard plus the wildcard Access application | nothing per PR |
+| Image versions `pr-<N>` and `pr-<N>-<sha>` | `preview.yml` (`prune`) | a **merged** PR keeps its sha-pinned version and loses only the mutable `pr-<N>`; a closed-unmerged PR loses both |
 
-Registry cleanup has no backstop to configure: GitHub's package retention rules are
-**organisation-only**, and `openkite` is a user-owned package, so the weekly sweep
-in `pr-artifacts-cleanup.yml` is the backstop. Backfill a PR that closed before the
-workflow existed, or sweep everything, through the same script:
+Registry cleanup has no backstop to configure: GitHub's package retention rules
+are **organisation-only** and `openkite` is a user-owned package. The weekly
+sweep that used to be the backstop is gone with `pr-artifacts-cleanup.yml`; sweep
+by hand through the same script:
 
 ```bash
-gh workflow run pr-artifacts-cleanup.yml -f pr=131   # one PR
-gh workflow run pr-artifacts-cleanup.yml             # sweep every closed PR
+./scripts/prune-pr-image.sh --sweep     # every closed PR, --merged semantics per PR
+./scripts/prune-pr-image.sh 131         # one closed-unmerged PR
+./scripts/prune-pr-image.sh --merged 130  # one merged PR: keep the sha pin
 ```
 
 Verify against the registry, never the PR list:
@@ -78,183 +91,101 @@ gh api /users/jomakori/packages/container/openkite/versions --paginate \
   -q '[.[].metadata.container.tags[]]|length'
 ```
 
-
 ## Build once, reuse at release (OKT-104)
 
-`release.yml` used to rebuild all six native targets every time a release fired.
-Now the packages are built once per commit by the PR workflow and reused:
+The six native packages are built once per commit by `build-e2e.yml` and reused:
 
 ```
-PR (code-affecting)                         release (push to main)
-  build-artifacts.yml                         release.yml
-        │ calls                                     │
-        ▼                                           ▼
-  build-release-artifacts.yml                 prepare: locate the PR build
-        │ 6 native builds + packager            │   for this commit (see below)
-        │ uploads openkite_<os>_<arch>          │
-        └────────────── artifacts ─────────────►│ reuse? ── yes ─► download from the PR run
-                                                │                   │
-                                                │             no ──► call build-release-artifacts.yml
-                                                │                   (version embedded) ─┐
-                                                ▼                                       │
-                                          publish: normalize asset names ◄──────────────┘
+PR (artifact-affecting)                     release (push to main)
+  build-e2e.yml                               release.yml
+        │ six native builds                    │
+        │ uploads openkite_<os>_<arch>          ▼
+        └──────────── artifacts ──────────► locate: the PR build for this commit
+                                                │ reuse? ── yes ─► download from the PR run
+                                                │             no ─► packages (fallback rebuild,
+                                                │                    version embedded)
+                                                ▼
+                                          publish: normalize asset names
                                           (refuse a partial set) → tag → attach
 ```
 
 ### Locating the PR build
 
 Squash merges mint a brand-new commit SHA, so the PR build cannot be found by
-the merged SHA alone. `prepare` maps the merged commit back to its PR head SHA
-through the API, finds the newest **successful** `build-artifacts` run for that
-SHA, and requires a complete, unexpired six-asset set. Missing / expired /
-cancelled → `reuse=false` and the rebuild fallback engages. Publishing is never
-blocked by artifact GC (90-day retention), a force-push, or a failed PR job.
+the merged SHA alone. `locate` maps the merged commit back to its PR head SHA
+through the API, finds the newest **successful** `build-e2e` run for that SHA,
+and requires a complete, unexpired six-asset set. Missing, expired, cancelled, or
+a direct push to `main` → `reuse=false` and the `packages` fallback rebuilds.
+Publishing is never blocked by artifact GC (90-day retention), a force-push, or a
+failed PR job.
 
-The selector and the asset normalisation live in
-[`.github/scripts/`](../scripts) so the release path and its verification run
-the **same** code:
+The selector and the asset normalisation live in [`.github/scripts/`](../scripts)
+so the release path and its verification run the **same** code:
 
-- `locate-release-artifacts.sh <merged-sha>` — reuse/find decision.
+- `locate-release-artifacts.sh <merged-sha>` — reuse/find decision, plus the PR's
+  sha-pinned image tag for the image promotion.
 - `normalize-release-assets.sh <dist-dir> <version>` — rewrite the version token
   in every asset name and refuse a partial set.
 
 ## Release fail-safe
 
-`Publish release` starts with a preflight — `normalize-release-assets.sh <dist>
-<version> [targets]` — that refuses a partial release:
+`publish` runs the preflight unconditionally, and it runs **before** anything is
+tagged or uploaded: `normalize-release-assets.sh` requires all six targets by
+default and fails the job otherwise. A dry run is allowed through with whatever
+(possibly empty) set the download produced precisely so the gate can be exercised
+without publishing; the tagging, uploading and image steps are gated off for it.
 
-- **Default (no input): all six targets are required.** A missing asset fails
-  the job with `::error title=Incomplete release artifact set::missing: …` and
-  nothing is tagged or uploaded. This is the only value a push-triggered run
-  can produce, so a partial release is impossible by accident.
-- **A deliberate subset requires the explicit `workflow_dispatch` input
-  `targets`** (comma-separated, e.g. `linux_amd64,macos_arm64`). When set, only
-  those assets are required and the others are pruned, so publishing fewer
-  targets is a conscious act rather than a silent outcome.
-- **`dry_run=true`** runs `analyze` + the preflight without tagging, uploading,
-  or touching the Homebrew/Chocolatey package managers. It never publishes, so
-  it is safe to use to exercise the gate.
+`targets` may only be narrowed by an explicit `workflow_dispatch` — a partial
+release is a conscious act, never an accident of a cancelled job.
 
-The gate extends the OKT-104 completeness check in the same script instead of
-adding a second, competing preflight.
+## The image the release ships
+
+The release promotes the image the PR already built. `locate` maps the merged
+commit to its PR and to that PR's sha-pinned tag (`pr-<N>-<sha>`); `image` runs
+`docker buildx imagetools create --tag ghcr.io/jomakori/openkite:v<semver>
+ghcr.io/jomakori/openkite:pr-<N>-<sha>`. A rebuild from the tag happens only when
+there is no preview image to promote (no PR for the commit, or the tag was never
+published), in the separate `image-rebuild` job.
+
+`manifest` then attaches `openkite_<semver>_release-manifest.md` to the release:
+the six package digests plus the image digest at `v<semver>`.
+
+## Required contexts
+
+Seven contexts keep their exact names:
+
+`Check formatting` · `Lint with clippy` · `Run tests` · `Build` · `Coverage gate`
+· `plugin-sdk cross-platform (ubuntu-latest)` · `Multi-platform build`
+
+Path filtering lives in a `changes` job, not in `on.pull_request.paths`: a
+workflow skipped by a top-level path filter reports no check at all, so a
+docs-only PR would sit on "Expected" forever. `changes` always runs and always
+reports; the heavy jobs skip on a docs-only PR, which is a skipped (not a
+fail-open green) context.
 
 ## Post-merge surfacing
 
-`main-failure-tracker.yml` runs when `lint-test`, `e2e`, or `Release` completes
-on `main`. A failure opens exactly one issue per workflow, naming the workflow,
-the failing job(s) and their log links; a later failure comments on that same
-issue instead of filing a duplicate. Manual re-report:
-`gh workflow run main-failure-tracker.yml -f run_id=<id> -f workflow_name=Release`.
+Each of the four workflows carries a `report` job. On a push-to-main run it opens
+or updates exactly **one** `ci-failure` issue per workflow
+(`[ci] <workflow> is red on main`, body updated in place rather than a comment per
+failure), and on a green push-to-main run it closes that workflow's issue.
+
+This is the post-merge fail-safe: a green *required-check* set does not prove the
+workflows a merge triggered actually succeeded, and `release.yml` is
+path-filtered, so a workflow-only merge never runs it.
 
 ## Process rule: verify the workflows a change can trigger
 
-A green set of **required** checks is not evidence that the workflows a merge
-triggers succeeded. `release.yml` is path-filtered and is not a required check,
-so it can be red while every required check is green — the failure mode that let
-`Release` fail on five consecutive pushes to `main` unnoticed.
-
-**Before presenting a PR**, enumerate every workflow the diff can trigger (from
-the trigger column above — include `lint-test`, `e2e`, `pr-image`, `build-artifacts`,
-and `Release`, plus any path-filtered workflow whose paths the changed files
-match) and read each job's **real** conclusion. A `success` status can hide a
-skipped or unrun step:
-
-```sh
-gh run view <run-id> --repo jomakori/openkite --json conclusion,jobs \
-  --jq '.jobs[] | "\(.conclusion)\t\(.name)"'
-gh run view <run-id> --repo jomakori/openkite --log-failed
-```
-
-Treat `skipped` as "not verified", not "passed".
-
-**After every merge to `main`**, list the runs the merge triggered and check
-their conclusions — `Release` first:
-
-```sh
-gh run list --repo jomakori/openkite --commit "$(git rev-parse HEAD)" \
-  --json name,conclusion,url --jq '.[] | "\(.conclusion)\t\(.name)\t\(.url)"'
-```
-
-A workflow-only merge (`.github/**`, docs) does **not** trigger `Release`, so the
-release pipeline stays unverified until a Rust/Cargo change merges or someone
-dispatches it deliberately — and a dispatch publishes. The red-release runbook is
-[`docs/release-runbook.md`](../../docs/release-runbook.md).
-
-## Multi-platform merge gate
-
-The branch's existing required checks (fmt, clippy, tests, build, coverage,
-plugin-SDK cross-platform) all run on `ubuntu-latest`, so **none of them
-compiled for macOS or Windows** — the GNU-sed-on-BSD-sed defect that took
-`Release` red on five consecutive pushes was invisible until a macOS build ran.
-`build-artifacts.yml` now reports one stable required context,
-**`Multi-platform build`**, that a broken change cannot satisfy, and carries a
-`merge_group` trigger so a GitHub merge queue can re-run the six-target native
-matrix on its synthetic ref.
-
-> **Merge queue availability.** GitHub gates the merge queue to
-> **organization-owned** repositories (public, or private on Enterprise Cloud).
-> This repository is owned by a personal user account, so the ruleset API
-> rejects a `merge_queue` rule with `422 Invalid rule 'merge_queue'` and the
-> queue cannot be enabled here. The `merge_group` trigger and the build-only
-> path are already in place and become live the moment the repo belongs to an
-> organization (or a custom queue is adopted); until then the gate still
-> enforces the six-target native build on every artifact-affecting PR.
-
-```
-PR (artifact-affecting)                 merge queue (when available)
-  build-artifacts.yml                    build-artifacts.yml
-  changes → build (package)              changes (always builds) → build (build-only)
-        │                                      │
-        └──────────────► gate ◄────────────────┘
-                    required: Multi-platform build
-```
-
-- **Build-only in the queue.** A merge-group run calls the reusable workflow
-  with `package: false` and `upload-artifacts: false`: a compile failure is the
-  bug class the gate exists for. PR builds still package (so `release.yml` can
-  reuse the set), and packaging stays off the queue until its cost profile is
-  measured.
-- **Path filters.** Filtering lives in the `changes` job, not
-  `on.pull_request.paths`, because the gate is a **required** check: a workflow
-  skipped by a top-level path filter reports no check at all, and a docs-only PR
-  would sit forever on "Expected". The job always runs and the gate always
-  reports; a docs-only PR simply skips the matrix. A `merge_group` has no cheap
-  base/head pair to filter on and is the queue's whole purpose, so it always
-  builds.
-- **Whole-diff semantics.** `dorny/paths-filter` evaluates a pull request
-  against the **whole** `base...head` diff, so any commit on an
-  artifact-touching PR re-runs the matrix even if the latest commit is
-  docs-only. This is accepted rather than gated per-commit: the six-target build
-  is not commit-incremental, and `concurrency.cancel-in-progress` keeps only the
-  newest PR run alive.
-- **Cost.** The gate adds no run on docs-only PRs (the matrix is skipped) and
-  reuses the existing per-target `Swatinem/rust-cache` keys. A future queue run
-  is build-only, does not upload, and is limited to one synthetic merge at a
-  time (see the ruleset parameters) so at most one extra six-target build is in
-  flight. macOS and Windows runners are billable, so six targets stay but
-  packaging and upload are removed from the queue path.
+Write down the workflows your diff can trigger — `lint-test`, `build-e2e`,
+`preview`, `Release` — and say which ones you actually observed. "The PR used to
+pass" is not the same statement as "these workflows passed on this diff", and
+only the second one is evidence.
 
 ## Version handling
 
-semantic-release computes the version on `main` **after** merge, so a PR-built
-artifact cannot know it. The artifact is therefore **version-agnostic**: the
-build does not embed a version in the PR path, and `release.yml` supplies it at
-publish time (`prepare` + `normalize-release-assets.sh`). The reusable workflow
-still accepts a `version` input, which the **fallback rebuild** passes so a
-version-correct artifact can always be produced.
-
-Audit of every version consumer:
-
-| Consumer | Where the version comes from | Effect of a reused (version-agnostic) artifact |
-|---|---|---|
-| About / settings UI — native status footer | `env!("CARGO_PKG_VERSION")` in `src/router.rs` (`status_bar_model`) | Shows the workspace version compiled into the source tree (`0.0.0`), not the release tag. |
-| About / settings UI — React console status bar | `env!("CARGO_PKG_VERSION")` served via `src/react_spike.rs` (`SpikeContext.version`) | Same: the console receives the compiled value. |
-| `env!("CARGO_PKG_VERSION")` call sites | compile-time constant | Cannot be rewritten at publish time: a sealed DMG / NSIS installer / AppImage cannot be re-versioned on the Ubuntu publish runner, and the matrix deliberately does not cross-compile. |
-| Release asset filename `openkite_<semver>_<os>_<arch>.<ext>` | `normalize-release-assets.sh` at publish time | Correct: the PR artifact carries a placeholder token that is rewritten to the analyzed version. |
-| Homebrew cask / formula (`jomakori/homebrew-tap`) | release version via `release-digest` + semantic-release | Unaffected — the tap is updated from the release tag, not from the binary. (The formula builds from source, so it already compiled `0.0.0` before this change.) |
-| Chocolatey `openkite.nuspec` / `chocolateyinstall.ps1` | release version at pack time | Unaffected — the nuspec version, installer `$version`, and checksums all come from the release tag. |
-
-The one real cost is the About/status version for reused artifacts. Making it
-exact would require re-versioning the binary after package sealing, which is
-infeasible cross-platform on the Ubuntu publish runner; the fallback rebuild is
-the version-correct path when it matters.
+`Cargo.toml` stays at `[workspace.package] version = "0.0.0"` on `main`. The
+release **fallback** build embeds the analyzed version into the binary at build
+time (OKT-103); a reused PR artifact was built version-agnostically and its
+release asset name is rewritten at publish time. The filename is not what the
+binary reports — it is the release asset convention. See
+[`docs/release-runbook.md`](../../docs/release-runbook.md) for recovery.

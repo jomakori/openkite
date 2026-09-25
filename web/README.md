@@ -38,8 +38,8 @@ the two in sync. `npm run dev` serves the same source for browser iteration.
 ## Browser / staging target
 
 `web/build.sh` installs dependencies when needed, runs `npm run build:web`, and
-requires `web/dist/index.html` to exist. The PR-preview workflow
-(`.github/workflows/pr-image.yml`) runs it, then the root `Dockerfile` stages
+requires `web/dist/index.html` to exist. The preview workflow
+(`.github/workflows/preview.yml`) runs it, then the root `Dockerfile` stages
 `web/dist/` and fails loudly if `index.html` is absent — an image is never
 published with no UI behind it.
 
