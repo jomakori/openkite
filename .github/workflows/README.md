@@ -13,11 +13,12 @@ container — see [`dev/capture/README.md`](../../dev/capture/README.md)).
 | [`build-release-artifacts.yml`](build-release-artifacts.yml) | `workflow_call` | Reusable six-target native build + optional `cargo-packager` + optional upload. No cross-compilation: packaging needs `hdiutil` (DMG) and WiX/NSIS (Windows). |
 | [`release.yml`](release.yml) | push `main` on Rust paths, dispatch | semantic-release tag/notes, then download-and-attach the PR-built packages (or rebuild as a fallback), then update the Homebrew tap and Chocolatey package. `Publish release` runs a preflight that refuses a partial artifact set (see below). |
 | [`main-failure-tracker.yml`](main-failure-tracker.yml) | `workflow_run` on `main` failure, dispatch | Open or update exactly one tracking issue per failed workflow on `main`, naming the failing job(s) and the log link. |
+| [`pr-artifacts-cleanup.yml`](pr-artifacts-cleanup.yml) | PR closed, dispatch, weekly | Delete the container image versions a closed PR published, so a preview leaves nothing behind in the registry. |
 
 ## Preview gate — no image, no preview
 
 `gke_GitOps` runs an `ApplicationSet` that turns **labelled** open PRs into preview
-environments at `pr-<N>.openkite.maklab.net`, rendering
+environments at `pr<N>-openkite.maklab.net`, rendering
 `ghcr.io/jomakori/openkite:pr-<N>` into that PR's own namespace. It is label-gated
 so a preview can never point at an image that was never built (the failure mode
 that left previews 132/133 in `ImagePullBackOff`).
@@ -43,12 +44,40 @@ not start: the old `paths:` filter listed only `web/**`, `Dockerfile` and
 the then-unfiltered ApplicationSet deployed them anyway.
 
 Consequence to expect: a preview URL only exists once this workflow has gone green
-for the PR head. If `pr-<N>.openkite.maklab.net` 404s, check the label before
+for the PR head. If `pr<N>-openkite.maklab.net` 404s, check the label before
 debugging the cluster:
 
 ```bash
 gh pr view <N> --json labels --jq '.labels[].name'
 ```
+
+## Teardown — what a closed PR leaves behind
+
+Three sides, three owners, and only one of them needs configuration:
+
+| Artifact | Owner | On close or merge |
+|---|---|---|
+| Namespace, Application, workload | the `ApplicationSet` in `gke_GitOps` | pruned by the generator |
+| Image versions `pr-<N>` and `pr-<N>-<sha>` | `pr-artifacts-cleanup.yml` | deleted by the script below |
+| Cloudflare DNS and Access objects | the zone wildcard plus the wildcard Access application | nothing per PR |
+
+Registry cleanup has no backstop to configure: GitHub's package retention rules are
+**organisation-only**, and `openkite` is a user-owned package, so the weekly sweep
+in `pr-artifacts-cleanup.yml` is the backstop. Backfill a PR that closed before the
+workflow existed, or sweep everything, through the same script:
+
+```bash
+gh workflow run pr-artifacts-cleanup.yml -f pr=131   # one PR
+gh workflow run pr-artifacts-cleanup.yml             # sweep every closed PR
+```
+
+Verify against the registry, never the PR list:
+
+```bash
+gh api /users/jomakori/packages/container/openkite/versions --paginate \
+  -q '[.[].metadata.container.tags[]]|length'
+```
+
 
 ## Build once, reuse at release (OKT-104)
 
