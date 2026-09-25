@@ -1,0 +1,803 @@
+{
+  "context": {
+    "context": "staging (fixtures)",
+    "connected": true,
+    "version": "staging",
+    "mutations": false
+  },
+  "exportedAt": 1790303063570,
+  "kinds": {
+    "nodes": {
+      "apiVersion": "v1",
+      "kind": "NodesList",
+      "items": [
+        {
+          "apiVersion": "v1",
+          "kind": "Node",
+          "metadata": {
+            "name": "okt-staging-control",
+            "creationTimestamp": "2026-09-18T20:24:23.570Z"
+          },
+          "status": {
+            "phase": "Running"
+          }
+        },
+        {
+          "apiVersion": "v1",
+          "kind": "Node",
+          "metadata": {
+            "name": "okt-staging-worker-a",
+            "creationTimestamp": "2026-09-19T04:44:23.570Z"
+          },
+          "status": {
+            "phase": "Running"
+          }
+        },
+        {
+          "apiVersion": "v1",
+          "kind": "Node",
+          "metadata": {
+            "name": "okt-staging-worker-b",
+            "creationTimestamp": "2026-09-20T05:44:23.570Z"
+          },
+          "status": {
+            "phase": "Running"
+          }
+        }
+      ]
+    },
+    "pods": {
+      "apiVersion": "v1",
+      "kind": "PodsList",
+      "items": [
+        {
+          "apiVersion": "v1",
+          "kind": "Pod",
+          "metadata": {
+            "name": "openkite-api-6d9f4b7c8-2xk4p",
+            "namespace": "default",
+            "creationTimestamp": "2026-09-24T22:24:23.570Z",
+            "ownerReferences": [
+              {
+                "kind": "Deployment",
+                "name": "openkite-api"
+              }
+            ]
+          },
+          "spec": {
+            "nodeName": "staging-worker-a"
+          },
+          "status": {
+            "phase": "Running",
+            "qosClass": "Burstable",
+            "containerStatuses": [
+              {
+                "ready": true,
+                "restartCount": 0
+              },
+              {
+                "ready": true,
+                "restartCount": 0
+              }
+            ]
+          }
+        },
+        {
+          "apiVersion": "v1",
+          "kind": "Pod",
+          "metadata": {
+            "name": "openkite-api-6d9f4b7c8-7jq2n",
+            "namespace": "default",
+            "creationTimestamp": "2026-09-24T22:24:23.570Z",
+            "ownerReferences": [
+              {
+                "kind": "Deployment",
+                "name": "openkite-api"
+              }
+            ]
+          },
+          "spec": {
+            "nodeName": "staging-worker-a"
+          },
+          "status": {
+            "phase": "Running",
+            "qosClass": "Burstable",
+            "containerStatuses": [
+              {
+                "ready": true,
+                "restartCount": 0
+              },
+              {
+                "ready": true,
+                "restartCount": 0
+              }
+            ]
+          }
+        },
+        {
+          "apiVersion": "v1",
+          "kind": "Pod",
+          "metadata": {
+            "name": "openkite-web-5c8d7f4b6-9m2vq",
+            "namespace": "default",
+            "creationTimestamp": "2026-09-24T23:24:23.570Z",
+            "ownerReferences": [
+              {
+                "kind": "Deployment",
+                "name": "openkite-web"
+              }
+            ]
+          },
+          "spec": {
+            "nodeName": "staging-worker-b"
+          },
+          "status": {
+            "phase": "Running",
+            "qosClass": "Burstable",
+            "containerStatuses": [
+              {
+                "ready": true,
+                "restartCount": 0
+              },
+              {
+                "ready": true,
+                "restartCount": 0
+              }
+            ]
+          }
+        },
+        {
+          "apiVersion": "v1",
+          "kind": "Pod",
+          "metadata": {
+            "name": "openkite-web-5c8d7f4b6-p4rtx",
+            "namespace": "default",
+            "creationTimestamp": "2026-09-25T02:21:23.570Z",
+            "ownerReferences": [
+              {
+                "kind": "Deployment",
+                "name": "openkite-web"
+              }
+            ]
+          },
+          "spec": {
+            "nodeName": "staging-worker-b"
+          },
+          "status": {
+            "phase": "Pending",
+            "qosClass": "BestEffort",
+            "containerStatuses": [
+              {
+                "ready": false,
+                "restartCount": 0
+              },
+              {
+                "ready": true,
+                "restartCount": 0
+              }
+            ]
+          }
+        },
+        {
+          "apiVersion": "v1",
+          "kind": "Pod",
+          "metadata": {
+            "name": "postgres-0",
+            "namespace": "default",
+            "creationTimestamp": "2026-09-24T02:24:23.570Z",
+            "ownerReferences": [
+              {
+                "kind": "StatefulSet",
+                "name": "postgres"
+              }
+            ]
+          },
+          "spec": {
+            "nodeName": "staging-worker-a"
+          },
+          "status": {
+            "phase": "Running",
+            "qosClass": "Guaranteed",
+            "containerStatuses": [
+              {
+                "ready": true,
+                "restartCount": 0
+              },
+              {
+                "ready": true,
+                "restartCount": 0
+              }
+            ]
+          }
+        },
+        {
+          "apiVersion": "v1",
+          "kind": "Pod",
+          "metadata": {
+            "name": "redis-7b9c5d6f8-h2klm",
+            "namespace": "default",
+            "creationTimestamp": "2026-09-24T16:04:23.570Z",
+            "ownerReferences": [
+              {
+                "kind": "Deployment",
+                "name": "redis"
+              }
+            ]
+          },
+          "spec": {
+            "nodeName": "staging-worker-b"
+          },
+          "status": {
+            "phase": "CrashLoopBackOff",
+            "qosClass": "Burstable",
+            "containerStatuses": [
+              {
+                "ready": false,
+                "restartCount": 14
+              },
+              {
+                "ready": true,
+                "restartCount": 0
+              }
+            ]
+          }
+        },
+        {
+          "apiVersion": "v1",
+          "kind": "Pod",
+          "metadata": {
+            "name": "coredns-6f4b8c9d2-wq7zx",
+            "namespace": "kube-system",
+            "creationTimestamp": "2026-09-18T20:24:23.570Z",
+            "ownerReferences": [
+              {
+                "kind": "Deployment",
+                "name": "coredns"
+              }
+            ]
+          },
+          "spec": {
+            "nodeName": "staging-control"
+          },
+          "status": {
+            "phase": "Running",
+            "qosClass": "Guaranteed",
+            "containerStatuses": [
+              {
+                "ready": true,
+                "restartCount": 0
+              },
+              {
+                "ready": true,
+                "restartCount": 0
+              }
+            ]
+          }
+        },
+        {
+          "apiVersion": "v1",
+          "kind": "Pod",
+          "metadata": {
+            "name": "coredns-6f4b8c9d2-tz3pl",
+            "namespace": "kube-system",
+            "creationTimestamp": "2026-09-18T20:24:23.570Z",
+            "ownerReferences": [
+              {
+                "kind": "Deployment",
+                "name": "coredns"
+              }
+            ]
+          },
+          "spec": {
+            "nodeName": "staging-control"
+          },
+          "status": {
+            "phase": "Running",
+            "qosClass": "Guaranteed",
+            "containerStatuses": [
+              {
+                "ready": true,
+                "restartCount": 0
+              },
+              {
+                "ready": true,
+                "restartCount": 0
+              }
+            ]
+          }
+        },
+        {
+          "apiVersion": "v1",
+          "kind": "Pod",
+          "metadata": {
+            "name": "kube-proxy-9x2mn",
+            "namespace": "kube-system",
+            "creationTimestamp": "2026-09-18T20:24:23.570Z",
+            "ownerReferences": [
+              {
+                "kind": "DaemonSet",
+                "name": "kube-proxy"
+              }
+            ]
+          },
+          "spec": {
+            "nodeName": "staging-control"
+          },
+          "status": {
+            "phase": "Running",
+            "qosClass": "Guaranteed",
+            "containerStatuses": [
+              {
+                "ready": true,
+                "restartCount": 0
+              },
+              {
+                "ready": true,
+                "restartCount": 0
+              }
+            ]
+          }
+        },
+        {
+          "apiVersion": "v1",
+          "kind": "Pod",
+          "metadata": {
+            "name": "metrics-server-4d7f9b2c6-q8wnr",
+            "namespace": "kube-system",
+            "creationTimestamp": "2026-09-24T17:24:23.570Z",
+            "ownerReferences": [
+              {
+                "kind": "Deployment",
+                "name": "metrics-server"
+              }
+            ]
+          },
+          "spec": {
+            "nodeName": "staging-worker-a"
+          },
+          "status": {
+            "phase": "Running",
+            "qosClass": "Guaranteed",
+            "containerStatuses": [
+              {
+                "ready": true,
+                "restartCount": 0
+              },
+              {
+                "ready": true,
+                "restartCount": 0
+              }
+            ]
+          }
+        },
+        {
+          "apiVersion": "v1",
+          "kind": "Pod",
+          "metadata": {
+            "name": "argocd-application-controller-0",
+            "namespace": "argocd",
+            "creationTimestamp": "2026-09-22T02:24:23.570Z",
+            "ownerReferences": [
+              {
+                "kind": "StatefulSet",
+                "name": "argocd-application-controller"
+              }
+            ]
+          },
+          "spec": {
+            "nodeName": "staging-worker-a"
+          },
+          "status": {
+            "phase": "Running",
+            "qosClass": "Guaranteed",
+            "containerStatuses": [
+              {
+                "ready": true,
+                "restartCount": 0
+              },
+              {
+                "ready": true,
+                "restartCount": 0
+              }
+            ]
+          }
+        },
+        {
+          "apiVersion": "v1",
+          "kind": "Pod",
+          "metadata": {
+            "name": "argocd-repo-server-7f5c9d3b4-mn2pq",
+            "namespace": "argocd",
+            "creationTimestamp": "2026-09-22T02:24:23.570Z",
+            "ownerReferences": [
+              {
+                "kind": "Deployment",
+                "name": "argocd-repo-server"
+              }
+            ]
+          },
+          "spec": {
+            "nodeName": "staging-worker-b"
+          },
+          "status": {
+            "phase": "Running",
+            "qosClass": "Burstable",
+            "containerStatuses": [
+              {
+                "ready": true,
+                "restartCount": 0
+              },
+              {
+                "ready": true,
+                "restartCount": 0
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "deployments": {
+      "apiVersion": "v1",
+      "kind": "DeploymentsList",
+      "items": [
+        {
+          "apiVersion": "v1",
+          "kind": "Deployment",
+          "metadata": {
+            "name": "openkite-api",
+            "namespace": "default",
+            "creationTimestamp": "2026-09-23T10:24:23.570Z"
+          },
+          "status": {
+            "phase": "Running"
+          }
+        },
+        {
+          "apiVersion": "v1",
+          "kind": "Deployment",
+          "metadata": {
+            "name": "openkite-web",
+            "namespace": "default",
+            "creationTimestamp": "2026-09-23T20:24:23.570Z"
+          },
+          "status": {
+            "phase": "Running"
+          }
+        },
+        {
+          "apiVersion": "v1",
+          "kind": "Deployment",
+          "metadata": {
+            "name": "redis",
+            "namespace": "default",
+            "creationTimestamp": "2026-09-24T16:04:23.570Z"
+          },
+          "status": {
+            "phase": "Running"
+          }
+        },
+        {
+          "apiVersion": "v1",
+          "kind": "Deployment",
+          "metadata": {
+            "name": "argocd-repo-server",
+            "namespace": "argocd",
+            "creationTimestamp": "2026-09-22T02:24:23.570Z"
+          },
+          "status": {
+            "phase": "Running"
+          }
+        }
+      ]
+    },
+    "services": {
+      "apiVersion": "v1",
+      "kind": "ServicesList",
+      "items": [
+        {
+          "apiVersion": "v1",
+          "kind": "Service",
+          "metadata": {
+            "name": "openkite-api",
+            "namespace": "default",
+            "creationTimestamp": "2026-09-23T10:24:23.570Z"
+          },
+          "spec": {
+            "type": "ClusterIP"
+          }
+        },
+        {
+          "apiVersion": "v1",
+          "kind": "Service",
+          "metadata": {
+            "name": "openkite-web",
+            "namespace": "default",
+            "creationTimestamp": "2026-09-23T20:24:23.570Z"
+          },
+          "spec": {
+            "type": "NodePort"
+          }
+        },
+        {
+          "apiVersion": "v1",
+          "kind": "Service",
+          "metadata": {
+            "name": "redis",
+            "namespace": "default",
+            "creationTimestamp": "2026-09-24T16:04:23.570Z"
+          },
+          "spec": {
+            "type": "ClusterIP"
+          }
+        }
+      ]
+    },
+    "configmaps": {
+      "apiVersion": "v1",
+      "kind": "ConfigmapsList",
+      "items": [
+        {
+          "apiVersion": "v1",
+          "kind": "ConfigMap",
+          "metadata": {
+            "name": "openkite-config",
+            "namespace": "default",
+            "creationTimestamp": "2026-09-23T10:24:23.570Z"
+          }
+        },
+        {
+          "apiVersion": "v1",
+          "kind": "ConfigMap",
+          "metadata": {
+            "name": "kube-root-ca.crt",
+            "namespace": "default",
+            "creationTimestamp": "2026-09-18T20:24:23.570Z"
+          }
+        }
+      ]
+    },
+    "persistentvolumeclaims": {
+      "apiVersion": "v1",
+      "kind": "PersistentvolumeclaimsList",
+      "items": [
+        {
+          "apiVersion": "v1",
+          "kind": "PersistentVolumeClaim",
+          "metadata": {
+            "name": "postgres-data",
+            "namespace": "default",
+            "creationTimestamp": "2026-09-24T02:24:23.570Z"
+          },
+          "status": {
+            "phase": "Bound"
+          }
+        },
+        {
+          "apiVersion": "v1",
+          "kind": "PersistentVolumeClaim",
+          "metadata": {
+            "name": "openkite-api-data",
+            "namespace": "default",
+            "creationTimestamp": "2026-09-23T10:24:23.570Z"
+          },
+          "status": {
+            "phase": "Bound"
+          }
+        },
+        {
+          "apiVersion": "v1",
+          "kind": "PersistentVolumeClaim",
+          "metadata": {
+            "name": "prometheus-storage",
+            "namespace": "kube-system",
+            "creationTimestamp": "2026-09-24T17:24:23.570Z"
+          },
+          "status": {
+            "phase": "Pending"
+          }
+        }
+      ]
+    },
+    "ingresses": {
+      "apiVersion": "v1",
+      "kind": "IngressesList",
+      "items": [
+        {
+          "apiVersion": "networking.k8s.io/v1",
+          "kind": "Ingress",
+          "metadata": {
+            "name": "openkite-api",
+            "namespace": "default",
+            "creationTimestamp": "2026-09-23T10:24:23.570Z"
+          }
+        },
+        {
+          "apiVersion": "networking.k8s.io/v1",
+          "kind": "Ingress",
+          "metadata": {
+            "name": "openkite-web",
+            "namespace": "default",
+            "creationTimestamp": "2026-09-23T20:24:23.570Z"
+          }
+        },
+        {
+          "apiVersion": "networking.k8s.io/v1",
+          "kind": "Ingress",
+          "metadata": {
+            "name": "grafana",
+            "namespace": "kube-system",
+            "creationTimestamp": "2026-09-22T02:24:23.570Z"
+          }
+        }
+      ]
+    },
+    "applications": {
+      "apiVersion": "v1",
+      "kind": "ApplicationsList",
+      "items": [
+        {
+          "apiVersion": "v1",
+          "kind": "Application",
+          "metadata": {
+            "name": "openkite-staging",
+            "namespace": "argocd",
+            "creationTimestamp": "2026-09-22T02:24:23.570Z"
+          },
+          "status": {
+            "phase": "Synced"
+          }
+        },
+        {
+          "apiVersion": "v1",
+          "kind": "Application",
+          "metadata": {
+            "name": "openkite-monitoring",
+            "namespace": "argocd",
+            "creationTimestamp": "2026-09-23T02:24:23.570Z"
+          },
+          "status": {
+            "phase": "OutOfSync"
+          }
+        }
+      ]
+    },
+    "projects": {
+      "apiVersion": "v1",
+      "kind": "ProjectsList",
+      "items": [
+        {
+          "apiVersion": "v1",
+          "kind": "AppProject",
+          "metadata": {
+            "name": "default",
+            "namespace": "argocd",
+            "creationTimestamp": "2026-09-18T20:24:23.570Z"
+          }
+        }
+      ]
+    },
+    "repositories": {
+      "apiVersion": "v1",
+      "kind": "RepositoriesList",
+      "items": [
+        {
+          "apiVersion": "v1",
+          "kind": "Repository",
+          "metadata": {
+            "name": "openkite",
+            "namespace": "argocd",
+            "creationTimestamp": "2026-09-18T20:24:23.570Z"
+          }
+        },
+        {
+          "apiVersion": "v1",
+          "kind": "Repository",
+          "metadata": {
+            "name": "gke-gitops",
+            "namespace": "argocd",
+            "creationTimestamp": "2026-09-19T13:04:23.570Z"
+          }
+        }
+      ]
+    },
+    "events": {
+      "apiVersion": "v1",
+      "kind": "EventsList",
+      "items": [
+        {
+          "apiVersion": "v1",
+          "kind": "Event",
+          "metadata": {
+            "name": "openkite-api.17f0a1",
+            "namespace": "default",
+            "creationTimestamp": "2026-09-24T22:24:23.570Z"
+          },
+          "involvedObject": {
+            "kind": "Pod",
+            "name": "openkite-api-6d9f4b7c8-2xk4p",
+            "namespace": "default"
+          },
+          "type": "Normal",
+          "reason": "Scheduled",
+          "message": "Successfully assigned default/openkite-api-6d9f4b7c8-2xk4p to staging-worker-a",
+          "count": 1
+        },
+        {
+          "apiVersion": "v1",
+          "kind": "Event",
+          "metadata": {
+            "name": "redis.17f0b2",
+            "namespace": "default",
+            "creationTimestamp": "2026-09-25T01:54:23.570Z"
+          },
+          "involvedObject": {
+            "kind": "Pod",
+            "name": "redis-7b9c5d6f8-h2klm",
+            "namespace": "default"
+          },
+          "type": "Warning",
+          "reason": "BackOff",
+          "message": "Back-off restarting failed container redis in pod redis-7b9c5d6f8-h2klm",
+          "count": 14
+        },
+        {
+          "apiVersion": "v1",
+          "kind": "Event",
+          "metadata": {
+            "name": "coredns.17f0c3",
+            "namespace": "kube-system",
+            "creationTimestamp": "2026-09-18T20:24:23.570Z"
+          },
+          "involvedObject": {
+            "kind": "Pod",
+            "name": "coredns-6f4b8c9d2-wq7zx",
+            "namespace": "kube-system"
+          },
+          "type": "Normal",
+          "reason": "Started",
+          "message": "Started container coredns",
+          "count": 1
+        }
+      ]
+    },
+    "namespaces": {
+      "apiVersion": "v1",
+      "kind": "NamespacesList",
+      "items": [
+        {
+          "apiVersion": "v1",
+          "kind": "Namespace",
+          "metadata": {
+            "name": "default",
+            "creationTimestamp": "2026-09-18T20:24:23.570Z"
+          },
+          "status": {
+            "phase": "Active"
+          }
+        },
+        {
+          "apiVersion": "v1",
+          "kind": "Namespace",
+          "metadata": {
+            "name": "kube-system",
+            "creationTimestamp": "2026-09-18T20:24:23.570Z"
+          },
+          "status": {
+            "phase": "Active"
+          }
+        },
+        {
+          "apiVersion": "v1",
+          "kind": "Namespace",
+          "metadata": {
+            "name": "argocd",
+            "creationTimestamp": "2026-09-22T02:24:23.570Z"
+          },
+          "status": {
+            "phase": "Active"
+          }
+        }
+      ]
+    }
+  }
+}
