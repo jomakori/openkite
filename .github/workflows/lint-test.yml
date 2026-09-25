@@ -245,3 +245,22 @@ jobs:
       - if: always() && needs.changes.outputs.src == 'true'
         name: Add coverage to job summary
         run: cat code-coverage-results.md >> "$GITHUB_STEP_SUMMARY"
+
+  # The console image compiles the Rust host (build-image.yml). Only caches
+  # written on the default branch are restorable from another branch, and the
+  # image workflow never runs on `main` — so this job writes the cache the PR
+  # path reads. Push-to-main only, for the same reason it saves: on a PR it
+  # would repeat a compile build-image.yml is already doing.
+  image-build-cache:
+    name: Warm the console image build cache
+    runs-on: ubuntu-24.04
+    needs: [changes]
+    if: github.event_name == 'push' && needs.changes.outputs.src == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: openkite-web-image
+          cache-targets: true
+      - run: cargo build --release -p openkite-web
