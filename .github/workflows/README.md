@@ -9,6 +9,7 @@ container — see [`dev/capture/README.md`](../../dev/capture/README.md)).
 | [`lint-test.yml`](lint-test.yml) | PR, push `main` | fmt / clippy / test / build / bundle-freshness / cross-platform / coverage, plus the `check-portable-sed.sh` hygiene gate. |
 | [`e2e.yml`](e2e.yml) | PR, push `main`, dispatch | Desktop E2E, user flows, bridge guard, visual-regression baselines. |
 | [`pr-image.yml`](pr-image.yml) | PR | Build the console bundle and publish the preview image to GHCR as `pr-<N>`, then label the PR `preview` — the one label `gke_GitOps` deploys a preview for. A failed build withdraws the label instead. |
+| [`pr-image-teardown.yml`](pr-image-teardown.yml) | PR `closed`, dispatch, schedule | Delete the closed PR's GHCR versions (`pr-<N>` and `pr-<N>-<sha>`) — the registry half of preview teardown, plus the sweep that stands in for a retention rule this package cannot have. |
 | [`build-artifacts.yml`](build-artifacts.yml) | PR on artifact-affecting paths, `merge_group` | Build the six native release packages **once per commit** as a PR, and gate the **merge queue** with a build-only run on the synthetic merge group (calls the reusable workflow below). |
 | [`build-release-artifacts.yml`](build-release-artifacts.yml) | `workflow_call` | Reusable six-target native build + optional `cargo-packager` + optional upload. No cross-compilation: packaging needs `hdiutil` (DMG) and WiX/NSIS (Windows). |
 | [`release.yml`](release.yml) | push `main` on Rust paths, dispatch | semantic-release tag/notes, then download-and-attach the PR-built packages (or rebuild as a fallback), then update the Homebrew tap and Chocolatey package. `Publish release` runs a preflight that refuses a partial artifact set (see below). |
@@ -49,6 +50,37 @@ debugging the cluster:
 ```bash
 gh pr view <N> --json labels --jq '.labels[].name'
 ```
+
+## Preview teardown — one owner per side
+
+Closing a PR (merged or not) removes its preview in three places, each with its
+own owner:
+
+| Side | Owner | What a closed PR leaves | Removed by |
+|---|---|---|---|
+| Cluster | `gke_GitOps` pullRequest generator | preview Application, namespace, workload | the generator, on close/merge |
+| Registry | `pr-image-teardown.yml` (this repo) | one version per build, tagged `pr-<N>` and `pr-<N>-<sha>` | the PR `closed` event, or `workflow_dispatch` |
+| Cloudflare | — | nothing per PR | — the zone wildcard and the wildcard Access application answer `pr<N>-openkite.maklab.net` for every N, a host that never existed included |
+
+The delete targets a **version id**, never a tag: one version carries both
+tags, so a tag-scoped delete would leave the version alive under the other one.
+`v<X.Y.Z>` release tags are outside the selector by construction.
+
+Three entry points, one script (`.github/scripts/prune-preview-image-versions.sh`)
+— the event path, the dispatch path, and a daily sweep. The sweep is a
+backstop, not a preference: GitHub's package retention rules are
+organisation-only, this package is user-owned, so there is no retention setting
+to configure and nothing else in GitHub will ever remove these versions.
+
+Purging a backlog, one PR per run:
+
+```bash
+gh workflow run pr-image-teardown.yml --repo jomakori/openkite -f pr=<N>
+```
+
+`--pr` refuses a PR that is still open, so a stale number cannot prune the
+image a running preview serves. The sweep asks the API which tagged PRs are
+closed and keeps the open ones; `dry_run=true` lists without deleting.
 
 ## Build once, reuse at release (OKT-104)
 

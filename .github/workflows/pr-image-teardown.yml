@@ -1,0 +1,76 @@
+name: pr-image-teardown
+
+# The registry half of preview teardown. The cluster half is gke_GitOps'
+# pullRequest generator (Application, namespace, workload); Cloudflare has
+# nothing per PR, so a closed PR leaves exactly one thing behind here — the
+# pr-<N> and pr-<N>-<sha> versions this repo published for it.
+on:
+  # `closed` covers both merged and closed-unmerged PRs.
+  pull_request:
+    types: [closed]
+
+  # Backfill path: versions published before this workflow existed are removed
+  # one PR per run, through the same script the event path runs.
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: PR number whose pr-<N> / pr-<N>-<sha> image versions to delete
+        required: true
+        type: string
+      dry_run:
+        description: List what would be deleted instead of deleting it
+        type: boolean
+        default: false
+
+  # Backstop: GitHub's package retention rules are organisation-only and this
+  # package is user-owned, so no retention setting exists to configure. A
+  # sweep catches anything the two paths above missed (a cancelled run, an
+  # API error on the day, tags orphaned by a retagged build).
+  schedule:
+    - cron: '23 3 * * *'
+
+permissions:
+  contents: read
+  packages: write      # deleting a package version
+  pull-requests: read  # the sweep asks which tagged PRs are closed
+
+# A teardown for one PR must not cancel an in-flight sweep of all of them.
+concurrency:
+  group: pr-image-teardown-${{ github.event.number || inputs.pr || 'sweep' }}
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    name: Delete the closed PR's image versions
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Event data reaches the script through the environment, never through
+      # the command line, and the script itself rejects a non-numeric PR.
+      - name: Prune
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_PR: ${{ github.event.number }}
+          INPUT_PR: ${{ inputs.pr }}
+          INPUT_DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          args=()
+          case "$EVENT_NAME" in
+            pull_request)
+              args+=(--pr "$EVENT_PR")
+              ;;
+            workflow_dispatch)
+              args+=(--pr "$INPUT_PR")
+              if [ "$INPUT_DRY_RUN" = "true" ]; then
+                args+=(--dry-run)
+              fi
+              ;;
+            *)
+              args+=(--sweep)
+              ;;
+          esac
+          bash .github/scripts/prune-preview-image-versions.sh "${args[@]}"
