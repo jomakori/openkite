@@ -6,7 +6,11 @@
     <title>OpenKite</title>
   </head>
   <body class="bg-slate-950 text-slate-100 antialiased">
-    <div id="root"></div>
+    <!-- The console mounts into the same container identity the desktop host
+         creates (src/react_spike.rs ReactConsole): every rule in
+         web/src/theme.css is scoped under `#openkite-react-spike-root`, so a
+         bare `#root` leaves the browser console on Tailwind preflight alone. -->
+    <div id="openkite-react-spike-root" class="openkite-react-spike"></div>
     <script>
       window.__okt67ScriptStart = performance.now()
     </script>
