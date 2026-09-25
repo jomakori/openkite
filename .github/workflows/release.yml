@@ -26,7 +26,7 @@ on:
   push:
     branches:
       - main
-    # `web/**` and `assets/**` are here because they change the shipped binary:
+    # `web/**` and the vendored assets are here because they change the shipped binary:
     # the vendored React bundle under crates/openkite-desktop/assets/vendored/ is `include_str!`d into
     # it. Leaving them out is how releases stopped happening — a web-only merge
     # ran all six platform builds, passed the required multi-platform gate, and

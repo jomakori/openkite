@@ -64,7 +64,6 @@ jobs:
           filters: |
             artifacts:
               - 'crates/**'
-              - 'crates/**'
               - 'Cargo.toml'
               - 'Cargo.lock'
               - 'web/**'
