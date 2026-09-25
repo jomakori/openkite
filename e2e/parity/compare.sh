@@ -46,8 +46,9 @@ fail() {
   exit 1
 }
 
+TOOL_MISSING=""
 for tool in compare identify convert; do
-  command -v "$tool" >/dev/null 2>&1 || fail "ImageMagick '$tool' is not installed"
+  command -v "$tool" >/dev/null 2>&1 || TOOL_MISSING="$tool"
 done
 [ -d "$CAPTURES" ] || fail "capture dir not found: $CAPTURES"
 [ -d "$BASELINES" ] || fail "baselines dir not found: $BASELINES"
@@ -107,6 +108,10 @@ if [ "${#MASK_RECTS[@]}" -gt 0 ]; then
 else
   log "masks: none (bootstrap — mask creep is capped at ${MAX_MASKED_FRACTION}% of the frame)"
 fi
+
+# ImageMagick only becomes necessary once the config itself is sound: checking it
+# last keeps a broken allow-list or mask diagnosable without the tool installed.
+[ -z "$TOOL_MISSING" ] || fail "ImageMagick '$TOOL_MISSING' is not installed"
 
 # --- helpers -------------------------------------------------------------
 dims_of() { identify -format '%wx%h' "$1" 2>/dev/null || true; }
