@@ -28,9 +28,10 @@ concurrency:
 jobs:
   image:
     name: Build and push PR image
-    # How an image is produced (web bundle → docker build → GHCR push, and the
-    # `pr-<N>` + `pr-<N>-<sha>` tag pair the preview ApplicationSet resolves by
-    # name) lives in one place now, shared with the release path: build-image.yml.
+    # How an image is produced (web bundle + console host → docker build →
+    # smoke test → GHCR push, and the `pr-<N>` + `pr-<N>-<sha>` tag pair the
+    # preview ApplicationSet resolves by name) lives in one place now, shared
+    # with the release path: build-image.yml.
     # This job owns only what is PR-specific — building the PR's head commit,
     # tagging it `pr-<N>`, and naming the preview host in the summary.
     uses: ./.github/workflows/build-image.yml
@@ -38,7 +39,7 @@ jobs:
       ref: ${{ github.event.pull_request.head.sha }}
       tag: pr-${{ github.event.number }}
       pin_sha_tag: true
-      host: pr${{ github.event.number }}.maklab.net
+      host: pr${{ github.event.number }}-openkite.maklab.net
 
   # ── Preview gate ─────────────────────────────────────────────────────────
   # A preview environment is only worth deploying if the image it serves

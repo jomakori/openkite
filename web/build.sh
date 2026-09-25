@@ -2,12 +2,13 @@
 #
 # Build the browser-runnable staging bundle into web/dist/.
 #
-# This is the target the PR-preview pipeline runs
-# (.github/workflows/pr-image.yml) and that the root Dockerfile serves with
-# nginx. It emits a standard Vite app — dist/index.html plus hashed assets —
-# unlike `npm run build`, which emits the fixed-name vendored bundle the Rust
-# desktop host include_str!s. Both targets build the same web/src tree; only
-# the output shape differs (see web/vite.config.ts).
+# This is the target the image pipeline runs
+# (.github/workflows/build-image.yml, for pr-image.yml and release.yml alike)
+# and that the container image stages into the Rust host (crates/openkite-web).
+# It emits a standard Vite app — dist/index.html plus hashed assets — unlike
+# `npm run build`, which emits the fixed-name vendored bundle the Rust desktop
+# host include_str!s. Both targets build the same web/src tree; only the output
+# shape differs (see web/vite.config.ts).
 #
 # The script must produce dist/index.html: the workflow and the Dockerfile
 # both refuse to publish an image without it.
