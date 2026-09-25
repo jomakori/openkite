@@ -4,9 +4,13 @@
 # Uses ImageMagick `compare -metric AE` (absolute pixel count of difference).
 # WebKitGTK font rendering is not pixel-perfect across runs, so we use a
 # tolerant fuzzy threshold: a screenshot passes if the number of differing
-# pixels is below MAX_DIFF_PIXELS (default: 1% of total pixels).
+# pixels is below MAX_DIFF_PIXELS.
 #
-# Total pixels at 1280x800 = 1,024,000. 1% = 10,240 pixels.
+# The committed baselines are 800x600 (the winit default inner size — verified
+# from the PNG headers), i.e. 480,000 px, so the default 10,240 is ~2.1% of the
+# real frame rather than the 1% of 1280x800 this header used to claim. Left as
+# is so the existing gate's behaviour does not change; the console parity gate
+# (`parity/compare.sh`) calibrates its own caps from measurements instead.
 #
 # Usage: visual-regression.sh <baselines-dir> <fresh-screenshots-dir>
 # Exit 0 if all pass, exit 1 if any fail.

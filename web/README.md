@@ -53,8 +53,20 @@ behaviour is unchanged whenever `window.openkite` is present.
 
 `npm run test:parity` builds `web/dist/` and server-renders the shared React
 tree with fixture data, asserting the shell + table DOM and that both bundles
-carry the same UI markers. It runs in CI's `bundle-freshness` job. No browser
-binary is required.
+carry the same UI markers. It runs in CI's `bundle-freshness` job and again as
+the fast pre-check inside the `console-parity` job. No browser binary is
+required.
+
+`npm run export:parity-fixtures` writes those same fixtures to
+`e2e/parity/fixtures.json` (context, settings, and every kind the console asks
+for) for the **console parity gate** (`e2e/parity/`, job `console-parity` in
+`e2e.yml`). That gate renders this bundle in headless Chromium and the desktop
+host under Xvfb from that one export and pixel-compares the two, so the file is
+committed and the job fails when it is stale — re-export and commit it whenever
+`web/src/fixtures.ts` or `web/src/settings.ts` changes. The gate needs
+`npx playwright install --with-deps chromium`, which the workflow performs; a
+dev host needs it only to run the capture by hand. See
+[`e2e/README.md`](../e2e/README.md#console-parity-gate-okt-129).
 
 ## Container
 

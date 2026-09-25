@@ -115,3 +115,135 @@ cargo build --workspace
 cd e2e
 ./bridge-guard.sh ../target/debug/openkite artifacts-bridge-guard
 ```
+
+---
+
+## Console parity gate (OKT-129)
+
+The browser target and the desktop host render the same React console from the
+same sources, but the only check that used to exist was
+`web/test/parity.test.tsx`: it server-renders the tree and asserts DOM text and
+class markers, so it cannot see a missing stylesheet, a wrong CSS scope or a
+broken layout — anything that only shows up in pixels. (It really happened: the
+browser console mounted into `#root` while every rule in `web/src/theme.css` is
+scoped under `#openkite-react-spike-root`, so the preview rendered unstyled and
+nothing noticed.)
+
+The parity gate adds the two **real renders** and pixel-compares them. The SSR
+marker check still runs first in the same job as a fast pre-check; it is not
+replaced.
+
+### What is compared
+
+| Input | Produced by | Data it renders |
+|---|---|---|
+| browser | `e2e/parity/capture-browser.mjs` — headless Chromium over the served `web/dist`, 800×600 viewport | the console's bundled fixtures, because the static host answers `POST /openkite` without a bridge ([`web/src/bridge.ts`](../web/src/bridge.ts) transport failure ⇒ `fixtureCall`) |
+| desktop | `e2e/parity/capture-desktop.sh` — the real binary under Xvfb with `OPENKITE_ROUTE`, an isolated `$HOME` (`menuBar = "hide"`) and `OPENKITE_CONSOLE_FIXTURES` | the export of those same fixtures, served by [`src/console_fixtures.rs`](../src/console_fixtures.rs) |
+
+| surface | browser nav id | desktop `OPENKITE_ROUTE` | fixture content |
+|---|---|---|---|
+| `01-pods` | `pods` (default) | `/workloads` | 12 pods, namespace + health + restarts + controller columns, log dock |
+| `02-overview` | `overview` | `/cluster` | count chips per counted kind, connection/health summary |
+| `03-configmaps` | `configmaps` | `/config` | configmap list |
+
+Those are the console-owned routes the desktop can be booted onto
+deterministically (`src/router.rs` `console_route`). **Logs, terminal, plugin
+views and the menu bar/window chrome are excluded**, each with the capability
+that explains it, in `e2e/parity/parity-config.sh`. The browser capture reaches
+its surface through `window.__openkite_react_console.setRoute` rather than by
+clicking: at 800×600 the sidebar is an overlay, so a click would capture a
+different shell state than the desktop renders.
+
+`capture-browser.mjs` refuses to write anything unless the static host really is
+static — it probes `POST /openkite` (a 2xx means a bridge host answered), then
+asserts the fixture cluster context and fixture resource names are actually
+painted. Without that, a run could quietly compare fixtures to fixtures and call
+it parity.
+
+### Tolerance, masks and the allow-list
+
+`e2e/parity/compare.sh` runs three ImageMagick `compare -metric AE` passes per
+surface against the committed baselines (the browser render is the reference):
+
+| pass | cap | why |
+|---|---|---|
+| browser vs baseline | `BROWSER_SELF_MAX` (0.1 %) | the same renderer must reproduce its own baseline; above this the gate is measuring its own noise |
+| desktop vs baseline | `MAX_DIFF_PIXELS` (1 %) | the gate: a real divergence between the two consoles lands here |
+| desktop vs browser | same as above | the direct renderer-parity number, reported for diagnosis |
+
+A cross-renderer comparison can never be an exact-pixel diff: Skia (Chromium) and
+Cairo/WebKitGTK antialias text differently even with identical fonts, so
+`-fuzz` (8 %) absorbs that and the pixel cap bounds the rest. The values in
+`parity-config.sh` carry a `PARITY-CALIBRATION` note recording the measurement
+that produced them — change them only with a new measurement, never to make a
+run green.
+
+Rules for the allow-list:
+
+- every **exclusion** names the capability that explains it (no browser
+  equivalent), and `compare.sh` fails if an entry has no reason;
+- every **mask** (a rectangle painted out on all three images) carries
+  `id:rect:reason:ticket`, and the total masked area is capped at 2 % of the
+  frame. Masks are added only with a recorded measurement in the reason — never
+  to silence a real difference;
+- an unexplained difference **fails the job** and writes
+  `<surface>.<a>-vs-<b>.diff.png` next to the captures, which are uploaded as
+  the `console-parity-artifacts` artifact together with `compare.log` and both
+  app/capture logs.
+
+### Fixtures: one source of truth
+
+`web/src/fixtures.ts` is the only source. `npm run export:parity-fixtures`
+(which reuses the same `vite --ssr` mechanism as `test:parity`) writes
+`e2e/parity/fixtures.json`, and that file is **committed**: the payloads the gate
+compares are reviewable, and the job re-exports them with
+`npm run export:parity-fixtures -- --check` so a stale copy fails instead of
+silently comparing the wrong data. Fixture ages are built from the clock at
+payload-build time, so the export records `exportedAt` and the host rebases every
+timestamp onto its own clock (`src/console_fixtures.rs`) — otherwise the
+committed copy would show `241m` where the browser shows `12m`.
+
+### Refreshing the baselines
+
+Baselines are the **browser** render (the browser is the target; the desktop
+must match it). They live in `e2e/parity/baselines/` and refresh **in the same
+PR as the visual change they follow**, with the diff image attached. A
+standalone "make CI green" baseline commit is a silenced gate and must be
+rejected in review.
+
+```bash
+# dispatch the browser-only capture job, then commit what it produced
+gh workflow run e2e.yml -f capture_parity_baselines=true
+gh run download <run-id> -n parity-baselines -D e2e/parity/baselines
+git add e2e/parity/baselines && git commit -m "test(e2e): refresh console parity baselines (<why>)"
+```
+
+### Running it locally
+
+Needs a Rust build of the desktop binary (CI does it), ImageMagick, Xvfb,
+`xdotool`, `openbox`, and `npx playwright install --with-deps chromium` in `web/`
+— all of which live in the workflow, never required on a dev host.
+
+```bash
+cd web && npm ci && npm run build:web
+python3 -m http.server -d dist 8000 &                       # POST /openkite stays unanswerable
+node ../e2e/parity/capture-browser.mjs http://127.0.0.1:8000 ../e2e/parity/out 800x600
+
+cargo build --workspace
+cd e2e && EXPECT_DIMS=800x600 ./parity/capture-desktop.sh ../target/debug/openkite parity/out
+./parity/compare.sh parity/out parity/baselines
+```
+
+### Limits (deliberate)
+
+- The gate compares **two renderers, not two data sources**: with the fixture
+  hook both sides show the same payloads, so it can never catch a bridge/kube
+  regression — that is `desktop-e2e-connected` and `bridge-guard` territory.
+- Three surfaces only; the other nav ids are browser-reachable but not
+  desktop-reachable without input automation (see the follow-ups in the OKT-129
+  plan: a console deep-link per nav id).
+- `OPENKITE_CONSOLE_FIXTURES` is an env-gated, no-op-when-unset test hook in
+  product code, mirroring the accepted `OPENKITE_ROUTE` precedent. It logs
+  `console fixtures: enabled (N kinds from <path>)` when active, and the desktop
+  capture fails if that line is missing.
+
