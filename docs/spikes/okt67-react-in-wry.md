@@ -133,7 +133,7 @@ localhost `list` is ~2 ms; the same call under contention ran ~15 ms). The
 5. **Toolchain drift risk.** The Rust build `include_str!`s the committed
    bundle, but CI's paths-filter only watches `**.rs`/`Cargo.*`, so a stale
    bundle would compile silently. Phase 3 needs a bundle-freshness CI gate
-   (`npm run build` then `git diff --exit-code assets/vendored/...`).
+   (`npm run build` then `git diff --exit-code crates/openkite-desktop/assets/vendored/...`).
 
 ## Measurement caveats
 
@@ -166,7 +166,7 @@ costs leave headroom.
 Adopt with these conditions tracked in Phase 3:
 
 1. **Re-measure in the real WebKitGTK webview** (Xvfb, like
-   `e2e/run-desktop-e2e.sh`) and confirm the 500-row render / first-paint
+   `e2e/desktop/run.sh`) and confirm the 500-row render / first-paint
    budget before committing to a perf target.
 2. **Add a Rust→JS push channel** for live cluster state (reflector deltas),
    since the existing bridge is request/response only.

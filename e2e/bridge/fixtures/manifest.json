@@ -1,0 +1,6 @@
+{
+  "name": "guard-fixture",
+  "version": "0.1.0",
+  "entry": "guard.js",
+  "description": "Test-only plugin that walks the /openkite register dispatch path (bridge guard)"
+}

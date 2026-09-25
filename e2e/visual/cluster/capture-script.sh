@@ -31,7 +31,7 @@
 #   - The X root is the reliable surface to photograph; each shot is cropped to
 #     the app window's client geometry (recorded per boot).
 #   - The palette IS reachable with ctrl+p after a click focuses the webview;
-#     that is the one keyboard path we rely on, matching e2e/run-desktop-e2e.sh.
+#     that is the one keyboard path we rely on, matching e2e/desktop/run.sh.
 set -uxo pipefail
 
 ART=/work/art

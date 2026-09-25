@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared helpers for the OKT-61 user-flow bats suite (e2e/user_flows.bats).
+# Shared helpers for the OKT-61 user-flow bats suite (e2e/desktop/flows/user_flows.bats).
 #
 # Loaded by bats (bats `load`), NOT executed standalone. Each @test boots
 # its own Xvfb + openbox + app instance via setup()/teardown() (bats runs

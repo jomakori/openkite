@@ -9,7 +9,7 @@
 #
 # Requires: xvfb, xdotool, imagemagick (import/compare/identify), dbus-x11.
 #
-# Usage: run-desktop-e2e.sh <path-to-openkite-binary> <artifact-dir>
+# Usage: e2e/desktop/run.sh <path-to-openkite-binary> <artifact-dir>
 
 set -euo pipefail
 

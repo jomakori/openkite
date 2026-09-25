@@ -5,7 +5,7 @@
   "type": "module",
   "description": "OKT-67 spike: React 19 + Tailwind 4 UI layer mounted inside the existing wry webview and driving the existing /openkite bridge.",
   "openkite": {
-    "vendoredBundleDir": "../assets/vendored/openkite-react-spike"
+    "vendoredBundleDir": "../crates/openkite-desktop/assets/vendored/openkite-react-spike"
   },
   "scripts": {
     "dev": "vite",

@@ -147,13 +147,14 @@ jobs:
           rm -f Cargo.toml.bak
           grep -n '^version' Cargo.toml | head -2
       - name: Build release binary
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --release -p openkite --target ${{ matrix.target }}
       - name: Package via cargo-packager (DMG / AppImage / NSIS)
         if: inputs.package
         shell: bash
         run: |
-          cargo packager --release --target ${{ matrix.target }} \
-            --formats ${{ matrix.formats }} --out-dir dist
+          cargo packager --manifest-path crates/openkite-desktop/Cargo.toml \
+            --release --target ${{ matrix.target }} \
+            --formats ${{ matrix.formats }} --out-dir "$GITHUB_WORKSPACE/dist"
       - name: Name the artifact openkite_<version>_<os>_<arch>.<ext>
         # The file token is a placeholder (0.0.0) for version-agnostic PR
         # builds; release.yml rewrites it to the analyzed semver after download.

@@ -30,7 +30,7 @@ limit) and **never** builds the `openkite` binary on the review machine:
 ## Prerequisites
 
 All identifiers are parameters — the defaults target the throwaway `ok-debug`
-namespace on the dev k3d cluster, not a production cluster. Create:
+namespace in whichever cluster your kubeconfig points at — never a production cluster. Create:
 
 1. **A throwaway Job namespace** (default `ok-debug`). It must **not** be
    GitOps-managed: ArgoCD self-heal reverts manual deploys, so a Job applied to
@@ -65,19 +65,19 @@ namespace on the dev k3d cluster, not a production cluster. Create:
 export KUBECONFIG=/path/to/admin-kubeconfig
 export OK_CAPTURE_SCRATCH_NS=ok-debug
 
-./dev/capture/capture.sh
+./e2e/visual/cluster/capture.sh
 ```
 
 The wrapper prints the Job log path (`.capture.log`) and copies the media into
 `docs/media/`. Re-runs delete and recreate the Job, so the same command is
-idempotent. Run `./dev/capture/capture.sh --help` for every `OK_CAPTURE_*` knob.
+idempotent. Run `./e2e/visual/cluster/capture.sh --help` for every `OK_CAPTURE_*` knob.
 
 ### Stills only
 
 Turn the interactive flows off and capture just the routes:
 
 ```sh
-OK_CAPTURE_FLOWS=0 ./dev/capture/capture.sh
+OK_CAPTURE_FLOWS=0 ./e2e/visual/cluster/capture.sh
 ```
 
 ### Several one-off routes in a single run
@@ -86,7 +86,7 @@ Pass `route:slug` pairs; each boots a fresh app instance and writes `<slug>.png`
 
 ```sh
 OK_CAPTURE_EXTRA_ROUTES='/cluster:cluster /terminal:terminal' \
-  ./dev/capture/capture.sh      # -> docs/media/cluster.png, docs/media/terminal.png
+  ./e2e/visual/cluster/capture.sh      # -> docs/media/cluster.png, docs/media/terminal.png
 ```
 
 ### Routes after OKT-98
@@ -133,7 +133,7 @@ a local `cargo build`.
   into the webview. The React table is not bound to `Page_Down`/`Down`/`Up`, and
   an earlier GIF built from keyboard paging was nearly static (~18 bytes between
   frames). The only keyboard path we rely on is `ctrl+p` to open the palette
-  after a click focuses the webview (the same path `e2e/run-desktop-e2e.sh`
+  after a click focuses the webview (the same path `e2e/desktop/run.sh`
   uses).
 - The layout is deterministic: 252px sidebar, 56px topbar, 20px view padding.
   The click coordinates in `capture-script.sh` are derived from `web/src/theme.css`.

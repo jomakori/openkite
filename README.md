@@ -38,7 +38,7 @@ with kube-rs 4. One language, one binary, desktop-first.
 ## Visual tour
 
 Every image below is the real wry/WebKitGTK webview on a live cluster, captured
-by the in-cluster harness in [`dev/capture/`](dev/capture/) — no mockups.
+by the in-cluster harness in [`e2e/visual/cluster/`](e2e/visual/cluster/) — no mockups.
 
 ### Console shell chrome
 
@@ -122,13 +122,10 @@ choco install openkite
 ## Quickstart
 
 ```sh
-# Desktop dev loop (hot reload)
+# Desktop dev loop (hot reload), pointed at a cluster from your kubeconfig
+# (tailnet: tailscale configure kubeconfig <proxy-host>)
 cargo install dioxus-cli
-dx serve
-
-# Or via Tilt + ephemeral k3d cluster
-k3d cluster create openkite-dev --registry-create openkite-registry:5050
-tilt up
+cd crates/openkite-desktop && dx serve
 
 # Plain build
 cargo build --release
