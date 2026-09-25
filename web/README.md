@@ -87,6 +87,8 @@ previews and releases, so a preview exercises what prod will run.
   `crates/openkite-web` refuses to boot when `OPENKITE_WEB_ROOT` holds no
   `index.html`, so a console-less container CrashLoops instead of answering 404
   for every path and letting the console fall back to fixtures.
+- **`ca-certificates` is installed** — the host's rustls client aborts when the
+  system root store is empty, in-cluster included, and `trixie-slim` ships none.
 - **The binary is compiled on the runner, not inside the Dockerfile**, so
   `Swatinem/rust-cache` can make the release build affordable on the workflow
   that runs for every PR. `.dockerignore` re-includes exactly

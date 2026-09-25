@@ -3,10 +3,11 @@
 # ─────────────────────────────────────────────────────────────────────
 # Stage 1 — bundle: stage the prebuilt web bundle; fail loudly if absent.
 #
-# The bundle is produced by web/build.sh, which the PR pipeline
-# (.github/workflows/pr-image.yml) runs before this build, not inside this
-# image. Validating here too means a local `docker build .` cannot quietly
-# publish an image with nothing to serve. See web/README.md.
+# The bundle is produced by web/build.sh, which the image pipeline
+# (.github/workflows/build-image.yml — pr-image.yml and release.yml alike) runs
+# before this build, not inside this image. Validating here too means a local
+# `docker build .` cannot quietly publish an image with nothing to serve. See
+# web/README.md.
 # ─────────────────────────────────────────────────────────────────────
 FROM alpine:3.24 AS bundle
 WORKDIR /bundle
@@ -28,8 +29,15 @@ FROM debian:trixie-slim AS runtime
 # The host binary, compiled by the image workflow (build-image.yml).
 COPY target/release/openkite-web /usr/local/bin/openkite-web
 
-# A writable HOME for the host's own config file.
-RUN mkdir -p /home/openkite && chown 65532:65532 /home/openkite
+# `ca-certificates` is not in trixie-slim and the host will not boot without a
+# system root store: its rustls client aborts on an empty one, in-cluster or not
+# (the API server is HTTPS). `/home/openkite` is where the host writes its own
+# config file, and uid 65532 cannot create it under WORKDIR.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /home/openkite \
+    && chown 65532:65532 /home/openkite
 
 WORKDIR /app
 COPY --from=bundle /bundle/web/dist /app/web/dist

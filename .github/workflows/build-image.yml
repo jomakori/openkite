@@ -101,14 +101,10 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      # pr-image.yml runs on EVERY PR by design, so without this the release
-      # build is a cold several-minute compile on every PR. This cache is its
-      # own: the existing keys are per-job and warm `target/debug`, which a
-      # release build cannot use. Only default-branch caches are restorable from
-      # another branch, and this workflow never runs on `main` — so PR runs
-      # restore and never save (a PR-scoped cache is invisible to every other PR
-      # and would evict the shared entry). lint-test.yml's `image-build-cache`
-      # job writes the shared entry from `main`.
+      # Its own key: the caches elsewhere warm `target/debug`, which a release
+      # build cannot use. Only default-branch caches are restorable from another
+      # branch and this workflow never runs on `main`, so PR runs restore and
+      # save nothing — `lint-test.yml`'s `image-build-cache` writes it on `main`.
       - name: Cache the Rust build
         uses: Swatinem/rust-cache@v2
         with:
@@ -151,18 +147,12 @@ jobs:
             echo "TAG=${TAG}"
           } >> "$GITHUB_ENV"
 
-      # The image is only ever run in a pod, and the host exits when it cannot
-      # connect to a cluster (`Client::try_default` in crates/openkite-web), so a
-      # bare `docker run` cannot boot it. A stub kubeconfig fixes that:
-      # `try_default` only parses it and never touches the network, so the host
-      # binds and serves while the reflectors retry in the background
-      # (`drive_reflector` logs and continues; nothing panics).
-      #
-      # What this proves before anything is pushed: the binary loads on this base
-      # (the glibc pair), the bundle is where OPENKITE_WEB_ROOT says, uid 65532
-      # can bind 8080, the SPA fallback answers a deep link, the bridge route
-      # answers the envelope the console reads, and the boot log names the root
-      # it actually serves. A failure here publishes nothing.
+      # The host exits without a cluster, so it gets a stub kubeconfig:
+      # `Client::try_default` parses it and never touches the network, leaving the
+      # reflectors to retry in the background (`drive_reflector` logs and
+      # continues). Runs before the push, and is what proves the binary loads on
+      # this base, the bundle sits where OPENKITE_WEB_ROOT says, uid 65532 can bind
+      # 8080, and the SPA fallback and bridge route answer.
       - name: Smoke-test the image
         run: |
           set -euo pipefail
@@ -182,10 +172,14 @@ jobs:
           served=0
           for _ in $(seq 1 30); do
             if curl -fsS -o /dev/null http://127.0.0.1:18080/; then served=1; break; fi
+            # A host that died on a boot failure never answers: stop waiting.
+            if [ "$(docker inspect --format '{{.State.Running}}' openkite-smoke)" != "true" ]; then
+              break
+            fi
             sleep 1
           done
           if [ "$served" != 1 ]; then
-            echo "::error title=Image never answered::no HTTP 200 from :8080 within 30s"
+            echo "::error title=Image never answered::no HTTP 200 from :8080 (container exit code $(docker inspect --format '{{.State.ExitCode}}' openkite-smoke))"
             docker logs openkite-smoke || true
             exit 1
           fi
