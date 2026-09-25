@@ -1,6 +1,11 @@
-# Keep the build context small for the root Dockerfile (PR preview image).
+# Keep the build context small for the root Dockerfile (the console image).
 # The dev image uses context `dev/`, so it is unaffected by this file.
 .git
-target
 dev/.kube
 **/node_modules
+# target/ is multi-GB and the image needs exactly one file from it: the host
+# binary the image workflow compiled. Re-include only that path.
+target/*
+!target/release/
+target/release/*
+!target/release/openkite-web
