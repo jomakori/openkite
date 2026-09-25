@@ -2,7 +2,7 @@
 // Produces a minified IIFE for `include_str!` in
 // `src/components/terminal.rs`. Run from the tools/build-xterm dir.
 //
-//   node build.mjs ../../assets/vendored/xterm
+//   node build.mjs ../../crates/openkite-desktop/assets/vendored/xterm
 //   # Then append the wrapper trailer (window.openkite._term_*) — see
 //   # build.mjs comment block.
 
@@ -48,7 +48,7 @@ const sourceTxt = [
     `  esbuild@${esbuildPkg.version} IIFE minified, es2020 target.`,
     '',
     'Rebuild:',
-    '  cd tools/build-xterm && npm install && node build.mjs ../../assets/vendored/xterm',
+    '  cd tools/build-xterm && npm install && node build.mjs ../../crates/openkite-desktop/assets/vendored/xterm',
     '',
     'Cache-buster id: xterm-bundle-v1 (bump on each rebuild; see',
     'crate::components::terminal::xterm_host_path).',

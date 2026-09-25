@@ -17,6 +17,6 @@
   window.openkite.registerSidebar({
     label: "OKT95-GUARD",
     icon: "grid",
-    route: "/okt95-guard",
+    route: "/guard-fixture",
   });
 })();

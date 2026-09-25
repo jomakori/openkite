@@ -9,7 +9,7 @@ description = "OpenKite web host — serves the console bundle and answers its k
 [dependencies]
 # The core without the native renderer: this crate is the host-less target the
 # `desktop` feature exists to allow, so the browser host carries no WebKit/GTK.
-openkite = { path = "../..", default-features = false }
+openkite = { path = "../openkite-desktop", default-features = false }
 axum = "0.8"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "time", "io-util"] }
 # Static file service for the console bundle (SPA fallback included).

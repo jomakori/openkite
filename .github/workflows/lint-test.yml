@@ -42,10 +42,10 @@ jobs:
               # The Rust host include_str!s the vendored React bundle, so a
               # web-only change must still run the Rust build.
               - 'web/**'
-              - 'assets/vendored/openkite-react-spike/**'
+              - 'crates/openkite-desktop/assets/vendored/openkite-react-spike/**'
             web:
               - 'web/**'
-              - 'assets/vendored/openkite-react-spike/**'
+              - 'crates/openkite-desktop/assets/vendored/openkite-react-spike/**'
       # Gate every downstream job on workflow hygiene: runs before the heavy
       # Rust work, so a GNU-only `sed -i` is caught in seconds, not on macOS.
       - name: Check workflows for GNU-only sed
@@ -118,7 +118,7 @@ jobs:
         run: cargo build --workspace
 
   # The Rust host include_str!s the vendored React bundle under
-  # assets/vendored/openkite-react-spike/. Rebuilding web/ and diffing against
+  # crates/openkite-desktop/assets/vendored/openkite-react-spike/. Rebuilding web/ and diffing against
   # the committed copy proves web/src and the vendored artifact agree; without
   # this gate a stale bundle compiles silently.
   bundle-freshness:

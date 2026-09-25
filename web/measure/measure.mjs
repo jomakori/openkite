@@ -1,6 +1,6 @@
 // OKT-67 measurement harness.
 //
-// Serves the PRODUCTION vendored bundle (assets/vendored/openkite-react-spike)
+// Serves the PRODUCTION vendored bundle (crates/openkite-desktop/assets/vendored/openkite-react-spike)
 // and a headless browser engine, fulfils the two same-origin bridge endpoints
 // the way the Rust asset handlers do, then records the numbers the spike gates
 // on: cold start -> first paint, bridge round-trip, 500-row render, idle RSS.

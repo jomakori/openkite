@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Build the vendored xterm.js IIFE bundle for OpenKite (OKT-36).",
   "scripts": {
-    "build": "node build.mjs ../../assets/vendored/xterm"
+    "build": "node build.mjs ../../crates/openkite-desktop/assets/vendored/xterm"
   },
   "dependencies": {
     "@xterm/xterm": "5.5.0"

@@ -166,7 +166,7 @@ costs leave headroom.
 Adopt with these conditions tracked in Phase 3:
 
 1. **Re-measure in the real WebKitGTK webview** (Xvfb, like
-   `e2e/run-desktop-e2e.sh`) and confirm the 500-row render / first-paint
+   `e2e/desktop/run.sh`) and confirm the 500-row render / first-paint
    budget before committing to a perf target.
 2. **Add a Rust→JS push channel** for live cluster state (reflector deltas),
    since the existing bridge is request/response only.

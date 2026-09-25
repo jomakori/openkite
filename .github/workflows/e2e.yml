@@ -4,20 +4,20 @@ on:
   pull_request:
     paths:
       - 'e2e/**'
-      - 'src/**'
+      - 'crates/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'web/**'
-      - 'assets/**'
+      - 'crates/openkite-desktop/assets/**'
   push:
     branches: [main]
     paths:
       - 'e2e/**'
-      - 'src/**'
+      - 'crates/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'web/**'
-      - 'assets/**'
+      - 'crates/openkite-desktop/assets/**'
   workflow_dispatch:
     inputs:
       capture_baselines:
@@ -57,7 +57,7 @@ jobs:
         working-directory: e2e
         run: |
           mkdir -p artifacts
-          ./run-desktop-e2e.sh ../target/debug/openkite artifacts
+          ./desktop/run.sh ../target/debug/openkite artifacts/desktop
 
       - name: Upload E2E artifacts (screenshots)
         if: always()
@@ -104,20 +104,20 @@ jobs:
         working-directory: e2e
         env:
           BIN: ../target/debug/openkite
-          ART_ROOT: artifacts-flows
+          ART_ROOT: artifacts/flows
         run: |
-          rm -rf artifacts-flows artifacts-junit artifacts-bats-tmp
-          mkdir -p artifacts-flows artifacts-junit
+          rm -rf artifacts
+          mkdir -p artifacts/junit artifacts/tmp
           # TAP on stdout (live progress) + junit report files for dorny.
-          bats --report-formatter junit --output "$PWD/artifacts-junit" \
-            --tempdir "$PWD/artifacts-bats-tmp" user_flows.bats
+          bats --report-formatter junit --output "$PWD/artifacts/junit" \
+            --tempdir "$PWD/artifacts/tmp" desktop/flows/user_flows.bats
 
       - name: Publish flow report to job summary
         if: always()
         uses: dorny/test-reporter@v1
         with:
           name: User flow report
-          path: e2e/artifacts-junit/*.xml
+          path: e2e/artifacts/junit/*.xml
           reporter: java-junit
           use-actions-summary: 'true'
 
@@ -126,7 +126,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: user-flow-artifacts
-          path: e2e/artifacts-flows/
+          path: e2e/artifacts/flows/
           retention-days: 7
 
   # Earlier-stage guard for the /openkite dispatch path (OKT-95, an OKT-94
@@ -166,15 +166,15 @@ jobs:
       - name: Run bridge dispatch guard
         working-directory: e2e
         run: |
-          mkdir -p artifacts-bridge-guard
-          ./bridge-guard.sh ../target/debug/openkite artifacts-bridge-guard
+          mkdir -p artifacts/bridge
+          ./bridge/guard.sh ../target/debug/openkite artifacts/bridge
 
       - name: Upload guard artifacts (app log)
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: bridge-guard-artifacts
-          path: e2e/artifacts-bridge-guard/
+          path: e2e/artifacts/bridge/
           retention-days: 7
 
   desktop-e2e-connected:
@@ -227,15 +227,15 @@ jobs:
         env:
           EXPECT_CONNECTED: '1'
         run: |
-          mkdir -p artifacts-connected
-          KUBECONFIG="$HOME/.kube/config" ./run-desktop-e2e.sh ../target/debug/openkite artifacts-connected
+          mkdir -p artifacts/connected
+          KUBECONFIG="$HOME/.kube/config" ./desktop/run.sh ../target/debug/openkite artifacts/connected
 
       - name: Upload connected E2E artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: desktop-e2e-connected-artifacts
-          path: e2e/artifacts-connected/
+          path: e2e/artifacts/connected/
           retention-days: 7
 
   # ─────────────────────────────────────────────────────────────────────
@@ -243,7 +243,7 @@ jobs:
   # fresh runs against committed baselines (OKT-62).
   #
   # capture-baselines: runs on workflow_dispatch (capture once, download
-  #   the artifact, commit PNGs to e2e/baselines/). NOT a gate — it's the
+  #   the artifact, commit PNGs to e2e/visual/baselines/). NOT a gate — it's the
   #   one-time golden capture.
   #
   # visual-regression: runs on PR/push. Re-captures all 10 surfaces fresh
@@ -280,13 +280,13 @@ jobs:
         working-directory: e2e
         run: |
           mkdir -p baselines
-          ./capture-baselines.sh ../target/debug/openkite baselines
+          ./visual/capture.sh ../target/debug/openkite visual/baselines
 
       - name: Upload baselines artifact
         uses: actions/upload-artifact@v4
         with:
           name: visual-baselines
-          path: e2e/baselines/*.png
+          path: e2e/visual/baselines/*.png
           retention-days: 30
 
   visual-regression:
@@ -317,8 +317,8 @@ jobs:
       - name: Check baselines exist
         id: check-baselines
         run: |
-          if [ -d "e2e/baselines" ] && ls e2e/baselines/*.png >/dev/null 2>&1; then
-            count=$(ls e2e/baselines/*.png | wc -l)
+          if [ -d "e2e/visual/baselines" ] && ls e2e/visual/baselines/*.png >/dev/null 2>&1; then
+            count=$(ls e2e/visual/baselines/*.png | wc -l)
             echo "baseline_count=$count" >> "$GITHUB_OUTPUT"
             echo "have_baselines=true" >> "$GITHUB_OUTPUT"
             echo "Found $count committed baselines"
@@ -331,13 +331,13 @@ jobs:
         if: ${{ steps.check-baselines.outputs.have_baselines == 'true' }}
         working-directory: e2e
         run: |
-          mkdir -p artifacts-vr
-          ./run-visual-regression.sh ../target/debug/openkite baselines artifacts-vr
+          mkdir -p artifacts/visual
+          ./visual/run.sh ../target/debug/openkite visual/baselines artifacts/visual
 
       - name: Upload visual regression artifacts
         if: ${{ always() && steps.check-baselines.outputs.have_baselines == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: visual-regression-artifacts
-          path: e2e/artifacts-vr/
+          path: e2e/artifacts/visual/
           retention-days: 7

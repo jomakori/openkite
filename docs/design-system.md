@@ -6,7 +6,7 @@ views) consumes without re-deciding the visual language.
 
 It lives in two places:
 
-- `assets/main.css` — the single existing asset, already injected by
+- `crates/openkite-desktop/assets/main.css` — the single existing asset, already injected by
   `src/lib.rs:107` via `include_str!` into the webview's `<head>`.
 - `src/design/{mod.rs, tokens.rs}` — typed Rust view of the
   surface-treatment strings (blur radii, panel radii, shadow strings)
@@ -80,7 +80,7 @@ From `src/theme_opaline.rs:19-41` and `src/theme.rs:18-47`:
 
 ## Verification
 
-`tests/design.rs` reads `assets/main.css` via `include_str!` and asserts
+`crates/openkite-desktop/tests/design.rs` reads `crates/openkite-desktop/assets/main.css` via `include_str!` and asserts
 every required custom property and primitive class is present, plus a
 "exactly 12 new properties" guard against accidental re-declaration of
 an opaline-mapped var. The test runs on every CI push with no kube/JS

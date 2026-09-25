@@ -63,12 +63,12 @@ jobs:
         with:
           filters: |
             artifacts:
-              - 'src/**'
+              - 'crates/**'
               - 'crates/**'
               - 'Cargo.toml'
               - 'Cargo.lock'
               - 'web/**'
-              - 'assets/**'
+              - 'crates/openkite-desktop/assets/**'
               # Changing the build definition itself affects the artifact.
               - '.github/workflows/build-artifacts.yml'
               - '.github/workflows/build-release-artifacts.yml'

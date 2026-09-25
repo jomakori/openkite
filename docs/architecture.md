@@ -1,5 +1,8 @@
 # OpenKite Architecture
 
+> Code paths in this document are relative to the desktop crate,
+> `crates/openkite-desktop/` (e.g. `src/lib.rs` means `crates/openkite-desktop/src/lib.rs`).
+
 OpenKite is a single-binary Rust desktop app: **Dioxus 0.7** (UI) + **kube-rs 4**
 (cluster access). No JS build step, no Node toolchain. This document covers the
 component layout, the data flow from cluster to pixels, and the key decisions.
