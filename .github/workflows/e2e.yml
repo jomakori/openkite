@@ -107,7 +107,9 @@ jobs:
           ART_ROOT: artifacts/flows
         run: |
           rm -rf artifacts
-          mkdir -p artifacts/junit artifacts/tmp
+          mkdir -p artifacts/junit
+          # bats creates --tempdir itself and errors if it already exists
+          # (BATS_RUN_TMPDIR already exists) — only the report dir is pre-made.
           # TAP on stdout (live progress) + junit report files for dorny.
           bats --report-formatter junit --output "$PWD/artifacts/junit" \
             --tempdir "$PWD/artifacts/tmp" desktop/flows/user_flows.bats

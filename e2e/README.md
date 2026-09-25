@@ -45,6 +45,9 @@ ART_ROOT=artifacts/flows bats --report-formatter junit --output artifacts/junit 
   --tempdir artifacts/tmp desktop/flows/user_flows.bats
 ```
 
+`--tempdir` must **not** exist beforehand: bats creates it and exits with
+`BATS_RUN_TMPDIR … already exists`. Only the `--output` directory is pre-made.
+
 ### `visual/` — baselines and the gate
 
 `capture.sh` produces the ten surface screenshots. `run.sh` captures a fresh set and compares it
