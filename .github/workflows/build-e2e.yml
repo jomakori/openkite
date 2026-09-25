@@ -1,0 +1,416 @@
+name: build-e2e
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-e2e-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  changes:
+    name: Detect build and end-to-end changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      src: ${{ steps.filter.outputs.src }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Detect changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            src:
+              - 'crates/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'web/**'
+              - 'e2e/**'
+              - '.github/workflows/build-e2e.yml'
+              - '.github/actions/build-release-artifacts/**'
+              - '.github/actions/rust-setup/**'
+
+  binaries:
+    name: openkite_${{ matrix.package_os }}_${{ matrix.package_arch }}
+    runs-on: ${{ matrix.os }}
+    needs: [changes]
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.pull_request.draft == false && needs.changes.outputs.src == 'true')
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            package_os: linux
+            package_arch: amd64
+            formats: appimage
+            ext: AppImage
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            package_os: linux
+            package_arch: arm64
+            formats: appimage
+            ext: AppImage
+          - os: macos-26
+            target: aarch64-apple-darwin
+            package_os: macos
+            package_arch: arm64
+            formats: dmg
+            ext: dmg
+          - os: macos-26-intel
+            target: x86_64-apple-darwin
+            package_os: macos
+            package_arch: amd64
+            formats: dmg
+            ext: dmg
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            package_os: windows
+            package_arch: amd64
+            formats: nsis
+            ext: exe
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            package_os: windows
+            package_arch: arm64
+            formats: nsis
+            ext: exe
+    steps:
+      - name: Build, package, and upload the release asset
+        uses: ./.github/actions/build-release-artifacts
+        with:
+          target: ${{ matrix.target }}
+          package-os: ${{ matrix.package_os }}
+          package-arch: ${{ matrix.package_arch }}
+          formats: ${{ matrix.formats }}
+          ext: ${{ matrix.ext }}
+          retention-days: '90'
+
+  e2e-binary:
+    name: Build the end-to-end binary
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.pull_request.draft == false && needs.changes.outputs.src == 'true')
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Install the toolchain and native packages
+        uses: ./.github/actions/rust-setup
+        with:
+          apt-extra: xvfb xdotool imagemagick dbus-x11 openbox
+      - name: Build the workspace
+        run: cargo build --workspace
+      - name: Upload the binary for the suites
+        uses: actions/upload-artifact@v4
+        with:
+          name: openkite-linux-debug
+          path: target/debug/openkite
+          retention-days: 1
+
+  desktop-e2e:
+    name: Desktop E2E
+    runs-on: ubuntu-latest
+    needs: [changes, e2e-binary]
+    if: >-
+      !cancelled() &&
+      (github.event_name != 'pull_request' ||
+       (github.event.pull_request.draft == false && needs.changes.outputs.src == 'true'))
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Install the native packages
+        uses: ./.github/actions/rust-setup
+        with:
+          apt-extra: xvfb xdotool imagemagick dbus-x11 openbox
+      - name: Download the end-to-end binary
+        uses: actions/download-artifact@v4
+        with:
+          name: openkite-linux-debug
+          path: target/debug
+      - name: Restore the executable bit
+        run: chmod +x target/debug/openkite
+      - name: Run the desktop E2E suite
+        working-directory: e2e
+        run: |
+          mkdir -p artifacts
+          ./desktop/run.sh ../target/debug/openkite artifacts/desktop
+      - name: Upload suite artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-e2e-artifacts
+          path: e2e/artifacts/
+          retention-days: 7
+
+  user-flows:
+    name: User flows
+    runs-on: ubuntu-latest
+    needs: [changes, e2e-binary, desktop-e2e]
+    if: >-
+      !cancelled() &&
+      (github.event_name != 'pull_request' ||
+       (github.event.pull_request.draft == false && needs.changes.outputs.src == 'true'))
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Install the native packages and bats
+        uses: ./.github/actions/rust-setup
+        with:
+          apt-extra: xvfb xdotool imagemagick dbus-x11 openbox bats
+      - name: Download the end-to-end binary
+        uses: actions/download-artifact@v4
+        with:
+          name: openkite-linux-debug
+          path: target/debug
+      - name: Restore the executable bit
+        run: chmod +x target/debug/openkite
+      - name: Run the user-flow suite
+        working-directory: e2e
+        env:
+          BIN: ../target/debug/openkite
+          ART_ROOT: artifacts/flows
+        run: |
+          set -euo pipefail
+          rm -rf artifacts
+          mkdir -p artifacts/junit
+          bats --report-formatter junit --output "$PWD/artifacts/junit" \
+            --tempdir "$PWD/artifacts/tmp" desktop/flows/user_flows.bats
+      - name: Publish the flow report to the job summary
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: User flow report
+          path: e2e/artifacts/junit/*.xml
+          reporter: java-junit
+          use-actions-summary: 'true'
+      - name: Upload suite artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: user-flow-artifacts
+          path: e2e/artifacts/flows/
+          retention-days: 7
+
+  bridge-guard:
+    name: Bridge dispatch guard
+    runs-on: ubuntu-latest
+    needs: [changes, e2e-binary, desktop-e2e]
+    if: >-
+      !cancelled() &&
+      (github.event_name != 'pull_request' ||
+       (github.event.pull_request.draft == false && needs.changes.outputs.src == 'true'))
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Install the native packages
+        uses: ./.github/actions/rust-setup
+        with:
+          apt-extra: xvfb xdotool imagemagick dbus-x11 openbox
+      - name: Download the end-to-end binary
+        uses: actions/download-artifact@v4
+        with:
+          name: openkite-linux-debug
+          path: target/debug
+      - name: Restore the executable bit
+        run: chmod +x target/debug/openkite
+      - name: Run the bridge dispatch guard
+        working-directory: e2e
+        run: |
+          mkdir -p artifacts/bridge
+          ./bridge/guard.sh ../target/debug/openkite artifacts/bridge
+      - name: Upload suite artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bridge-guard-artifacts
+          path: e2e/artifacts/bridge/
+          retention-days: 7
+
+  desktop-e2e-connected:
+    name: Desktop E2E (connected)
+    runs-on: ubuntu-latest
+    needs: [changes, e2e-binary, desktop-e2e]
+    if: >-
+      !cancelled() &&
+      (github.event_name != 'pull_request' ||
+       (github.event.pull_request.draft == false && needs.changes.outputs.src == 'true'))
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Install the native packages
+        uses: ./.github/actions/rust-setup
+        with:
+          apt-extra: xvfb xdotool imagemagick dbus-x11 openbox
+      - name: Download the end-to-end binary
+        uses: actions/download-artifact@v4
+        with:
+          name: openkite-linux-debug
+          path: target/debug
+      - name: Restore the executable bit
+        run: chmod +x target/debug/openkite
+      - name: Connect to the tailnet
+        uses: tailscale/github-action@v4
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTH_KEY }}
+      - name: Configure the kubectl kubeconfig
+        run: |
+          tailscale configure kubeconfig ${{ secrets.TAILSCALE_PROXY_HOST }}
+          kubectl config current-context
+          kubectl get ns | head -5
+      - name: Run the connected desktop E2E suite
+        working-directory: e2e
+        env:
+          EXPECT_CONNECTED: '1'
+        run: |
+          mkdir -p artifacts/connected
+          KUBECONFIG="$HOME/.kube/config" ./desktop/run.sh ../target/debug/openkite artifacts/connected
+      - name: Upload suite artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-e2e-connected-artifacts
+          path: e2e/artifacts/connected/
+          retention-days: 7
+
+  visual-regression:
+    name: Visual regression
+    runs-on: ubuntu-latest
+    needs: [changes, e2e-binary, desktop-e2e]
+    if: >-
+      !cancelled() &&
+      (github.event_name != 'pull_request' ||
+       (github.event.pull_request.draft == false && needs.changes.outputs.src == 'true'))
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Install the native packages
+        uses: ./.github/actions/rust-setup
+        with:
+          apt-extra: xvfb xdotool imagemagick dbus-x11 openbox
+      - name: Download the end-to-end binary
+        uses: actions/download-artifact@v4
+        with:
+          name: openkite-linux-debug
+          path: target/debug
+      - name: Restore the executable bit
+        run: chmod +x target/debug/openkite
+      - name: Run the visual regression gate
+        working-directory: e2e
+        run: |
+          mkdir -p artifacts/visual
+          ./visual/run.sh ../target/debug/openkite visual/baselines artifacts/visual
+      - name: Upload suite artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-regression-artifacts
+          path: e2e/artifacts/visual/
+          retention-days: 7
+
+  gate:
+    name: Multi-platform build
+    needs:
+      - changes
+      - binaries
+      - e2e-binary
+      - desktop-e2e
+      - user-flows
+      - bridge-guard
+      - desktop-e2e-connected
+      - visual-regression
+    if: >-
+      always() &&
+      (github.event_name != 'pull_request' ||
+       (github.event.pull_request.draft == false && needs.changes.outputs.src == 'true'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Enforce every build and end-to-end result
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          echo "$RESULTS"
+          unhealthy="$(printf '%s' "$RESULTS" | jq -r '
+            to_entries[]
+            | select(.value.result != "success" and .value.result != "skipped")
+            | "\(.key)=\(.value.result)"')"
+          if [ -n "$unhealthy" ]; then
+            echo "::error title=Multi-platform build::$(printf '%s' "$unhealthy" | tr '\n' ' ')"
+            exit 1
+          fi
+          echo "every build and end-to-end job succeeded or was skipped"
+
+  report:
+    name: Track the main-branch outcome
+    needs:
+      - changes
+      - binaries
+      - e2e-binary
+      - desktop-e2e
+      - user-flows
+      - bridge-guard
+      - desktop-e2e-connected
+      - visual-regression
+      - gate
+    if: always() && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+      actions: read
+    concurrency:
+      group: ci-failure-${{ github.workflow }}
+      cancel-in-progress: false
+    steps:
+      - name: Open, update, or close the tracking issue
+        uses: ./.github/actions/notify-failure
+        with:
+          run-id: ${{ github.run_id }}
+          workflow-name: ${{ github.workflow }}
+          failed: ${{ contains(needs.*.result, 'failure') }}
+          cancelled: ${{ contains(needs.*.result, 'cancelled') }}
