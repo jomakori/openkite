@@ -133,7 +133,7 @@ localhost `list` is ~2 ms; the same call under contention ran ~15 ms). The
 5. **Toolchain drift risk.** The Rust build `include_str!`s the committed
    bundle, but CI's paths-filter only watches `**.rs`/`Cargo.*`, so a stale
    bundle would compile silently. Phase 3 needs a bundle-freshness CI gate
-   (`npm run build` then `git diff --exit-code assets/vendored/...`).
+   (`npm run build` then `git diff --exit-code crates/openkite-desktop/assets/vendored/...`).
 
 ## Measurement caveats
 

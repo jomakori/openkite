@@ -122,12 +122,9 @@ choco install openkite
 ## Quickstart
 
 ```sh
-# Desktop dev loop (hot reload)
-cargo install dioxus-cli
-cd crates/openkite-desktop && dx serve
-
-# Or point it at a cluster from your kubeconfig
+# Desktop dev loop (hot reload), pointed at a cluster from your kubeconfig
 # (tailnet: tailscale configure kubeconfig <proxy-host>)
+cargo install dioxus-cli
 cd crates/openkite-desktop && dx serve
 
 # Plain build

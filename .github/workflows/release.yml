@@ -41,6 +41,11 @@ on:
       - 'Cargo.lock'
       - 'web/**'
       - 'crates/openkite-desktop/assets/**'
+      # The packager metadata reads Dioxus.toml (asset/out dirs) and bakes the
+      # icons into the installers, so both change the shipped artifact - and
+      # build-artifacts.yml's 'crates/**' filter already counts them.
+      - 'crates/openkite-desktop/Dioxus.toml'
+      - 'crates/openkite-desktop/icons/**'
       # Changing the build definition itself affects the artifact.
       - '.github/workflows/build-artifacts.yml'
       - '.github/workflows/build-release-artifacts.yml'

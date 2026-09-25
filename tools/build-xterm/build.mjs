@@ -1,6 +1,6 @@
 // Build the vendored xterm.js IIFE bundle for OpenKite.
 // Produces a minified IIFE for `include_str!` in
-// `src/components/terminal.rs`. Run from the tools/build-xterm dir.
+// `crates/openkite-desktop/src/components/terminal.rs`. Run from the tools/build-xterm dir.
 //
 //   node build.mjs ../../crates/openkite-desktop/assets/vendored/xterm
 //   # Then append the wrapper trailer (window.openkite._term_*) — see
