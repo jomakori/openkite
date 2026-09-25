@@ -1,0 +1,59 @@
+name: TEMP okt131 verify teardown (do not keep)
+
+# Throwaway harness for OKT-131. `workflow_dispatch` cannot run a workflow that
+# is not yet on the default branch (HTTP 404, verified), so the backfill path is
+# exercised through a push trigger that calls the SAME script with the same
+# arguments the dispatch path passes. Deleted before the PR opens.
+on:
+  push:
+    branches: [tmp/okt131-teardown-verify]
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+  packages: write
+  pull-requests: read
+
+jobs:
+  verify:
+    name: Verify the teardown script with GITHUB_TOKEN
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Report the event context
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_PR: ${{ github.event.number }}
+        run: echo "event=${EVENT_NAME} pr=${EVENT_PR}"
+
+      # Mirrors the dispatch path: same script, same argument, before/after
+      # counts around each PR so the deletion is measured, not asserted.
+      - name: Backfill two closed PRs (push only)
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          pkg=/users/jomakori/packages/container/openkite
+          counts() {
+            printf 'versions=%s pr_tags=%s\n' \
+              "$(gh api "$pkg" -q .version_count)" \
+              "$(gh api --paginate "$pkg/versions" -q '.[].metadata.container.tags[]' | grep -c '^pr-' || true)"
+          }
+          echo "BEFORE pr-131: $(counts)"
+          bash .github/scripts/prune-preview-image-versions.sh --pr 131
+          echo "AFTER  pr-131: $(counts)"
+          echo "BEFORE pr-132: $(counts)"
+          bash .github/scripts/prune-preview-image-versions.sh --pr 132
+          echo "AFTER  pr-132: $(counts)"
+
+      # The closed event must hand the script the PR number it closed.
+      - name: Closed-event plumbing (closed PR only)
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT_PR: ${{ github.event.number }}
+        run: bash .github/scripts/prune-preview-image-versions.sh --pr "$EVENT_PR" --dry-run
