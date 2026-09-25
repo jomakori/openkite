@@ -18,6 +18,7 @@ use dioxus::desktop::wry;
 use dioxus::desktop::{use_asset_handler, AssetRequest, RequestAsyncResponder};
 use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::BTreeMap;
 
 use crate::config::{MenuBarVisibility, OpenKiteConfig, TitleBarTheme};
