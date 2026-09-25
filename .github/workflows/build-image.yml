@@ -9,7 +9,10 @@ name: Build image
 #                                    pin-bump workflow in gke_GitOps rewrites the
 #                                    pin to that same string on every release)
 #
-# Before this existed each caller carried its own copy of the web-bundle +
+# One build, one order: the web bundle and the console host are compiled, the
+# image is built, the image is smoke-tested, and only then is anything pushed.
+#
+# Before this existed each caller carried its own copy of the bundle +
 # `docker build` + GHCR login steps: the same contract written twice, where drift
 # means a tag nothing consumes. Callers keep what is genuinely theirs — when to
 # build, how to tag, what to do with the result (labels, releases) — and this
@@ -43,7 +46,8 @@ on:
       host:
         description: >-
           Host that serves this image, for the run summary only (e.g.
-          pr<N>.maklab.net). Optional — the summary omits the row when empty.
+          pr<N>-openkite.maklab.net). Optional — the summary omits the row when
+          empty.
         required: false
         default: ""
         type: string
@@ -88,8 +92,38 @@ jobs:
             exit 1
           fi
 
-      - name: Log in to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      # The image's runtime is the Rust host, so the host is compiled here and
+      # COPYed in — the Dockerfile deliberately does not build Rust (see its
+      # runtime stage). `-p openkite-web` only: that crate depends on `openkite`
+      # with `default-features = false`, so the `desktop` feature's wry/WebKit
+      # renderer is not in the graph and this needs no GTK apt packages and no
+      # `.github/actions/rust-setup`.
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # pr-image.yml runs on EVERY PR by design, so without this the release
+      # build is a cold several-minute compile on every PR. This cache is its
+      # own: the existing keys are per-job and warm `target/debug`, which a
+      # release build cannot use. Only default-branch caches are restorable from
+      # another branch, and this workflow never runs on `main` — so PR runs
+      # restore and never save (a PR-scoped cache is invisible to every other PR
+      # and would evict the shared entry). lint-test.yml's `image-build-cache`
+      # job writes the shared entry from `main`.
+      - name: Cache the Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: openkite-web-image
+          cache-targets: true
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build the console host
+        run: |
+          set -euo pipefail
+          cargo build --release -p openkite-web
+          test -f target/release/openkite-web || {
+            echo "::error title=No console host binary::cargo build produced no target/release/openkite-web, which the runtime stage COPYs. Refusing to build an image with no host."
+            exit 1
+          }
 
       - name: Build image
         env:
@@ -117,6 +151,88 @@ jobs:
             echo "TAG=${TAG}"
           } >> "$GITHUB_ENV"
 
+      # The image is only ever run in a pod, and the host exits when it cannot
+      # connect to a cluster (`Client::try_default` in crates/openkite-web), so a
+      # bare `docker run` cannot boot it. A stub kubeconfig fixes that:
+      # `try_default` only parses it and never touches the network, so the host
+      # binds and serves while the reflectors retry in the background
+      # (`drive_reflector` logs and continues; nothing panics).
+      #
+      # What this proves before anything is pushed: the binary loads on this base
+      # (the glibc pair), the bundle is where OPENKITE_WEB_ROOT says, uid 65532
+      # can bind 8080, the SPA fallback answers a deep link, the bridge route
+      # answers the envelope the console reads, and the boot log names the root
+      # it actually serves. A failure here publishes nothing.
+      - name: Smoke-test the image
+        run: |
+          set -euo pipefail
+          stub="$RUNNER_TEMP/stub"
+          mkdir -p "$stub"
+          # One line, so the YAML block's indentation cannot leak into the file.
+          # kubeconfig is YAML, and YAML is a JSON superset.
+          printf '%s' '{"apiVersion":"v1","kind":"Config","clusters":[{"name":"stub","cluster":{"server":"https://127.0.0.1:1"}}],"contexts":[{"name":"stub","context":{"cluster":"stub","user":"stub"}}],"current-context":"stub","users":[{"name":"stub","user":{}}]}' > "$stub/kubeconfig"
+          chmod 0644 "$stub/kubeconfig"
+
+          docker run -d --name openkite-smoke \
+            -p 18080:8080 \
+            -e KUBECONFIG=/stub/kubeconfig \
+            -v "$stub/kubeconfig:/stub/kubeconfig:ro" \
+            "${IMAGE}:${TAG}"
+
+          served=0
+          for _ in $(seq 1 30); do
+            if curl -fsS -o /dev/null http://127.0.0.1:18080/; then served=1; break; fi
+            sleep 1
+          done
+          if [ "$served" != 1 ]; then
+            echo "::error title=Image never answered::no HTTP 200 from :8080 within 30s"
+            docker logs openkite-smoke || true
+            exit 1
+          fi
+
+          # The image serves the bundle it was built with, byte for byte.
+          curl -fsS http://127.0.0.1:18080/ -o "$RUNNER_TEMP/served.html"
+          cmp "$RUNNER_TEMP/served.html" web/dist/index.html
+
+          # SPA fallback: a client-side route answers the shell, not a 404.
+          curl -fsS http://127.0.0.1:18080/cluster | cmp - web/dist/index.html
+
+          # The bridge route is mounted and answers the console's envelope. The
+          # stub API server is unreachable, so the payload is an `error`
+          # envelope — that is the point: HTTP 200 plus a shaped body, never a
+          # bare status the console would read as "no host here".
+          code=$(curl -sS -o "$RUNNER_TEMP/bridge.json" -w '%{http_code}' \
+            -H 'content-type: application/json' \
+            -d '{"id":1,"plugin":"console","request":{"op":"list","kind":"pods","ns":null}}' \
+            http://127.0.0.1:18080/openkite)
+          test "$code" = "200"
+          grep -q '"status":"error"' "$RUNNER_TEMP/bridge.json"
+
+          # Non-root, at the uid the chart's absent securityContext leaves to us.
+          test "$(docker inspect --format '{{.Config.User}}' openkite-smoke)" = "65532:65532"
+          host_uid=$(ps -o uid= -p "$(docker inspect --format '{{.State.Pid}}' openkite-smoke)" | tr -d ' ')
+          test "$host_uid" = "65532"
+
+          # The boot log names the bundle root it serves.
+          docker logs openkite-smoke 2>&1 | tee "$RUNNER_TEMP/openkite-smoke.log"
+          grep -q 'openkite-web listening' "$RUNNER_TEMP/openkite-smoke.log"
+          grep -q 'web_root=/app/web/dist' "$RUNNER_TEMP/openkite-smoke.log"
+
+          docker rm -f openkite-smoke
+          {
+            echo "### Image smoke test"
+            echo ""
+            echo "| check | result |"
+            echo "|---|---|"
+            echo "| \`GET /\` == the built \`web/dist/index.html\` | pass |"
+            echo "| \`GET /cluster\` == the shell (SPA fallback) | pass |"
+            echo "| \`POST /openkite\` == HTTP 200 + envelope | pass |"
+            echo "| uid / port | 65532:65532 / 8080 | pass |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
       - name: Push image
         run: |
           set -euo pipefail
@@ -142,4 +258,5 @@ jobs:
             if [ -n "$HOST" ]; then
               echo "| served at | \`https://${HOST}\` |"
             fi
+            echo "| size on disk | \`$(docker image ls "${IMAGE}:${TAG}" --format '{{.Size}}')\` |"
           } >> "$GITHUB_STEP_SUMMARY"
