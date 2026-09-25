@@ -2,8 +2,6 @@ name: lint-test
 
 on:
   pull_request:
-  # Push runs after each merge keep `main`'s rust-cache warm (PR-only runs
-  # never populate the default-branch cache).
   push:
     branches: [main]
 
@@ -11,19 +9,21 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
 
-# Least privilege; the test job opts up to `checks: write` for report
-# annotations.
 permissions:
   contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   changes:
     name: Detect source changes
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       src: ${{ steps.filter.outputs.src }}
       web: ${{ steps.filter.outputs.web }}
@@ -39,31 +39,34 @@ jobs:
               - '**.rs'
               - '**/Cargo.toml'
               - 'Cargo.lock'
-              # The Rust host include_str!s the vendored React bundle, so a
-              # web-only change must still run the Rust build.
               - 'web/**'
               - 'crates/openkite-desktop/assets/vendored/openkite-react-spike/**'
             web:
               - 'web/**'
               - 'crates/openkite-desktop/assets/vendored/openkite-react-spike/**'
-      # Gate every downstream job on workflow hygiene: runs before the heavy
-      # Rust work, so a GNU-only `sed -i` is caught in seconds, not on macOS.
       - name: Check workflows for GNU-only sed
         run: bash .github/scripts/check-portable-sed.sh
 
   fmt:
     name: Check formatting
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/rust-setup
         with:
           extra-components: rustfmt
+          profile: none
       - run: cargo fmt --all -- --check
 
   clippy:
     name: Lint with clippy
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/rust-setup
@@ -75,28 +78,21 @@ jobs:
     name: Run tests
     runs-on: ubuntu-latest
     needs: [changes, fmt, clippy]
+    if: needs.changes.outputs.src == 'true' || github.event_name == 'push'
+    timeout-minutes: 45
     permissions:
       contents: read
       checks: write
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
-      - if: needs.changes.outputs.src == 'true'
-        uses: ./.github/actions/rust-setup
-      - if: needs.changes.outputs.src == 'true'
-        name: Install cargo-nextest
+      - uses: ./.github/actions/rust-setup
+      - name: Install cargo-nextest
         uses: taiki-e/install-action@cargo-nextest
-      - if: needs.changes.outputs.src == 'true'
-        name: Run tests
-        # --config-file: nextest auto-discovers only .config/nextest.toml;
-        # this repo keeps the config visible at the root (KISS), so pass it.
+      - name: Run tests
         run: cargo nextest run --profile ci --workspace --config-file nextest.toml
-      # dorny/test-reporter: one check per commit, annotations only at
-      # failure sites, no PR comment spam. Runs even on failure so a red
-      # suite surfaces; fail-on-error keeps the gate. use-actions-summary
-      # writes the result (incl. failures) into the GHA job summary.
-      - if: always() && needs.changes.outputs.src == 'true'
-        name: Test report
+      - name: Test report
+        if: always()
         uses: dorny/test-reporter@v1
         with:
           name: Test report
@@ -109,23 +105,24 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     needs: [changes, fmt, clippy]
+    if: needs.changes.outputs.src == 'true' || github.event_name == 'push'
+    timeout-minutes: 30
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
-      - if: needs.changes.outputs.src == 'true'
-        uses: ./.github/actions/rust-setup
-      - if: needs.changes.outputs.src == 'true'
-        name: Build
+      - uses: ./.github/actions/rust-setup
+      - name: Build
         run: cargo build --workspace
 
-  # The Rust host include_str!s the vendored React bundle under
-  # crates/openkite-desktop/assets/vendored/openkite-react-spike/. Rebuilding web/ and diffing against
-  # the committed copy proves web/src and the vendored artifact agree; without
-  # this gate a stale bundle compiles silently.
   bundle-freshness:
     name: Check vendored bundle freshness
     runs-on: ubuntu-latest
     needs: [changes]
     if: needs.changes.outputs.web == 'true'
+    timeout-minutes: 20
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: web
@@ -149,60 +146,46 @@ jobs:
       - name: Check browser-target fixture parity
         run: npm run test:parity
 
-  # ──────────────────────────────────────────────────────────────────────
-  # Cross-platform portability gate (OKT-63)
-  #
-  # The desktop binary (openkite) needs WebKitGTK, which is Linux-only in
-  # CI. But `openkite-plugin-sdk` is a pure library crate — no `desktop`
-  # feature on dioxus, no system deps. Run fmt + clippy + test + build on
-  # that crate across ubuntu/windows/macos to catch platform-specific
-  # regressions early (e.g. `#[cfg(unix)]` paths, path separators).
-  #
-  # We do NOT use ./.github/actions/rust-setup here — it installs GTK apt
-  # packages that don't exist on Windows/macOS runners.
-  # ──────────────────────────────────────────────────────────────────────
   cross-platform:
     name: plugin-sdk cross-platform (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     needs: [changes]
+    if: needs.changes.outputs.src == 'true' || github.event_name == 'push'
+    timeout-minutes: 30
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
-      - if: needs.changes.outputs.src == 'true'
-        uses: dtolnay/rust-toolchain@stable
+      - uses: ./.github/actions/rust-setup
         with:
-          components: rustfmt, clippy
-      - if: needs.changes.outputs.src == 'true'
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: cross-${{ matrix.os }}
-      - if: needs.changes.outputs.src == 'true'
-        name: Check formatting
+          extra-components: rustfmt,clippy
+          profile: none
+          cache-key: cross-${{ matrix.os }}
+      - name: Check formatting
         run: cargo fmt -p openkite-plugin-sdk -- --check
-      - if: needs.changes.outputs.src == 'true'
-        name: Clippy
+      - name: Clippy
         run: cargo clippy -p openkite-plugin-sdk --all-targets -- -D warnings
-      - if: needs.changes.outputs.src == 'true'
-        name: Test
+      - name: Test
         run: cargo test -p openkite-plugin-sdk
 
-  # The `openkite` crate's `desktop` feature gates the native wry/WebKitGTK
-  # renderer and its asset-handler transport. Checking without it proves a
-  # host-less/browser target is not blocked by that code, and needs no WebKit.
   web-target:
     name: Non-desktop feature gate
     runs-on: ubuntu-latest
     needs: [changes]
-    if: needs.changes.outputs.src == 'true'
+    if: needs.changes.outputs.src == 'true' || github.event_name == 'push'
+    timeout-minutes: 20
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: ./.github/actions/rust-setup
         with:
-          key: web-target
+          profile: none
+          cache-key: web-target
       - name: Check without the desktop feature
         run: cargo check -p openkite --no-default-features
 
@@ -210,38 +193,58 @@ jobs:
     name: Coverage gate
     runs-on: ubuntu-latest
     needs: [changes, fmt, clippy]
+    if: needs.changes.outputs.src == 'true' || github.event_name == 'push'
+    timeout-minutes: 60
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
-      - if: needs.changes.outputs.src == 'true'
-        uses: ./.github/actions/rust-setup
-      - if: needs.changes.outputs.src == 'true'
-        name: Install cargo-tarpaulin
+      - uses: ./.github/actions/rust-setup
+      - name: Install cargo-tarpaulin
         run: cargo install cargo-tarpaulin --locked
-      - if: needs.changes.outputs.src == 'true'
-        name: Measure line coverage
-        # Gate = regression floor, not the aspirational target. Measured
-        # workspace line coverage after all Phase 2.5 test PRs: 49.4%
-        # (1469/2974 lines, --engine llvm, 2026-09-07). GUI/view code
-        # (router, shell, palette, views) is exercised by the desktop E2E
-        # (e2e.yml), which tarpaulin cannot see — so a pure unit-coverage
-        # target of 80% is unreachable by design. 45% floor = current -
-        # ~4pt cushion; ratchet up as headless-friendly tests land.
-        #
-        # --engine llvm: the ptrace default adds -C link-dead-code, which
-        # breaks pulp 0.22.3 (sarah-quinones/pulp#33). llvm avoids it and is
-        # the more accurate backend.
+      - name: Measure line coverage
         run: cargo tarpaulin --workspace --engine llvm --out xml --output-dir coverage/ --fail-under 45
-      - if: always() && needs.changes.outputs.src == 'true'
-        name: Publish coverage summary
+      - name: Publish coverage summary
+        if: always()
         uses: irongut/CodeCoverageSummary@v1.3.0
         with:
           filename: coverage/cobertura.xml
           badge: true
           format: markdown
-          # 45 = gate floor; 60 = "acceptable" badge tier (measured 49.4)
           thresholds: '45 60'
           fail_below_min: true
           output: file
-      - if: always() && needs.changes.outputs.src == 'true'
-        name: Add coverage to job summary
+      - name: Add coverage to job summary
+        if: always()
         run: cat code-coverage-results.md >> "$GITHUB_STEP_SUMMARY"
+
+  report:
+    name: Track the main-branch outcome
+    needs:
+      - changes
+      - fmt
+      - clippy
+      - test
+      - build
+      - bundle-freshness
+      - cross-platform
+      - web-target
+      - coverage
+    if: always() && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+      actions: read
+    concurrency:
+      group: ci-failure-${{ github.workflow }}
+      cancel-in-progress: false
+    steps:
+      - name: Open, update, or close the tracking issue
+        uses: ./.github/actions/notify-failure
+        with:
+          run-id: ${{ github.run_id }}
+          workflow-name: ${{ github.workflow }}
+          failed: ${{ contains(needs.*.result, 'failure') }}
+          cancelled: ${{ contains(needs.*.result, 'cancelled') }}
