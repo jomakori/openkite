@@ -79,9 +79,9 @@ sweep that used to be the backstop is gone with `pr-artifacts-cleanup.yml`; swee
 by hand through the same script:
 
 ```bash
-./scripts/prune-pr-image.sh --sweep     # every closed PR, --merged semantics per PR
-./scripts/prune-pr-image.sh 131         # one closed-unmerged PR
-./scripts/prune-pr-image.sh --merged 130  # one merged PR: keep the sha pin
+./.github/scripts/prune-pr-image.sh --sweep     # every closed PR, --merged semantics per PR
+./.github/scripts/prune-pr-image.sh 131         # one closed-unmerged PR
+./.github/scripts/prune-pr-image.sh --merged 130  # one merged PR: keep the sha pin
 ```
 
 Verify against the registry, never the PR list:

@@ -94,9 +94,9 @@ jobs:
         run: |
           set -euo pipefail
           if [ "${{ github.event.pull_request.merged }}" = "true" ]; then
-            ./scripts/prune-pr-image.sh --merged "${{ github.event.pull_request.number }}"
+            ./.github/scripts/prune-pr-image.sh --merged "${{ github.event.pull_request.number }}"
           else
-            ./scripts/prune-pr-image.sh "${{ github.event.pull_request.number }}"
+            ./.github/scripts/prune-pr-image.sh "${{ github.event.pull_request.number }}"
           fi
 
   report:
