@@ -1,0 +1,98 @@
+name: Build a release package
+description: Build, package, name, and upload one native release target.
+
+inputs:
+  target:
+    description: Rust target triple to build for.
+    required: true
+  package-os:
+    description: OS token in the release asset name (linux, macos, windows).
+    required: true
+  package-arch:
+    description: Arch token in the release asset name (amd64, arm64).
+    required: true
+  formats:
+    description: Comma-separated cargo-packager formats for this target.
+    required: true
+  ext:
+    description: Release asset extension for this target.
+    required: true
+  version:
+    description: Release version to embed; empty keeps the workspace version, for a pre-release build.
+    required: false
+    default: ''
+  retention-days:
+    description: Artifact retention in days.
+    required: false
+    default: '90'
+
+runs:
+  using: composite
+  steps:
+    - name: Check out the repository
+      uses: actions/checkout@v4
+
+    - name: Install the toolchain and native packages
+      uses: ./.github/actions/rust-setup
+      with:
+        targets: ${{ inputs.target }}
+        apt-extra: libfuse2
+        cache-key: ${{ inputs.target }}
+
+    - name: Install cargo-packager
+      shell: bash
+      run: cargo install cargo-packager --locked
+
+    - name: Embed the release version
+      if: inputs.version != ''
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        sed -i.bak "s/^version = \"[0-9][0-9.]*\"/version = \"${VERSION}\"/" Cargo.toml
+        rm -f Cargo.toml.bak
+        grep -n '^version' Cargo.toml | head -2
+
+    - name: Build the release binary
+      shell: bash
+      env:
+        TARGET: ${{ inputs.target }}
+      run: cargo build --release -p openkite --target "$TARGET"
+
+    - name: Package the installer
+      shell: bash
+      env:
+        TARGET: ${{ inputs.target }}
+        FORMATS: ${{ inputs.formats }}
+      run: |
+        set -euo pipefail
+        cargo packager \
+          --manifest-path crates/openkite-desktop/Cargo.toml \
+          --release --target "$TARGET" --formats "$FORMATS" \
+          --out-dir "$GITHUB_WORKSPACE/dist"
+
+    - name: Name the release asset
+      shell: bash
+      env:
+        VERSION_TOKEN: ${{ inputs.version != '' && inputs.version || '0.0.0' }}
+        EXT: ${{ inputs.ext }}
+        PACKAGE_OS: ${{ inputs.package-os }}
+        PACKAGE_ARCH: ${{ inputs.package-arch }}
+      run: |
+        set -euo pipefail
+        asset="dist/openkite_${VERSION_TOKEN}_${PACKAGE_OS}_${PACKAGE_ARCH}.${EXT}"
+        built="$(find dist -maxdepth 1 -name "*.${EXT}" | head -n1)"
+        if [ -z "$built" ]; then
+          echo "::error title=No installer produced::cargo-packager wrote no .${EXT} for ${PACKAGE_OS}_${PACKAGE_ARCH}."
+          exit 1
+        fi
+        mv "$built" "$asset"
+        ls -l "$asset"
+
+    - name: Upload the release asset
+      uses: actions/upload-artifact@v4
+      with:
+        name: openkite_${{ inputs.package-os }}_${{ inputs.package-arch }}
+        path: dist/openkite_*_${{ inputs.package-os }}_${{ inputs.package-arch }}.${{ inputs.ext }}
+        retention-days: ${{ inputs.retention-days }}

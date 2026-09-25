@@ -2,8 +2,20 @@
 #
 # Delete the container image versions a closed pull request left behind.
 #
-# Usage: prune-pr-image.sh <pr-number>...
-#        prune-pr-image.sh --sweep     # every pr-* version whose PR is closed
+# A MERGED pull request keeps its sha-pinned version: `pr-<N>-<sha>` is the
+# record of exactly what was reviewed and released, so only the mutable
+# `pr-<N>` goes away. A closed-unmerged pull request keeps nothing.
+#
+# GitHub's container packages expose no tag-delete call — a version (one digest)
+# is deleted whole, together with every tag on it. When `pr-<N>` and
+# `pr-<N>-<sha>` are tags on the SAME version (one build, two tags, one digest),
+# keeping the pin necessarily keeps both tags; the mutable tag then lives until
+# the version itself is pruned. That is the conservative direction: losing the
+# pin would lose the record the merged PR is supposed to keep.
+#
+# Usage: prune-pr-image.sh <pr-number>...             # closed, unmerged
+#        prune-pr-image.sh --merged <pr-number>...    # merged, keep the sha pin
+#        prune-pr-image.sh --sweep                    # every pr-* version whose PR is closed or merged
 set -euo pipefail
 
 OWNER="${OWNER:-jomakori}"
@@ -19,9 +31,22 @@ versions() {
     -q '.[]|[.id, ((.metadata.container.tags // [])|join(","))]|@tsv'
 }
 
-ids_for_pr() {
-  awk -F'\t' -v want="pr-$1" '
-    { n = split($2, t, ","); for (i = 1; i <= n; i++) if (t[i] == want || index(t[i], want "-") == 1) { print $1; break } }'
+# <pr>\t<tags> in, <version id> out for every version this PR must lose.
+ids_to_delete() {
+  awk -F'\t' -v want="pr-$1" -v mode="$2" '
+    {
+      n = split($2, t, ",")
+      mutable = 0
+      pinned = 0
+      for (i = 1; i <= n; i++) {
+        if (t[i] == want) mutable = 1
+        else if (index(t[i], want "-") == 1) pinned = 1
+      }
+      drop = 0
+      if (mutable) { if (!(mode == "merged" && pinned)) drop = 1 }
+      else if (pinned && mode == "closed") drop = 1
+      if (drop) print $1
+    }'
 }
 
 delete_id() {
@@ -29,13 +54,17 @@ delete_id() {
 }
 
 prune_pr() {
-  local pr="$1" id count=0
+  local pr="$1" mode="$2" id count=0
   while read -r id; do
     [ -n "$id" ] || continue
     delete_id "$id"
     count=$((count + 1))
-  done < <(versions | ids_for_pr "$pr")
-  log "pr-${pr}: deleted ${count} version(s)"
+  done < <(versions | ids_to_delete "$pr" "$mode")
+  if [ "$count" -eq 0 ] && [ "$mode" = "merged" ]; then
+    log "pr-${pr}: kept the sha-pinned version, deleted nothing"
+  else
+    log "pr-${pr}: deleted ${count} version(s)"
+  fi
 }
 
 sweep() {
@@ -44,8 +73,12 @@ sweep() {
     [ -n "$pr" ] || continue
     state="$(gh pr view "$pr" --repo "$REPO" --json state -q .state 2>/dev/null || true)"
     case "$state" in
-      CLOSED|MERGED)
-        prune_pr "$pr"
+      MERGED)
+        prune_pr "$pr" merged
+        pruned=$((pruned + 1))
+        ;;
+      CLOSED)
+        prune_pr "$pr" closed
         pruned=$((pruned + 1))
         ;;
       *)
@@ -59,9 +92,17 @@ sweep() {
 
 case "${1:-}" in
   --sweep) sweep ;;
+  --merged)
+    shift
+    [ $# -gt 0 ] || {
+      printf 'usage: %s --merged <pr-number>...\n' "$0" >&2
+      exit 2
+    }
+    for pr in "$@"; do prune_pr "$pr" merged; done
+    ;;
   '')
-    printf 'usage: %s <pr-number>... | --sweep\n' "$0" >&2
+    printf 'usage: %s [--merged] <pr-number>... | --sweep\n' "$0" >&2
     exit 2
     ;;
-  *) for pr in "$@"; do prune_pr "$pr"; done ;;
+  *) for pr in "$@"; do prune_pr "$pr" closed; done ;;
 esac
