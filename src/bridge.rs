@@ -108,6 +108,17 @@ impl Bridge {
     /// Execute one bridge request against the store and (when needed) the
     /// cluster. `register` ops never touch the cluster; `exec` is deferred.
     pub async fn execute(&self, plugin: &str, request: ApiRequest) -> ApiResponse {
+        // Parity fixture mode (OKT-129): when `OPENKITE_CONSOLE_FIXTURES` names
+        // an exported payload set, answer from it — that is what lets the
+        // browser console and this host render the same data for a pixel
+        // comparison. `None` (the default, every production run) falls through
+        // to the live paths below unchanged.
+        if let Some(outcome) = crate::console_fixtures::answer(&request) {
+            return match outcome {
+                Ok(result) => ApiResponse::Ok { result },
+                Err(error) => ApiResponse::Error { error },
+            };
+        }
         let outcome: Result<Value, String> = match request {
             ApiRequest::Exec { .. } => Err("exec is not supported yet".into()),
             // Additive push channel (OKT-91). Allocating a subscription only

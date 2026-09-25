@@ -4,6 +4,8 @@ pub mod bridge;
 pub mod cluster;
 pub mod components;
 pub mod config;
+/// Test-only fixture bridge for the console parity gate (OKT-129).
+pub mod console_fixtures;
 pub mod crud;
 pub mod design;
 pub mod fuzzy;
@@ -48,6 +50,13 @@ pub fn run() {
 
     // Load the static (feature-gated) plugins.
     let config = config::OpenKiteConfig::load();
+
+    // Parity fixture mode (OKT-129): when OPENKITE_CONSOLE_FIXTURES names an
+    // exported payload set, the bridge below answers the console from it — the
+    // same data the browser target renders from, which is what makes the two
+    // pixel-comparable. Logged here so a fixture-mode run is visible in
+    // app.log before the first bridge call; a no-op when unset.
+    console_fixtures::log_activation();
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
     let menu_bar_hidden = config.menu_bar == config::MenuBarVisibility::Hide;
     let mut registry = plugin_host::PluginRegistry::new();

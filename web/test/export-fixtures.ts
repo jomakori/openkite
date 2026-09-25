@@ -8,6 +8,17 @@
 // compiled `web/src/fixtures.ts` and the host consumes this export of the very
 // same module, so the two sides agree by construction.
 //
+// Three things travel in the export, each the single source of truth for what
+// the browser resolves to when it has no host transport:
+//
+// - `context` (`FIXTURE_CONTEXT`) — the shell's cluster chip, the overview's
+//   context row and the sidebar footer's version all read it;
+// - `settings` (`DEFAULT_SETTINGS`) — applied to the console root as theme
+//   tokens, so a host serving its *real* settings would paint different
+//   colours than the browser's empty `themeVars`;
+// - `kinds` — every kind the console asks the bridge for during a parity
+//   capture, as kube `List` objects.
+//
 // Two things about the clock:
 //
 // - `web/src/fixtures.ts` builds `metadata.creationTimestamp` from
@@ -29,6 +40,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { FIXTURE_CONTEXT, fixtureList } from '../src/fixtures'
+import { DEFAULT_SETTINGS } from '../src/settings'
 import { COUNTED_KINDS } from '../src/shell/nav'
 
 // The npm script runs from `web/` (same convention as test/parity.test.tsx).
@@ -68,7 +80,7 @@ for (const kind of KINDS) {
   }
   kinds[kind] = list
 }
-const payload = { context: FIXTURE_CONTEXT, exportedAt: Date.now(), kinds }
+const payload = { context: FIXTURE_CONTEXT, settings: DEFAULT_SETTINGS, exportedAt: Date.now(), kinds }
 const summary = Object.entries(kinds)
   .map(([kind, list]) => `${kind}=${((list as { items: unknown[] }).items ?? []).length}`)
   .join(' ')

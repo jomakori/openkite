@@ -5,7 +5,61 @@
     "version": "staging",
     "mutations": false
   },
-  "exportedAt": 1790303063570,
+  "settings": {
+    "theme": null,
+    "fontSize": null,
+    "metricsEnabled": true,
+    "menuBar": "show",
+    "titleBarTheme": "system",
+    "themeVars": {},
+    "themes": [
+      {
+        "id": "default",
+        "name": "Default (SilkCircuit Neon)",
+        "variant": "dark",
+        "isDefault": true
+      },
+      {
+        "id": "one-light",
+        "name": "One Light",
+        "variant": "light",
+        "isDefault": true
+      },
+      {
+        "id": "one-dark",
+        "name": "One Dark",
+        "variant": "dark",
+        "isDefault": true
+      },
+      {
+        "id": "catppuccin-mocha",
+        "name": "Catppuccin Mocha",
+        "variant": "dark",
+        "isDefault": true
+      },
+      {
+        "id": "tokyo-night",
+        "name": "Tokyo Night",
+        "variant": "dark",
+        "isDefault": true
+      },
+      {
+        "id": "rose-pine",
+        "name": "Rosé Pine",
+        "variant": "dark",
+        "isDefault": true
+      }
+    ],
+    "menuBarHideable": true,
+    "titleBarOverridable": true,
+    "version": "dev",
+    "capabilities": {
+      "mutations": false,
+      "logs": true,
+      "events": true
+    }
+  },
+  "exportedAt": 1790303924187,
   "kinds": {
     "nodes": {
       "apiVersion": "v1",
@@ -16,7 +70,7 @@
           "kind": "Node",
           "metadata": {
             "name": "okt-staging-control",
-            "creationTimestamp": "2026-09-18T20:24:23.570Z"
+            "creationTimestamp": "2026-09-18T20:38:44.185Z"
           },
           "status": {
             "phase": "Running"
@@ -27,7 +81,7 @@
           "kind": "Node",
           "metadata": {
             "name": "okt-staging-worker-a",
-            "creationTimestamp": "2026-09-19T04:44:23.570Z"
+            "creationTimestamp": "2026-09-19T04:58:44.186Z"
           },
           "status": {
             "phase": "Running"
@@ -38,7 +92,7 @@
           "kind": "Node",
           "metadata": {
             "name": "okt-staging-worker-b",
-            "creationTimestamp": "2026-09-20T05:44:23.570Z"
+            "creationTimestamp": "2026-09-20T05:58:44.186Z"
           },
           "status": {
             "phase": "Running"
@@ -56,7 +110,7 @@
           "metadata": {
             "name": "openkite-api-6d9f4b7c8-2xk4p",
             "namespace": "default",
-            "creationTimestamp": "2026-09-24T22:24:23.570Z",
+            "creationTimestamp": "2026-09-24T22:38:44.186Z",
             "ownerReferences": [
               {
                 "kind": "Deployment",
@@ -88,7 +142,7 @@
           "metadata": {
             "name": "openkite-api-6d9f4b7c8-7jq2n",
             "namespace": "default",
-            "creationTimestamp": "2026-09-24T22:24:23.570Z",
+            "creationTimestamp": "2026-09-24T22:38:44.186Z",
             "ownerReferences": [
               {
                 "kind": "Deployment",
@@ -120,7 +174,7 @@
           "metadata": {
             "name": "openkite-web-5c8d7f4b6-9m2vq",
             "namespace": "default",
-            "creationTimestamp": "2026-09-24T23:24:23.570Z",
+            "creationTimestamp": "2026-09-24T23:38:44.186Z",
             "ownerReferences": [
               {
                 "kind": "Deployment",
@@ -152,7 +206,7 @@
           "metadata": {
             "name": "openkite-web-5c8d7f4b6-p4rtx",
             "namespace": "default",
-            "creationTimestamp": "2026-09-25T02:21:23.570Z",
+            "creationTimestamp": "2026-09-25T02:35:44.186Z",
             "ownerReferences": [
               {
                 "kind": "Deployment",
@@ -184,7 +238,7 @@
           "metadata": {
             "name": "postgres-0",
             "namespace": "default",
-            "creationTimestamp": "2026-09-24T02:24:23.570Z",
+            "creationTimestamp": "2026-09-24T02:38:44.186Z",
             "ownerReferences": [
               {
                 "kind": "StatefulSet",
@@ -216,7 +270,7 @@
           "metadata": {
             "name": "redis-7b9c5d6f8-h2klm",
             "namespace": "default",
-            "creationTimestamp": "2026-09-24T16:04:23.570Z",
+            "creationTimestamp": "2026-09-24T16:18:44.186Z",
             "ownerReferences": [
               {
                 "kind": "Deployment",
@@ -248,7 +302,7 @@
           "metadata": {
             "name": "coredns-6f4b8c9d2-wq7zx",
             "namespace": "kube-system",
-            "creationTimestamp": "2026-09-18T20:24:23.570Z",
+            "creationTimestamp": "2026-09-18T20:38:44.186Z",
             "ownerReferences": [
               {
                 "kind": "Deployment",
@@ -280,7 +334,7 @@
           "metadata": {
             "name": "coredns-6f4b8c9d2-tz3pl",
             "namespace": "kube-system",
-            "creationTimestamp": "2026-09-18T20:24:23.570Z",
+            "creationTimestamp": "2026-09-18T20:38:44.186Z",
             "ownerReferences": [
               {
                 "kind": "Deployment",
@@ -312,7 +366,7 @@
           "metadata": {
             "name": "kube-proxy-9x2mn",
             "namespace": "kube-system",
-            "creationTimestamp": "2026-09-18T20:24:23.570Z",
+            "creationTimestamp": "2026-09-18T20:38:44.186Z",
             "ownerReferences": [
               {
                 "kind": "DaemonSet",
@@ -344,7 +398,7 @@
           "metadata": {
             "name": "metrics-server-4d7f9b2c6-q8wnr",
             "namespace": "kube-system",
-            "creationTimestamp": "2026-09-24T17:24:23.570Z",
+            "creationTimestamp": "2026-09-24T17:38:44.186Z",
             "ownerReferences": [
               {
                 "kind": "Deployment",
@@ -376,7 +430,7 @@
           "metadata": {
             "name": "argocd-application-controller-0",
             "namespace": "argocd",
-            "creationTimestamp": "2026-09-22T02:24:23.570Z",
+            "creationTimestamp": "2026-09-22T02:38:44.186Z",
             "ownerReferences": [
               {
                 "kind": "StatefulSet",
@@ -408,7 +462,7 @@
           "metadata": {
             "name": "argocd-repo-server-7f5c9d3b4-mn2pq",
             "namespace": "argocd",
-            "creationTimestamp": "2026-09-22T02:24:23.570Z",
+            "creationTimestamp": "2026-09-22T02:38:44.186Z",
             "ownerReferences": [
               {
                 "kind": "Deployment",
@@ -446,7 +500,7 @@
           "metadata": {
             "name": "openkite-api",
             "namespace": "default",
-            "creationTimestamp": "2026-09-23T10:24:23.570Z"
+            "creationTimestamp": "2026-09-23T10:38:44.186Z"
           },
           "status": {
             "phase": "Running"
@@ -458,7 +512,7 @@
           "metadata": {
             "name": "openkite-web",
             "namespace": "default",
-            "creationTimestamp": "2026-09-23T20:24:23.570Z"
+            "creationTimestamp": "2026-09-23T20:38:44.186Z"
           },
           "status": {
             "phase": "Running"
@@ -470,7 +524,7 @@
           "metadata": {
             "name": "redis",
             "namespace": "default",
-            "creationTimestamp": "2026-09-24T16:04:23.570Z"
+            "creationTimestamp": "2026-09-24T16:18:44.186Z"
           },
           "status": {
             "phase": "Running"
@@ -482,7 +536,7 @@
           "metadata": {
             "name": "argocd-repo-server",
             "namespace": "argocd",
-            "creationTimestamp": "2026-09-22T02:24:23.570Z"
+            "creationTimestamp": "2026-09-22T02:38:44.186Z"
           },
           "status": {
             "phase": "Running"
@@ -500,7 +554,7 @@
           "metadata": {
             "name": "openkite-api",
             "namespace": "default",
-            "creationTimestamp": "2026-09-23T10:24:23.570Z"
+            "creationTimestamp": "2026-09-23T10:38:44.186Z"
           },
           "spec": {
             "type": "ClusterIP"
@@ -512,7 +566,7 @@
           "metadata": {
             "name": "openkite-web",
             "namespace": "default",
-            "creationTimestamp": "2026-09-23T20:24:23.570Z"
+            "creationTimestamp": "2026-09-23T20:38:44.186Z"
           },
           "spec": {
             "type": "NodePort"
@@ -524,7 +578,7 @@
           "metadata": {
             "name": "redis",
             "namespace": "default",
-            "creationTimestamp": "2026-09-24T16:04:23.570Z"
+            "creationTimestamp": "2026-09-24T16:18:44.186Z"
           },
           "spec": {
             "type": "ClusterIP"
@@ -542,7 +596,7 @@
           "metadata": {
             "name": "openkite-config",
             "namespace": "default",
-            "creationTimestamp": "2026-09-23T10:24:23.570Z"
+            "creationTimestamp": "2026-09-23T10:38:44.186Z"
           }
         },
         {
@@ -551,7 +605,7 @@
           "metadata": {
             "name": "kube-root-ca.crt",
             "namespace": "default",
-            "creationTimestamp": "2026-09-18T20:24:23.570Z"
+            "creationTimestamp": "2026-09-18T20:38:44.186Z"
           }
         }
       ]
@@ -566,7 +620,7 @@
           "metadata": {
             "name": "postgres-data",
             "namespace": "default",
-            "creationTimestamp": "2026-09-24T02:24:23.570Z"
+            "creationTimestamp": "2026-09-24T02:38:44.186Z"
           },
           "status": {
             "phase": "Bound"
@@ -578,7 +632,7 @@
           "metadata": {
             "name": "openkite-api-data",
             "namespace": "default",
-            "creationTimestamp": "2026-09-23T10:24:23.570Z"
+            "creationTimestamp": "2026-09-23T10:38:44.186Z"
           },
           "status": {
             "phase": "Bound"
@@ -590,7 +644,7 @@
           "metadata": {
             "name": "prometheus-storage",
             "namespace": "kube-system",
-            "creationTimestamp": "2026-09-24T17:24:23.570Z"
+            "creationTimestamp": "2026-09-24T17:38:44.186Z"
           },
           "status": {
             "phase": "Pending"
@@ -608,7 +662,7 @@
           "metadata": {
             "name": "openkite-api",
             "namespace": "default",
-            "creationTimestamp": "2026-09-23T10:24:23.570Z"
+            "creationTimestamp": "2026-09-23T10:38:44.186Z"
           }
         },
         {
@@ -617,7 +671,7 @@
           "metadata": {
             "name": "openkite-web",
             "namespace": "default",
-            "creationTimestamp": "2026-09-23T20:24:23.570Z"
+            "creationTimestamp": "2026-09-23T20:38:44.186Z"
           }
         },
         {
@@ -626,7 +680,7 @@
           "metadata": {
             "name": "grafana",
             "namespace": "kube-system",
-            "creationTimestamp": "2026-09-22T02:24:23.570Z"
+            "creationTimestamp": "2026-09-22T02:38:44.186Z"
           }
         }
       ]
@@ -641,7 +695,7 @@
           "metadata": {
             "name": "openkite-staging",
             "namespace": "argocd",
-            "creationTimestamp": "2026-09-22T02:24:23.570Z"
+            "creationTimestamp": "2026-09-22T02:38:44.186Z"
           },
           "status": {
             "phase": "Synced"
@@ -653,7 +707,7 @@
           "metadata": {
             "name": "openkite-monitoring",
             "namespace": "argocd",
-            "creationTimestamp": "2026-09-23T02:24:23.570Z"
+            "creationTimestamp": "2026-09-23T02:38:44.186Z"
           },
           "status": {
             "phase": "OutOfSync"
@@ -671,7 +725,7 @@
           "metadata": {
             "name": "default",
             "namespace": "argocd",
-            "creationTimestamp": "2026-09-18T20:24:23.570Z"
+            "creationTimestamp": "2026-09-18T20:38:44.186Z"
           }
         }
       ]
@@ -686,7 +740,7 @@
           "metadata": {
             "name": "openkite",
             "namespace": "argocd",
-            "creationTimestamp": "2026-09-18T20:24:23.570Z"
+            "creationTimestamp": "2026-09-18T20:38:44.186Z"
           }
         },
         {
@@ -695,7 +749,7 @@
           "metadata": {
             "name": "gke-gitops",
             "namespace": "argocd",
-            "creationTimestamp": "2026-09-19T13:04:23.570Z"
+            "creationTimestamp": "2026-09-19T13:18:44.186Z"
           }
         }
       ]
@@ -710,7 +764,7 @@
           "metadata": {
             "name": "openkite-api.17f0a1",
             "namespace": "default",
-            "creationTimestamp": "2026-09-24T22:24:23.570Z"
+            "creationTimestamp": "2026-09-24T22:38:44.186Z"
           },
           "involvedObject": {
             "kind": "Pod",
@@ -728,7 +782,7 @@
           "metadata": {
             "name": "redis.17f0b2",
             "namespace": "default",
-            "creationTimestamp": "2026-09-25T01:54:23.570Z"
+            "creationTimestamp": "2026-09-25T02:08:44.186Z"
           },
           "involvedObject": {
             "kind": "Pod",
@@ -746,7 +800,7 @@
           "metadata": {
             "name": "coredns.17f0c3",
             "namespace": "kube-system",
-            "creationTimestamp": "2026-09-18T20:24:23.570Z"
+            "creationTimestamp": "2026-09-18T20:38:44.186Z"
           },
           "involvedObject": {
             "kind": "Pod",
@@ -769,7 +823,7 @@
           "kind": "Namespace",
           "metadata": {
             "name": "default",
-            "creationTimestamp": "2026-09-18T20:24:23.570Z"
+            "creationTimestamp": "2026-09-18T20:38:44.186Z"
           },
           "status": {
             "phase": "Active"
@@ -780,7 +834,7 @@
           "kind": "Namespace",
           "metadata": {
             "name": "kube-system",
-            "creationTimestamp": "2026-09-18T20:24:23.570Z"
+            "creationTimestamp": "2026-09-18T20:38:44.186Z"
           },
           "status": {
             "phase": "Active"
@@ -791,7 +845,7 @@
           "kind": "Namespace",
           "metadata": {
             "name": "argocd",
-            "creationTimestamp": "2026-09-22T02:24:23.570Z"
+            "creationTimestamp": "2026-09-22T02:38:44.186Z"
           },
           "status": {
             "phase": "Active"

@@ -208,6 +208,32 @@ pub fn ReactConsole(route: String) -> Element {
     }
 }
 
+/// The spike `/openkite-spike` context answer: the fixture context in parity
+/// fixture mode (so the browser and the host paint the same chip), else the
+/// live context.
+fn context_payload() -> Result<Value, String> {
+    if let Some(result) = crate::console_fixtures::context() {
+        return Ok(result);
+    }
+    serde_json::to_value(SpikeContext {
+        context: crate::runtime::context_name(),
+        connected: crate::runtime::client().is_some(),
+        version: env!("CARGO_PKG_VERSION").to_string(),
+        mutations: false,
+    })
+    .map_err(|err| format!("serialize context: {err}"))
+}
+
+/// The settings answer: `DEFAULT_SETTINGS` in parity fixture mode — what the
+/// browser applies when it has no host transport, and therefore the only way
+/// the two sides resolve the same theme tokens — else the live snapshot.
+fn settings_payload() -> Result<Value, String> {
+    if let Some(result) = crate::console_fixtures::settings() {
+        return Ok(result);
+    }
+    serde_json::to_value(settings_snapshot()).map_err(|err| format!("serialize settings: {err}"))
+}
+
 /// Answer one `/openkite-spike` POST. Never panics; errors are answered.
 fn dispatch(req: AssetRequest, responder: RequestAsyncResponder) {
     if req.method() != wry::http::Method::POST {
@@ -223,15 +249,8 @@ fn dispatch(req: AssetRequest, responder: RequestAsyncResponder) {
         return;
     };
     let outcome = match serde_json::from_str::<SpikeRequest>(text) {
-        Ok(SpikeRequest::Context) => serde_json::to_value(SpikeContext {
-            context: crate::runtime::context_name(),
-            connected: crate::runtime::client().is_some(),
-            version: env!("CARGO_PKG_VERSION").to_string(),
-            mutations: false,
-        })
-        .map_err(|err| format!("serialize context: {err}")),
-        Ok(SpikeRequest::SettingsGet) => serde_json::to_value(settings_snapshot())
-            .map_err(|err| format!("serialize settings: {err}")),
+        Ok(SpikeRequest::Context) => context_payload(),
+        Ok(SpikeRequest::SettingsGet) => settings_payload(),
         Ok(SpikeRequest::SettingsSet {
             theme,
             font_size,
