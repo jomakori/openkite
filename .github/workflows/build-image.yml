@@ -207,8 +207,10 @@ jobs:
           host_uid=$(ps -o uid= -p "$(docker inspect --format '{{.State.Pid}}' openkite-smoke)" | tr -d ' ')
           test "$host_uid" = "65532"
 
-          # The boot log names the bundle root it serves.
-          docker logs openkite-smoke 2>&1 | tee "$RUNNER_TEMP/openkite-smoke.log"
+          # The boot log names the listener and the bundle root it serves. Strip
+          # ANSI first: `tracing` writes escape codes between a field name and its
+          # value, so the plain text the reader expects is not a substring.
+          docker logs openkite-smoke 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | tee "$RUNNER_TEMP/openkite-smoke.log"
           grep -q 'openkite-web listening' "$RUNNER_TEMP/openkite-smoke.log"
           grep -q 'web_root=/app/web/dist' "$RUNNER_TEMP/openkite-smoke.log"
 
