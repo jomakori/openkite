@@ -17,6 +17,11 @@ inputs:
     description: Host that serves this image, for the run summary only.
     required: false
     default: ''
+  platforms:
+    description: Platforms to publish, in buildx's list form. The cluster runs arm64, so an
+      amd64-only index is unpullable there.
+    required: false
+    default: 'linux/amd64,linux/arm64'
 
 outputs:
   digest:
@@ -63,6 +68,9 @@ runs:
           exit 1
         fi
 
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
@@ -96,6 +104,7 @@ runs:
       with:
         context: .
         push: true
+        platforms: ${{ inputs.platforms }}
         tags: ${{ steps.tags.outputs.tags }}
 
     - name: Record the published references
