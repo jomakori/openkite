@@ -54,11 +54,11 @@ jobs:
           script: |
             const { owner, repo } = context.repo;
             const pr = context.payload.pull_request.number;
-            if (process.env.IMAGE_RESULT === 'success') {
-              core.notice(`pr-${pr}: image published, so the preview label keeps the ApplicationSet deploying it.`);
+            const why = process.env.IMAGE_RESULT;
+            if (why !== 'failure' && why !== 'timed_out') {
+              core.notice(`pr-${pr}: image job ${why}, so the preview label stays as the user set it.`);
               return;
             }
-            const why = process.env.IMAGE_RESULT;
             try {
               await github.rest.issues.removeLabel({
                 owner,
