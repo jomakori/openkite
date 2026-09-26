@@ -26,44 +26,27 @@ on:
   push:
     branches:
       - main
-    # `web/**` and the vendored assets are here because they change the shipped binary:
-    # the vendored React bundle under crates/openkite-desktop/assets/vendored/ is `include_str!`d into
-    # it. Leaving them out is how releases stopped happening — a web-only merge
-    # ran all six platform builds, passed the required multi-platform gate, and
-    # then triggered no Release at all (no tag, no release).
-    #
-    # Keep this list in step with the `artifacts:` filter in build-artifacts.yml,
-    # which is the repo's definition of artifact-affecting paths. The two lists
-    # are written independently and drifting apart is what caused the gap.
     paths:
       - '**.rs'
       - '**/Cargo.toml'
       - 'Cargo.lock'
       - 'web/**'
       - 'crates/openkite-desktop/assets/**'
-      # The packager metadata reads Dioxus.toml (asset/out dirs) and bakes the
-      # icons into the installers, so both change the shipped artifact - and
-      # build-artifacts.yml's 'crates/**' filter already counts them.
       - 'crates/openkite-desktop/Dioxus.toml'
       - 'crates/openkite-desktop/icons/**'
-      # Changing the build definition itself affects the artifact.
-      - '.github/workflows/build-artifacts.yml'
-      - '.github/workflows/build-release-artifacts.yml'
-      # The container image is built from the same source, by the workflow the
-      # release job calls below.
-      - '.github/workflows/build-image.yml'
+      - '.github/workflows/build-e2e.yml'
+      - '.github/workflows/release.yml'
+      - '.github/actions/build-release-artifacts/**'
+      - '.github/actions/build-image/**'
+      - '.github/actions/rust-setup/**'
+      - '.github/scripts/**'
 
 permissions:
   contents: write
   issues: write
   pull-requests: write
-  # `prepare` reads the PR build run + its artifacts from the API to decide
-  # between reusing them and rebuilding.
   actions: read
 
-# Serialize release runs: rapid consecutive merges race the checkout and
-# semantic-release skips publishing ("local branch main is behind the remote"),
-# producing missing/empty releases. Queued runs publish in order instead.
 concurrency:
   group: openkite-release
   cancel-in-progress: false
@@ -72,6 +55,9 @@ jobs:
   analyze:
     name: Determine version
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
     outputs:
       new_release_published: ${{ steps.semantic.outputs.new_release_published }}
       new_release_version: ${{ steps.semantic.outputs.new_release_version }}
@@ -97,102 +83,130 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Build-once reuse (OKT-104): find the six native packages the PR already
-  # built for this commit, instead of rebuilding them here. The artifacts are
-  # version-agnostic; the analyzed version is applied to the asset names at
-  # publish time.
-  prepare:
-    name: Locate reusable artifacts
+  locate:
+    name: Locate the merged PR's packages
     runs-on: ubuntu-latest
-    needs: analyze
+    needs: [analyze]
     if: >-
       needs.analyze.outputs.new_release_published == 'true' ||
       inputs.dry_run == 'true'
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
     outputs:
       reuse: ${{ steps.locate.outputs.reuse }}
       run_id: ${{ steps.locate.outputs.run_id }}
+      source_sha: ${{ steps.locate.outputs.source_sha }}
+      preview_tag: ${{ steps.locate.outputs.preview_tag }}
     steps:
-      # Without a checkout the workspace has no `.github/scripts/`, so the
-      # locator below died with "No such file or directory" (exit 127) and the
-      # whole reuse/rebuild path was unreachable.
       - name: Checkout
         uses: actions/checkout@v4
-      # Squash merges mint a new SHA, so this maps the merged commit back to
-      # the PR head the build ran on, then verifies a complete, unexpired set
-      # exists. `reuse=false` engages the rebuild fallback below.
-      - name: Locate PR-built artifacts for the merged commit
+      - name: Locate the PR build for this commit
         id: locate
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash .github/scripts/locate-release-artifacts.sh "${{ github.sha }}"
 
-  # Fallback only: no complete reusable artifact set exists for this commit
-  # (artifact expiry, force-push, a cancelled/failed PR build, or a direct push
-  # to main). Publishing must never be blocked by artifact GC, so rebuild with
-  # the analyzed version embedded. Same reusable workflow the PRs run.
-  build-artifacts:
-    name: Rebuild release artifacts (fallback)
-    needs: [analyze, prepare]
-    # A dry run never rebuilds: its job is to exercise the preflight against
-    # whatever (possibly empty) set the downloads produced, not to burn six
-    # native builds.
+  packages:
+    name: Rebuild the release packages (fallback)
+    runs-on: ${{ matrix.os }}
+    needs: [analyze, locate]
     if: >-
       needs.analyze.outputs.new_release_published == 'true' &&
-      needs.prepare.outputs.reuse != 'true' &&
+      needs.locate.outputs.reuse != 'true' &&
       inputs.dry_run != 'true'
-    uses: ./.github/workflows/build-release-artifacts.yml
-    with:
-      version: ${{ needs.analyze.outputs.new_release_version }}
-      package: true
-      retention-days: 7
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            package_os: linux
+            package_arch: amd64
+            formats: appimage
+            ext: AppImage
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            package_os: linux
+            package_arch: arm64
+            formats: appimage
+            ext: AppImage
+          - os: macos-26
+            target: aarch64-apple-darwin
+            package_os: macos
+            package_arch: arm64
+            formats: dmg
+            ext: dmg
+          - os: macos-26-intel
+            target: x86_64-apple-darwin
+            package_os: macos
+            package_arch: amd64
+            formats: dmg
+            ext: dmg
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            package_os: windows
+            package_arch: amd64
+            formats: nsis
+            ext: exe
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            package_os: windows
+            package_arch: arm64
+            formats: nsis
+            ext: exe
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Build, package, and upload the release asset
+        uses: ./.github/actions/build-release-artifacts
+        with:
+          target: ${{ matrix.target }}
+          package-os: ${{ matrix.package_os }}
+          package-arch: ${{ matrix.package_arch }}
+          formats: ${{ matrix.formats }}
+          ext: ${{ matrix.ext }}
+          version: ${{ needs.analyze.outputs.new_release_version }}
+          retention-days: '7'
 
   publish:
     name: Publish release
     runs-on: ubuntu-latest
-    needs: [analyze, prepare, build-artifacts]
-    # Succeed when the reusable set was reused (build-artifacts skipped) or the
-    # fallback rebuilt successfully; never publish a partial set. A dry run is
-    # allowed through even without a release decision so the preflight can be
-    # exercised; its publishing steps are separately gated off below.
+    needs: [analyze, locate, packages]
     if: >-
       always() &&
       (inputs.dry_run == 'true' ||
        (needs.analyze.outputs.new_release_published == 'true' &&
-        needs.prepare.result == 'success' &&
-        (needs.build-artifacts.result == 'success' || needs.build-artifacts.result == 'skipped')))
+        needs.locate.result == 'success' &&
+        (needs.packages.result == 'success' || needs.packages.result == 'skipped')))
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      actions: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          # Check out the live tip of main, not the triggering commit: with
-          # rapid consecutive merges the trigger commit can be behind origin/main
-          # and semantic-release refuses to publish (empty release bodies).
           ref: main
       - name: Configure git
         run: |
           git config user.name "semantic-release-bot"
           git config user.email "semantic-release-bot@users.noreply.github.com"
-      - name: Download reused artifacts
-        if: needs.prepare.outputs.reuse == 'true'
+      - name: Download the release packages
         uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: ${{ needs.prepare.outputs.run_id }}
+          run-id: ${{ needs.locate.outputs.run_id || github.run_id }}
           pattern: openkite_*
           path: dist
           merge-multiple: true
-      - name: Download fallback-built artifacts
-        if: needs.prepare.outputs.reuse != 'true' && inputs.dry_run != 'true'
-        uses: actions/download-artifact@v4
-        with:
-          pattern: openkite_*
-          path: dist
-          merge-multiple: true
-      # The fail-safe gate. It runs unconditionally on every publish
-      # attempt, requires all six targets by default, and fails the job before
-      # anything is tagged or uploaded. `targets` can only come from an explicit
-      # workflow_dispatch.
       - name: Preflight — refuse an incomplete release
         env:
           VERSION: ${{ needs.analyze.outputs.new_release_version || '0.0.0' }}
@@ -221,34 +235,147 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   image:
-    name: Publish container image
-    needs: [analyze, publish]
-    # Same gate as the package jobs: only a real release publishes, and a dry run
-    # never does. Waiting on `publish` rather than `analyze` is deliberate — the
-    # image is named after the tag, so the tag has to exist first, and `v<X.Y.Z>`
-    # can then never point at an image with no release behind it.
+    name: Promote the preview image to the release tag
+    runs-on: ubuntu-latest
+    needs: [analyze, locate, publish]
     if: needs.analyze.outputs.new_release_published == 'true' && inputs.dry_run != 'true'
-    # The workflow-level permissions above have no `packages: write`, so the image
-    # job declares its own.
+    timeout-minutes: 15
     permissions:
       contents: read
       packages: write
-    uses: ./.github/workflows/build-image.yml
-    with:
-      # The released commit, by tag: the git tag IS the image tag, so building the
-      # tag guarantees the image and the release are the same source.
-      ref: v${{ needs.analyze.outputs.new_release_version }}
-      tag: v${{ needs.analyze.outputs.new_release_version }}
-      host: openkite.maklab.net
+    outputs:
+      promoted: ${{ steps.promote.outputs.promoted }}
+      image_digest: ${{ steps.promote.outputs.image_digest }}
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to the container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Promote the PR image digest
+        id: promote
+        env:
+          PREVIEW_TAG: ${{ needs.locate.outputs.preview_tag }}
+          VERSION: ${{ needs.analyze.outputs.new_release_version }}
+        run: |
+          set -euo pipefail
+          image="ghcr.io/jomakori/openkite"
+          if [ -z "$PREVIEW_TAG" ]; then
+            echo "promoted=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=No PR image for this commit::the rebuild fallback publishes it"
+            exit 0
+          fi
+          if ! docker buildx imagetools inspect "${image}:${PREVIEW_TAG}" >/dev/null 2>&1; then
+            echo "promoted=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=No published preview image::${PREVIEW_TAG} is absent, rebuilding"
+            exit 0
+          fi
+          docker buildx imagetools create --tag "${image}:v${VERSION}" "${image}:${PREVIEW_TAG}"
+          digest="$(docker buildx imagetools inspect "${image}:v${VERSION}" --format '{{.Manifest.Digest}}')"
+          echo "promoted=true" >> "$GITHUB_OUTPUT"
+          echo "image_digest=${digest}" >> "$GITHUB_OUTPUT"
+          echo "promoted ${image}:${PREVIEW_TAG} to v${VERSION} (${digest})"
 
-  publish-tap:
+  image-rebuild:
+    name: Rebuild the release image (fallback)
+    runs-on: ubuntu-latest
+    needs: [analyze, locate, publish, image]
+    if: >-
+      always() &&
+      needs.analyze.outputs.new_release_published == 'true' &&
+      inputs.dry_run != 'true' &&
+      needs.publish.result == 'success' &&
+      needs.image.outputs.promoted != 'true'
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Build and publish v<version>
+        id: build
+        uses: ./.github/actions/build-image
+        with:
+          ref: v${{ needs.analyze.outputs.new_release_version }}
+          tag: v${{ needs.analyze.outputs.new_release_version }}
+          host: openkite.maklab.net
+
+  manifest:
+    name: Attach the release manifest
+    runs-on: ubuntu-latest
+    needs: [analyze, publish, image, image-rebuild]
+    if: >-
+      always() &&
+      needs.analyze.outputs.new_release_published == 'true' &&
+      inputs.dry_run != 'true' &&
+      needs.publish.result == 'success'
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Read the package digests
+        uses: ./.github/actions/release-digest
+        with:
+          version: ${{ needs.analyze.outputs.new_release_version }}
+          repo: jomakori/openkite
+          map: |
+            .*_linux_amd64\.AppImage=LINUX_AMD64_SHA
+            .*_linux_arm64\.AppImage=LINUX_ARM64_SHA
+            .*_macos_amd64\.dmg=MACOS_AMD64_SHA
+            .*_macos_arm64\.dmg=MACOS_ARM64_SHA
+            .*_windows_amd64\.exe=WINDOWS_AMD64_SHA
+            .*_windows_arm64\.exe=WINDOWS_ARM64_SHA
+      - name: Write the manifest
+        env:
+          VERSION: ${{ needs.analyze.outputs.new_release_version }}
+          IMAGE_DIGEST: >-
+            ${{ needs.image.outputs.image_digest || needs.image-rebuild.outputs.image_digest }}
+        run: |
+          set -euo pipefail
+          test -n "$IMAGE_DIGEST" || {
+            echo "::error title=No image digest::no v${VERSION} image was published or promoted"
+            exit 1
+          }
+          mkdir -p dist
+          {
+            echo "# openkite v${VERSION} release manifest"
+            echo ""
+            echo "| artifact | sha256 |"
+            echo "|---|---|"
+            echo "| openkite_${VERSION}_linux_amd64.AppImage | \`${LINUX_AMD64_SHA}\` |"
+            echo "| openkite_${VERSION}_linux_arm64.AppImage | \`${LINUX_ARM64_SHA}\` |"
+            echo "| openkite_${VERSION}_macos_amd64.dmg | \`${MACOS_AMD64_SHA}\` |"
+            echo "| openkite_${VERSION}_macos_arm64.dmg | \`${MACOS_ARM64_SHA}\` |"
+            echo "| openkite_${VERSION}_windows_amd64.exe | \`${WINDOWS_AMD64_SHA}\` |"
+            echo "| openkite_${VERSION}_windows_arm64.exe | \`${WINDOWS_ARM64_SHA}\` |"
+            echo "| ghcr.io/jomakori/openkite:v${VERSION} | \`${IMAGE_DIGEST}\` |"
+          } > "dist/openkite_${VERSION}_release-manifest.md"
+          cat "dist/openkite_${VERSION}_release-manifest.md"
+      - name: Attach the manifest to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.analyze.outputs.new_release_version }}
+          files: dist/openkite_*_release-manifest.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  tap:
     name: Update homebrew tap (jomakori/homebrew-tap)
     runs-on: ubuntu-latest
     needs: [analyze, publish]
     if: needs.analyze.outputs.new_release_published == 'true' && inputs.dry_run != 'true'
+    timeout-minutes: 20
+    permissions:
+      contents: read
     steps:
-      # Digests set by release-digest (GITHUB_ENV) persist across the tap
-      # checkout below — env file is job-scoped, applied after every step.
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -266,7 +393,8 @@ jobs:
           VERSION: ${{ needs.analyze.outputs.new_release_version }}
         run: |
           set -euo pipefail
-          SRC_SHA=$(curl -sL "https://github.com/jomakori/openkite/archive/refs/tags/v${VERSION}.tar.gz" | shasum -a 256 | awk '{print $1}')
+          tarball="https://github.com/jomakori/openkite/archive/refs/tags/v${VERSION}.tar.gz"
+          SRC_SHA=$(curl -sL "$tarball" | shasum -a 256 | awk '{print $1}')
           test -n "$SRC_SHA" || { echo "source tarball fetch failed"; exit 1; }
           echo "SRC_SHA=$SRC_SHA" >> "$GITHUB_ENV"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
@@ -314,11 +442,12 @@ jobs:
             git push
           fi
 
-  publish-choco:
+  choco:
     name: Publish chocolatey package (GH Packages)
     runs-on: windows-latest
     needs: [analyze, publish]
     if: needs.analyze.outputs.new_release_published == 'true' && inputs.dry_run != 'true'
+    timeout-minutes: 30
     permissions:
       contents: write
       packages: write
@@ -373,3 +502,36 @@ jobs:
         shell: pwsh
         run: |
           gh release upload "v$env:VERSION" "dist/openkite.$env:VERSION.nupkg" --repo jomakori/openkite --clobber
+
+  report:
+    name: Track the main-branch outcome
+    needs:
+      - analyze
+      - locate
+      - packages
+      - publish
+      - image
+      - image-rebuild
+      - manifest
+      - tap
+      - choco
+    if: always() && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+      actions: read
+    concurrency:
+      group: ci-failure-${{ github.workflow }}
+      cancel-in-progress: false
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Open, update, or close the tracking issue
+        uses: ./.github/actions/notify-failure
+        with:
+          run-id: ${{ github.run_id }}
+          workflow-name: ${{ github.workflow }}
+          failed: ${{ contains(needs.*.result, 'failure') }}
+          cancelled: ${{ contains(needs.*.result, 'cancelled') }}

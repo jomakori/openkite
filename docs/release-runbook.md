@@ -1,9 +1,10 @@
 # Release runbook — "Release went red"
 
 How to diagnose and recover when the [Release workflow](../.github/workflows/release.yml)
-fails. It is accurate against the workflows as they are after OKT-103 (portable
-version embed + Windows fix) and OKT-104 (build artifacts once, reuse at
-release), plus the release fail-safe in this repository.
+fails. It is accurate against the four-workflow CI (`lint-test`, `build-e2e`,
+`preview`, `Release`) — after OKT-103 (portable version embed + Windows fix) and
+OKT-104 (build artifacts once, reuse at release), plus the release fail-safe in
+this repository.
 
 `Release` is **not** a required check. It is path-filtered to `**.rs`,
 `**/Cargo.toml` and `Cargo.lock`, so it can be red while every required check is
@@ -25,8 +26,8 @@ gh run view <run-id> --repo jomakori/openkite --log-failed
 ```
 
 Job names map to targets: `openkite_<os>_<arch>` (`analyze` = Determine
-version, `prepare` = Locate reusable artifacts, `publish` = Publish release,
-`build-artifacts` = Rebuild release artifacts (fallback)). A failure in one
+version, `locate` = Locate the merged PR's packages, `publish` = Publish release,
+`packages` = Rebuild the release packages (fallback)). A failure in one
 `openkite_*` job fails the reusable build, so `publish` is skipped and no
 release is cut — the fail-safe working as intended.
 
@@ -57,12 +58,12 @@ re-run the downstream jobs that were skipped.
 
 ## 3. Force a rebuild when artifacts are missing or expired
 
-`release.yml` reuses the six packages a PR already built (`prepare` →
-`locate-release-artifacts.sh`). Reuse requires a **successful `build-artifacts`
-run for the PR head SHA** with all six assets present and unexpired. When it is
+`release.yml` reuses the six packages a PR already built (`locate` →
+`locate-release-artifacts.sh`). Reuse requires a **successful `build-e2e` run for
+the PR head SHA** with all six assets present and unexpired. When it is
 missing, expired (PR artifacts: 90 days; fallback: 7 days), cancelled, or the
 merge was a direct push, the locator prints a `::notice title=Rebuilding release
-artifacts::` and `reuse=false`; the `build-artifacts` fallback job then rebuilds
+artifacts::` and `reuse=false`; the `packages` fallback job then rebuilds
 all six targets with the analyzed version embedded. **The rebuild is automatic —
 there is no flag to set.**
 
@@ -71,10 +72,10 @@ To force it:
 - Re-run the failed `Release` run (`gh run rerun <run-id> --repo
   jomakori/openkite --failed`), or dispatch it (see §5), which re-evaluates
   reuse from scratch.
-- To repopulate the reusable set instead, re-run the PR's `build-artifacts`
+- To repopulate the reusable set instead, re-run the PR's `build-e2e`
   workflow while the PR still exists:
-  `gh run rerun <build-artifacts-run-id> --repo jomakori/openkite`.
-- A PR whose diff does not match `build-artifacts.yml`'s paths never built
+  `gh run rerun <build-e2e-run-id> --repo jomakori/openkite`.
+- A PR whose diff does not match `build-e2e.yml`'s paths never built
   artifacts in the first place; the fallback covers it at release time.
 
 ## 4. Ship a hotfix
@@ -134,12 +135,12 @@ fallback build embeds the analyzed version into the binary at build time
 - **Pin a dependency or packaging tool that a bad upstream release broke** (the
   usual reason a release goes red after an unrelated bump). Pin the crate in the
   lockfile and commit it — `cargo update -p <crate> --precise <version>` — or pin
-  the tool in `.github/workflows/build-release-artifacts.yml`:
+  the tool in `.github/actions/build-release-artifacts/action.yml`:
   `cargo install cargo-packager --version <x> --locked`.
-- **Force a specific version to be embedded.** The reusable workflow's `version`
-  input is authoritative for the fallback path; it is `workflow_call`-only, so
-  wire it through a caller (e.g. a temporary `workflow_dispatch` shim) if you
-  must build a pinned version. As a last resort, create the release manually with
+- **Force a specific version to be embedded.** The composite's `version` input is
+  authoritative for the fallback path and is supplied by `release.yml` (the
+  `packages` job), so a dispatch of `Release` is the supported way to rebuild a
+  pinned version. As a last resort, create the release manually with
   `gh release create vX.Y.Z --title … --notes …` and upload the assets — the next
   semantic-release run computes its next version from that tag.
 
@@ -153,6 +154,8 @@ gh run view <run-id> --repo jomakori/openkite --json conclusion,jobs \
 ```
 
 `skipped` means "not verified". A green required-check set is not evidence that
-`Release` succeeded. Failures on `main` also open a tracking issue via
-[`main-failure-tracker.yml`](../.github/workflows/main-failure-tracker.yml); the
-issue links the failing job and its logs.
+`Release` succeeded. Failures on `main` also open a tracking issue through the
+`report` job each of the four workflows carries
+([`.github/actions/notify-failure`](../.github/actions/notify-failure/action.yml));
+the issue links the failing job and its logs, and a later green push-to-main run
+closes it.

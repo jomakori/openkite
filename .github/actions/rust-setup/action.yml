@@ -1,9 +1,25 @@
 name: Rust setup
-description: Install the stable toolchain, native GTK/WebKit deps, and the cargo cache.
+description: Install the Rust toolchain, the native packages a job needs, and the cargo cache.
 
 inputs:
   extra-components:
-    description: Space-separated rustup components to add (e.g. "rustfmt clippy")
+    description: Comma-separated rustup components to add (e.g. "rustfmt,clippy").
+    required: false
+    default: ''
+  targets:
+    description: Comma-separated compilation targets to add to the toolchain.
+    required: false
+    default: ''
+  profile:
+    description: Native package set on Linux — "desktop" installs the WebKitGTK/GTK stack, "none" installs nothing.
+    required: false
+    default: desktop
+  apt-extra:
+    description: Extra apt packages this job needs (e.g. "xvfb xdotool imagemagick dbus-x11 openbox bats").
+    required: false
+    default: ''
+  cache-key:
+    description: Extra rust-cache key, so matrix jobs do not share one cache bucket.
     required: false
     default: ''
 
@@ -13,11 +29,32 @@ runs:
     - uses: dtolnay/rust-toolchain@stable
       with:
         components: ${{ inputs.extra-components }}
-    - name: Install system dependencies
+        targets: ${{ inputs.targets }}
+    - name: Install native packages
+      if: runner.os == 'Linux'
       shell: bash
+      env:
+        PROFILE: ${{ inputs.profile }}
+        APT_EXTRA: ${{ inputs.apt-extra }}
       run: |
+        set -euo pipefail
+        packages=()
+        if [ "$PROFILE" = "desktop" ]; then
+          packages+=(
+            libwebkit2gtk-4.1-dev libgtk-3-dev libglib2.0-dev
+            libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev
+          )
+        fi
+        if [ -n "$APT_EXTRA" ]; then
+          read -r -a extra <<<"$APT_EXTRA"
+          packages+=("${extra[@]}")
+        fi
+        if [ "${#packages[@]}" -eq 0 ]; then
+          echo "no native packages requested"
+          exit 0
+        fi
         sudo apt-get update
-        sudo apt-get install -y \
-          libwebkit2gtk-4.1-dev libgtk-3-dev libglib2.0-dev \
-          libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev
+        sudo apt-get install -y -- "${packages[@]}"
     - uses: Swatinem/rust-cache@v2
+      with:
+        key: ${{ inputs.cache-key }}
