@@ -30,7 +30,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           tag: pr-${{ github.event.pull_request.number }}
           pin-sha-tag: 'true'
-          host: pr${{ github.event.pull_request.number }}.maklab.net
+          host: pr${{ github.event.pull_request.number }}-openkite.maklab.net
 
   ready:
     name: Confirm the preview image is published
