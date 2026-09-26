@@ -74,14 +74,21 @@ runs:
         password: ${{ github.token }}
 
     - name: Derive the image tags
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        context: git
-        images: ghcr.io/jomakori/openkite
-        tags: |
-          type=raw,value=${{ inputs.tag }}
-          type=sha,prefix=${{ inputs.tag }}-,format=short,enable=${{ inputs.pin-sha-tag == 'true' }}
+      id: tags
+      shell: bash
+      env:
+        TAG: ${{ inputs.tag }}
+        PIN_SHA_TAG: ${{ inputs.pin-sha-tag }}
+      run: |
+        set -euo pipefail
+        {
+          echo "tags<<TAGS"
+          echo "ghcr.io/jomakori/openkite:${TAG}"
+          if [ "$PIN_SHA_TAG" = "true" ]; then
+            echo "ghcr.io/jomakori/openkite:${TAG}-$(git rev-parse --short=7 HEAD)"
+          fi
+          echo "TAGS"
+        } >> "$GITHUB_OUTPUT"
 
     - name: Build and push the image
       id: build
@@ -89,8 +96,7 @@ runs:
       with:
         context: .
         push: true
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
+        tags: ${{ steps.tags.outputs.tags }}
 
     - name: Record the published references
       shell: bash
