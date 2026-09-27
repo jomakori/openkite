@@ -396,17 +396,17 @@ jobs:
           test -n "$SRC_SHA" || { echo "source tarball fetch failed"; exit 1; }
           echo "SRC_SHA=$SRC_SHA" >> "$GITHUB_ENV"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-      - name: Fetch CI secrets
-        uses: dopplerhq/secrets-fetch-action@main
-        with:
-          doppler-token: ${{ secrets.DOPPLER_TOKEN }}
-          doppler-project: devops
-          doppler-config: ci
-      - name: Keep the tap token
+      - name: Install the Doppler CLI
+        uses: dopplerhq/cli-action@v3
+      - name: Read the tap token
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
         run: |
           set -euo pipefail
-          test -n "${GITHUB_TOKEN:-}" || { echo "::error::no GITHUB_TOKEN from Doppler"; exit 1; }
-          echo "TAP_TOKEN=$GITHUB_TOKEN" >> "$GITHUB_ENV"
+          TOKEN=$(doppler secrets get GITHUB_TOKEN --plain --project devops --config ci)
+          test -n "$TOKEN" || { echo "no GITHUB_TOKEN in devops/ci"; exit 1; }
+          echo "::add-mask::$TOKEN"
+          echo "TAP_TOKEN=$TOKEN" >> "$GITHUB_ENV"
       - name: Checkout tap
         uses: actions/checkout@v4
         with:
