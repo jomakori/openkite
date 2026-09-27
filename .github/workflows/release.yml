@@ -396,11 +396,17 @@ jobs:
           test -n "$SRC_SHA" || { echo "source tarball fetch failed"; exit 1; }
           echo "SRC_SHA=$SRC_SHA" >> "$GITHUB_ENV"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+      - name: Fetch CI secrets
+        uses: dopplerhq/secrets-fetch-action@main
+        with:
+          doppler-token: ${{ secrets.DOPPLER_TOKEN }}
+          doppler-project: devops
+          doppler-config: ci
       - name: Checkout tap
         uses: actions/checkout@v4
         with:
           repository: jomakori/homebrew-tap
-          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          token: ${{ env.GITHUB_TOKEN }}
           fetch-depth: 0
       - name: Update cask
         run: |
@@ -490,9 +496,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
         run: |
-          choco push "dist/openkite.$env:VERSION.nupkg" `
-            --source "https://nuget.pkg.github.com/jomakori/index.json" `
-            --api-key $env:GH_TOKEN
+          dotnet nuget add source --username ${{ github.actor }} --password $env:GH_TOKEN --store-password-in-clear-text --name github "https://nuget.pkg.github.com/jomakori/index.json"
+          dotnet nuget push "dist/openkite.$env:VERSION.nupkg" --source github
       - name: Attach nupkg to release
         env:
           VERSION: ${{ needs.analyze.outputs.new_release_version }}
