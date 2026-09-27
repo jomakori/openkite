@@ -1,16 +1,18 @@
 /target
 /dist
+# dx output for the desktop crate (Dioxus.toml out_dir = "dist").
+/crates/openkite-desktop/dist
+
 # PR-preview web bundle: built by the pr-image workflow, served from the image.
 /web/dist
-/dev/.kube
 .opencode/local
 # Build-tool node_modules (vendored xterm, vendored codemirror).
 /tools/**/node_modules/
 # React spike build deps (OKT-67). The built bundle is vendored under
-# assets/vendored/openkite-react-spike/ and IS committed (include_str!).
+# crates/openkite-desktop/assets/vendored/openkite-react-spike/ and IS committed (include_str!).
 /web/node_modules/
 /web/dist/
 # SSR build output for the fixture parity check (web/test/parity.test.tsx).
 /web/test/.ssr/
-# Visual-capture wrapper log (dev/capture/capture.sh).
+# Visual-capture wrapper log (e2e/visual/cluster/capture.sh).
 /.capture.log

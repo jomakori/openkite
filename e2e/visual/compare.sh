@@ -8,7 +8,7 @@
 #
 # Total pixels at 1280x800 = 1,024,000. 1% = 10,240 pixels.
 #
-# Usage: visual-regression.sh <baselines-dir> <fresh-screenshots-dir>
+# Usage: e2e/visual/compare.sh <baselines-dir> <fresh-screenshots-dir>
 # Exit 0 if all pass, exit 1 if any fail.
 
 set -euo pipefail

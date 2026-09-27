@@ -5,7 +5,7 @@ tree**, selected by Vite `--mode` (`web/vite.config.ts`):
 
 | Target | Command | Output | Consumer |
 |---|---|---|---|
-| Desktop | `npm run build` | `assets/vendored/openkite-react-spike/{app.js,app.css}` | Rust host `include_str!`s it (`src/react_spike.rs`) |
+| Desktop | `npm run build` | `crates/openkite-desktop/assets/vendored/openkite-react-spike/{app.js,app.css}` | Rust host `include_str!`s it (`src/react_spike.rs`) |
 | Browser / staging | `npm run build:web` (wrapped by `web/build.sh`) | `web/dist/index.html` + hashed assets | PR-preview image (nginx) |
 
 Only the output shape differs — plugins, `define`, and sources are shared, so
@@ -18,7 +18,7 @@ Vite library mode bundles the UI as a fixed-name IIFE + CSS pair. The Rust host
 **source input**, not a release artifact. It uses fixed filenames with no
 hash/manifest — the host does a plain `include_str!`, matching the repo's
 existing vendoring convention (`tools/build-xterm`,
-`assets/vendored/codemirror/`).
+`crates/openkite-desktop/assets/vendored/codemirror/`).
 
 **Vendor step — run after ANY change under `web/src/`:**
 
@@ -26,8 +26,8 @@ existing vendoring convention (`tools/build-xterm`,
 cd web
 npm ci
 npm run typecheck    # TypeScript gate
-npm run build        # writes assets/vendored/openkite-react-spike/{app.js,app.css}
-npm run bundle-size  # refreshes assets/vendored/openkite-react-spike/SOURCE.txt
+npm run build        # writes crates/openkite-desktop/assets/vendored/openkite-react-spike/{app.js,app.css}
+npm run bundle-size  # refreshes crates/openkite-desktop/assets/vendored/openkite-react-spike/SOURCE.txt
 ```
 
 Commit the regenerated `app.js`, `app.css`, and `SOURCE.txt` together with the

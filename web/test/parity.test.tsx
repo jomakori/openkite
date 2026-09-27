@@ -749,7 +749,7 @@ const markers = [
   'View YAML',
 ]
 const desktopBundle = readFileSync(
-  resolve(repoRoot, 'assets/vendored/openkite-react-spike/app.js'),
+  resolve(repoRoot, 'crates/openkite-desktop/assets/vendored/openkite-react-spike/app.js'),
   'utf8',
 )
 for (const marker of markers) {

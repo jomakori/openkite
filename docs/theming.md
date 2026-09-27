@@ -5,7 +5,7 @@ reference, so switching themes is an instant variable swap — no re-render.
 
 ## The variable contract
 
-Declared in `src/theme.rs` (`CSS_VARS`), defaulted in `assets/main.css`:
+Declared in `src/theme.rs` (`CSS_VARS`), defaulted in `crates/openkite-desktop/assets/main.css`:
 
 | Group | Variables |
 |---|---|
@@ -37,7 +37,7 @@ opaline (it ships those families natively).
 ## Frost/glass layering
 
 Opaline supplies **colors**; the glass/frost **chrome** lives in the design
-system (`assets/main.css`, OKT-29) on top of the variables: frost cards are
+system (`crates/openkite-desktop/assets/main.css`, OKT-29) on top of the variables: frost cards are
 `var(--bg-1)` at ~85% opacity + `backdrop-filter: blur(40px)`, elevation via
 the shadow system. Tokens are the single source of truth — the chrome never
 hardcodes colors.

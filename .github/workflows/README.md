@@ -2,7 +2,7 @@
 
 Continuous integration, packaging, and release automation. GitHub Actions only:
 nothing here runs on a developer host (the `openkite` Dioxus link OOMs a small
-container — see [`dev/capture/README.md`](../../dev/capture/README.md)).
+container — see [`e2e/visual/cluster/README.md`](../../e2e/visual/cluster/README.md)).
 
 | Workflow | Trigger | Role |
 |---|---|---|

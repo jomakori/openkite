@@ -26,8 +26,8 @@ on:
   push:
     branches:
       - main
-    # `web/**` and `assets/**` are here because they change the shipped binary:
-    # the vendored React bundle under assets/vendored/ is `include_str!`d into
+    # `web/**` and the vendored assets are here because they change the shipped binary:
+    # the vendored React bundle under crates/openkite-desktop/assets/vendored/ is `include_str!`d into
     # it. Leaving them out is how releases stopped happening — a web-only merge
     # ran all six platform builds, passed the required multi-platform gate, and
     # then triggered no Release at all (no tag, no release).
@@ -40,7 +40,12 @@ on:
       - '**/Cargo.toml'
       - 'Cargo.lock'
       - 'web/**'
-      - 'assets/**'
+      - 'crates/openkite-desktop/assets/**'
+      # The packager metadata reads Dioxus.toml (asset/out dirs) and bakes the
+      # icons into the installers, so both change the shipped artifact - and
+      # build-artifacts.yml's 'crates/**' filter already counts them.
+      - 'crates/openkite-desktop/Dioxus.toml'
+      - 'crates/openkite-desktop/icons/**'
       # Changing the build definition itself affects the artifact.
       - '.github/workflows/build-artifacts.yml'
       - '.github/workflows/build-release-artifacts.yml'

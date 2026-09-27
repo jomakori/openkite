@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
 # OpenKite visual-capture wrapper.
 #
-# Applies the capture Job (dev/capture/capture-job.yaml.tmpl), waits for it,
+# Applies the capture Job (e2e/visual/cluster/capture-job.yaml.tmpl), waits for it,
 # streams its log, and copies the media off the shared volume into docs/media/.
 #
-#   ./dev/capture/capture.sh
+#   ./e2e/visual/cluster/capture.sh
 #
 # Everything is overridable with OK_CAPTURE_* environment variables; run with
 # `--help` for the list. The default namespace is the throwaway `ok-debug`, and
-# the kubeconfig Secret is created out of band — see dev/capture/README.md. No
+# the kubeconfig Secret is created out of band — see e2e/visual/cluster/README.md. No
 # credential is stored here, and nothing targets a GitOps-managed namespace:
 # ArgoCD self-heal would revert (and fight) a manual Job.
 set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$DIR/../.." && pwd)"
+REPO_ROOT="$(cd "$DIR/../../.." && pwd)"
 
 NAMESPACE="${OK_CAPTURE_NAMESPACE:-ok-debug}"
 SCRATCH_NS="${OK_CAPTURE_SCRATCH_NS:-$NAMESPACE}"
@@ -41,7 +41,7 @@ TIMEOUT="${OK_CAPTURE_TIMEOUT:-2400s}"
 
 usage() {
   cat <<'EOF'
-Usage: dev/capture/capture.sh [--help]
+Usage: e2e/visual/cluster/capture.sh [--help]
 
 Renders and runs the capture Job, then fetches the media into docs/media/.
 Environment (all optional):

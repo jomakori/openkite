@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# OKT-95 bridge-dispatch regression guard.
+# Bridge-dispatch regression guard (the OKT-95 dispatch path).
 #
 # Boots the real desktop binary under Xvfb with a test-only JS plugin
 # installed, then asserts the /openkite dispatch path answered with a
@@ -12,14 +12,14 @@
 # The no-panic assertion is the one that catches such a regression: the panic
 # is contained, so the surface stays healthy and only app.log shows it.
 #
-# Usage: bridge-guard.sh <path-to-openkite-binary> <artifact-dir>
+# Usage: e2e/bridge/guard.sh <path-to-openkite-binary> <artifact-dir>
 
 set -euo pipefail
 
 BIN="${1:?path to openkite binary}"
 ART="${2:?artifact dir}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-FIXTURE="${3:-$HERE/fixtures/okt95-guard}"
+FIXTURE="${3:-$HERE/fixtures}"
 mkdir -p "$ART"
 # Absolute: $ART becomes the isolated $HOME below, so a relative path would
 # resolve against whatever CWD the app is launched with.
@@ -51,7 +51,7 @@ trap cleanup EXIT
 # Isolate HOME so the test-only plugin is the only JS plugin discovered.
 export HOME="$ART/home"
 mkdir -p "$HOME/.openkite/plugins"
-cp -R "$FIXTURE" "$HOME/.openkite/plugins/okt95-guard"
+cp -R "$FIXTURE" "$HOME/.openkite/plugins/guard-fixture"
 
 log "starting Xvfb on $DISPLAY_NUM ($SCREEN)"
 Xvfb "$DISPLAY_NUM" -screen 0 "$SCREEN" -nolisten tcp >"$ART/xvfb.log" 2>&1 &
@@ -88,10 +88,10 @@ for _ in $(seq 1 60); do
   if grep -q "evaluating js plugin bundle" "$ART/app.log" 2>/dev/null; then break; fi
   sleep 1
 done
-if ! awk '/evaluating js plugin bundle/ && /okt95-guard/ { found = 1 } END { exit !found }' "$ART/app.log"; then
+if ! awk '/evaluating js plugin bundle/ && /guard-fixture/ { found = 1 } END { exit !found }' "$ART/app.log"; then
   log "js plugin line(s):"
   grep -n "js plugin" "$ART/app.log" || true
-  fail "test plugin 'okt95-guard' was never evaluated (discovery or enable failure?)"
+  fail "test plugin 'guard-fixture' was never evaluated (discovery or enable failure?)"
 fi
 
 # The mirror write happens on the Dioxus side after the tokio handler pings it.
@@ -120,12 +120,12 @@ if [ "$MIRRORED" != "1" ]; then
   grep -n "registration mirror" "$ART/app.log" || true
   fail "registration mirror never updated on the Dioxus side"
 fi
-if ! awk '/registration mirror updated/ && /okt95-guard/ { found = 1 } END { exit !found }' "$ART/app.log"; then
+if ! awk '/registration mirror updated/ && /guard-fixture/ { found = 1 } END { exit !found }' "$ART/app.log"; then
   log "registration mirror line(s):"
   grep -n "registration mirror" "$ART/app.log" || true
-  fail "mirror updated without okt95-guard"
+  fail "mirror updated without guard-fixture"
 fi
-log "mirror write OK: okt95-guard registered"
+log "mirror write OK: guard-fixture registered"
 
 # (3) NO panic. This is the assertion that catches a runtime-mirror regression:
 # the panic is contained, so the surface stays healthy and only app.log shows,

@@ -2,10 +2,19 @@
 
 ## Dev environment
 
-- Rust **stable**, edition 2021. No local toolchain required for the Tilt path.
-- Dev loop: see `dev/README.md` — ephemeral k3d cluster + Tilt
-  (`cargo check` runs in a container; `dx serve` hot-reloads the desktop app).
-  Tear down when done (`tilt down && ./dev/k3d-down.sh`).
+- Rust **stable**, edition 2021. The desktop build needs the platform webview
+  stack — on Linux the same packages the `e2e` workflow installs
+  (`libwebkit2gtk-4.1-dev`, GTK, `libxdo`), nothing extra on macOS, WebView2 on
+  Windows.
+- **The cluster comes from a kubeconfig, not from a local one.** Previews and the
+  connected E2E job both reach a cluster this way, so local development uses the
+  same path: join the tailnet (`tag:k8s`),
+  `tailscale configure kubeconfig <proxy-host>`, then run the app against it —
+  `cd crates/openkite-desktop && dx serve`. There is no local cluster to create,
+  keep alive, or tear down.
+- **Do not build the desktop binary on a small review host**: the Dioxus link
+  step needs more than ~2.5 GiB and will OOM a ~3 GiB container. Use CI, or the
+  one-shot capture Job in `e2e/visual/cluster/`.
 - CI gates (all four must pass): `cargo fmt`, `cargo clippy -- -D warnings`,
   `cargo test`, `cargo build --release`.
 

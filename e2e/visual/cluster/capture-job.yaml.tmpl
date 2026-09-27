@@ -20,7 +20,7 @@
 #
 # Never build the openkite binary on the review host: a Dioxus link needs
 # >2.5 GiB and OOMs a small container (the Hermes agent pod is capped ~3 GiB;
-# an OOM there restarts the gateway). See dev/capture/README.md.
+# an OOM there restarts the gateway). See e2e/visual/cluster/README.md.
 apiVersion: batch/v1
 kind: Job
 metadata:

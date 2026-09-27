@@ -8,7 +8,7 @@
 # original run-flows.sh + flows/*.sh) was dropped per user decision:
 # bats-core over bespoke shell scripts.
 #
-# Run:  BIN=../target/debug/openkite ART_ROOT=artifacts-flows bats user_flows.bats
+# Run:  BIN=../target/debug/openkite ART_ROOT=artifacts/flows bats desktop/flows/user_flows.bats
 # CI:   e2e.yml user-flows job (installs bats, feeds JUnit to dorny).
 
 load flows_lib

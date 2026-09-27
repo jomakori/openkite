@@ -18,7 +18,7 @@
 # fresh Xvfb per surface caused :99 restart races (previous server had
 # not released the socket → new server died → window never appeared).
 #
-# Usage: capture-baselines.sh <path-to-openkite-binary> <output-dir>
+# Usage: e2e/visual/capture.sh <path-to-openkite-binary> <output-dir>
 # Output: 10 PNGs named 01-home.png … 10-switcher.png in <output-dir>.
 
 set -euo pipefail
@@ -35,7 +35,7 @@ export RUST_BACKTRACE=full
 SCREEN="1280x800x24"
 DISPLAY_NUM=":99"
 
-log() { echo "[capture-baselines] $*"; }
+log() { echo "[visual-capture] $*"; }
 fail() { log "FAIL: $*"; exit 1; }
 
 pixel_stddev() {

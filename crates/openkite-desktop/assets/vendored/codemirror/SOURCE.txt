@@ -5,7 +5,7 @@ Packages:
   esbuild IIFE minified, es2020 target.
 
 Rebuild:
-  cd tools/build-codemirror && npm install && node build.mjs ../../assets/vendored/codemirror
+  cd tools/build-codemirror && npm install && node build.mjs ../../crates/openkite-desktop/assets/vendored/codemirror
 
 Cache-buster id: cm-bundle-v1 (bump on each rebuild; see
 crate::components::code_editor::code_editor_path).
