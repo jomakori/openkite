@@ -12,13 +12,16 @@
 //! pattern as tests/runtime.rs). Pure functions (filter, cursor) don't need
 //! a runtime.
 
-use dioxus::prelude::*;
 use openkite::config::TitleBarTheme;
 use openkite::palette::{
     advance_cursor, annotate_system_with_effective, commands, filter_commands, CommandAction,
     PALETTE_OPEN, PALETTE_QUERY,
 };
 use openkite::router::Route;
+// `.read()` / `.write()` on Global signals come from the dioxus prelude
+// (ReadableExt/WritableExt + Deref on Global); glob-import it the way
+// tests/runtime.rs does so method resolution matches the lib exactly.
+use dioxus::prelude::*;
 
 /// The static registry exposes the ten user-facing flows the E2E drives:
 /// Go-to-* navigation, theme, switcher, and the New-* resource actions.

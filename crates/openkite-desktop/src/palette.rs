@@ -468,7 +468,6 @@ fn PalettePanel() -> Element {
 /// description as a v1 hover tooltip.
 #[component]
 fn PaletteRow(cmd: Command, is_selected: bool) -> Element {
-    // `Navigator` is not `PartialEq`, so it cannot be a component prop — read it from context inside the component.
     let nav = use_navigator();
     let row_class = if is_selected {
         "palette-row selected"

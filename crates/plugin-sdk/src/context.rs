@@ -18,7 +18,6 @@ pub struct PluginContext {
 /// Read-only view of the current theme.
 #[derive(Clone)]
 pub struct ThemeReadHandle {
-    // Filled in by core during `PluginContext` construction.
     pub(crate) values: std::collections::HashMap<String, String>,
 }
 

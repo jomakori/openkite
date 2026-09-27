@@ -11,7 +11,6 @@
 //! exactly one global (or one disjoint set) and sequences its assertions
 //! internally — safe under cargo's parallel test execution.
 
-use dioxus::prelude::*;
 use openkite::runtime::CrudTarget;
 use openkite::runtime::{
     clear_crud_target, context_name, current_route, js_plugins, open_delete_for, open_editor_for,
@@ -19,6 +18,10 @@ use openkite::runtime::{
     set_namespaces, set_prometheus, set_selected_namespaces, toggle_namespace, CRUD_TARGET,
     SELECTED_NAMESPACES,
 };
+// `.read()` / `.write()` on the global signals come from the dioxus
+// prelude (ReadableExt/WritableExt + Deref on Global); glob-import it the
+// way the lib does so the method resolution matches exactly.
+use dioxus::prelude::*;
 
 fn crud_target() -> Option<CrudTarget> {
     CRUD_TARGET.read().clone()

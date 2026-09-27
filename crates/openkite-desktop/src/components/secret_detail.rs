@@ -164,7 +164,6 @@ pub fn SecretDetail() -> Element {
     let mut secrets_map: Signal<HashMap<String, MaskedSecret>> = use_signal(HashMap::new);
     let mut reveal_all_open: Signal<bool> = use_signal(|| false);
 
-    // Task slot: abort the Esc poll loop on re-run so it never stacks.
     let mut esc_task = use_hook(|| CopyValue::new(None::<dioxus::core::Task>));
 
     use_effect(move || {

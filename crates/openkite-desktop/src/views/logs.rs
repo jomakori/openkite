@@ -185,7 +185,6 @@ pub fn LogsView() -> Element {
     let mut at_bottom = use_signal_sync(|| true);
     let mut lines = use_signal_sync(LineBuffer::default);
 
-    // Task slot: abort the in-flight drain before spawning a replacement, or re-runs stack loops.
     let mut task_slot = use_hook(|| CopyValue::new(None::<JoinHandle<()>>));
 
     use_effect(move || {

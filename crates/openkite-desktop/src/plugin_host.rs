@@ -49,7 +49,9 @@ impl PluginRegistry {
     ///     self.register(Box::new(openkite_plugin_argocd::ArgocdPlugin::new()));
     /// }
     /// ```
-    pub fn load_static(&mut self, _config: &crate::config::OpenKiteConfig) {}
+    pub fn load_static(&mut self, _config: &crate::config::OpenKiteConfig) {
+        // No bundled plugins in Phase 1 — hook left for Phase 2.
+    }
 
     /// Fan out cluster connect, in registration order. Errors and panics are
     /// logged per plugin; the app keeps running.
@@ -213,7 +215,6 @@ mod tests {
     /// Lazy client — points at a non-existent cluster but never connects
     /// (mirrors the SDK's own test).
     fn test_context() -> PluginContext {
-        // kube's `rustls-tls` feature needs a process-level crypto provider installed.
         let _ = rustls::crypto::ring::default_provider().install_default();
         let url: http::Uri = "http://127.0.0.1:1".parse().expect("uri");
         let config = kube::Config::new(url);

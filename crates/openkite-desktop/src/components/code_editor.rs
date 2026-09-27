@@ -69,7 +69,6 @@ pub fn CodeEditor(
     #[props(default)] on_change: Option<EventHandler<String>>,
     #[props(default)] diagnostics: Vec<Diagnostic>,
 ) -> Element {
-    // Stable per-mount id: the JS mount effect's `querySelector` must find the same `data-cm-host` div on every render.
     let instance_id = use_hook(|| {
         use std::sync::atomic::{AtomicU32, Ordering};
         static COUNTER: AtomicU32 = AtomicU32::new(0);
@@ -80,7 +79,6 @@ pub fn CodeEditor(
     let data_attr_for_effect = data_attr.clone();
     let text_json = serde_json::to_string(&text).unwrap_or_else(|_| "\"\"".into());
     let read_only_js = if read_only { "true" } else { "false" };
-    // Owned `String` before the effect: an `Option<&Diagnostic>` borrow of a temporary cannot be captured by a `'static` closure (E0716).
     let diag_json = match diagnostics.first() {
         Some(d) => serde_json::to_string(&serde_json::json!({
             "message": d.message,
@@ -116,7 +114,6 @@ pub fn CodeEditor(
     });
 
     use_effect(move || {
-        // `on_change` is public surface with no consumer yet, hence the `let _ =`.
         let _ = on_change;
         let selector = format!("[data-cm-host=\"{data_attr_for_effect}\"]");
         let mount = format!(

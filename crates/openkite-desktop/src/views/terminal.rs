@@ -95,7 +95,6 @@ pub fn TerminalView() -> Element {
     let mut container = use_signal_sync(|| default_container(&containers).unwrap_or_default());
     let last_error = use_signal_sync(String::new);
 
-    // Task slot: cancel the in-flight exec fetch before spawning a fresh one.
     let mut fetch_slot = use_hook(|| CopyValue::new(None::<dioxus::core::Task>));
 
     let instance_id = use_hook(|| {

@@ -15,7 +15,6 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-// `watch()`/`unwatch()` are inherent to the `Watcher` trait — the trait must be in scope.
 use notify::Watcher;
 
 /// A plugin's `manifest.json` — the contract a JS plugin must declare.
@@ -301,7 +300,6 @@ pub fn watch_plugins(
     root: &Path,
     tx: std::sync::mpsc::Sender<PluginChange>,
 ) -> Result<notify::RecommendedWatcher, notify::Error> {
-    // The notify callback is `'static`, so capture an owned copy of the root.
     let root_owned = root.to_path_buf();
     let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
         let Ok(event) = res else {

@@ -201,7 +201,6 @@ pub fn CrudEditor(initial_doc: Option<Value>, target_kind: String, mode: EditorM
     let mut toast: Signal<Option<String>> = use_signal(|| None::<String>);
     let mut pending: Signal<bool> = use_signal(|| false);
 
-    // Precompute the `(line, column, message)` string outside `rsx!` so the macro never sees a method call inside an interpolation.
     let parsed: Result<Value, String> = match parse_yaml(&text.read()) {
         Ok(v) => Ok(v),
         Err(diag) => Err(format!(

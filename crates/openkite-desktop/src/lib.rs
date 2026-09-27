@@ -40,7 +40,6 @@ pub mod yaml;
 /// Bootstrap OpenKite: load config, plugins, and kubeconfig, then launch the UI.
 #[cfg(feature = "desktop")]
 pub fn run() {
-    // stderr, not stdout: WebKit does not flush stdout reliably to a redirected log and CI greps app.log.
     tracing_subscriber::fmt()
         .with_writer(std::io::stderr)
         .init();
@@ -93,7 +92,6 @@ pub fn run() {
 
     let head = bootstrap_head();
 
-    // Dioxus 0.7 global signals are backed by the runtime: reading or writing one outside an active runtime panics.
     let client = cluster.client().cloned();
     let active = cluster.active().map(str::to_string);
     let contexts = cluster.contexts().to_vec();
@@ -102,7 +100,6 @@ pub fn run() {
     #[allow(unused_mut)]
     let mut desktop_config = dioxus::desktop::Config::new().with_custom_head(head);
 
-    // macOS keeps dioxus-desktop's default menu: its global menu bar cannot be hidden and carries the edit accelerators.
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
     if menubar::hideable() {
         let menu = menubar::build_menu();
@@ -116,7 +113,6 @@ pub fn run() {
         tracing::warn!("menu bar cannot be hidden on this platform; keeping the system menu");
     }
 
-    // `System` is tao's `None` (follow the OS), so only an explicit Light/Dark reconstructs the builder.
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
     if config.title_bar_theme != config::TitleBarTheme::System {
         desktop_config =
@@ -162,7 +158,6 @@ fn bootstrap_head() -> String {
 mod tests {
     use super::*;
 
-    // `run()` cannot mount headless (process-global tracing init, runtime-bound signals, kubeconfig), so only its pure sub-logic is pinned here.
     #[test]
     fn bootstrap_head_wraps_css_and_bridge_script() {
         let head = bootstrap_head();

@@ -20,9 +20,9 @@ pub struct PromQuery {
 #[derive(Debug, Clone, PartialEq)]
 pub struct PromRangeQuery {
     pub expr: String,
-    pub start: f64,
-    pub end: f64,
-    pub step: f64,
+    pub start: f64, // unix seconds
+    pub end: f64,   // unix seconds
+    pub step: f64,  // seconds
 }
 
 /// One `(timestamp_unix, value)` pair. Timestamp is seconds (Prometheus

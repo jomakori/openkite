@@ -22,7 +22,6 @@ pub type SharedBridge = Arc<Bridge>;
 
 /// Build the host router: the console's two endpoints, then the bundle.
 pub fn router(bridge: SharedBridge, web_root: &Path) -> Router {
-    // The console routes client-side, so an unknown path has to answer the shell — otherwise a deep link 404s.
     let assets = ServeDir::new(web_root).fallback(ServeFile::new(web_root.join("index.html")));
     Router::new()
         .route("/openkite", post(bridge_post))

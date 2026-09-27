@@ -215,7 +215,6 @@ pub fn publish(kind: &str, ns: Option<&str>, rows: Vec<Value>) -> usize {
     let messages = {
         let mut reg = match registry().lock() {
             Ok(reg) => reg,
-            // Poisoned lock: dropping a UI update is survivable, aborting a bridge request is not.
             Err(poisoned) => poisoned.into_inner(),
         };
         let matched = reg.matching(kind, ns);
@@ -348,7 +347,6 @@ mod tests {
 
     #[test]
     fn publish_without_a_pump_is_a_no_op_not_a_panic() {
-        // No AppShell mount in a unit test means no channel: return 0 rather than panic.
         let mut reg = registry().lock().unwrap();
         let sub = reg.subscribe("pods", None);
         drop(reg);

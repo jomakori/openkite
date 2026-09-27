@@ -113,7 +113,6 @@ impl Bridge {
             ApiRequest::Subscribe { kind, ns } => {
                 let sub = match crate::push::registry().lock() {
                     Ok(mut reg) => reg.subscribe(kind.clone(), ns.clone()),
-                    // Poisoned lock: recover the data rather than failing the caller's request.
                     Err(poisoned) => poisoned.into_inner().subscribe(kind.clone(), ns.clone()),
                 };
                 let initial = match self.client() {

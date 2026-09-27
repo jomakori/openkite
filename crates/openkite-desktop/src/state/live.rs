@@ -156,7 +156,6 @@ impl LiveResources {
 
     /// Tear every reflector down (disconnect / context switch).
     pub fn stop(&mut self) {
-        // Explicit per-kind stop rather than a loop over a map: `ResourceState<T>` is generic, so each kind is a distinct type.
         macro_rules! stop_all {
             ($($field:ident),* $(,)?) => {
                 $( if let Some(mut state) = self.$field.take() { state.stop(); } )*
@@ -417,7 +416,6 @@ mod tests {
 
     #[test]
     fn snapshot_of_an_unwatched_kind_is_none_not_empty() {
-        // `None` (not `Some(vec![])`) is what tells the bridge to fall back to a real list, so an unwatched kind must never report as watched.
         let resources = LiveResources::default();
         for kind in ["pods", "deployments", "secrets", "services", "nonsense"] {
             assert!(resources.snapshot_json(kind).is_none(), "{kind}");

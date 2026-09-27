@@ -276,7 +276,6 @@ users:
         };
 
         assert!(state.discovery().is_some());
-        // `kube::Client`/`tokio::Handle` have no `PartialEq`, so presence is the observable surface.
         assert!(state
             .plugin_context(tokio::runtime::Handle::current())
             .is_some());

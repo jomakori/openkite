@@ -466,7 +466,6 @@ fn render_table_row(
 /// Render a single table cell (plain text, status pill, or rich extra).
 fn render_table_cell(cell: &Cell, index: usize, width: Option<u32>) -> Element {
     let style = width.map(|w| format!("width: {w}px")).unwrap_or_default();
-    // Precomputed outside `rsx!`: the macro cannot parse a bare `match` expression as an element body.
     let dot_classes: Vec<&'static str> = match &cell.extras {
         CellExtras::HealthDots(dots) => dots
             .iter()

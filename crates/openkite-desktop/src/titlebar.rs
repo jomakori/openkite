@@ -86,7 +86,6 @@ pub fn apply(_theme: TitleBarTheme) {
     not(any(target_os = "ios", target_os = "android"))
 ))]
 pub fn effective_label() -> Option<&'static str> {
-    // `try_consume_context` rather than `desktop::window()` so headless renders (tests) read `None` instead of panicking.
     let context = dioxus::prelude::try_consume_context::<dioxus::desktop::DesktopContext>()?;
     Some(effective_for(&context.window))
 }

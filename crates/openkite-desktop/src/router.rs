@@ -142,7 +142,6 @@ pub enum Route {
 
 #[component]
 fn AppShell() -> Element {
-    // The `/openkite` handler is polled on a tokio worker and cannot touch a Dioxus signal: it pings `MIRROR_TX` and this receiver writes in-runtime.
     use_hook(|| {
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<()>();
         let _ = MIRROR_TX.set(tx);
@@ -165,7 +164,6 @@ fn AppShell() -> Element {
         }
     });
 
-    // `document::eval` resolves the document from the thread-local Dioxus runtime, so from a tokio worker it would silently target the no-op document.
     use_hook(|| {
         if let Some(mut rx) = crate::push::install() {
             spawn(async move {
@@ -176,7 +174,6 @@ fn AppShell() -> Element {
         }
     });
 
-    // Live reflector state must start inside the Dioxus runtime (each kind creates a `Signal`), so it cannot live at the boot connect in `lib.rs`; `start` is idempotent per kind.
     use_effect(move || {
         if let Some(client) = crate::runtime::client() {
             if !crate::state::live::is_watching() {
@@ -317,7 +314,6 @@ fn dispatch_bridge_post(req: AssetRequest, responder: RequestAsyncResponder) {
         return;
     };
     let text = text.to_string();
-    // The E2E bridge guard keys on this greppable envelope: a contained panic in the mirror would otherwise leave the UI looking healthy.
     let is_register = serde_json::from_str::<BridgeRequest>(&text)
         .map(|envelope| matches!(envelope.request, ApiRequest::Register { .. }))
         .unwrap_or(false);
@@ -351,7 +347,6 @@ fn refresh_registrations(bridge: &Arc<Bridge>) {
             let snapshot = bridge.snapshot();
             if *mirror != snapshot {
                 *mirror = snapshot;
-                // Greppable by the E2E bridge guard: proves the mirror write ran on the Dioxus side after the tokio ping.
                 tracing::info!(plugins = ?mirror.plugins(), "registration mirror updated");
             }
         }

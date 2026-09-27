@@ -64,7 +64,6 @@ async fn select_context(context: String) -> Result<(), String> {
         .get()
         .ok_or_else(|| "cluster registry unavailable".to_string())?;
     let mut guard = registry.lock().await;
-    // Drop the outgoing cluster's watch streams first: a stale reflector keeps pushing rows from the previous cluster.
     crate::state::live::stop();
     let client = guard
         .connect(&context)
@@ -72,7 +71,6 @@ async fn select_context(context: String) -> Result<(), String> {
         .map_err(|error| format!("{error:#}"))?;
     crate::runtime::set_client(Some(client.clone()));
     crate::runtime::set_context(Some(context));
-    // `start` is synchronous and idempotent per kind, so reconnecting does not stack a second stream on the same kind.
     crate::state::live::start(client.clone());
     if let Some(bridge) = crate::runtime::bridge() {
         bridge.set_client(Some(client));
