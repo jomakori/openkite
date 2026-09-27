@@ -29,6 +29,7 @@ if pr != '':
 
     flags = [
         '--create-namespace',
+        '--take-ownership',
         '--set=appName=openkite',
         '--set=openkite.namespaceOverride=' + namespace,
         '--set=openkite.createNamespace=true',
