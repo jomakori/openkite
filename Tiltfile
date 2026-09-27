@@ -64,22 +64,10 @@ if pr != '':
     )
 
 if dev_loop:
-    docker_build(
-        'openkite-dev',
-        'tilt/dev',
-        dockerfile='tilt/dev/Dockerfile',
-        only=['tilt/dev/Dockerfile'],
-    )
-
     local_resource(
         'cargo-check',
-        cmd='docker run --rm '
-            '-v "$(pwd)":/app -w /app '
-            '-v openkite-target:/app/target '
-            '-v openkite-cargo:/usr/local/cargo/registry '
-            'openkite-dev cargo check --workspace',
+        cmd='cargo check --workspace',
         deps=['Cargo.toml', 'Cargo.lock', 'crates'],
-        resource_deps=['openkite-dev'],
     )
 
     local_resource(

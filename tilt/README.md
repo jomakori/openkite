@@ -11,7 +11,6 @@ nothing here replaces the other two rungs.
 
 ```
 Tiltfile                both loops (root, because Tilt requires it there)
-tilt/dev/Dockerfile     dev image for the laptop loop                    (Docker)
 web/build.sh            browser bundle -> web/dist (existing repo entry point)
 ```
 
@@ -76,19 +75,21 @@ that branch.
 ## The dev loop
 
 ```sh
-tilt up            # dev image + cargo-check + dx serve
+tilt up            # cargo-check + dx serve
 ```
 
-- `openkite-dev` (`docker_build`, `tilt/dev/Dockerfile`) carries stable Rust and
-  the same system packages CI installs (`.github/actions/rust-setup/action.yml`);
-  the workspace is bind-mounted at `/app`, so the image survives source edits.
-- `cargo-check` runs `cargo check --workspace` inside that image, on change.
-- `openkite-ui` is `cd crates/openkite-desktop && dx serve` — the Dioxus dev
-  server with hot reload, on the host because it is a GUI.
+Both resources run on the host toolchain; the Tiltfile builds no image, so the
+dev loop needs no Docker daemon.
 
-`OPENKITE_DEV_LOOP=0` omits the two Docker-backed resources; that is what the
-preview runner (which has no Docker daemon) sets, since a `docker_build` in the
-Tiltfile is otherwise built by `tilt up`.
+- `cargo-check` runs `cargo check --workspace` on change.
+- `openkite-ui` is `cd crates/openkite-desktop && dx serve` — the Dioxus dev
+  server with hot reload.
+- The desktop crates link WebKitGTK and GTK, so the host needs the native packages
+  CI installs (`.github/actions/rust-setup/action.yml`); the browser target
+  (`npm run build:web`) needs none of them.
+
+`OPENKITE_DEV_LOOP=0` skips both; that is what the preview runner sets, since
+`dx serve` needs a display.
 
 ## What a preview cannot prove
 
