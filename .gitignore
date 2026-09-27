@@ -16,4 +16,3 @@
 /web/test/.ssr/
 # Visual-capture wrapper log (e2e/visual/cluster/capture.sh).
 /.capture.log
-/tilt/out/

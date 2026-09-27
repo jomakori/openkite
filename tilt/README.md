@@ -10,54 +10,49 @@ work" — the real image, the real migrations, the real dependencies. Prod answe
 nothing here replaces the other two rungs.
 
 ```
-Tiltfile            both loops (root, because Tilt requires it there)
-tilt/select-base.sh     which released tag a preview stands on          (no Docker)
-tilt/preview-render.sh  the app spec at pr<N> coordinates               (no Docker)
-tilt/preview-apply.sh   apply_cmd: render → kubectl apply → annotate    (no Docker)
-tilt/preview-delete.sh  delete_cmd: tear the environment down           (no Docker)
-tilt/build-bundle.sh    the artifacts the overlay syncs (web bundle)    (no Docker)
-tilt/build-server.sh    compile-and-swap for Rust in the container       (no Docker)
+Tiltfile                both loops (root, because Tilt requires it there)
 tilt/dev/Dockerfile     dev image for the laptop loop                    (Docker)
+web/build.sh            browser bundle -> web/dist (existing repo entry point)
 ```
+
+There is no helper script and no Makefile. The Tiltfile is the configuration: the
+chart comes from the GitOps repo, Tilt installs it, Tilt tears it down.
 
 ## The preview loop
 
 Run by the preview runner, and by hand like this:
 
 ```sh
-tilt/build-bundle.sh                     # web/dist -> tilt/out/bundle
 OPENKITE_PR=123 OPENKITE_DEV_LOOP=0 \
   KUBECONFIG=... tilt up                 # https://pr123-openkite.maklab.net
 ```
 
 What it does:
 
-1. **Base selection** (`tilt/select-base.sh`). The base is the newest release tag
-   whose commit is an ancestor of the head — never simply the newest release,
-   because standing a branch on main-after-it would preview code that never
-   existed on that branch. A branch that predates every release tag falls back to
-   the newest release, and says so on stderr. The chosen tag is recorded on the
-   namespace as `openkite.maklab.net/preview-base`, so an operator reads what an
-   environment stands on instead of inferring it from an image tag.
-2. **Render** (`tilt/preview-render.sh`). The GitOps app chart (`apps/helm`, the
-   spec prod renders from) at `pr<N>` coordinates: namespace `openkite-pr<N>`,
-   host `pr<N>-openkite.maklab.net`, image `ghcr.io/jomakori/openkite:<base>`,
-   Cloudflare Access gate on. Every coordinate is asserted against the rendered
-   text: helm ignores a value key the chart revision does not know, so without
-   those guards a stale chart would render this preview into
-   `openkite-production`.
-3. **Apply** (`tilt/preview-apply.sh`, the Tiltfile's `apply_cmd`).
-   `kubectl apply` over the Kubernetes API. No Docker daemon, no image build, no
-   registry write, no per-PR image to prune.
-4. **Overlay** (`live_update`). `initial_sync()` puts the whole
-   `tilt/out/bundle` into the served root on pod start — the base image already
-   carries a working copy of the bundle, so the preview is a working site from
-   the first second — and `sync()` keeps it current as the branch is edited.
+1. **Base selection.** `git tag --merged HEAD --sort=-v:refname --list 'v*'` — the
+   newest release tag whose commit is an ancestor of the head, never simply the
+   newest release, because standing a branch on main-after-it would preview code
+   that never existed on that branch. No tag → the Tiltfile fails with the fix
+   (`git fetch --tags`). Override with `OPENKITE_BASE_TAG`.
+2. **Install.** `helm_resource` (`ext://helm_resource`) installs the GitOps app
+   chart `apps/helm` — the same spec prod and staging render from — at `pr<N>`
+   coordinates: namespace `openkite-pr<N>`, host `pr<N>-openkite.maklab.net`,
+   image `ghcr.io/jomakori/openkite:<base>`, both environment doppler configs, the
+   Cloudflare Access gate. Tilt runs `helm upgrade --install`, so the resources are
+   first-class to Tilt: health, logs and port-forwards work, and `tilt down` is
+   `helm uninstall`.
+3. **Overlay.** `live_update` syncs `web/dist` into the served root.
+   `initial_sync()` puts the whole bundle in place on pod start — the base image
+   already carries a working copy, so the preview is a working site from the first
+   second — and `sync()` keeps it current as `web/src` is edited. `openkite-web`
+   reruns `web/build.sh` on change, so the overlay is the branch's real build.
 
-`tilt down`, or removing the preview label, runs `delete_cmd`
-(`tilt/preview-delete.sh`): the rendered objects go, then the namespace — but only
-if it carries the base annotation, so `tilt down` cannot delete an environment
-some other owner created.
+`OPENKITE_CHART` (default `../gke_GitOps/apps/helm`) points at a local checkout of
+the GitOps repo; the Tiltfile fails with that instruction when the path is absent.
+
+The namespace is created by `--create-namespace` and, like any Helm-created
+namespace, is not removed by `helm uninstall`. After `tilt down`, delete it with
+`kubectl delete ns openkite-pr<N>`.
 
 ### The one prerequisite a preview image must satisfy
 
@@ -98,13 +93,9 @@ Tiltfile is otherwise built by `tilt up`.
 ## What a preview cannot prove
 
 - **Rust that runs in the container.** `crates/openkite-web` is a real server
-  process; a file sync moves files, not compiled behaviour. The honest path is
-  compile-and-swap (`tilt/build-server.sh`): compile in a temporary in-cluster
-  build pod on the architecture that will run it, pull the binary out, sync it,
-  `restart_container()`. Today's released image is a static server with no host
-  binary to replace, so the Tiltfile carries no sync step for it yet — pretending
-  otherwise would sync into a path that does not exist. Until that image ships,
-  a server-crate diff is proven by staging.
+  process; a file sync moves files, not compiled behaviour. Today's released image
+  is a static server with no host binary to replace, so the Tiltfile carries no
+  sync step for it — a server-crate diff is proven by staging.
 - **The image.** The preview explicitly does not build one: `Dockerfile` changes,
   package additions, and anything `docker build` does are staging's job.
 - **Dependencies, migrations, new environment, the release pipeline.** Staging.

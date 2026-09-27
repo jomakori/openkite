@@ -1,45 +1,66 @@
+load('ext://helm_resource', 'helm_resource')
 
 pr = os.getenv('OPENKITE_PR', '')
 dev_loop = os.getenv('OPENKITE_DEV_LOOP', '1') != '0'
+chart = os.getenv('OPENKITE_CHART', '../gke_GitOps/apps/helm')
 
 if pr != '':
-    namespace = os.getenv('OPENKITE_NAMESPACE', 'openkite-pr' + pr)
-    host = os.getenv('OPENKITE_PREVIEW_HOST', 'pr' + pr + '-openkite.maklab.net')
-    image_repository = os.getenv('OPENKITE_IMAGE_REPOSITORY', 'ghcr.io/jomakori/openkite')
-    sync_root = os.getenv('OPENKITE_SYNC_ROOT', '/usr/share/nginx/html')
+    if not os.path.exists(chart):
+        fail('No chart at ' + chart + '. Point OPENKITE_CHART at the gke_GitOps apps/helm checkout.')
 
-    if not os.path.exists('tilt/out/bundle'):
-        local('mkdir -p tilt/out/bundle')
+    namespace = 'openkite-pr' + pr
+    host = 'pr' + pr + '-openkite.maklab.net'
+    base = os.getenv('OPENKITE_BASE_TAG', local('git tag --merged HEAD --sort=-v:refname --list "v*" | head -1'))
 
-    coordinates = {
-        'OPENKITE_PR': pr,
-        'OPENKITE_NAMESPACE': namespace,
-    }
+    if base == '':
+        fail('No release tag is an ancestor of this branch. Run: git fetch --tags')
 
-    k8s_custom_deploy(
+    if not os.path.exists('web/dist'):
+        local('bash web/build.sh')
+
+    flags = [
+        '--create-namespace',
+        '--set=appName=openkite',
+        '--set=openkite.namespaceOverride=' + namespace,
+        '--set=openkite.createNamespace=true',
+        '--set=openkite.enable_domain=true',
+        '--set=openkite.enable_staging=false',
+        '--set=openkite.environments.production.tag=' + base,
+        '--set=openkite.environments.production.subdomain=pr' + pr + '-openkite',
+        '--set=openkite.environments.production.dopplerConfig=svc_openagent',
+        '--set=openkite.environments.staging.dopplerConfig=svc_openagent',
+    ]
+
+    # Helm ignores a value key the chart revision does not know, which would render this preview at prod coordinates.
+    rendered = local(
+        'helm template openkite-preview-' + pr + ' ' + chart + ' ' + ' '.join(flags)
+        + ' 2>/dev/null || true',
+        echo_off=True,
+    )
+    for needle in [namespace, host, base]:
+        if needle not in rendered:
+            fail('The chart did not render ' + needle + '. It is stale or the values moved; refusing to install.')
+
+    helm_resource(
         'openkite-preview',
-        apply_cmd='./tilt/preview-apply.sh',
-        delete_cmd='./tilt/preview-delete.sh',
-        apply_env=coordinates,
-        delete_env=coordinates,
-        deps=[
-            'tilt/preview-apply.sh',
-            'tilt/preview-delete.sh',
-            'tilt/preview-render.sh',
-            'tilt/select-base.sh',
-            'tilt/out/bundle',
-        ],
-        image_selector=image_repository,
+        chart,
+        namespace=namespace,
+        release_name='openkite-preview-' + pr,
+        flags=flags,
+        deps=['web/dist'],
+        container_selector='openkite',
         live_update=[
             initial_sync(),
-            sync('./tilt/out/bundle', sync_root),
+            sync('./web/dist', '/usr/share/nginx/html'),
         ],
+        port_forwards=['8080:8080'],
+        links=['https://' + host],
     )
 
-    k8s_resource(
-        'openkite-preview',
-        port_forwards='8080:8080',
-        links=['https://' + host],
+    local_resource(
+        'openkite-web',
+        cmd='bash web/build.sh',
+        deps=['web/src', 'web/index.html', 'web/index.web.html', 'web/vite.config.ts', 'web/package.json'],
     )
 
 if dev_loop:
