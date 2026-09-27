@@ -75,20 +75,24 @@ that branch.
 ## The dev loop
 
 ```sh
-tilt up            # cargo-check + dx serve
+tilt up            # cargo-check + openkite-host + dx serve
 ```
 
-Both resources run on the host toolchain; the Tiltfile builds no image, so the
-dev loop needs no Docker daemon.
+All three run on the host toolchain; the Tiltfile builds no image, so the dev
+loop needs no Docker daemon.
 
 - `cargo-check` runs `cargo check --workspace` on change.
+- `openkite-host` runs the real server binary (`cargo run -p openkite-web`) on
+  port 8090, reading the cluster through `KUBECONFIG`. It serves the console
+  bundle *and* the bridge the console calls, so `http://localhost:8090` is the
+  whole app locally rather than static assets. It restarts on change.
 - `openkite-ui` is `cd crates/openkite-desktop && dx serve` — the Dioxus dev
   server with hot reload.
 - The desktop crates link WebKitGTK and GTK, so the host needs the native packages
   CI installs (`.github/actions/rust-setup/action.yml`); the browser target
   (`npm run build:web`) needs none of them.
 
-`OPENKITE_DEV_LOOP=0` skips both; that is what the preview runner sets, since
+`OPENKITE_DEV_LOOP=0` skips all three; that is what the preview runner sets, since
 `dx serve` needs a display.
 
 ## What a preview cannot prove

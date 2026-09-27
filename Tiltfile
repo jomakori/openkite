@@ -58,7 +58,7 @@ if pr != '':
     )
 
     local_resource(
-        'openkite-web',
+        'openkite-bundle',
         cmd='bash web/build.sh',
         deps=['web/src', 'web/index.html', 'web/index.web.html', 'web/vite.config.ts', 'web/package.json'],
     )
@@ -68,6 +68,13 @@ if dev_loop:
         'cargo-check',
         cmd='cargo check --workspace',
         deps=['Cargo.toml', 'Cargo.lock', 'crates'],
+    )
+
+    local_resource(
+        'openkite-host',
+        serve_cmd='OPENKITE_ADDR=0.0.0.0:8090 cargo run -p openkite-web',
+        deps=['Cargo.toml', 'Cargo.lock', 'crates'],
+        links=['http://localhost:8090'],
     )
 
     local_resource(
