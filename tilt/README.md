@@ -1,91 +1,98 @@
 # The Tilt loops
 
-**Previews prove the change, staging proves the build, prod proves the release.**
-
-Three rungs, three different questions. A preview answers "does this branch render
-what I think it renders" in about a minute, from a released image, with no image
-build and no registry write. Staging answers "does the artifact we would ship
-work" — the real image, the real migrations, the real dependencies. Prod answers
-"does the release work for everyone". A preview is not a smaller staging, and
-nothing here replaces the other two rungs.
+Tilt runs two loops in this repository: a preview of a pull request, and the
+developer loop on a workstation. Both are declared in the `Tiltfile` at the
+repository root. There is no helper script and no Makefile: the `Tiltfile` is
+the configuration, and the chart it installs lives in the GitOps repository.
 
 ```
 Tiltfile                both loops (root, because Tilt requires it there)
-web/build.sh            browser bundle -> web/dist (existing repo entry point)
+web/build.sh            browser bundle -> web/dist
 ```
-
-There is no helper script and no Makefile. The Tiltfile is the configuration: the
-chart comes from the GitOps repo, Tilt installs it, Tilt tears it down.
 
 ## The preview loop
 
-Run by the preview runner, and by hand like this:
+A preview is an environment for one pull request, served at
+`https://pr<N>-openkite.maklab.net`. It runs the released image and overlays the
+pull request's own browser bundle, so it answers one question: does this branch
+render what its author thinks it renders.
+
+The `preview` label on a pull request is the whole contract.
+
+- Adding the label deploys the environment from the release tag the branch is
+  based on, and syncs the branch's `web/dist` into it.
+- Removing the label, or closing the pull request, uninstalls the release and
+  deletes the environment.
+- A failed deploy removes the label, so the label always means the environment
+  exists.
+
+Run it by hand the same way:
 
 ```sh
 OPENKITE_PR=123 OPENKITE_DEV_LOOP=0 \
-  KUBECONFIG=... tilt up                 # https://pr123-openkite.maklab.net
+  KUBECONFIG=... tilt up
 ```
 
-In CI the loop runs headless — `tilt ci` in place of `tilt up` — and the `preview`
-label on the pull request is the whole contract:
+Continuous integration runs `tilt ci` in place of `tilt up`: the same loop,
+headless,
+ending when the resources are healthy. The environment outlives the run.
 
-- **Add the label.** The runner installs the chart at the PR's coordinates on the
-  newest ancestor release tag and syncs the branch's `web/dist` in. Nothing is built
-  and nothing is published: no image, no registry object, no Docker.
-- **Remove the label, or close the PR.** The release is uninstalled and the
-  environment deleted.
-- **A failed deploy takes the label off**, so the label always means the environment
-  exists.
+What the loop does:
 
-The appset must not also generate an Application for a labelled PR: its applications
-run with selfHeal, so ArgoCD would reconcile every sync away. One owner per
-environment — here, Tilt.
-
-What it does:
-
-1. **Base selection.** `git tag --merged HEAD --sort=-v:refname --list 'v*'` — the
-   newest release tag whose commit is an ancestor of the head, never simply the
-   newest release, because standing a branch on main-after-it would preview code
-   that never existed on that branch. No tag → the Tiltfile fails with the fix
-   (`git fetch --tags`). Override with `OPENKITE_BASE_TAG`.
-2. **Install.** `helm_resource` (`ext://helm_resource`) installs the GitOps app
-   chart `apps/helm` — the same spec prod and staging render from — at `pr<N>`
-   coordinates: namespace `openkite-pr<N>`, host `pr<N>-openkite.maklab.net`,
-   image `ghcr.io/jomakori/openkite:<base>`, both environment doppler configs, the
-   Cloudflare Access gate. Tilt runs `helm upgrade --install`, so the resources are
-   first-class to Tilt: health, logs and port-forwards work, and `tilt down` is
+1. **Base selection.** `git tag --merged HEAD --sort=-v:refname --list 'v*'`
+   picks
+   the newest release tag whose commit is an ancestor of the head. An ancestor
+   is
+   required rather than the newest release, because a branch based on an older
+   commit would otherwise preview code that never existed on it. Override with
+   `OPENKITE_BASE_TAG`; without a tag the `Tiltfile` stops and asks for
+   `git fetch --tags`.
+2. **Install.** `helm_resource` installs the GitOps app chart `apps/helm`, the
+   same
+   chart that renders the staging and production environments, at the
+   coordinates of
+   this pull request: environment `openkite-pr<N>`, host
+   `pr<N>-openkite.maklab.net`, image `ghcr.io/jomakori/openkite:<base>`, the
+   Cloudflare Access gate. Because Tilt runs `helm upgrade --install`, the
+   resources
+   are first-class to Tilt: health, logs and port-forwards work, and `tilt down`
+   is
    `helm uninstall`.
-3. **Overlay.** `live_update` syncs `web/dist` into the served root.
-   `initial_sync()` puts the whole bundle in place on pod start — the base image
-   already carries a working copy, so the preview is a working site from the first
-   second — and `sync()` keeps it current as `web/src` is edited. `openkite-web`
-   reruns `web/build.sh` on change, so the overlay is the branch's real build.
+3. **Overlay.** `live_update` syncs `web/dist` into the directory the container
+   serves. `initial_sync()` places the whole bundle when the container starts,
+   so the
+   environment serves a working site from the first second, and `sync()` keeps
+   it
+   current as the sources change; `openkite-web` rebuilds the bundle on change.
 
-`OPENKITE_CHART` (default `../gke_GitOps/apps/helm`) points at a local checkout of
-the GitOps repo; the Tiltfile fails with that instruction when the path is absent.
+`OPENKITE_CHART` (default `../gke_GitOps/apps/helm`) points at a local checkout
+of
+the GitOps repository. The `Tiltfile` stops with that instruction when the path
+is
+absent.
 
-The namespace is created by `--create-namespace` and, like any Helm-created
-namespace, is not removed by `helm uninstall`. After `tilt down`, delete it with
-`kubectl delete ns openkite-pr<N>`.
+The environment is created with `--create-namespace`, and `helm uninstall`
+leaves a
+namespace behind: delete it with `kubectl delete ns openkite-pr<N>`.
 
-### The one prerequisite a preview image must satisfy
+### One component owns an environment
 
-The container runs as uid 101 (nginx) and Live Update's sync writes into the
-container as that user. The released image keeps `/usr/share/nginx/html`
-`root:root 755`, where uid 101 cannot write — checked on a live preview pod:
+The chart is the deployment in every rung, so a preview may not also be rendered
+by
+the ApplicationSet that serves the GitOps cluster: those applications reconcile
+with
+`selfHeal`, which would undo every file the preview syncs. A pull request
+carries an
+ArgoCD-managed environment or a Tilt-managed one, never both.
 
-```
-$ kubectl -n openkite-pr141 exec pod/openkite-production-… -- sh -c 'id; ls -ld /usr/share/nginx/html'
-uid=101(nginx) gid=101(nginx) groups=101(nginx)
-drwxr-xr-x    1 root     root            32 Sep 26 19:33 /usr/share/nginx/html
-$ … touch /usr/share/nginx/html/.probe
-touch: /usr/share/nginx/html/.probe: Permission denied
-```
+### What the image must allow
 
-So the `runtime` stage of the root `Dockerfile` chowns the served root to the
-container user. Until a release carries that line, a preview's first sync fails
-with a permission error; rebase onto a release that has it, or use staging for
-that branch.
+The container serves as uid 101 and Live Update writes as that user, so the
+directory
+the container serves has to be writable by it. The runtime stage of the root
+`Dockerfile` chowns the served root to the container user for this reason; an
+image
+that does not leaves the first sync failing with a permission error.
 
 ## The dev loop
 
@@ -93,32 +100,40 @@ that branch.
 tilt up            # cargo-check + openkite-host + dx serve
 ```
 
-All three run on the host toolchain; the Tiltfile builds no image, so the dev
-loop needs no Docker daemon.
+All three resources run on the host toolchain. The `Tiltfile` builds no image,
+so
+the dev loop needs no Docker daemon and no registry.
 
 - `cargo-check` runs `cargo check --workspace` on change.
-- `openkite-host` runs the real server binary (`cargo run -p openkite-web`) on
-  port 8090, reading the cluster through `KUBECONFIG`. It serves the console
-  bundle *and* the bridge the console calls, so `http://localhost:8090` is the
-  whole app locally rather than static assets. It restarts on change.
-- `openkite-ui` is `cd crates/openkite-desktop && dx serve` — the Dioxus dev
-  server with hot reload.
-- The desktop crates link WebKitGTK and GTK, so the host needs the native packages
-  CI installs (`.github/actions/rust-setup/action.yml`); the browser target
-  (`npm run build:web`) needs none of them.
+- `openkite-host` runs the server binary, `cargo run -p openkite-web`, on port
+  8090.
+  It serves the console bundle and the bridge the console calls, reading the
+  cluster
+  through `KUBECONFIG`, so `http://localhost:8090` is the whole application on a
+  workstation rather than a set of static assets. It restarts on change.
+- `openkite-ui` runs `dx serve` in `crates/openkite-desktop`, the Dioxus dev
+  server
+  with hot reload.
+- The desktop crates link WebKitGTK and GTK, so the workstation needs the native
+  packages that `.github/actions/rust-setup/action.yml` installs. The browser
+  target,
+  `npm run build:web`, needs none of them.
 
-`OPENKITE_DEV_LOOP=0` skips all three; that is what the preview runner sets, since
-`dx serve` needs a display.
+`OPENKITE_DEV_LOOP=0` omits all three, which is what a runner sets: `dx serve`
+needs
+a display.
 
 ## What a preview cannot prove
 
-- **Rust that runs in the container.** `crates/openkite-web` is a real server
-  process; a file sync moves files, not compiled behaviour. Today's released image
-  is a static server with no host binary to replace, so the Tiltfile carries no
-  sync step for it — a server-crate diff is proven by staging.
-- **The image.** The preview explicitly does not build one: `Dockerfile` changes,
-  package additions, and anything `docker build` does are staging's job.
-- **Dependencies, migrations, new environment, the release pipeline.** Staging.
+A preview overlays files on the released image, so it cannot prove anything that
+a
+file cannot change.
 
-The full ladder and the reasoning behind each rung live in
-`.hermes/plans/env-ladder-v3.md`.
+- **Rust that runs in the container.** The released image serves static assets
+  and
+  carries no host binary to replace, so the `Tiltfile` has no sync step for the
+  server crate. A change to it is proven by staging.
+- **The image.** A preview builds none: `Dockerfile` changes, added packages and
+  anything else `docker build` does belong to staging.
+- **Dependencies, migrations, environment variables and the release pipeline.**
+  Staging.
