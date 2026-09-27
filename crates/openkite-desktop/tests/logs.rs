@@ -60,10 +60,6 @@ fn log_options_map_to_kube_params() {
     assert!(params.timestamps);
 }
 
-// ─────────────────────────────────────────────────────────────
-// Logs view (headless mount).
-// ─────────────────────────────────────────────────────────────
-
 use dioxus::prelude::*;
 use k8s_openapi::api::core::v1::{Container, Pod, PodSpec};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;

@@ -18,7 +18,6 @@ fn resolve_shell_falls_back_by_platform() {
 #[test]
 fn next_chunk_respects_chunk_size() {
     let mut buf = OutputBuffer::new(8);
-    // 16 bytes: two full chunks.
     buf.push(b"abcdefghijklmnop");
     assert_eq!(buf.next_chunk().unwrap(), b"abcdefgh");
     assert_eq!(buf.next_chunk().unwrap(), b"ijklmnop");

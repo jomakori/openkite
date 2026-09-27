@@ -176,7 +176,6 @@ fn search_text_includes_namespace_and_cells() {
 
 #[test]
 fn row_height_is_a_positive_constant() {
-    // Compile-time invariants, kept here so a failure points at this test.
     const _: () = assert!(ROW_HEIGHT > 0.0);
     const _: () = assert!(OVERSCAN == 8);
 }
@@ -206,9 +205,6 @@ fn status_kind_pill_classes_cover_every_variant() {
 
 #[test]
 fn pill_class_mapping_matches_legacy_class() {
-    // Legacy classes map ok→success, warn→warn, err→danger, muted→muted.
-    // A drift in one prefix without the other is a regression in the
-    // design-system re-skin.
     assert_eq!(StatusKind::Running.pill_class(), "success");
     assert_eq!(StatusKind::Ready.pill_class(), "success");
     assert_eq!(StatusKind::Succeeded.pill_class(), "success");
@@ -274,9 +270,7 @@ fn namespace_filter_unknown_selection_returns_no_rows() {
 #[test]
 fn namespace_filter_keeps_cluster_scoped_rows_only_without_selection() {
     let rows = vec![ns_row("cluster-a", None), ns_row("pod-a", Some("default"))];
-    // No selection → everything visible, including cluster-scoped rows.
     assert_eq!(namespace_filter(&rows, &HashSet::new()).len(), 2);
-    // Any active selection → cluster-scoped rows drop out.
     let filtered = namespace_filter(&rows, &ns_set(&["default"]));
     assert_eq!(filtered.len(), 1);
     assert_eq!(filtered[0].id, "pod-a");

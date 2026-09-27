@@ -86,7 +86,6 @@ fn discover_loads_valid_plugins_and_reports_broken_ones() {
     let broken = dir.path().join("broken");
     fs::create_dir_all(&broken).unwrap();
     fs::write(broken.join("manifest.json"), "{not json").unwrap();
-    // Non-dirs are ignored.
     fs::write(dir.path().join("notes.txt"), "hi").unwrap();
 
     let (loaded, errors) = discover_plugins(dir.path());
@@ -125,7 +124,6 @@ fn reconcile_detects_added_removed_and_changed() {
     write_plugin(dir.path(), "keep", "1.0.0");
     write_plugin(dir.path(), "add", "0.1.0");
     let mut reg = JsPluginRegistry::new();
-    // Seed: keep + gone (both enabled).
     reg.upsert(manifest("keep", "1.0.0"), true);
     reg.upsert(manifest("gone", "9.9.9"), true);
 
@@ -148,7 +146,6 @@ fn reconcile_detects_added_removed_and_changed() {
     assert!(reg.is_enabled("add"));
     assert!(reg.is_enabled("keep"));
 
-    // Version bump = Changed, and enabled state survives.
     write_plugin(dir.path(), "keep", "1.1.0");
     let changes = scan_and_reconcile(dir.path(), &mut reg, false).0;
     assert_eq!(changes.len(), 1);

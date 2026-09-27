@@ -44,7 +44,6 @@ fn phase_label_bridge_pending() {
 
 #[test]
 fn phase_label_error() {
-    // The message is rendered separately in the toolbar, not in the label.
     assert_eq!(phase_label(&TerminalPhase::Error("x".into())), "Error");
 }
 
@@ -73,10 +72,6 @@ fn default_container_matches_pick_default_container_semantics() {
     assert_eq!(default_container(&[]), None);
     assert_eq!(default_container(&["".into()]), None);
 }
-
-// ─────────────────────────────────────────────────────────────
-// Terminal view (headless mount).
-// ─────────────────────────────────────────────────────────────
 
 use dioxus::prelude::*;
 use k8s_openapi::api::core::v1::{Container, PodSpec};

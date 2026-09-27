@@ -54,7 +54,6 @@ fn mapped_theme_covers_the_full_contract() {
 #[test]
 fn catppuccin_mocha_resolves_known_hexes() {
     let theme = load_and_map("catppuccin-mocha").unwrap();
-    // Expected hexes are the catppuccin-mocha roles crust, mauve, and text.
     assert_eq!(theme.get("--bg-0"), Some("#11111b"));
     assert_eq!(theme.get("--accent"), Some("#cba6f7"));
     assert_eq!(theme.get("--green"), Some("#a6e3a1"));
@@ -68,7 +67,6 @@ fn bright_terminal_variants_are_lightened() {
     let red = theme.get("--term-red").unwrap().to_string();
     let bright_red = theme.get("--term-bright-red").unwrap().to_string();
     assert_ne!(red, bright_red, "bright red must differ from red");
-    // Lightening toward white strictly increases channel values for mocha's red.
     let r: Vec<u8> = red[1..]
         .chars()
         .collect::<Vec<_>>()
@@ -95,7 +93,6 @@ fn light_themes_produce_light_backgrounds() {
 
 fn hex_luminance(hex: &str) -> u32 {
     let v = u32::from_str_radix(&hex[1..], 16).unwrap();
-    // Rough perceptual-ish sum of channels.
     (v >> 16 & 0xff) + (v >> 8 & 0xff) + (v & 0xff)
 }
 

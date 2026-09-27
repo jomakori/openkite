@@ -56,7 +56,6 @@ fn menu_bar_defaults_to_show_and_persists_as_camel_case() {
     let raw = std::fs::read_to_string(&path).unwrap();
     assert!(raw.contains("menuBar = \"hide\""), "got: {raw}");
 
-    // An old file without the key loads as `show`.
     std::fs::write(&path, "enabled_plugins = []\ndisabled_plugins = []\n").unwrap();
     assert_eq!(
         OpenKiteConfig::load_from(&path).menu_bar,
@@ -91,7 +90,6 @@ fn title_bar_theme_defaults_to_system_and_persists_as_camel_case() {
     let raw = std::fs::read_to_string(&path).unwrap();
     assert!(raw.contains("titleBarTheme = \"light\""), "got: {raw}");
 
-    // An old file without the key loads as `system` (follow the OS).
     std::fs::write(&path, "enabled_plugins = []\ndisabled_plugins = []\n").unwrap();
     assert_eq!(
         OpenKiteConfig::load_from(&path).title_bar_theme,
@@ -148,7 +146,6 @@ fn old_config_without_new_fields_still_loads() {
     let loaded = OpenKiteConfig::load_from(&path);
     assert_eq!(loaded.enabled_plugins, vec!["argocd".to_string()]);
     assert!(loaded.theme.is_none());
-    // `metrics_enabled` is unset in the fixture; the default is true.
     assert!(loaded.metrics_enabled);
 
     let _ = std::fs::remove_dir_all(&dir);
@@ -157,7 +154,6 @@ fn old_config_without_new_fields_still_loads() {
 #[test]
 fn is_enabled_semantics() {
     let empty = OpenKiteConfig::default();
-    // An empty allowlist enables every plugin.
     assert!(empty.is_enabled("anything"));
 
     let allow = OpenKiteConfig {
@@ -191,7 +187,6 @@ fn corrupt_toml_falls_back_to_default() {
 fn save_to_errors_when_parent_cannot_be_created() {
     let dir = std::env::temp_dir().join(format!("openkite-blocked-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
-    // A regular file where the parent directory should be.
     let blocker = dir.join("blocker");
     std::fs::write(&blocker, "not a directory").unwrap();
 
@@ -207,7 +202,6 @@ fn save_and_load_use_the_home_config_path() {
     let dir = std::env::temp_dir().join(format!("openkite-home-{}", std::process::id()));
     let home = dir.join("home");
     std::fs::create_dir_all(&home).unwrap();
-    // Point HOME at the sandbox so `load()`/`save()` hit a known path.
     std::env::set_var("HOME", &home);
 
     let config = OpenKiteConfig {

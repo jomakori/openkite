@@ -42,7 +42,6 @@ fn empty_query_matches_everything() {
 #[test]
 fn rank_orders_best_first() {
     let ranked = rank("dp", [("service", 1), ("deploy", 2), ("delete-pod", 3)]);
-    // "deploy" (consecutive d..p) outranks "delete-pod" (gapped d..p); "service" drops.
     assert_eq!(ranked.len(), 2);
     assert_eq!(ranked[0].1, 2);
     assert_eq!(ranked[1].1, 3);

@@ -89,7 +89,6 @@ fn bulk_reveal_predicate_exact_trimmed_match() {
     assert!(bulk_reveal_predicate("my-secret", "my-secret"));
     assert!(bulk_reveal_predicate("  my-secret  ", "my-secret"));
     assert!(!bulk_reveal_predicate("my-secret", "my-secret-2"));
-    // Case-sensitive — a mistyped case does not reveal.
     assert!(!bulk_reveal_predicate("MY-SECRET", "my-secret"));
     assert!(!bulk_reveal_predicate("", "my-secret"));
 }
