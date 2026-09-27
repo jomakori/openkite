@@ -16,3 +16,7 @@
 /web/test/.ssr/
 # Visual-capture wrapper log (e2e/visual/cluster/capture.sh).
 /.capture.log
+# Tilt preview overlay staging: the bundle tilt/build-bundle.sh builds for the
+# runner (tilt/out/bundle, synced into the preview pod) and the compile-and-swap
+# artifacts (tilt/out/bin). Built, never committed — see tilt/README.md.
+/tilt/out/
