@@ -19,7 +19,7 @@ if pr != '':
             'OPENKITE_BASE_TAG',
             local('git tag --merged HEAD --sort=-v:refname --list "v*" | head -1'),
         )
-    )
+    ).strip()
 
     if base == '':
         fail('No release tag is an ancestor of this branch. Run: git fetch --tags')
