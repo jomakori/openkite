@@ -18,7 +18,7 @@ Vite library mode bundles the UI as a fixed-name IIFE + CSS pair. The Rust host
 **source input**, not a release artifact. It uses fixed filenames with no
 hash/manifest — the host does a plain `include_str!`, matching the repo's
 existing vendoring convention (`tools/build-xterm`,
-`crates/openkite-desktop/assets/vendored/codemirror/`).
+`crates/openkite-ui/assets/vendored/codemirror/`).
 
 **Vendor step — run after ANY change under `web/src/`:**
 

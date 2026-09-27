@@ -10,7 +10,7 @@ mod support;
 use std::sync::Arc;
 
 use axum::http::StatusCode;
-use openkite::bridge::Bridge;
+use openkite_host::bridge::Bridge;
 use serde_json::{json, Value};
 use support::{app, get_body, list_pods_envelope, post_json, unreachable_client};
 
@@ -219,7 +219,7 @@ async fn static_assets_are_served_with_an_spa_fallback() {
 async fn reflectors_start_in_the_hosts_headless_runtime() {
     let started = openkite_web::headless::start_reflectors(unreachable_client());
     assert!(started > 0, "reflectors started: {started}");
-    assert!(openkite::state::live::is_watching());
+    assert!(openkite_host::state::live::is_watching());
 }
 
 #[tokio::test]

@@ -7,9 +7,11 @@ publish = false
 description = "OpenKite web host — serves the console bundle and answers its kube bridge over HTTP."
 
 [dependencies]
-# The core without the native renderer: this crate is the host-less target the
-# `desktop` feature exists to allow, so the browser host carries no WebKit/GTK.
-openkite = { path = "../openkite-desktop", default-features = false }
+# Never the desktop app: the contract, the console and the shared host runtime
+# are all this host needs, so no WebKit/GTK/wry code reaches the image.
+openkite-api = { path = "../openkite-api" }
+openkite-ui = { path = "../openkite-ui" }
+openkite-host = { path = "../openkite-host" }
 axum = "0.8"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "time", "io-util"] }
 # Static file service for the console bundle (SPA fallback included).

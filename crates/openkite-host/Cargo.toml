@@ -1,0 +1,30 @@
+[package]
+name = "openkite-host"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "OpenKite host runtime — the kube client, plugin bridge, live reflector state, push channel and settings both hosts run."
+
+[dependencies]
+openkite-api = { path = "../openkite-api" }
+openkite-ui = { path = "../openkite-ui" }
+openkite-plugin-sdk = { path = "../plugin-sdk" }
+dioxus = "0.7"
+tokio = { version = "1", features = ["sync", "rt"] }
+tracing = "0.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+futures = "0.3"
+dirs = "5"
+toml = "0.8"
+
+kube = { version = "4", features = ["runtime", "derive", "oidc", "ws", "rustls-tls"] }
+k8s-openapi = { version = "0.28" }
+
+[dev-dependencies]
+http = "1"
+kube = { version = "4", default-features = false, features = ["client"] }
+rustls = { version = "0.23", features = ["ring"] }
+k8s-openapi = { version = "0.28", features = ["latest"] }

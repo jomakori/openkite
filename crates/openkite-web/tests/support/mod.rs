@@ -17,7 +17,7 @@ use axum::http::{Request, StatusCode};
 use axum::routing::get;
 use axum::{Json, Router};
 use kube::Client;
-use openkite::bridge::Bridge;
+use openkite_host::bridge::Bridge;
 use serde_json::{json, Value};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tower::ServiceExt;

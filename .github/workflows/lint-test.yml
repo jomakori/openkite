@@ -206,6 +206,30 @@ jobs:
       - name: Check without the desktop feature
         run: cargo check -p openkite --no-default-features
 
+  wasm-ui:
+    name: Shared UI builds for wasm32
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.src == 'true' || github.event_name == 'push'
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/rust-setup
+        with:
+          targets: wasm32-unknown-unknown
+          profile: none
+          cache-key: wasm-ui
+      - name: Guard the console manifest
+        run: |
+          if grep -E '^[[:space:]]*(wry|axum|web-sys|js_sys)[[:space:]]*=' crates/openkite-ui/Cargo.toml; then
+            echo "crates/openkite-ui must not depend on a host-only crate"
+            exit 1
+          fi
+      - name: Check the console for wasm32
+        run: cargo check -p openkite-ui --target wasm32-unknown-unknown
+
   coverage:
     name: Coverage gate
     runs-on: ubuntu-latest
@@ -254,6 +278,7 @@ jobs:
       - bundle-freshness
       - cross-platform
       - web-target
+      - wasm-ui
       - coverage
     if: always() && github.event_name == 'push'
     runs-on: ubuntu-latest

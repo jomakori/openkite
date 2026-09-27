@@ -8,7 +8,7 @@ It lives in two places:
 
 - `crates/openkite-desktop/assets/main.css` — the single existing asset, already injected by
   `src/lib.rs:107` via `include_str!` into the webview's `<head>`.
-- `src/design/{mod.rs, tokens.rs}` — typed Rust view of the
+- `crates/openkite-ui/src/design/{mod.rs, tokens.rs}` — typed Rust view of the
   surface-treatment strings (blur radii, panel radii, shadow strings)
   so Dioxus `style:` attributes can reference them by name.
 

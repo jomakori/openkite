@@ -1,0 +1,15 @@
+[package]
+name = "openkite-api"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "OpenKite contract — owned domain types, the gateway trait, and the host capability descriptor."
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde-saphyr = "0.0.29"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt"] }

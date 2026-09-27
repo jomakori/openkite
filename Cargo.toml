@@ -1,6 +1,8 @@
 # Workspace manifest only — every crate lives in crates/. The desktop app is
-# crates/openkite-desktop, the browser host is crates/openkite-web, and the UI they
-# share is extracted into crates/openkite-ui (see .hermes/plans/openkite-shared-ui-crate.md).
+# crates/openkite-desktop, the browser host is crates/openkite-web, the console
+# they share is crates/openkite-ui, the contract both sides speak is
+# crates/openkite-api, and the kube-side runtime both hosts run is
+# crates/openkite-host (see .hermes/plans/openkite-shared-ui-crate.md).
 [workspace]
 members = ["crates/*"]
 resolver = "2"
