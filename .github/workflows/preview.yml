@@ -131,6 +131,56 @@ jobs:
           helm uninstall "$RELEASE" --namespace "$ENVIRONMENT" --ignore-not-found
           kubectl delete namespace "$ENVIRONMENT" --ignore-not-found
 
+  staging:
+    name: Build the staging image
+    if: >-
+      contains(github.event.pull_request.labels.*.name, 'staging') &&
+      github.event.action != 'closed'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      packages: write
+    concurrency:
+      group: staging-image-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Build and publish pr-<N> with its sha pin
+        uses: ./.github/actions/build-image
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          tag: pr-${{ github.event.pull_request.number }}
+          pin-sha-tag: 'true'
+          host: staging-openkite.maklab.net
+
+  withdraw-staging:
+    name: Withdraw the staging label when the image failed
+    needs: [staging]
+    if: >-
+      always() &&
+      contains(github.event.pull_request.labels.*.name, 'staging') &&
+      (needs.staging.result == 'failure' || needs.staging.result == 'timed_out')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Remove the staging label
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const pr = context.payload.pull_request.number;
+            try {
+              await github.rest.issues.removeLabel({ owner, repo, issue_number: pr, name: 'staging' });
+              core.notice(`pr-${pr}: no staging image was published - withdrew the staging label.`);
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+
   prune:
     name: Delete the images this PR published
     if: github.event.action == 'closed'

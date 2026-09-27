@@ -187,3 +187,8 @@ binary reports — it is the release asset convention. See
 - The suites `build-e2e.yml` runs: [`../../e2e/README.md`](../../e2e/README.md)
 - The chart a release ships into: the `apps/helm` chart in the GitOps repository
 
+## Staging
+
+A pull request carrying the `staging` label publishes the same `pr-<N>` image
+the preview path used to build, and the appset admits it into the shared
+staging environment. The label is the request; a failed build withdraws it.
