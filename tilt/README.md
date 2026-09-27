@@ -102,4 +102,4 @@ dev loop needs no Docker daemon.
 - **Dependencies, migrations, new environment, the release pipeline.** Staging.
 
 The full ladder and the reasoning behind each rung live in
-`.hermes/plans/env-ladder-tilt-staging-prod-v2.md`.
+`.hermes/plans/env-ladder-v3.md`.
