@@ -1,0 +1,145 @@
+name: Report the main-branch outcome
+description: >-
+  Open or update this workflow's single ci-failure issue when a push to main fails,
+  and close it when that workflow goes green on main.
+
+inputs:
+  run-id:
+    description: Actions run id to report.
+    required: true
+  workflow-name:
+    description: Workflow name the tracking issue is keyed on.
+    required: true
+  failed:
+    description: "'true' when the push-to-main run failed."
+    required: true
+  cancelled:
+    description: "'true' when the push-to-main run was cancelled — neither red nor green."
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Track the outcome
+      uses: actions/github-script@v7
+      env:
+        RUN_ID: ${{ inputs.run-id }}
+        WORKFLOW_NAME: ${{ inputs.workflow-name }}
+        FAILED: ${{ inputs.failed }}
+        CANCELLED: ${{ inputs.cancelled }}
+      with:
+        script: |
+          const { owner, repo } = context.repo;
+          const workflow = process.env.WORKFLOW_NAME;
+          const runId = Number(process.env.RUN_ID);
+          const title = `[ci] ${workflow} is red on main`;
+          const label = 'ci-failure';
+          const marker = `<!-- ci-failure:${workflow} -->`;
+          const runUrl = `https://github.com/${owner}/${repo}/actions/runs/${runId}`;
+          const repoUrl = `https://github.com/${owner}/${repo}`;
+
+          if (process.env.CANCELLED === 'true') {
+            core.notice(`${workflow}: run ${runId} was cancelled, so the tracking issue is left untouched.`);
+            return;
+          }
+
+          const open = await github.paginate(github.rest.issues.listForRepo, {
+            owner,
+            repo,
+            state: 'open',
+            labels: label,
+            per_page: 100,
+          });
+          const existing = open.find((issue) => !issue.pull_request && issue.title === title);
+
+          if (process.env.FAILED !== 'true') {
+            if (!existing) {
+              core.notice(`${workflow}: green on main, no tracking issue open.`);
+              return;
+            }
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: existing.number,
+              body: `Green on main again: [run ${runId}](${runUrl}). Closing.`,
+            });
+            await github.rest.issues.update({
+              owner,
+              repo,
+              issue_number: existing.number,
+              state: 'closed',
+              state_reason: 'completed',
+            });
+            core.notice(`${workflow}: closed tracking issue #${existing.number} — green on main.`);
+            return;
+          }
+
+          const run = await github.rest.actions.getWorkflowRun({ owner, repo, run_id: runId });
+          const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
+            owner,
+            repo,
+            run_id: runId,
+            per_page: 100,
+          });
+          const failing = jobs.filter(
+            (job) => job.conclusion === 'failure' || job.conclusion === 'timed_out',
+          );
+          const failingList =
+            failing.length === 0
+              ? '_(no individual job reported a failure; the run itself failed)_'
+              : failing.map((job) => `- \`${job.name}\` — [logs](${job.html_url})`).join('\n');
+
+          const body = [
+            `## Latest failure — ${new Date().toISOString().replace(/\.\d+Z$/, 'Z')}`,
+            '',
+            '| | |',
+            '|---|---|',
+            `| Workflow | \`${workflow}\` |`,
+            `| Conclusion | \`${run.data.conclusion}\` |`,
+            `| Run | [attempt ${run.data.run_attempt}](${run.data.html_url}) |`,
+            `| Commit | \`${run.data.head_sha}\` |`,
+            `| Branch | \`${run.data.head_branch}\` |`,
+            '',
+            '**Failing job(s)**',
+            '',
+            failingList,
+            '',
+            'A green *required-check* set is not evidence that the workflows a merge',
+            'triggered actually succeeded — a `success` status can hide a skipped or',
+            `unrun job. See the [release runbook](${repoUrl}/blob/main/docs/release-runbook.md)`,
+            `and the [workflow reference](${repoUrl}/blob/main/.github/workflows/README.md).`,
+            '',
+            marker,
+          ].join('\n');
+
+          if (existing) {
+            await github.rest.issues.update({
+              owner,
+              repo,
+              issue_number: existing.number,
+              body,
+            });
+            core.notice(`${workflow}: rewrote tracking issue #${existing.number} in place.`);
+            return;
+          }
+
+          try {
+            await github.rest.issues.getLabel({ owner, repo, name: label });
+          } catch (error) {
+            if (error.status !== 404) throw error;
+            await github.rest.issues.createLabel({
+              owner,
+              repo,
+              name: label,
+              color: 'B60205',
+              description: 'A workflow failed on main (automated)',
+            });
+          }
+          const created = await github.rest.issues.create({
+            owner,
+            repo,
+            title,
+            body,
+            labels: [label],
+          });
+          core.notice(`${workflow}: opened tracking issue #${created.data.number}.`);

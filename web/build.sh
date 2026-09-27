@@ -2,8 +2,8 @@
 #
 # Build the browser-runnable staging bundle into web/dist/.
 #
-# This is the target the PR-preview pipeline runs
-# (.github/workflows/pr-image.yml) and that the root Dockerfile serves with
+# This is the target the preview pipeline runs
+# (.github/workflows/preview.yml) and that the root Dockerfile serves with
 # nginx. It emits a standard Vite app — dist/index.html plus hashed assets —
 # unlike `npm run build`, which emits the fixed-name vendored bundle the Rust
 # desktop host include_str!s. Both targets build the same web/src tree; only
