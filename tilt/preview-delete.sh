@@ -1,23 +1,4 @@
 #!/usr/bin/env bash
-#
-# delete_cmd for the preview path (Tiltfile: k8s_custom_deploy).
-#
-# `tilt down` for a preview returns the cluster to nothing: the objects the
-# render owns (Deployment, Service, VirtualService, the Cloudflare Access
-# AuthorizationPolicy) and the namespace itself. No registry cleanup is owed —
-# the preview never published an image, which is the whole point of standing on a
-# released one.
-#
-# The namespace is only deleted when it is demonstrably this preview's: it must
-# carry the base annotation tilt/select-base.sh writes. A namespace without it
-# belongs to someone else (an ArgoCD-generated environment, a hand-built one),
-# and `tilt down` is not a reason to delete another owner's environment.
-#
-# Idempotent: every step tolerates "already gone".
-#
-# Env: OPENKITE_PR (required), OPENKITE_NAMESPACE, OPENKITE_BASE_TAG,
-#      OPENKITE_BASE_ANNOTATION, OPENKITE_FORCE (1 = delete the namespace even
-#      without the annotation), KUBECTL.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -31,8 +12,6 @@ if [ -z "$pr" ]; then
 fi
 namespace="${OPENKITE_NAMESPACE:-openkite-pr$pr}"
 
-# The object set is only reproducible from the same render, so the base is
-# resolved the same way it was at apply time unless the caller pinned it.
 base="${OPENKITE_BASE_TAG:-$("$here/select-base.sh")}"
 
 manifest="$(OPENKITE_PR="$pr" OPENKITE_NAMESPACE="$namespace" OPENKITE_BASE_TAG="$base" \

@@ -1,29 +1,4 @@
 #!/usr/bin/env bash
-#
-# Render the openkite app spec at one PR's coordinates, for the overlay preview.
-#
-# The spec rendered here is the GitOps repo's app chart (apps/helm), the same
-# spec prod is rendered from — one source of truth, so an overlay preview shows
-# the pod shape prod has. Per-PR parameters (namespaceOverride, createNamespace,
-# environments.<env>.subdomain, environments.<env>.tag) are the ones the per-PR
-# Application used before the runner took the render over.
-#
-# The guards at the bottom are the point of this script. Helm silently ignores a
-# value key the chart revision does not know, so a chart without
-# namespaceOverride would render this preview into openkite-production and apply
-# it there. Every coordinate is therefore asserted against the rendered text, and
-# the render fails loudly instead of deploying to the wrong namespace.
-#
-# stdout: the manifest set. stderr: diagnostics.
-#
-# Env: OPENKITE_PR (required), OPENKITE_BASE_TAG (required),
-#      OPENKITE_NAMESPACE (default openkite-pr<N>),
-#      OPENKITE_PREVIEW_SUBDOMAIN (default pr<N>-openkite),
-#      OPENKITE_CLUSTER_DOMAIN (default maklab.net),
-#      OPENKITE_APP_CHART (default ../gke_GitOps/apps/helm),
-#      OPENKITE_IMAGE_REPOSITORY (default ghcr.io/jomakori/openkite),
-#      OPENKITE_DOPPLER_CONFIG (default svc_openagent),
-#      OPENKITE_APP_NAME (default openkite), HELM (default helm).
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -58,9 +33,6 @@ if [ ! -d "$chart" ]; then
   exit 1
 fi
 
-# Per-PR coordinates, mirroring the parameters the openkite-pr<N> Application
-# carried: the env name stays `production` (the chart's spec has one release
-# environment) and each coordinate is overridden for the preview.
 manifest="$("$helm" template "$app" "$chart" \
   --set-string "appName=$app" \
   --set-string "$app.image.repository=$repo" \

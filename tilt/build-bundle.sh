@@ -1,31 +1,10 @@
 #!/usr/bin/env bash
-#
-# Build the artifacts the preview overlay syncs. No Docker, no registry.
-#
-# The released base image serves the browser bundle from web/dist (built by
-# web/build.sh, staged into the image by the root Dockerfile). This script builds
-# that bundle and stages it into tilt/out/bundle, the directory the Tiltfile
-# syncs into the container's served root — so a runner can do:
-#
-#   tilt/build-bundle.sh
-#   OPENKITE_PR=123 OPENKITE_DEV_LOOP=0 KUBECONFIG=... tilt up
-#
-# and nothing in that path needs a Docker daemon.
-#
-# What this cannot carry: Rust that runs in the container. A file overlay moves
-# files, not compiled behaviour — see tilt/build-server.sh and tilt/README.md.
-#
-# Env: OPENKITE_BUNDLE_OUT (default tilt/out/bundle), OPENKITE_BASE_TAG (optional:
-#      when set, the script reports whether this branch also changes Rust under
-#      crates/, which the bundle cannot prove).
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root="$(cd "$here/.." && pwd)"
 out="${OPENKITE_BUNDLE_OUT:-$here/out/bundle}"
 
-# web/build.sh refuses to finish without dist/index.html; the extra check here
-# keeps the failure inside this script's own contract too.
 "$root/web/build.sh"
 
 if [ ! -f "$root/web/dist/index.html" ]; then

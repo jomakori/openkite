@@ -31,12 +31,6 @@ FROM nginxinc/nginx-unprivileged:1.31-alpine AS runtime
 COPY web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=bundle /bundle/web/dist /usr/share/nginx/html
 
-# The served root must be writable by the container user, because that is where a
-# PR preview's Live Update sync lands and the sync writes as the user the
-# container runs as (uid 101). The base image ships the directory root:root 755,
-# where uid 101 gets EACCES on the first sync — verified on a live preview pod
-# (`drwxr-xr-x root root /usr/share/nginx/html`, `touch: Permission denied`).
-# chown needs root; the image drops back to nginx immediately.
 USER root
 RUN chown -R nginx:nginx /usr/share/nginx/html
 USER nginx
