@@ -18,7 +18,7 @@ pub struct PluginContext {
 /// Read-only view of the current theme.
 #[derive(Clone)]
 pub struct ThemeReadHandle {
-    // Filled in by core during PluginContext construction.
+    // Filled in by core during `PluginContext` construction.
     pub(crate) values: std::collections::HashMap<String, String>,
 }
 
@@ -101,7 +101,6 @@ mod tests {
         let _ = rustls::crypto::ring::default_provider().install_default();
         let handle = tokio::runtime::Handle::current();
 
-        // Lazy client — points at a non-existent cluster but never connects.
         let url: http::Uri = "http://127.0.0.1:1".parse().expect("uri");
         let config = kube::Config::new(url);
         let client = kube::Client::try_from(config).expect("client");
@@ -117,7 +116,6 @@ mod tests {
             runtime: handle.clone(),
         };
 
-        // Runtime handle is usable.
         let _guard = handle.spawn(async { 1 });
 
         assert_eq!(ctx.theme.get("--bg-0"), None);
