@@ -402,11 +402,16 @@ jobs:
           doppler-token: ${{ secrets.DOPPLER_TOKEN }}
           doppler-project: devops
           doppler-config: ci
+      - name: Keep the tap token
+        run: |
+          set -euo pipefail
+          test -n "${GITHUB_TOKEN:-}" || { echo "::error::no GITHUB_TOKEN from Doppler"; exit 1; }
+          echo "TAP_TOKEN=$GITHUB_TOKEN" >> "$GITHUB_ENV"
       - name: Checkout tap
         uses: actions/checkout@v4
         with:
           repository: jomakori/homebrew-tap
-          token: ${{ env.GITHUB_TOKEN }}
+          token: ${{ env.TAP_TOKEN }}
           fetch-depth: 0
       - name: Update cask
         run: |
