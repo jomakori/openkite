@@ -290,8 +290,6 @@ pub fn ResourceTable(
                 .collect();
             namespaces.sort();
             namespaces.dedup();
-            // "All" first; active when nothing is selected (the empty set also
-            // keeps cluster-scoped rows visible).
             let mut chips: Vec<(String, bool)> = vec![("All".to_string(), selected.is_empty())];
             chips.extend(namespaces.into_iter().map(|ns| {
                 let active = selected.contains(&ns);
@@ -468,8 +466,6 @@ fn render_table_row(
 /// Render a single table cell (plain text, status pill, or rich extra).
 fn render_table_cell(cell: &Cell, index: usize, width: Option<u32>) -> Element {
     let style = width.map(|w| format!("width: {w}px")).unwrap_or_default();
-    // Precompute dot classes outside rsx! — the macro cannot parse a bare
-    // `match` expression as an element body.
     let dot_classes: Vec<&'static str> = match &cell.extras {
         CellExtras::HealthDots(dots) => dots
             .iter()

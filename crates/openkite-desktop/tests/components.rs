@@ -69,7 +69,6 @@ fn code_editor_compute_diagnostics_reports_invalid_yaml() {
     let diags = compute_diagnostics("kind: [unclosed");
     assert_eq!(diags.len(), 1);
     assert!(!diags[0].message.is_empty());
-    // Diagnostics carry a 1-based position.
     assert!(diags[0].line >= 1);
 }
 

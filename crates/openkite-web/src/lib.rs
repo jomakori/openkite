@@ -72,9 +72,6 @@ pub async fn bind_and_serve(
 pub async fn serve(listener: TcpListener, web_root: PathBuf, client: Client) -> anyhow::Result<()> {
     let bridge = Arc::new(Bridge::connected(client.clone()));
 
-    // One reflector per kind: `watch` ops answer from these snapshots instead of
-    // a fresh list, which is what makes the console live rather than poll-driven.
-    // Idempotent, and the process owns them for its lifetime.
     let started = headless::start_reflectors(client);
     tracing::info!(started, "reflectors running");
 

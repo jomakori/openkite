@@ -54,17 +54,13 @@ fn pod_row_emits_nine_cells_with_mockup_layout() {
     assert_eq!(row.namespace.as_deref(), Some("default"));
     assert_eq!(row.cells.len(), 9);
     assert_eq!(row.cells[0].text, "web");
-    // Health dots: two of three containers ready.
     assert_eq!(row.cells[1].text, "2/3");
     assert!(matches!(row.cells[1].extras, CellExtras::HealthDots(_)));
-    // Ready, Restarts.
     assert_eq!(row.cells[2].text, "2/3");
     assert_eq!(row.cells[3].text, "4");
-    // Bare pod: no owner, node, or QoS yet → dashes.
     assert_eq!(row.cells[4].text, "-");
     assert_eq!(row.cells[5].text, "-");
     assert_eq!(row.cells[6].text, "-");
-    // Age second-to-last (no creation timestamp → dash), Status last.
     assert_eq!(row.cells[7].text, "-");
     assert_eq!(row.cells[8].status, Some(StatusKind::Running));
 }
@@ -377,10 +373,6 @@ fn workload_kind_labels_match_mockup() {
     );
 }
 
-// ─────────────────────────────────────────────────────────────
-// Nodes.
-// ─────────────────────────────────────────────────────────────
-
 fn node(name: &str, ready: Option<&str>, labels: &[(&str, &str)]) -> Node {
     Node {
         metadata: ObjectMeta {
@@ -423,8 +415,6 @@ fn node_row_extracts_roles_and_ready_status() {
     assert_eq!(row.namespace, None);
     assert_eq!(row.cells.len(), 5);
     assert_eq!(row.cells[0].text, "node-1");
-    // Both role labels surface (BTreeMap order: kubernetes.io/* < node-role.*);
-    // non-role labels are skipped.
     assert_eq!(row.cells[1].text, "worker, control-plane");
     assert_eq!(row.cells[2].text, "True");
     assert_eq!(row.cells[2].status, Some(StatusKind::Running));
@@ -445,7 +435,6 @@ fn node_row_unknown_ready_when_condition_absent() {
     let row = node_row(&n);
     assert_eq!(row.cells[2].text, "Unknown");
     assert_eq!(row.cells[2].status, Some(StatusKind::Unknown));
-    // No conditions → dash cell.
     assert_eq!(row.cells[4].text, "-");
 }
 

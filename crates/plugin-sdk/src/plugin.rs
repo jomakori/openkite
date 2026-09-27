@@ -71,12 +71,10 @@ mod tests {
             unloads: 0,
         });
 
-        // Stateless methods work without a PluginContext.
         assert_eq!(plugin.metadata().name, "mock");
         assert!(plugin.sidebar_entries().is_empty());
         assert!(plugin.routes().is_empty());
 
-        // Lifecycle methods can be invoked through the trait object.
         plugin.on_cluster_disconnect();
         plugin.on_unload();
     }

@@ -29,7 +29,6 @@ const MAPPING: &[(&str, &str, &str, &str)] = &[
     ("--yellow", "warning", "yellow", "#c4841d"),
     ("--red", "error", "red", "#e05252"),
     ("--violet", "accent.tertiary", "mauve", "#8b5cf6"),
-    // Terminal normal (ANSI hues from palette).
     ("--term-black", "bg.base", "black", "#1e2024"),
     ("--term-red", "error", "red", "#e05252"),
     ("--term-green", "success", "green", "#4d9a5e"),

@@ -250,7 +250,6 @@ pub fn current_route() -> String {
 
 /// Refresh cluster metadata: namespace list + Prometheus detection.
 pub async fn refresh_cluster_meta(client: &Client) {
-    // Namespaces
     let ns_api: Api<Namespace> = Api::all(client.clone());
     let ns_list: Vec<String> = ns_api
         .list(&kube::api::ListParams::default())
@@ -264,7 +263,6 @@ pub async fn refresh_cluster_meta(client: &Client) {
         .unwrap_or_default();
     set_namespaces(ns_list);
 
-    // Prometheus detection: scan all services for common prometheus names.
     let svc_api: Api<Service> = Api::all(client.clone());
     let all_svcs = svc_api
         .list(&kube::api::ListParams::default())

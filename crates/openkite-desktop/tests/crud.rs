@@ -37,8 +37,6 @@ fn target_summary_formats_kind_namespace_name() {
 
 #[test]
 fn validate_for_edit_rejects_missing_resource_version() {
-    // A patch payload without metadata.resourceVersion cannot detect
-    // lost-update — the edit gate must reject it.
     let doc = json!({
         "apiVersion": "v1",
         "kind": "Pod",
@@ -60,19 +58,12 @@ fn validate_for_edit_rejects_missing_resource_version() {
 
 #[test]
 fn propagation_policy_default_serializes_as_default() {
-    // The confirm modal sends PropagationPolicy::Default; the JSON
-    // wire form must be the literal string "default" (serde
-    // rename_all = "lowercase").
     let p = PropagationPolicy::Default;
     assert_eq!(serde_json::to_string(&p).unwrap(), "\"default\"");
 }
 
 #[test]
 fn apply_mutation_returns_phase1_placeholder_error_today() {
-    // Pins the deferred-work contract: until the bridge mutation ops
-    // land, every variant returns the Phase-1-pending error. When a
-    // Phase 1 follow-up replaces these stubs, this test updates in
-    // lockstep (that's the point of the pin).
     let doc = json!({
         "apiVersion": "v1",
         "kind": "Pod",
@@ -94,12 +85,6 @@ fn apply_mutation_returns_phase1_placeholder_error_today() {
             replicas: 3,
         },
     ];
-    // The placeholder signature takes &Client but never touches it;
-    // drive it with a client built from a fake http URI (no cluster
-    // behind it — the placeholder never sends a request). rustls 0.23
-    // requires a process-level crypto provider; install ring once.
-    // The tower buffer service needs a live tokio runtime, so create
-    // the runtime FIRST and build the client inside it.
     let _ = rustls::crypto::ring::default_provider().install_default();
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -166,8 +151,6 @@ fn missing_kind_rejected() {
 
 #[test]
 fn target_summary_tolerates_sparse_create_doc() {
-    // target_summary reads defensively (unwrap_or defaults), so a doc
-    // missing apiVersion/kind/name renders empty slots rather than panicking.
     let r = target_summary(&Mutation::Create(json!({ "metadata": {} })));
     assert_eq!(r.api_version, "");
     assert_eq!(r.kind, "");

@@ -60,8 +60,6 @@ fn masked_secret_value_still_holds_plaintext_when_masked() {
     let s = MaskedSecret::new("plaintext-stays");
     assert!(!s.is_revealed());
     assert_eq!(s.display(), MASKED_PLACEHOLDER);
-    // The `MaskedSecret` is the trust boundary, not the storage: the
-    // plaintext is reachable only through the explicit `value()` API.
     assert_eq!(s.value(), "plaintext-stays");
 }
 

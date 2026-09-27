@@ -201,9 +201,6 @@ pub fn CrudEditor(initial_doc: Option<Value>, target_kind: String, mode: EditorM
     let mut toast: Signal<Option<String>> = use_signal(|| None::<String>);
     let mut pending: Signal<bool> = use_signal(|| false);
 
-    // Parse on every keystroke. Precompute the (line, column, message)
-    // string outside `rsx!` so the macro never sees a method call inside
-    // an interpolation.
     let parsed: Result<Value, String> = match parse_yaml(&text.read()) {
         Ok(v) => Ok(v),
         Err(diag) => Err(format!(
@@ -216,7 +213,6 @@ pub fn CrudEditor(initial_doc: Option<Value>, target_kind: String, mode: EditorM
             EditorMode::New => validate_manifest(doc).err(),
             EditorMode::Edit => validate_for_edit(doc).err(),
         },
-        // Parse error wins; don't double-report.
         Err(_) => None,
     };
     let parse_error: Option<String> = parsed.err();
@@ -324,8 +320,6 @@ pub fn ConfirmDelete(kind: String, namespace: Option<String>, name: String) -> E
     let can_confirm = matches && !pending();
 
     let on_confirm: EventHandler<()> = {
-        // Clone for the closure; the rsx below still reads `name` and
-        // `triple` from the original props.
         let kind = kind.clone();
         let namespace = namespace.clone();
         let name_cl = name.clone();
@@ -566,8 +560,6 @@ mod tests {
 
     #[test]
     fn starter_for_kind_covers_every_workload_kind() {
-        // Each typed branch seeds the expected apiVersion/kind and a spec
-        // with the kind's distinguishing field.
         let cases = [
             ("StatefulSet", "apps/v1", Some("serviceName")),
             ("DaemonSet", "apps/v1", Some("template")),

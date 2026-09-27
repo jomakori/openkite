@@ -27,7 +27,6 @@ fn empty_and_whitespace_resolve_to_home() {
 
 #[test]
 fn leading_trailing_slashes_are_tolerated() {
-    // Trailing slash on a core route path.
     assert_eq!(route_from_path("/cluster/"), Route::Cluster {});
 }
 
@@ -49,7 +48,6 @@ fn plugin_wildcard_preserves_multi_segment_path() {
             path: vec!["plugins".into(), "argocd".into(), "apps".into()],
         }
     );
-    // Leading slashes stripped; empty segments dropped.
     assert_eq!(
         route_from_path("//a///b//"),
         Route::Plugin {

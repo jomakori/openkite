@@ -38,7 +38,6 @@ async fn booted_host_answers_the_console_over_http() {
     tokio::spawn(serve(listener, dir.path().to_path_buf(), client));
     wait_until_serving(addr).await;
 
-    // The console bundle is served, and a client-side route falls back to it.
     let shell = raw_http(addr, "GET", "/", None).await;
     assert!(shell.contains("200 OK"), "shell response: {shell}");
     assert!(
@@ -52,7 +51,6 @@ async fn booted_host_answers_the_console_over_http() {
         "deep link: {deep_link}"
     );
 
-    // `list pods` — the console's live-data path — answers a real kube List.
     let response = raw_http(addr, "POST", "/openkite", Some(&list_pods_body())).await;
     assert!(response.contains("200 OK"), "list response: {response}");
     assert!(
@@ -69,7 +67,6 @@ async fn booted_host_answers_the_console_over_http() {
         "list response: {response}"
     );
 
-    // `list pods` in one namespace resolves the namespaced route too.
     let namespaced = json!({
         "id": 2,
         "plugin": "console",
@@ -82,8 +79,6 @@ async fn booted_host_answers_the_console_over_http() {
         "namespaced list response: {response}"
     );
 
-    // `watch pods` is answered from the reflector snapshot rather than a fresh
-    // list, so it only carries rows once the reflectors have synced.
     let watch = json!({
         "id": 3,
         "plugin": "console",
@@ -101,7 +96,6 @@ async fn booted_host_answers_the_console_over_http() {
     }
     assert!(served_rows, "watch op never served the reflector snapshot");
 
-    // The console's context call reports the host it booted with.
     let response = raw_http(addr, "POST", "/openkite-spike", Some(r#"{"op":"context"}"#)).await;
     assert!(
         response.contains(r#""connected":true"#),

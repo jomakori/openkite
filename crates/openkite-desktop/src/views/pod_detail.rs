@@ -27,7 +27,6 @@ pub fn PodDetail() -> Element {
     let open = crate::runtime::SELECTED_POD.read().is_some();
     let mut active_tab = use_signal(|| DetailTab::Overview);
 
-    // Close handler: clear the selected pod and reset to Overview tab.
     let close = move |_| {
         *crate::runtime::SELECTED_POD.write() = None;
         active_tab.set(DetailTab::Overview);
@@ -141,7 +140,6 @@ fn LogsTab(pod: Pod) -> Element {
     let mut follow = use_signal(|| true);
     let mut lines = use_signal(Vec::<String>::new);
 
-    // Spawn the log stream when container or follow changes.
     let pod_name = pod.metadata.name.clone().unwrap_or_default();
     let pod_ns = pod
         .metadata
@@ -167,9 +165,6 @@ fn LogsTab(pod: Pod) -> Element {
                     timestamps: true,
                     ..LogParams::default()
                 };
-                // Touch the stream so the runtime registers the watch; full
-                // line buffering arrives in a follow-up that drains the
-                // AsyncBufRead into the `lines` signal.
                 let _ = api.log_stream(&name, &params).await;
             });
         }

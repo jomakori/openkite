@@ -501,7 +501,6 @@ mod tests {
         assert_eq!(req.describe(), "register sidebar");
         let json = serde_json::to_string(&req).unwrap();
         assert!(json.contains(r#""op":"register""#));
-        // And the payload survives.
         let back: ApiRequest = serde_json::from_str(&json).unwrap();
         assert_eq!(back, req);
     }

@@ -60,7 +60,6 @@ fn selected_secret_renders_masked_key_value_rows() {
     assert!(html.contains("Secret"), "got: {html}");
     assert!(html.contains("namespace: default"), "got: {html}");
     assert!(html.contains("Opaque"), "got: {html}");
-    // One masked row per data key + the per-row Reveal/Hide/Copy buttons.
     assert!(html.contains("password"), "got: {html}");
     assert!(html.contains("token"), "got: {html}");
     assert!(html.contains("********"), "got: {html}");

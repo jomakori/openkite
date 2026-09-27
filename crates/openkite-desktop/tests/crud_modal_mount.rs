@@ -61,14 +61,12 @@ fn edit_target_dispatches_edit_editor() {
 
 #[test]
 fn delete_target_dispatches_confirm_delete() {
-    // Namespace-less triple exercises the `Pod · name` eyebrow arm.
     let html = support::mount_html(crud_overlay, || {
         open_delete_for("Pod".into(), None, "standalone".into())
     });
     assert!(html.contains("Delete resource"), "got: {html}");
     assert!(html.contains("Pod · standalone"), "got: {html}");
     assert!(html.contains("Deletion is irreversible."), "got: {html}");
-    // Typed-name gate: empty input keeps Delete disabled but rendered.
     assert!(html.contains("to confirm."), "got: {html}");
     assert!(html.contains("btn btn-danger"), "got: {html}");
 }

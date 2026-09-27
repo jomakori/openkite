@@ -202,7 +202,6 @@ fn set_visible(menu: &Menu, window: &dioxus::desktop::tao::window::Window, visib
     use dioxus::desktop::tao::platform::windows::WindowExtWindows;
     let hwnd = window.hwnd();
     // SAFETY: `hwnd` is the live tao window owned by the desktop context, so
-    // it is valid for the duration of this call.
     unsafe {
         if visible {
             match menu.init_for_hwnd(hwnd) {
@@ -234,7 +233,6 @@ mod tests {
     #[test]
     fn toggle_is_a_noop_when_not_hideable() {
         if !hideable() {
-            // Must not panic (no window context): returns before touching one.
             toggle();
         }
     }

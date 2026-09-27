@@ -145,7 +145,6 @@ fn pod_summary_handles_missing_spec_and_status() {
     assert_eq!(s.reason, None);
     assert_eq!(s.message, None);
 
-    // Missing spec + missing statuses → one Pending row from no containers.
     let infos = container_infos(&p);
     assert!(infos.is_empty());
 }

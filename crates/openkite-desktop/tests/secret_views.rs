@@ -74,6 +74,5 @@ fn secret_kind_label_covers_remaining_known_kinds() {
         secret_kind_label(Some("kubernetes.io/service-account-token")),
         "Service account token"
     );
-    // Empty-string type collapses to the kube default like `None`.
     assert_eq!(secret_kind_label(Some("")), "Opaque");
 }

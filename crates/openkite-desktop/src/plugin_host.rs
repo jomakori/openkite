@@ -215,7 +215,6 @@ mod tests {
     /// Lazy client — points at a non-existent cluster but never connects
     /// (mirrors the SDK's own test).
     fn test_context() -> PluginContext {
-        // kube's rustls-tls feature needs a crypto provider installed.
         let _ = rustls::crypto::ring::default_provider().install_default();
         let url: http::Uri = "http://127.0.0.1:1".parse().expect("uri");
         let config = kube::Config::new(url);
@@ -270,7 +269,6 @@ mod tests {
         registry.register(Box::new(MockPlugin::new("ok", log.clone())));
 
         let ctx = test_context();
-        // The registry must contain a panicking plugin without unwinding.
         registry.on_cluster_connect(&ctx);
 
         let events = log.lock().unwrap().clone();
@@ -291,8 +289,6 @@ mod tests {
         registry.register(Box::new(MockPlugin::new("a", log.clone())));
         registry.register(Box::new(MockPlugin::new("b", log.clone())));
 
-        // Exercise both fan-out methods — no plugin panics here, but the
-        // containment path is the same machinery the connect test covers.
         let sections = registry.sidebar_entries();
         let routes = registry.routes();
         assert!(sections.is_empty());
@@ -322,7 +318,6 @@ mod tests {
         assert!(registry.sidebar_entries().is_empty());
         assert!(registry.routes().is_empty());
 
-        // Fan-out continues past each contained panic.
         let events = log.lock().unwrap().clone();
         assert_eq!(
             events,

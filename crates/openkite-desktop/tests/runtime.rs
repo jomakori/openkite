@@ -40,7 +40,6 @@ fn with_runtime<O>(f: impl FnOnce() -> O) -> O {
 #[test]
 fn selected_namespaces_default_and_toggle_semantics() {
     with_runtime(|| {
-        // Reset to the signal's own default, then verify toggle add/remove.
         set_selected_namespaces(vec!["default".into()]);
         assert_eq!(&*SELECTED_NAMESPACES.read(), &["default".to_string()]);
 
@@ -55,7 +54,6 @@ fn selected_namespaces_default_and_toggle_semantics() {
             &*SELECTED_NAMESPACES.read(),
             &["b".to_string(), "c".to_string()]
         );
-        // Re-adding an already-present namespace removes it (idempotent toggle).
         toggle_namespace("c".into());
         assert_eq!(&*SELECTED_NAMESPACES.read(), &["b".to_string()]);
     });

@@ -139,8 +139,6 @@ pub fn secret_keys(secret: &Secret) -> Vec<String> {
     keys.into_iter().collect()
 }
 
-// -- P2 surface: Config + Network view table layer --
-
 /// The four kinds the `/config` view lists. Order is the tab order
 /// (ConfigMaps / Secrets / Services / Ingress) and matches the ticket title.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -226,8 +224,6 @@ fn object_id(namespace: Option<&str>, name: &str) -> String {
         None => name.to_string(),
     }
 }
-
-// -- Cell-text formatters (pure, unit-testable) --
 
 /// `"3 keys: app.conf, env +1"` — first 2 keys joined; the count is the full
 /// count, with a `+N` suffix when there are more. Used in the ConfigMap
@@ -317,8 +313,6 @@ pub fn format_ingress_hosts(rules: &[IngressRuleRow]) -> String {
 pub fn secret_key_count(secret: &Secret) -> usize {
     secret_keys(secret).len()
 }
-
-// -- Column definitions (one per kind) --
 
 /// ConfigMap columns: Name / Data / Keys / Age / Type.
 pub fn config_map_columns() -> Vec<ColumnDef> {
@@ -410,8 +404,6 @@ pub fn ingress_columns() -> Vec<ColumnDef> {
         },
     ])
 }
-
-// -- Row mappers (one per kind) --
 
 /// Build a ConfigMap row. The "Data" cell carries a key count + first 2
 /// keys (no values).

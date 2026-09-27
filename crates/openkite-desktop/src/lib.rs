@@ -40,14 +40,10 @@ pub mod yaml;
 /// Bootstrap OpenKite: load config, plugins, and kubeconfig, then launch the UI.
 #[cfg(feature = "desktop")]
 pub fn run() {
-    // Route tracing to stderr, not stdout: under wry/WebKit (and headless CI
-    // in particular) stdout is not reliably flushed to a redirected log,
-    // while stderr is. CI assertions grep app.log for connection state.
     tracing_subscriber::fmt()
         .with_writer(std::io::stderr)
         .init();
 
-    // Load the static (feature-gated) plugins.
     let config = config::OpenKiteConfig::load();
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
     let menu_bar_hidden = config.menu_bar == config::MenuBarVisibility::Hide;
@@ -57,9 +53,6 @@ pub fn run() {
         tracing::info!(name = %plugin.metadata().name, "plugin loaded");
     }
 
-    // Collect plugin navigation entries and routes. The write into the
-    // router's global signals must happen inside the Dioxus runtime (see
-    // below), so compute first, publish later.
     let sections = registry.sidebar_entries();
     let routes = registry
         .routes()
@@ -67,8 +60,6 @@ pub fn run() {
         .map(|r| (r.path, r.render))
         .collect();
 
-    // Load the kubeconfig and connect to the current context. The bootstrap
-    // runtime outlives the UI so reflectors and plugin tasks share one handle.
     let runtime = tokio::runtime::Runtime::new().expect("tokio runtime");
     let mut cluster = cluster::ClusterState::load().unwrap_or_else(|err| {
         tracing::warn!(error = ?err, "no kubeconfig; starting disconnected");
@@ -87,15 +78,11 @@ pub fn run() {
         }
     }
 
-    // Install the plugin bridge before launch: the app shell's
-    // `/openkite` asset handler reads it via `runtime::bridge()`.
     let bridge = match cluster.client() {
         Some(client) => crate::bridge::Bridge::connected(client.clone()),
         None => crate::bridge::Bridge::new(),
     };
 
-    // Discover JS plugins; the shell evals their bundles after mount and
-    // their `register` POSTs flow back through the bridge at runtime.
     let root = plugin_js::plugins_dir();
     let (bundles, errors) = plugin_js::collect_bundles(&root, |name| config.is_enabled(name));
     for error in &errors {
@@ -103,15 +90,8 @@ pub fn run() {
     }
     tracing::info!(count = bundles.len(), "js plugins discovered");
 
-    // Launch with the bridge bootstrap injected into the page head: the
-    // inline style loads the shell chrome, the script defines `window.openkite`
-    // before any plugin bundle evaluates.
     let head = bootstrap_head();
 
-    // Dioxus global signals are backed by the *runtime* (not process-wide)
-    // in 0.7.10 — reading or writing them outside an active runtime panics.
-    // Bootstrap data is therefore published inside the VirtualDom's runtime,
-    // right after it is created and before the desktop event loop starts.
     let client = cluster.client().cloned();
     let active = cluster.active().map(str::to_string);
     let contexts = cluster.contexts().to_vec();
@@ -120,11 +100,6 @@ pub fn run() {
     #[allow(unused_mut)]
     let mut desktop_config = dioxus::desktop::Config::new().with_custom_head(head);
 
-    // OKT-99: own the platform menu bar so the palette can toggle it at
-    // runtime. On Linux/Windows the host passes its own menu (or `None` to
-    // suppress the default when the persisted setting is `hide`); macOS keeps
-    // dioxus-desktop's default because its global menu bar cannot be hidden
-    // and carries the cut/copy/paste accelerators.
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
     if menubar::hideable() {
         let menu = menubar::build_menu();
@@ -138,10 +113,6 @@ pub fn run() {
         tracing::warn!("menu bar cannot be hidden on this platform; keeping the system menu");
     }
 
-    // OKT-100: apply the persisted OS decoration theme override at window
-    // creation. `System` is tao's `None` (follow the OS), so only an explicit
-    // Light/Dark reconstructs the builder; dioxus-desktop's own default stays
-    // untouched otherwise.
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
     if config.title_bar_theme != config::TitleBarTheme::System {
         desktop_config =
@@ -156,8 +127,6 @@ pub fn run() {
             crate::runtime::set_context(Some(active));
         }
         crate::runtime::set_bridge(bridge);
-        // Refresh cluster metadata (namespaces + Prometheus) so the chips
-        // and status bar are populated on first render. Only when connected.
         if let Some(client) = crate::runtime::client() {
             runtime.block_on(crate::runtime::refresh_cluster_meta(&client));
         }
@@ -189,11 +158,6 @@ fn bootstrap_head() -> String {
 mod tests {
     use super::*;
 
-    // `run()` boots a desktop Dioxus event loop (VirtualDom + wry webview +
-    // tokio runtime + tracing subscriber) and structurally cannot mount
-    // headless: the tracing subscriber is process-global init-once, the
-    // Dioxus global signals are runtime-bound, and cluster connect needs a
-    // kubeconfig. Its pure sub-logic is extracted and pinned here instead.
     #[test]
     fn bootstrap_head_wraps_css_and_bridge_script() {
         let head = bootstrap_head();
@@ -205,8 +169,6 @@ mod tests {
     #[test]
     fn bootstrap_head_carries_shell_css_and_openkite_global() {
         let head = bootstrap_head();
-        // The stylesheet supplies the shell chrome (`.app-shell` rule) and
-        // the script defines `window.openkite` before plugins evaluate.
         assert!(head.contains(".app-shell"));
         assert!(head.contains("window.openkite"));
         assert!(head.contains(&format!(

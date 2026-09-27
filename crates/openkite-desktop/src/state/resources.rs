@@ -70,8 +70,6 @@ where
         let store_task = store.clone();
 
         let task = tokio::spawn(drive_reflector(writer, stream, store_task, move |rows| {
-            // `rows` is a Vec of Arcs, so cloning is pointer copies — cheap
-            // enough to do per event.
             snapshot_task.set(rows.clone());
             on_change(rows)
         }));

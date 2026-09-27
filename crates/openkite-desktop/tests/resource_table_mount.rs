@@ -181,18 +181,14 @@ fn ready_with_no_rows_shows_custom_empty_message() {
 #[test]
 fn populated_table_renders_headers_rows_and_actions() {
     let html = support::mount_html(table_populated, || {});
-    // Header cells.
     assert!(html.contains("Name"), "got: {html}");
     assert!(html.contains("Namespace"), "got: {html}");
-    // Rows + their cell text.
     assert!(html.contains("nginx"), "got: {html}");
     assert!(html.contains("redis"), "got: {html}");
     assert!(html.contains("Running"), "got: {html}");
     assert!(html.contains("Pending"), "got: {html}");
-    // Namespace chips ("All" + the row namespaces).
     assert!(html.contains("All"), "got: {html}");
     assert!(html.contains("chip active"), "got: {html}");
-    // Wired row-action buttons.
     assert!(html.contains("Delete"), "got: {html}");
     assert!(html.contains("Edit"), "got: {html}");
     assert!(html.contains("Scale"), "got: {html}");

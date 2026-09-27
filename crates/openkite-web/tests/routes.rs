@@ -68,7 +68,6 @@ async fn bridge_route_answers_kube_failures_in_the_envelope() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["status"], "error");
     let error = body["error"].as_str().expect("error string");
-    // Kind resolution runs discovery first, so a dead API server fails there.
     assert!(error.starts_with("discovery"), "unexpected error: {error}");
 }
 
@@ -148,7 +147,6 @@ async fn spike_settings_get_answers_the_console_snapshot() {
     ] {
         assert!(result.get(key).is_some(), "missing {key} in {result}");
     }
-    // A server has no menu bar and no window chrome to toggle.
     assert_eq!(result["menuBarHideable"], false);
     assert_eq!(result["titleBarOverridable"], false);
     assert_eq!(result["capabilities"]["mutations"], false);
@@ -212,7 +210,6 @@ async fn static_assets_are_served_with_an_spa_fallback() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body, "console.log('console')");
 
-    // A client-side route is not a file: it must answer the shell.
     let (status, body) = get_body(app, "/cluster").await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body, "<!doctype html>SHELL");
@@ -220,9 +217,6 @@ async fn static_assets_are_served_with_an_spa_fallback() {
 
 #[tokio::test]
 async fn reflectors_start_in_the_hosts_headless_runtime() {
-    // The host has no Dioxus runtime of its own, and a signal cannot be created
-    // without one — so this asserts the wiring that makes the reflector set
-    // startable here at all, and that it is live afterwards.
     let started = openkite_web::headless::start_reflectors(unreachable_client());
     assert!(started > 0, "reflectors started: {started}");
     assert!(openkite::state::live::is_watching());
@@ -230,8 +224,6 @@ async fn reflectors_start_in_the_hosts_headless_runtime() {
 
 #[tokio::test]
 async fn list_pods_envelope_matches_the_console_body_shape() {
-    // Guards the harness the cases above rely on: the console's own body shape
-    // must round-trip through the envelope, not a lookalike.
     let body: Value = list_pods_envelope();
     assert_eq!(body["request"]["op"], "list");
     assert_eq!(body["request"]["kind"], "pods");

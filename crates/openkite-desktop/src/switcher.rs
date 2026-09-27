@@ -64,9 +64,6 @@ async fn select_context(context: String) -> Result<(), String> {
         .get()
         .ok_or_else(|| "cluster registry unavailable".to_string())?;
     let mut guard = registry.lock().await;
-    // OKT-96: drop the outgoing cluster's watch streams before connecting the
-    // new one. Without this a stale reflector keeps pushing rows from the
-    // previous cluster into the UI after a switch.
     crate::state::live::stop();
     let client = guard
         .connect(&context)
@@ -74,10 +71,6 @@ async fn select_context(context: String) -> Result<(), String> {
         .map_err(|error| format!("{error:#}"))?;
     crate::runtime::set_client(Some(client.clone()));
     crate::runtime::set_context(Some(context));
-    // OKT-96: bring live reflector state up for the new client. `start` is
-    // synchronous — `Api::<T>::all` needs no discovery, so every signal exists
-    // immediately — and idempotent per kind, so reconnecting does not stack a
-    // second stream on the same kind.
     crate::state::live::start(client.clone());
     if let Some(bridge) = crate::runtime::bridge() {
         bridge.set_client(Some(client));
@@ -162,7 +155,6 @@ fn SwitcherPanel() -> Element {
     let active = crate::runtime::context_name();
     let candidates = filter_contexts(&contexts, &query);
     let mut selected = use_signal(|| 0usize);
-    // Clamp each render: a shrinking query can orphan the cursor.
     let cursor = (*selected.read()).min(candidates.len().saturating_sub(1));
 
     rsx! {

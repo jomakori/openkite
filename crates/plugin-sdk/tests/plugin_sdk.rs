@@ -47,7 +47,6 @@ fn sidebar_section_holds_named_entries() {
     assert_eq!(section.entries[1].icon, PluginIcon::Svg("<svg/>".into()));
     assert_eq!(section.entries[1].badge, None);
 
-    // Structural equality is derived and meaningful.
     let clone = section.clone();
     assert_eq!(section, clone);
     assert_ne!(section.entries[0], section.entries[1]);
@@ -60,7 +59,6 @@ fn plugin_route_carries_path_and_render_fn() {
         render: stub_render,
     };
     assert_eq!(route.path, "/argocd/apps/:name");
-    // Calling the render fn headless must not panic and yields an empty node.
     assert!((route.render)().is_ok());
 }
 
@@ -80,7 +78,6 @@ fn plugin_meta_surface_is_readable() {
     assert_eq!(meta.author, "OpenKite");
     assert_eq!(meta.icon, PluginIcon::BuiltIn("argocd"));
     assert_eq!(meta.accent_color.as_deref(), Some("#ef7b4d"));
-    // Accent is optional for plugins without a brand color.
     let muted = PluginMeta {
         accent_color: None,
         ..meta
@@ -143,7 +140,6 @@ fn boxed_plugin_dispatch_hits_lifecycle_hooks() {
         unloads: 0,
     });
 
-    // Trait-object dispatch through the boxed reference.
     let meta = plugin.metadata();
     assert_eq!(meta.name, "counter");
 
@@ -155,14 +151,12 @@ fn boxed_plugin_dispatch_hits_lifecycle_hooks() {
     assert_eq!(routes.len(), 1);
     assert_eq!(routes[0].path, "/counter");
 
-    // Disconnect + unload fire without a cluster and without panicking.
     plugin.on_cluster_disconnect();
     plugin.on_unload();
 }
 
 #[test]
 fn plugin_ui_handle_default_toast_is_noop() {
-    // A handle with no host sink must not panic on toast.
     let handle = PluginUiHandle::default();
     handle.toast("hello");
 }
@@ -174,6 +168,5 @@ fn plugin_ui_handle_toast_with_channel_forwards() {
     let handle = PluginUiHandle::new(Some(tx));
     handle.toast("plugin ready");
     assert_eq!(rx.try_recv().ok().as_deref(), Some("plugin ready"));
-    // Channel empty after drain.
     assert!(rx.try_recv().is_err());
 }

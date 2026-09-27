@@ -60,7 +60,6 @@ async fn register_rejects_invalid_route_paths() {
         )
         .await;
     assert!(error_of(&resp).contains("route path"));
-    // The invalid item never lands in the store.
     let store = bridge.store();
     let store = store.lock().expect("test store lock");
     assert!(store.get("broken").is_none());
@@ -132,8 +131,6 @@ fn dead_client() -> kube::Client {
 #[tokio::test]
 async fn dead_cluster_dispatch_errors_through_discovery() {
     let bridge = Bridge::connected(dead_client());
-    // list/watch/get resolve the kind via discovery first; the dead cluster
-    // fails there, before any resource request is sent.
     for body in [
         r#"{"id":1,"plugin":"p","request":{"op":"list","kind":"pods","ns":null}}"#,
         r#"{"id":2,"plugin":"p","request":{"op":"watch","kind":"pods","ns":"default"}}"#,
@@ -169,7 +166,6 @@ async fn connected_logs_still_require_a_namespace() {
 #[tokio::test]
 async fn set_client_swaps_and_disconnects_kube_access() {
     let bridge = Bridge::new();
-    // Swap a client in: list leaves the no-cluster fallback and hits discovery.
     bridge.set_client(Some(dead_client()));
     assert!(bridge.client().is_some());
     let resp = bridge
@@ -177,7 +173,6 @@ async fn set_client_swaps_and_disconnects_kube_access() {
         .await;
     assert!(error_of(&resp).contains("discovery:"), "{resp:?}");
 
-    // Disconnect: kube ops fall back to the clean no-cluster error.
     bridge.set_client(None);
     assert!(bridge.client().is_none());
     let resp = bridge
@@ -204,8 +199,6 @@ async fn snapshot_is_a_point_in_time_copy_of_the_store() {
 #[tokio::test]
 async fn register_route_and_status_payload_parse_failures_are_atomic() {
     let bridge = Bridge::new();
-    // RouteSpec requires `path`; StatusItem requires `label`. The serde
-    // error surfaces before any validation and the store stays untouched.
     let resp = bridge
         .handle_post(
             r#"{"id":1,"plugin":"odd","request":{"op":"register","kind":"route","payload":{"title":"T"}}}"#,

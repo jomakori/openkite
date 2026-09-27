@@ -82,9 +82,6 @@ pub fn TerminalView() -> Element {
     use k8s_openapi::api::core::v1::Pod;
     use std::time::Duration;
 
-    // The pod comes from the shared `SELECTED_POD` signal (the same one the
-    // inspector writes). A direct pod picker is a follow-up; the "open from
-    // inspector" hand-off is the entry point.
     let pod: Option<Pod> = crate::runtime::SELECTED_POD.read().clone();
 
     let pod_name = parse_pod_name(&pod);
@@ -98,13 +95,8 @@ pub fn TerminalView() -> Element {
     let mut container = use_signal_sync(|| default_container(&containers).unwrap_or_default());
     let last_error = use_signal_sync(String::new);
 
-    // Task slot: holds the in-flight exec fetch `Task` so re-runs (reconnect
-    // click, container change) cancel the prior task before spawning fresh.
-    // Skill: OKT-51 reflector-leak pattern.
     let mut fetch_slot = use_hook(|| CopyValue::new(None::<dioxus::core::Task>));
 
-    // Stable per-mount instance id for the host div's data-term-host
-    // attribute (the OKT-37 CodeMirror shape).
     let instance_id = use_hook(|| {
         use std::sync::atomic::{AtomicU32, Ordering};
         static COUNTER: AtomicU32 = AtomicU32::new(0);
@@ -115,23 +107,11 @@ pub fn TerminalView() -> Element {
     let selector = format!("[data-term-host=\"{data_attr}\"]");
     let selector_for_effect = selector.clone();
 
-    // Bootstrap effect: inject the vendored CSS + JS bundle once per
-    // webview load. Mount-once: not subscribed to props or signals.
     use_effect(move || {
         let _ = document::eval(&bootstrap_js(cache_id));
     });
 
-    // Exec fetch effect. Subscribes to `phase`; fires only while
-    // `Connecting`. POSTs the OKT-46 wire envelope via same-origin fetch
-    // into the `/openkite` asset handler; the bridge rejects with the
-    // deferred Phase-1 exec error, which flips the view to `BridgePending`.
-    //
-    // The eval-based fetch runs on the Dioxus runtime (`spawn`, not
-    // `tokio::spawn`) because `document::eval` needs the Dioxus runtime
-    // context (thread-local). Same split as the logs viewer's drain task
-    // (kube work in `tokio::spawn`) vs its poll loop (eval in `spawn`).
     use_effect(move || {
-        // Cancel any prior fetch before spawning a replacement.
         if let Some(task) = fetch_slot.write().take() {
             task.cancel();
         }
@@ -195,8 +175,6 @@ pub fn TerminalView() -> Element {
                 body_json = body_json,
             );
             let _ = document::eval(&source);
-            // The eval is fire-and-forget; poll the globals the JS sets.
-            // (The fetch settles within a frame or two; 6 polls x 25ms.)
             let mut status = String::new();
             let mut error = String::new();
             for _ in 0..6 {
@@ -240,9 +218,6 @@ pub fn TerminalView() -> Element {
         *fetch_slot.write() = Some(task);
     });
 
-    // Input poll: reads the xterm `onData` accumulator every 50ms. Today
-    // the keystrokes are only logged — the Phase-1 exec channel dispatches
-    // them. The seam is marked with the deferred-contract TODO.
     use_effect(move || {
         spawn(async move {
             loop {
@@ -254,7 +229,6 @@ pub fn TerminalView() -> Element {
                 if raw.is_empty() {
                     continue;
                 }
-                // Clear the accumulator so each keystroke batch is seen once.
                 let _ = document::eval("window.__openkite_term_input = '';");
                 // TODO (Phase 1 exec): dispatch `raw` over the exec channel.
                 tracing::info!(
@@ -265,13 +239,8 @@ pub fn TerminalView() -> Element {
         });
     });
 
-    // Phase effect: reconcile the xterm host with the toolbar state.
-    // Eval work belongs on the Dioxus runtime, so this is a plain effect
-    // (mount / reset / writeln one-shots) — no spawned task needed.
     use_effect(move || {
         let current = phase();
-        // `selector_for_effect` is captured by the FnMut closure; borrow it
-        // (E0507 — the String cannot be moved out of the capture on each run).
         let selector = selector_for_effect.clone();
         match current {
             TerminalPhase::Disconnected => {

@@ -164,13 +164,8 @@ pub fn SecretDetail() -> Element {
     let mut secrets_map: Signal<HashMap<String, MaskedSecret>> = use_signal(HashMap::new);
     let mut reveal_all_open: Signal<bool> = use_signal(|| false);
 
-    // Task slot for the Esc poll loop: aborted on re-run so the loop never
-    // stacks (the install-once guard keeps the listener single, but the
-    // poll task is per-effect-run).
     let mut esc_task = use_hook(|| CopyValue::new(None::<dioxus::core::Task>));
 
-    // Populate the map whenever the selected secret changes. Reassignment
-    // drops the prior map (and its plaintext) in one step.
     use_effect(move || {
         let Some(secret) = crate::runtime::SELECTED_SECRET.read().clone() else {
             secrets_map.write().clear();
@@ -184,9 +179,6 @@ pub fn SecretDetail() -> Element {
         *secrets_map.write() = map;
     });
 
-    // Install-once keydown listener: Esc sets a window flag. The flag is
-    // consumed by the poll task below (the dioxus.send channel is not used
-    // here because this component has no eval receiver loop).
     use_effect(move || {
         let _ = document::eval(
             r#"
@@ -203,10 +195,6 @@ pub fn SecretDetail() -> Element {
         );
     });
 
-    // Poll the Esc flag; on close, clear the selection (which unmounts this
-    // component — the `.inspector.open` class disappears with it). The loop
-    // uses dioxus `spawn` (not tokio) because `document::eval` needs the
-    // Dioxus runtime; `Task::cancel` aborts a prior loop on re-run.
     use_effect(move || {
         if let Some(task) = esc_task.write().take() {
             task.cancel();
@@ -237,7 +225,6 @@ pub fn SecretDetail() -> Element {
         .clone()
         .unwrap_or_else(|| "default".into());
 
-    // Precompute the key list so the rsx! loop has an owned Vec.
     let keys: Vec<String> = crate::network::secret_keys(&secret);
 
     rsx! {

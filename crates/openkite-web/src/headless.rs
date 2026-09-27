@@ -35,8 +35,6 @@ thread_local! {
     /// reflector tasks still publishing into them.
     static DOM: &'static VirtualDom = {
         let mut dom = VirtualDom::new(VNode::empty);
-        // Build the empty tree once, so the root scope every signal resolves its
-        // owner against exists before the first reflector starts.
         dom.rebuild_in_place();
         Box::leak(Box::new(dom))
     };

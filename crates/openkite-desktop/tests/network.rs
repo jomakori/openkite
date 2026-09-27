@@ -67,7 +67,6 @@ fn service_ports_extract_name_and_target() {
     assert_eq!(ports[0].target_port, "8080");
     assert_eq!(ports[0].protocol, "TCP");
     assert_eq!(ports[1].target_port, "https");
-    // `protocol: None` defaults to TCP.
     assert_eq!(ports[1].protocol, "TCP");
     assert_eq!(ports[1].node_port, Some(30443));
 }
@@ -152,10 +151,6 @@ fn secret_keys_union_data_and_string_data() {
     };
     assert_eq!(secret_keys(&secret), vec!["password", "username"]);
 }
-
-// ─────────────────────────────────────────────────────────────
-// Pure formatters (preview cells).
-// ─────────────────────────────────────────────────────────────
 
 #[test]
 fn config_data_preview_empty_is_dash() {
@@ -256,7 +251,6 @@ fn format_ingress_paths_joins_host_path() {
             backend: "web".into(),
         },
     ];
-    // Leading slash stripped; host-only rule renders bare host.
     assert_eq!(format_ingress_paths(&rules), "example.com/api, other.com");
 }
 
@@ -301,10 +295,6 @@ fn secret_key_count_union() {
     assert_eq!(secret_key_count(&secret), 2);
 }
 
-// ─────────────────────────────────────────────────────────────
-// Row builders (cell layout pin).
-// ─────────────────────────────────────────────────────────────
-
 #[test]
 fn config_map_row_layout_and_preview() {
     let mut data = BTreeMap::new();
@@ -344,7 +334,6 @@ fn secret_row_masked_type_and_key_count() {
     assert_eq!(row.id, "prod/app-secret");
     assert_eq!(row.cells[0].text, "app-secret");
     assert_eq!(row.cells[1].text, "Opaque");
-    // Key count only — the value is never surfaced.
     assert_eq!(row.cells[2].text, "1");
     assert_eq!(row.cells[4].text, "Secret");
 }
@@ -455,10 +444,6 @@ fn ingress_columns_are_name_class_hosts_paths_age_type() {
     assert_eq!(cols[4].key, "age");
     assert_eq!(cols[5].key, "type");
 }
-
-// ─────────────────────────────────────────────────────────────
-// Default arms (absent spec/data) + ConfigKind metadata.
-// ─────────────────────────────────────────────────────────────
 
 #[test]
 fn config_kind_labels_kinds_and_versions() {

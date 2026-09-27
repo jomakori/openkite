@@ -58,8 +58,6 @@ fn sidebar_orders_core_then_registered_plugins() {
     assert_eq!(model[1].label, "argocd");
     assert_eq!(model[2].label, "istio");
 
-    // `plugin_sections` is exactly sidebar_model minus the core section —
-    // what the AppShell appends after the static nav.
     let plugins = plugin_sections(&store);
     assert_eq!(plugins.len(), 2);
     assert_eq!(plugins[0].label, "argocd");
@@ -85,7 +83,6 @@ fn status_bar_lists_connection_version_then_plugins() {
     assert_eq!(bar[1].label, "v1.2.3");
     assert_eq!(bar[2].label, "ArgoCD: Synced");
 
-    // Disconnected: muted red dot, fallback cluster label.
     let offline = status_bar_model(&ShellState::default(), &store, "1.2.3");
     assert_eq!(offline[0].label, "no cluster · Disconnected");
     assert_eq!(offline[0].color.as_deref(), Some("red"));
@@ -127,8 +124,6 @@ fn helpers_wrap_plugin_contributions() {
 
 #[test]
 fn minimal_registration_contributes_no_extra_sections() {
-    // Plugins without sidebar items still register status entries; the
-    // sidebar skips them, the status bar does not.
     let mut store = RegistrationStore::new();
     store.upsert(
         "metrics",
@@ -170,10 +165,7 @@ fn status_bar_includes_prometheus_entry_when_detected() {
 fn dot_color_rejects_non_function_shapes_and_keeps_hex_lowercase() {
     assert_eq!(status_dot_color("#ABCDEF"), "#abcdef");
     assert_eq!(status_dot_color("info"), "var(--accent)");
-    // A ')' without a matching function name is not a color call.
     assert_eq!(status_dot_color("red)"), "var(--fg-2)");
-    // Hex past the 8-digit budget (# + 8 = 9 chars) is rejected.
     assert_eq!(status_dot_color("#0123456789"), "var(--fg-2)");
-    // A quote inside a call could break out of the style attribute.
     assert_eq!(status_dot_color("hsla(0,0%,0%)\",x:1)"), "var(--fg-2)");
 }

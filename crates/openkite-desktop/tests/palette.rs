@@ -23,10 +23,6 @@ use openkite::router::Route;
 // tests/runtime.rs does so method resolution matches the lib exactly.
 use dioxus::prelude::*;
 
-// ─────────────────────────────────────────────────────────────
-// Pure surface (no runtime needed)
-// ─────────────────────────────────────────────────────────────
-
 /// The static registry exposes the ten user-facing flows the E2E drives:
 /// Go-to-* navigation, theme, switcher, and the New-* resource actions.
 #[test]
@@ -195,25 +191,16 @@ fn system_description_reports_the_effective_theme() {
 /// out-of-range selection (regression: palette must never index OOB).
 #[test]
 fn advance_cursor_wraps_and_clamps() {
-    // Empty list → None regardless of delta.
     assert_eq!(advance_cursor(None, 0, 1), None);
     assert_eq!(advance_cursor(Some(3), 0, 1), None);
-    // Single item: any delta stays on index 0.
     assert_eq!(advance_cursor(None, 1, 1), Some(0));
     assert_eq!(advance_cursor(Some(0), 1, -1), Some(0));
-    // Wrap forward and backward.
     assert_eq!(advance_cursor(Some(0), 3, 1), Some(1));
     assert_eq!(advance_cursor(Some(2), 3, 1), Some(0));
     assert_eq!(advance_cursor(Some(0), 3, -1), Some(2));
-    // Out-of-range selection is clamped to len-1 before stepping:
-    // Some(7) with len 3 clamps to 2, +1 wraps to 0.
     assert_eq!(advance_cursor(Some(7), 3, 1), Some(0));
     assert_eq!(advance_cursor(Some(7), 3, -1), Some(1));
 }
-
-// ─────────────────────────────────────────────────────────────
-// Runtime-backed surface (global signals)
-// ─────────────────────────────────────────────────────────────
 
 fn with_runtime<O>(f: impl FnOnce() -> O) -> O {
     fn stub() -> Element {
@@ -231,19 +218,15 @@ fn with_runtime<O>(f: impl FnOnce() -> O) -> O {
 #[test]
 fn palette_open_close_state_machine() {
     with_runtime(|| {
-        // Initial: closed, empty query.
         assert!(!*PALETTE_OPEN.read());
         assert!(PALETTE_QUERY.read().is_empty());
 
-        // Simulate the keybind "toggle" path (PaletteKeybind handler).
         *PALETTE_OPEN.write() = true;
         assert!(*PALETTE_OPEN.read());
 
-        // Typing into the palette sets the query (unfiltered → filtered).
         *PALETTE_QUERY.write() = "work".to_string();
         assert_eq!(PALETTE_QUERY.read().as_str(), "work");
 
-        // Escape / run-command closes and clears transient state.
         *PALETTE_OPEN.write() = false;
         *PALETTE_QUERY.write() = String::new();
         assert!(!*PALETTE_OPEN.read());

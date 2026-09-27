@@ -68,7 +68,6 @@ const REQUIRED_CLASSES: &[&str] = &[
     ".dot.warn",
     ".dot.err",
     ".sort-indicator",
-    // OKT-43 CRUD modal + confirm dialogs.
     ".modal-backdrop",
     ".modal",
     ".modal-header",
@@ -116,9 +115,6 @@ fn every_required_class_is_present() {
 
 #[test]
 fn pre_existing_theme_properties_are_not_redeclared() {
-    // A re-declaration inside the same :root block would be ambiguous
-    // (later wins) and likely a mistake. We assert the file's
-    // declaration count for each is exactly one.
     for name in PRE_EXISTING_PROPERTIES {
         let needle = format!("{name}:");
         let count = STYLESHEET.matches(&needle).count();
@@ -131,8 +127,6 @@ fn pre_existing_theme_properties_are_not_redeclared() {
 
 #[test]
 fn design_system_adds_exactly_twelve_new_properties() {
-    // Guard against accidental re-declaration: the design system adds
-    // exactly 12 new properties on top of the 28 opaline-mapped ones.
     for name in REQUIRED_PROPERTIES {
         let needle = format!("{name}:");
         let count = STYLESHEET.matches(&needle).count();
@@ -145,9 +139,6 @@ fn design_system_adds_exactly_twelve_new_properties() {
 
 #[test]
 fn rust_blur_constants_match_css() {
-    // If the Rust constant table drifts from the CSS, downstream style:
-    // attributes will go out of sync. The contract test pins the
-    // public-facing strings on both sides.
     assert!(
         STYLESHEET.contains("blur(40px)"),
         "BLUR_FROST (40px) not used in any CSS rule"
@@ -164,8 +155,6 @@ fn rust_blur_constants_match_css() {
 
 #[test]
 fn stylesheet_uses_typed_font_vars() {
-    // The design system exposes --font-sans / --font-mono; the existing
-    // body rule should reference them rather than the hard-coded stack.
     assert!(
         STYLESHEET.contains("var(--font-sans)"),
         "var(--font-sans) should be used by the body rule"
@@ -178,9 +167,6 @@ fn stylesheet_uses_typed_font_vars() {
 
 #[test]
 fn log_panel_is_the_only_opaque_surface() {
-    // Brand posture: translucent everywhere except the terminal anchor.
-    // Assert .log-panel uses the opaque --term-bg (not a translucent
-    // var like --bg-1).
     let log_panel_block = STYLESHEET
         .split(".log-panel {")
         .nth(1)
