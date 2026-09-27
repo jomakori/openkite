@@ -26,6 +26,21 @@ OPENKITE_PR=123 OPENKITE_DEV_LOOP=0 \
   KUBECONFIG=... tilt up                 # https://pr123-openkite.maklab.net
 ```
 
+In CI the loop runs headless — `tilt ci` in place of `tilt up` — and the `preview`
+label on the pull request is the whole contract:
+
+- **Add the label.** The runner installs the chart at the PR's coordinates on the
+  newest ancestor release tag and syncs the branch's `web/dist` in. Nothing is built
+  and nothing is published: no image, no registry object, no Docker.
+- **Remove the label, or close the PR.** The release is uninstalled and the
+  environment deleted.
+- **A failed deploy takes the label off**, so the label always means the environment
+  exists.
+
+The appset must not also generate an Application for a labelled PR: its applications
+run with selfHeal, so ArgoCD would reconcile every sync away. One owner per
+environment — here, Tilt.
+
 What it does:
 
 1. **Base selection.** `git tag --merged HEAD --sort=-v:refname --list 'v*'` — the
