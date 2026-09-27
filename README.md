@@ -17,8 +17,7 @@
 
 ## Quick Links
 
-- [What is it?](#what-is-it) · [Features](#features) · [Visual tour](#visual-
-  tour) · [Quickstart](#quickstart) · [Documentation](#documentation) ·
+- [What is it?](#what-is-it) · [Features](#features) · [Visual tour](#visual-tour) · [Quickstart](#quickstart) · [Documentation](#documentation) ·
   [Contributing](#contributing)
 
 ## What is it?
@@ -77,8 +76,7 @@ table](docs/media/inspector.gif)
 
 Inline pod logs with pause, collapse and clear actions.
 
-![The inline log dock being paused, collapsed and cleared](docs/media/log-
-dock.gif)
+![The inline log dock being paused, collapsed and cleared][the-inline-log-dock-being-paused-collapsed-and-cleared]
 
 ### Toasts
 
@@ -91,8 +89,7 @@ Refreshing resources raises a transient acknowledgement that auto-dismisses.
 Cmd+P / Ctrl+P opens the fuzzy command palette over the console; Escape closes
 it.
 
-![The command palette opening, filtering and closing](docs/media/command-
-palette.gif)
+![The command palette opening, filtering and closing][the-command-palette-opening-filtering-and-closing]
 
 ### Native chrome settings
 
@@ -101,18 +98,15 @@ overrides the OS decoration.
 
 Menu bar shown at startup (left) and hidden by `View: Toggle Menu Bar` (right):
 
-![The native window with the OS menu bar visible](docs/media/native-menu-bar-
-shown.png)
-![The native window with the OS menu bar hidden](docs/media/native-menu-bar-
-hidden.png)
+![The native window with the OS menu bar visible][the-native-window-with-the-os-menu-bar-visible]
+![The native window with the OS menu bar hidden][the-native-window-with-the-os-menu-bar-hidden]
 
 `Title Bar Theme: System | Light | Dark` changes native decorations only. The
 headless capture window manager does not paint the decoration theme, so the
 System/Light/Dark stills are pixel-identical; this one needs re-capturing on a
 real desktop.
 
-![Title-bar theme capture from the headless harness](docs/media/titlebar-
-system.png)
+![Title-bar theme capture from the headless harness][title-bar-theme-capture-from-the-headless-harness]
 
 ## Install
 
@@ -177,3 +171,9 @@ cargo build --release
 ## License
 
 MIT + Apache-2.0 (dual) — see `LICENSE-MIT` and `LICENSE-APACHE`.
+
+[the-command-palette-opening-filtering-and-closing]: docs/media/command-palette.gif
+[the-inline-log-dock-being-paused-collapsed-and-cleared]: docs/media/log-dock.gif
+[the-native-window-with-the-os-menu-bar-hidden]: docs/media/native-menu-bar-hidden.png
+[the-native-window-with-the-os-menu-bar-visible]: docs/media/native-menu-bar-shown.png
+[title-bar-theme-capture-from-the-headless-harness]: docs/media/titlebar-system.png

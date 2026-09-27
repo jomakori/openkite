@@ -177,3 +177,13 @@ time; a reused PR artifact was built version-agnostically and its
 release asset name is rewritten at publish time. The filename is not what the
 binary reports — it is the release asset convention. See
 [`docs/release-runbook.md`](../../docs/release-runbook.md) for recovery.
+
+## Related
+
+- The contracts a contributor acts on, including the label meanings:
+  [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md)
+- The loops these workflows run previews and tests with:
+  [`../../tilt/README.md`](../../tilt/README.md)
+- The suites `build-e2e.yml` runs: [`../../e2e/README.md`](../../e2e/README.md)
+- The chart a release ships into: the `apps/helm` chart in the GitOps repository
+
