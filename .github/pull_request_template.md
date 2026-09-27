@@ -26,6 +26,7 @@
 <!-- Deploy preview, Plane ticket, related PRs -->
 
 - Deploy preview:
+  <!-- Previews prove the change, staging proves the build, prod proves the release. -->
 - Plane ticket:
 - Related PRs:
 

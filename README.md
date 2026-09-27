@@ -3,16 +3,22 @@
   <p><em>Kubernetes from above.</em></p>
 
   <p align="center">
-    <img src="https://img.shields.io/github/actions/workflow/status/jomakori/openkite/lint-test.yml?logo=githubactions&logoColor=white&label=CI" alt="CI">
-    <img src="https://img.shields.io/github/license/jomakori/openkite?logo=opensourceinitiative&logoColor=white&label=License" alt="License">
-    <img src="https://img.shields.io/github/stars/jomakori/openkite?logo=github&logoColor=white&label=Stars" alt="Stars">
-    <img src="https://img.shields.io/github/last-commit/jomakori/openkite?logo=git&logoColor=white&label=Last%20commit" alt="Last commit">
+    <img src="https://img.shields.io/github/actions/workflow/status/jomakori/ope
+    nkite/lint-test.yml?logo=githubactions&logoColor=white&label=CI" alt="CI">
+    <img src="https://img.shields.io/github/license/jomakori/openkite?logo=opens
+    ourceinitiative&logoColor=white&label=License" alt="License">
+    <img src="https://img.shields.io/github/stars/jomakori/openkite?logo=github&
+    logoColor=white&label=Stars" alt="Stars">
+    <img src="https://img.shields.io/github/last-
+    commit/jomakori/openkite?logo=git&logoColor=white&label=Last%20commit"
+    alt="Last commit">
   </p>
 </div>
 
 ## Quick Links
 
-- [What is it?](#what-is-it) · [Features](#features) · [Visual tour](#visual-tour) · [Quickstart](#quickstart) · [Documentation](#documentation) · [Contributing](#contributing)
+- [What is it?](#what-is-it) · [Features](#features) · [Visual tour](#visual-tour) · [Quickstart](#quickstart) · [Documentation](#documentation) ·
+  [Contributing](#contributing)
 
 ## What is it?
 
@@ -22,8 +28,10 @@ with kube-rs 4. One language, one binary, desktop-first.
 ## Features
 
 - **Cluster connect** — kubeconfig loading, multi-context switching
-- **Resource views** — Pods, Deployments, Services, ConfigMaps, Secrets, DaemonSets, StatefulSets, ReplicaSets, Jobs, CronJobs
-- **Virtualized tables** — sortable, filterable, windowed (reflector-backed live state)
+- **Resource views** — Pods, Deployments, Services, ConfigMaps, Secrets,
+  DaemonSets, StatefulSets, ReplicaSets, Jobs, CronJobs
+- **Virtualized tables** — sortable, filterable, windowed (reflector-backed live
+  state)
 - **Pod detail** — containers, status, events
 - **Log viewer** — follow/pause, capped buffer
 - **Secret redaction** — masked by default, explicit reveal
@@ -33,36 +41,42 @@ with kube-rs 4. One language, one binary, desktop-first.
 - **Plugin system** — `openkite-plugin-sdk`, static-first (dylib experimental)
 
 > YAML editor (CodeMirror 6) and embedded terminal (portable-pty + xterm.js)
-> are in progress — see the [board](https://plane.maklab.net/maklab/projects/71ba0e95-7c1a-4ea6-a50a-c42b0591492f).
 
 ## Visual tour
 
 Every image below is the real wry/WebKitGTK webview on a live cluster, captured
-by the in-cluster harness in [`e2e/visual/cluster/`](e2e/visual/cluster/) — no mockups.
+by the in-cluster harness in [`e2e/visual/cluster/`](e2e/visual/cluster/) — no
+mockups.
 
 ### Console shell chrome
 
-252px sidebar with live count badges, cluster selector, breadcrumb topbar and connection status.
+252px sidebar with live count badges, cluster selector, breadcrumb topbar and
+connection status.
 
-![The React console shell: sidebar with count badges, cluster selector and topbar](docs/media/console-shell.png)
+![The React console shell: sidebar with count badges, cluster selector and
+topbar](docs/media/console-shell.png)
 
 ### Resource table
 
-Nine sortable columns, namespace chips, search, compact density and a windowed pager, live from the reflector.
+Nine sortable columns, namespace chips, search, compact density and a windowed
+pager, live from the reflector.
 
-![Live pods table as rows appear and disappear with cluster changes](docs/media/resource-table.gif)
+![Live pods table as rows appear and disappear with cluster
+changes](docs/media/resource-table.gif)
 
 ### Inspector slide-over
 
-Select a row to open the resource summary over the current view; the scrim or Escape closes it.
+Select a row to open the resource summary over the current view; the scrim or
+Escape closes it.
 
-![Inspector slide-over opening and closing over the resource table](docs/media/inspector.gif)
+![Inspector slide-over opening and closing over the resource
+table](docs/media/inspector.gif)
 
 ### Log dock
 
 Inline pod logs with pause, collapse and clear actions.
 
-![The inline log dock being paused, collapsed and cleared](docs/media/log-dock.gif)
+![The inline log dock being paused, collapsed and cleared][log-dock]
 
 ### Toasts
 
@@ -72,29 +86,33 @@ Refreshing resources raises a transient acknowledgement that auto-dismisses.
 
 ### Command palette
 
-Cmd+P / Ctrl+P opens the fuzzy command palette over the console; Escape closes it.
+Cmd+P / Ctrl+P opens the fuzzy command palette over the console; Escape closes
+it.
 
-![The command palette opening, filtering and closing](docs/media/command-palette.gif)
+![The command palette opening, filtering and closing][command-palette]
 
 ### Native chrome settings
 
-The OS menu bar can be hidden from the palette, and the title-bar theme overrides the OS decoration.
+The OS menu bar can be hidden from the palette, and the title-bar theme
+overrides the OS decoration.
 
 Menu bar shown at startup (left) and hidden by `View: Toggle Menu Bar` (right):
 
-![The native window with the OS menu bar visible](docs/media/native-menu-bar-shown.png)
-![The native window with the OS menu bar hidden](docs/media/native-menu-bar-hidden.png)
+![The native window with the OS menu bar visible][native-menu-visible]
+![The native window with the OS menu bar hidden][native-menu-hidden]
 
 `Title Bar Theme: System | Light | Dark` changes native decorations only. The
 headless capture window manager does not paint the decoration theme, so the
 System/Light/Dark stills are pixel-identical; this one needs re-capturing on a
 real desktop.
 
-![Title-bar theme capture from the headless harness](docs/media/titlebar-system.png)
+![Title-bar theme capture from the headless harness][titlebar-theme]
 
 ## Install
 
-Prebuilt binaries land on the [Releases page](https://github.com/jomakori/openkite/releases) for every version. Install via your platform's package manager:
+Prebuilt binaries land on the [Releases
+page](https://github.com/jomakori/openkite/releases) for every version. Install
+via your platform's package manager:
 
 **macOS (Homebrew cask — Apple Silicon + Intel)**
 
@@ -117,12 +135,23 @@ choco source add -n openkite-gh -s "https://nuget.pkg.github.com/jomakori/index.
 choco install openkite
 ```
 
-> The brew cask + formula live in the [jomakori/homebrew-tap](https://github.com/jomakori/homebrew-tap) repo and auto-update on every release. GitHub Packages NuGet feeds require authentication for `choco source add` — use a [PAT](https://github.com/settings/tokens) with `read:packages` when prompted, or set `GH_TOKEN`. Releases are also downloadable directly from the [Releases page](https://github.com/jomakori/openkite/releases) (AppImage / DMG / NSIS `.exe` / `.nupkg`).
+> The brew cask + formula live in the [jomakori/homebrew-
+  tap](https://github.com/jomakori/homebrew-tap) repo and auto-update on every
+  release. GitHub Packages NuGet feeds require authentication for `choco source
+  add` — use a [PAT](https://github.com/settings/tokens) with `read:packages`
+  when prompted, or set `GH_TOKEN`. Releases are also downloadable directly from
+  the [Releases page](https://github.com/jomakori/openkite/releases) (AppImage /
+  DMG / NSIS `.exe` / `.nupkg`).
 
 ## Quickstart
 
 ```sh
-# Desktop dev loop (hot reload), pointed at a cluster from your kubeconfig
+## Developer environment
+
+The loops that run the application on a workstation, and the preview of a pull request,
+are documented in [`tilt/README.md`](tilt/README.md). Setup for contributing sits in
+[`CONTRIBUTING.md`](CONTRIBUTING.md).
+
 # (tailnet: tailscale configure kubeconfig <proxy-host>)
 cargo install dioxus-cli
 cd crates/openkite-desktop && dx serve
@@ -142,3 +171,9 @@ cargo build --release
 ## License
 
 MIT + Apache-2.0 (dual) — see `LICENSE-MIT` and `LICENSE-APACHE`.
+
+[command-palette]: docs/media/command-palette.gif
+[log-dock]: docs/media/log-dock.gif
+[native-menu-hidden]: docs/media/native-menu-bar-hidden.png
+[native-menu-visible]: docs/media/native-menu-bar-shown.png
+[titlebar-theme]: docs/media/titlebar-system.png

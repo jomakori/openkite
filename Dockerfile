@@ -30,4 +30,9 @@ RUN test -f web/dist/index.html || { \
 FROM nginxinc/nginx-unprivileged:1.31-alpine AS runtime
 COPY web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=bundle /bundle/web/dist /usr/share/nginx/html
+
+USER root
+RUN chown -R nginx:nginx /usr/share/nginx/html
+USER nginx
+
 EXPOSE 8080
