@@ -76,7 +76,7 @@ table](docs/media/inspector.gif)
 
 Inline pod logs with pause, collapse and clear actions.
 
-![The inline log dock being paused, collapsed and cleared][the-inline-log-dock-being-paused-collapsed-and-cleared]
+![The inline log dock being paused, collapsed and cleared][log-dock]
 
 ### Toasts
 
@@ -89,7 +89,7 @@ Refreshing resources raises a transient acknowledgement that auto-dismisses.
 Cmd+P / Ctrl+P opens the fuzzy command palette over the console; Escape closes
 it.
 
-![The command palette opening, filtering and closing][the-command-palette-opening-filtering-and-closing]
+![The command palette opening, filtering and closing][command-palette]
 
 ### Native chrome settings
 
@@ -98,15 +98,15 @@ overrides the OS decoration.
 
 Menu bar shown at startup (left) and hidden by `View: Toggle Menu Bar` (right):
 
-![The native window with the OS menu bar visible][the-native-window-with-the-os-menu-bar-visible]
-![The native window with the OS menu bar hidden][the-native-window-with-the-os-menu-bar-hidden]
+![The native window with the OS menu bar visible][native-menu-visible]
+![The native window with the OS menu bar hidden][native-menu-hidden]
 
 `Title Bar Theme: System | Light | Dark` changes native decorations only. The
 headless capture window manager does not paint the decoration theme, so the
 System/Light/Dark stills are pixel-identical; this one needs re-capturing on a
 real desktop.
 
-![Title-bar theme capture from the headless harness][title-bar-theme-capture-from-the-headless-harness]
+![Title-bar theme capture from the headless harness][titlebar-theme]
 
 ## Install
 
@@ -172,8 +172,8 @@ cargo build --release
 
 MIT + Apache-2.0 (dual) — see `LICENSE-MIT` and `LICENSE-APACHE`.
 
-[the-command-palette-opening-filtering-and-closing]: docs/media/command-palette.gif
-[the-inline-log-dock-being-paused-collapsed-and-cleared]: docs/media/log-dock.gif
-[the-native-window-with-the-os-menu-bar-hidden]: docs/media/native-menu-bar-hidden.png
-[the-native-window-with-the-os-menu-bar-visible]: docs/media/native-menu-bar-shown.png
-[title-bar-theme-capture-from-the-headless-harness]: docs/media/titlebar-system.png
+[command-palette]: docs/media/command-palette.gif
+[log-dock]: docs/media/log-dock.gif
+[native-menu-hidden]: docs/media/native-menu-bar-hidden.png
+[native-menu-visible]: docs/media/native-menu-bar-shown.png
+[titlebar-theme]: docs/media/titlebar-system.png
