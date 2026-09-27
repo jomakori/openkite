@@ -37,7 +37,7 @@ on:
       - '.github/actions/build-release-artifacts/**'
       - '.github/actions/build-image/**'
       - '.github/actions/rust-setup/**'
-      - '.github/workflows/build-e2e.yml'
+      - '.github/workflows/build-test-staging.yml'
 
 permissions:
   contents: write

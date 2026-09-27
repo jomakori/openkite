@@ -64,7 +64,7 @@ that is not there.
 - Branch → PR → CI green → squash-merge. No direct pushes to main for ticket
   work.
 - **Green required checks are not enough.** Before presenting a PR, enumerate
-  the workflows the diff can trigger (`lint-test`, `build-e2e`, `preview`,
+  the workflows the diff can trigger (`lint-test`, `build-test-staging`, `preview`,
   `Release`, plus any path-filtered workflow whose paths the
   diff matches) and read each job's real conclusion — a `success` status can
   hide a skipped or unrun step. After a merge to `main`, check the runs it
@@ -129,4 +129,3 @@ Rules that hold for every document here:
 - Precise language: no "simply", "easy", or "just", no "several" or "some" where
   a
   number is known, and no "etc." in a list that can be completed.
-

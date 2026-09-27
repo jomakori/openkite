@@ -1,7 +1,7 @@
 # Release runbook — "Release went red"
 
 How to diagnose and recover when the [Release workflow](../.github/workflows/release.yml)
-fails. It is accurate against the four-workflow CI (`lint-test`, `build-e2e`,
+fails. It is accurate against the four-workflow CI (`lint-test`, `build-test-staging`,
 `preview`, `Release`) — after OKT-103 (portable version embed + Windows fix) and
 OKT-104 (build artifacts once, reuse at release), plus the release fail-safe in
 this repository.
@@ -59,7 +59,7 @@ re-run the downstream jobs that were skipped.
 ## 3. Force a rebuild when artifacts are missing or expired
 
 `release.yml` reuses the six packages a PR already built (`locate` →
-`locate-release-artifacts.sh`). Reuse requires a **successful `build-e2e` run for
+`locate-release-artifacts.sh`). Reuse requires a **successful `build-test-staging` run for
 the PR head SHA** with all six assets present and unexpired. When it is
 missing, expired (PR artifacts: 90 days; fallback: 7 days), cancelled, or the
 merge was a direct push, the locator prints a `::notice title=Rebuilding release
@@ -72,10 +72,10 @@ To force it:
 - Re-run the failed `Release` run (`gh run rerun <run-id> --repo
   jomakori/openkite --failed`), or dispatch it (see §5), which re-evaluates
   reuse from scratch.
-- To repopulate the reusable set instead, re-run the PR's `build-e2e`
+- To repopulate the reusable set instead, re-run the PR's `build-test-staging`
   workflow while the PR still exists:
-  `gh run rerun <build-e2e-run-id> --repo jomakori/openkite`.
-- A PR whose diff does not match `build-e2e.yml`'s paths never built
+  `gh run rerun <build-test-staging-run-id> --repo jomakori/openkite`.
+- A PR whose diff does not match `build-test-staging.yml`'s paths never built
   artifacts in the first place; the fallback covers it at release time.
 
 ## 4. Ship a hotfix

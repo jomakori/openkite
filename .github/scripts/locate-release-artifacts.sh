@@ -8,7 +8,7 @@
 #
 # Squash merges produce a brand-new commit SHA, so the PR build's run is keyed
 # to the PR HEAD SHA, not the merged SHA. The merge is mapped back to its PR
-# through the API, then the newest successful `build-e2e` run for that SHA is
+# through the API, then the newest successful `build-test-staging` run for that SHA is
 # checked for a complete, unexpired artifact set.
 #
 # The same mapping yields the preview image tag the release promotes instead of
@@ -49,12 +49,12 @@ if [ -n "$source_sha" ] && [ -n "$pr_number" ]; then
 fi
 
 if [ -n "$source_sha" ]; then
-  # Newest successful pull-request build for that head SHA. `build-e2e` is the
-  # caller workflow name (`.github/workflows/build-e2e.yml`), which owns the
+  # Newest successful pull-request build for that head SHA. `build-test-staging` is the
+  # caller workflow name (`.github/workflows/build-test-staging.yml`), which owns the
   # six-package matrix.
   run_id="$(gh run list --repo "$repo" --commit "$source_sha" --limit 30 \
     --json databaseId,name,conclusion \
-    --jq '[.[] | select(.name == "build-e2e" and .conclusion == "success")][0].databaseId // empty')"
+    --jq '[.[] | select(.name == "build-test-staging" and .conclusion == "success")][0].databaseId // empty')"
 fi
 
 if [ -n "$run_id" ]; then

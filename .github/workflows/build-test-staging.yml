@@ -1,4 +1,4 @@
-name: build-e2e
+name: build-test-staging
 
 on:
   pull_request:
@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: build-e2e-${{ github.event.pull_request.number || github.ref }}
+  group: build-test-staging-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -40,7 +40,7 @@ jobs:
               - 'Cargo.lock'
               - 'web/**'
               - 'e2e/**'
-              - '.github/workflows/build-e2e.yml'
+              - '.github/workflows/build-test-staging.yml'
               - '.github/actions/build-release-artifacts/**'
               - '.github/actions/rust-setup/**'
 
@@ -361,20 +361,16 @@ jobs:
       - bridge-guard
       - desktop-e2e-connected
       - visual-regression
-    if: always()
+    if: >-
+      always() &&
+      (github.event_name != 'pull_request' ||
+       (github.event.pull_request.draft == false && needs.changes.outputs.src == 'true'))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
     steps:
-      - name: Report no source changes
-        if: needs.changes.outputs.src != 'true' && github.event_name != 'push'
-        run: |
-          echo "No source changes detected; the heavy build and end-to-end jobs were skipped."
-          echo "This run exists so the required check reports a conclusion."
-          echo "::notice title=Multi-platform build::skipped (no source changes); all sibling jobs were skipped, which is the expected outcome."
       - name: Enforce every build and end-to-end result
-        if: needs.changes.outputs.src == 'true' || github.event_name == 'push'
         env:
           RESULTS: ${{ toJSON(needs) }}
         run: |
