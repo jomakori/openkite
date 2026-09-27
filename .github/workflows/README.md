@@ -47,48 +47,29 @@ workflow control here, not just a signal.
 
 ## Preview
 
-`preview.yml` owns the `preview` label, and the label is the contract: a
-labelled
-pull request has a preview environment, an unlabelled one does not. Applying the
-label deploys the environment at `pr<N>-openkite.maklab.net`; removing it, or
-closing
-the pull request, tears the environment down. A failed deploy removes the label,
-so
-the label never claims an environment that is not there.
+`preview.yml` owns the `preview` label: applying it deploys an environment at
+`pr<N>-openkite.maklab.net`, removing it tears the environment down, and a
+failed
+deploy removes the label so the label never claims an environment that is not
+there.
+The environment is installed by Tilt from the app chart in `gke_GitOps`; no
+image is
+built or published for it.
 
-The environment is installed by Tilt from the app chart in `gke_GitOps`, on the
-release tag the branch is based on. No image is built and nothing is published,
-so a
-preview costs no registry object and no packaging time. The loop itself, its
-prerequisites and what it cannot prove are documented in
-[`../../tilt/README.md`](../../tilt/README.md).
-## Teardown — what a closed PR leaves behind
+The contract a contributor needs is in
+[`../../CONTRIBUTING.md`](../../CONTRIBUTING.md)
+and the loop itself in [`../../tilt/README.md`](../../tilt/README.md).
+## Teardown
 
-| Artifact | Owner | On close or merge |
-|---|---|---|
-| Namespace, Application, workload | the `ApplicationSet` in `gke_GitOps` | pruned by the generator |
-| Image versions `pr-<N>` and `pr-<N>-<sha>` | `preview.yml` (`prune`) | a **merged** PR keeps its sha-pinned version and loses only the mutable `pr-<N>`; a closed-unmerged PR loses both |
+Closing or merging a pull request removes its environment: Tilt uninstalls the
+release
+it created, and a preview's namespace does not outlive it. The `prune` job then
+deletes
+the image versions that PR published, keeping the sha-pinned one for a PR that
+merged
+and deleting all of them for one that did not.
 
-Registry cleanup has no backstop to configure: GitHub's package retention rules
-are **organisation-only** and `openkite` is a user-owned package. The weekly
-sweep that used to be the backstop is gone with `pr-artifacts-cleanup.yml`;
-sweep
-by hand through the same script:
-
-```bash
-./.github/scripts/prune-pr-image.sh --sweep     # every closed PR, --merged semantics per PR
-./.github/scripts/prune-pr-image.sh 131         # one closed-unmerged PR
-./.github/scripts/prune-pr-image.sh --merged 130  # one merged PR: keep the sha pin
-```
-
-Verify against the registry, never the PR list:
-
-```bash
-gh api /users/jomakori/packages/container/openkite/versions --paginate \
-  -q '[.[].metadata.container.tags[]]|length'
-```
-
-## Build once, reuse at release (OKT-104)
+## Build once, reuse at release
 
 The six native packages are built once per commit by `build-e2e.yml` and reused:
 
@@ -192,7 +173,7 @@ only the second one is evidence.
 
 `Cargo.toml` stays at `[workspace.package] version = "0.0.0"` on `main`. The
 release **fallback** build embeds the analyzed version into the binary at build
-time (OKT-103); a reused PR artifact was built version-agnostically and its
+time; a reused PR artifact was built version-agnostically and its
 release asset name is rewritten at publish time. The filename is not what the
 binary reports — it is the release asset convention. See
 [`docs/release-runbook.md`](../../docs/release-runbook.md) for recovery.
