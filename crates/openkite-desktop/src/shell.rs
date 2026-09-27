@@ -166,18 +166,18 @@ pub fn status_bar_model(
     store: &RegistrationStore,
     version: &str,
 ) -> Vec<StatusBarEntry> {
-    let mut entries = vec![
-        StatusBarEntry {
-            label: format!("{} · {}", state.cluster_label(), state.status_label()),
-            color: Some(if state.connected { "green" } else { "red" }.to_string()),
-            plugin: None,
-        },
-        StatusBarEntry {
+    let mut entries = vec![StatusBarEntry {
+        label: format!("{} · {}", state.cluster_label(), state.status_label()),
+        color: Some(if state.connected { "green" } else { "red" }.to_string()),
+        plugin: None,
+    }];
+    if !version.is_empty() {
+        entries.push(StatusBarEntry {
             label: format!("v{version}"),
             color: None,
             plugin: None,
-        },
-    ];
+        });
+    }
     if let Some(prometheus) = &state.prometheus {
         entries.push(StatusBarEntry {
             label: format!("Prometheus · {prometheus}"),

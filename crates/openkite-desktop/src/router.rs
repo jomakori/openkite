@@ -557,7 +557,12 @@ fn StatusFooter() -> Element {
         connected,
         prometheus: crate::runtime::PROMETHEUS.read().clone(),
     };
-    let entries = crate::shell::status_bar_model(&state, &registrations, env!("CARGO_PKG_VERSION"));
+    let version = crate::version::reported();
+    let entries = crate::shell::status_bar_model(
+        &state,
+        &registrations,
+        version.as_deref().unwrap_or_default(),
+    );
     let rows = status_rows(&entries);
     rsx! {
         footer { class: "status",

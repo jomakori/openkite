@@ -32,6 +32,7 @@ pub mod theme;
 pub mod theme_catalog;
 pub mod theme_opaline;
 pub mod titlebar;
+pub mod version;
 pub mod views;
 pub mod workloads;
 pub mod yaml;

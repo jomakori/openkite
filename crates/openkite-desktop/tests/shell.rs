@@ -92,6 +92,14 @@ fn status_bar_lists_connection_version_then_plugins() {
 }
 
 #[test]
+fn status_bar_omits_the_version_slot_when_the_build_carries_none() {
+    let store = RegistrationStore::new();
+    let bar = status_bar_model(&ShellState::default(), &store, "");
+    assert_eq!(bar.len(), 1);
+    assert_eq!(bar[0].label, "no cluster · Disconnected");
+}
+
+#[test]
 fn dot_colors_are_safe_css_values() {
     assert_eq!(status_dot_color("green"), "var(--green)");
     assert_eq!(status_dot_color("red"), "var(--red)");

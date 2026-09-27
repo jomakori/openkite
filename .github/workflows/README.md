@@ -171,12 +171,33 @@ only the second one is evidence.
 
 ## Version handling
 
-`Cargo.toml` stays at `[workspace.package] version = "0.0.0"` on `main`. The
-release **fallback** build embeds the analyzed version into the binary at build
-time; a reused PR artifact was built version-agnostically and its
-release asset name is rewritten at publish time. The filename is not what the
-binary reports — it is the release asset convention. See
-[`docs/release-runbook.md`](../../docs/release-runbook.md) for recovery.
+`Cargo.toml` stays at `[workspace.package] version = "0.0.0"` on `main`, so the
+compile-time constant is a placeholder rather than a release: a package built by
+`build-e2e.yml` cannot know the version semantic-release computes after the
+merge. The reported version is therefore resolved **at runtime**, in
+`crates/openkite-desktop/src/version.rs` (`openkite::version::reported()`), and
+every surface reads that one resolver — the desktop status bar, the desktop and
+`openkite-web` context/settings payloads that feed the console. The order is:
+
+1. `OPENKITE_VERSION`, when the environment carries it — a container, the dev
+   loop, a verification run.
+2. the version in the running AppImage's asset name. The AppImage runtime
+   exports the bundle's path, and the release rewrites that name at publish
+   time (`normalize-release-assets.sh`), which is the only injection point a
+   **reused** artifact has.
+3. the compile-time value, which the fallback rebuild embeds (`packages` →
+   `build-release-artifacts`) — unchanged by this, and still what the packaged
+   bundle metadata (`Info.plist`, NSIS, AppImage) is stamped from.
+
+An absent, blank, or placeholder value is reported as *no version*: the status
+bar drops the version slot and the payloads carry `null`, so no artifact can
+claim `0.0.0` as its release version. The DMG and the NSIS installer are the
+residual: they are not runnable by the release and carry no readable bundle path
+after install, so they report a version only where `OPENKITE_VERSION` is in the
+environment. `.github/scripts/check-version-source.sh` (wired into
+`lint-test.yml`) fails any read of `CARGO_PKG_VERSION` outside the resolver. See
+[`docs/release-runbook.md`](../../docs/release-runbook.md) for recovery and §6
+for the version inputs.
 
 ## Related
 

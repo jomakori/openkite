@@ -126,7 +126,11 @@ is computed by semantic-release from commit messages (`.releaserc.json`), and
 `Cargo.toml` stays at `[workspace.package] version = "0.0.0"` on `main` — branch
 protection blocks the semantic-release-cargo bump commit, which is why the
 fallback build embeds the analyzed version into the binary at build time
-(OKT-103). So "pinning" has three distinct meanings here:
+(OKT-103). The reported version is resolved at runtime (OKT-107; see
+[`.github/workflows/README.md`](../.github/workflows/README.md#version-handling)):
+`OPENKITE_VERSION` first, then the running AppImage's asset name, then the
+compile-time value the fallback embeds, and the placeholder is never reported.
+So "pinning" has four distinct meanings here:
 
 - **Hold a release back while a regression is fixed.** Do not merge
   release-triggering (`.rs` / `Cargo.toml` / `Cargo.lock`) changes; a
@@ -143,6 +147,9 @@ fallback build embeds the analyzed version into the binary at build time
   pinned version. As a last resort, create the release manually with
   `gh release create vX.Y.Z --title … --notes …` and upload the assets — the next
   semantic-release run computes its next version from that tag.
+- **Override what a running artifact reports.** `OPENKITE_VERSION` wins over
+  every other source at runtime, so a container, a dev loop, or a verification
+  run reports the version you set: `OPENKITE_VERSION=1.2.3 ./openkite …`.
 
 ## 7. Verify the recovery
 

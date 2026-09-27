@@ -53,7 +53,7 @@ enum SpikeRequest {
 struct SpikeContext {
     context: Option<String>,
     connected: bool,
-    version: String,
+    version: Option<String>,
     /// Whether cluster mutations are wired (crud::apply_mutation is Phase 1).
     mutations: bool,
 }
@@ -77,7 +77,7 @@ struct SettingsSnapshot {
     menu_bar_hideable: bool,
     #[serde(rename = "titleBarOverridable")]
     title_bar_overridable: bool,
-    version: String,
+    version: Option<String>,
     capabilities: Capabilities,
 }
 
@@ -126,7 +126,7 @@ fn settings_snapshot() -> SettingsSnapshot {
         themes,
         menu_bar_hideable: crate::menubar::hideable(),
         title_bar_overridable: crate::titlebar::overridable(),
-        version: env!("CARGO_PKG_VERSION").to_string(),
+        version: crate::version::reported(),
         // `crud::apply_mutation` is the Phase-1 placeholder, so mutations are
         // off; list-based logs/events are served today.
         capabilities: Capabilities {
@@ -226,7 +226,7 @@ fn dispatch(req: AssetRequest, responder: RequestAsyncResponder) {
         Ok(SpikeRequest::Context) => serde_json::to_value(SpikeContext {
             context: crate::runtime::context_name(),
             connected: crate::runtime::client().is_some(),
-            version: env!("CARGO_PKG_VERSION").to_string(),
+            version: crate::version::reported(),
             mutations: false,
         })
         .map_err(|err| format!("serialize context: {err}")),
@@ -260,7 +260,7 @@ mod tests {
         let value = serde_json::to_value(SpikeContext {
             context: Some("prod-us-east-1".into()),
             connected: true,
-            version: "0.1.0".into(),
+            version: Some("0.1.0".into()),
             mutations: false,
         })
         .unwrap();
@@ -275,7 +275,7 @@ mod tests {
         let value = serde_json::to_value(SpikeContext {
             context: None,
             connected: false,
-            version: "0.1.0".into(),
+            version: Some("0.1.0".into()),
             mutations: false,
         })
         .unwrap();

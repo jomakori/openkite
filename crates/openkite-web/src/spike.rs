@@ -45,7 +45,7 @@ enum SpikeRequest {
 struct SpikeContext {
     context: Option<String>,
     connected: bool,
-    version: String,
+    version: Option<String>,
     /// Whether cluster mutations are reachable. The bridge's op set is read-only
     /// — `exec` answers "not supported yet" and there is no apply or delete — so
     /// this is false on every host.
@@ -71,7 +71,7 @@ struct SettingsSnapshot {
     menu_bar_hideable: bool,
     #[serde(rename = "titleBarOverridable")]
     title_bar_overridable: bool,
-    version: String,
+    version: Option<String>,
     capabilities: Capabilities,
 }
 
@@ -124,7 +124,7 @@ fn context_payload(connected: bool) -> SpikeContext {
     SpikeContext {
         context: Some(identity_label()),
         connected,
-        version: env!("CARGO_PKG_VERSION").to_string(),
+        version: openkite::version::reported(),
         mutations: false,
     }
 }
@@ -165,7 +165,7 @@ fn settings_snapshot() -> SettingsSnapshot {
         title_bar_theme: config.title_bar_theme,
         menu_bar_hideable: false,
         title_bar_overridable: false,
-        version: env!("CARGO_PKG_VERSION").to_string(),
+        version: openkite::version::reported(),
         capabilities: Capabilities {
             mutations: false,
             logs: true,

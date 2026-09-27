@@ -105,7 +105,7 @@ async fn spike_context_reports_the_host_identity() {
     assert_eq!(result["connected"], true);
     assert_eq!(result["mutations"], false);
     assert!(result["context"].is_string(), "context label: {result}");
-    assert_eq!(result["version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(result["version"], json!(openkite::version::reported()));
 }
 
 #[tokio::test]
