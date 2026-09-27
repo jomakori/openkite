@@ -46,6 +46,8 @@ jobs:
               - 'crates/openkite-desktop/assets/vendored/openkite-react-spike/**'
       - name: Check workflows for GNU-only sed
         run: bash .github/scripts/check-portable-sed.sh
+      - name: Check the version is read from one resolver
+        run: bash .github/scripts/check-version-source.sh
 
   fmt:
     name: Check formatting
