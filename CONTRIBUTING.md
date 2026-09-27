@@ -12,6 +12,13 @@
   `tailscale configure kubeconfig <proxy-host>`, then run the app against it —
   `cd crates/openkite-desktop && dx serve`. There is no local cluster to create,
   keep alive, or tear down.
+- **Two loops, one Tiltfile.** `tilt up` is the dev loop: a Docker image with the
+  toolchain and CI's system packages, `cargo check --workspace` on change, and
+  `dx serve` for the UI. `OPENKITE_PR=<N> tilt up` with `OPENKITE_DEV_LOOP=0` is
+  the preview loop, and it needs no Docker daemon: it stands on the newest
+  release tag that is an ancestor of the branch and overlays this branch's built
+  artifacts. Previews prove the change, staging proves the build, prod proves the
+  release — see [`tilt/README.md`](tilt/README.md).
 - **Do not build the desktop binary on a small review host**: the Dioxus link
   step needs more than ~2.5 GiB and will OOM a ~3 GiB container. Use CI, or the
   one-shot capture Job in `e2e/visual/cluster/`.
