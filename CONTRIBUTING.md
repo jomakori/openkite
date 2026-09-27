@@ -28,6 +28,34 @@
 - CI gates (all four must pass): `cargo fmt`, `cargo clippy -- -D warnings`,
   `cargo test`, `cargo build --release`.
 
+## Environments
+
+Each environment answers one question, and together they cover a change end to end.
+
+| Environment | Question | Reached by |
+| --- | --- | --- |
+| preview | does this change do what I think? | the `preview` label, at `pr<N>-openkite.maklab.net` |
+| staging | does this build? | the `staging` label, at `staging-openkite.maklab.net` |
+| prod | does this release? | a merge to `main`, at `openkite.maklab.net` |
+
+**Preview** puts the branch's browser bundle on top of the newest release the branch is
+based on, installed from the app chart in the GitOps repository. Removing the label, or
+closing the pull request, tears it down. It proves the change and not the build: no
+image is built, so `Dockerfile` edits, package additions, dependencies, migrations, and
+Rust that runs in the container are staging's business. The loop is
+[`tilt/README.md`](tilt/README.md).
+
+**Staging** builds and publishes the branch as an image and deploys it, so it is the
+environment that proves dependency bumps, native libraries, migrations, and anything a
+file overlay cannot carry.
+
+**Prod** follows `main`: a merge cuts a release, the released tag is pinned in the app
+spec, and the environment follows the pin.
+
+Labels are requests, and only a person applies them. CI removes one it cannot honour —
+a failed preview deploy takes its label off — so a label never claims an environment
+that is not there.
+
 ## Workflow
 
 - Tickets live in **Plane** (`OKT-*` core, `OKA-*` plugins); every PR
