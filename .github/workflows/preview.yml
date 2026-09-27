@@ -49,6 +49,7 @@ jobs:
         run: |
           tailscale configure kubeconfig ${{ secrets.TAILSCALE_PROXY_HOST }}
           kubectl config current-context
+          echo "OPENKITE_CONTEXT=$(kubectl config current-context)" >> "$GITHUB_ENV"
       - name: Assert cluster access
         run: kubectl auth can-i list namespaces
       - name: Build the console bundle

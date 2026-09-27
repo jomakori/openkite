@@ -4,6 +4,10 @@ pr = os.getenv('OPENKITE_PR', '')
 dev_loop = os.getenv('OPENKITE_DEV_LOOP', '1') != '0'
 chart = os.getenv('OPENKITE_CHART', '../gke_GitOps/apps/helm')
 
+context = os.getenv('OPENKITE_CONTEXT', '')
+if context != '':
+    allow_k8s_contexts(context)
+
 if pr != '':
     if not os.path.exists(chart):
         fail('No chart at ' + chart + '. Point OPENKITE_CHART at the gke_GitOps apps/helm checkout.')
