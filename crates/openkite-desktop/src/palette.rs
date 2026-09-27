@@ -64,7 +64,6 @@ pub struct Command {
 /// query.
 pub fn commands() -> Vec<Command> {
     let mut commands = vec![
-        // ── View ────────────────────────────────────────────────
         Command {
             id: "view.workloads",
             label: "Go to Workloads",
@@ -100,7 +99,6 @@ pub fn commands() -> Vec<Command> {
             description: "Return to the home screen".to_string(),
             action: CommandAction::Navigate(Route::Home {}),
         },
-        // ── Cluster ─────────────────────────────────────────────
         Command {
             id: "cluster.switch",
             label: "Switch Cluster…",
@@ -108,7 +106,6 @@ pub fn commands() -> Vec<Command> {
             description: "Open the cluster context switcher".to_string(),
             action: CommandAction::SwitchCluster,
         },
-        // ── Action (CRUD) ───────────────────────────────────────
         Command {
             id: "new.pod",
             label: "New Pod…",
@@ -144,7 +141,6 @@ pub fn commands() -> Vec<Command> {
             description: "Open the create-secret editor".to_string(),
             action: CommandAction::NewResource("secrets"),
         },
-        // ── Settings ────────────────────────────────────────────
         Command {
             id: "settings.theme",
             label: "Cycle Theme",
@@ -154,9 +150,6 @@ pub fn commands() -> Vec<Command> {
         },
     ];
 
-    // Keep the View group contiguous: these view settings slot in after the
-    // Go-to-* navigation entries. The menu-bar toggle is registered only where
-    // the platform can actually hide the bar (Linux/Windows).
     if crate::menubar::hideable() {
         let after_home = commands
             .iter()
@@ -175,10 +168,6 @@ pub fn commands() -> Vec<Command> {
         );
     }
 
-    // OKT-100: OS decoration theme override. tao's `Theme` has no "system"
-    // variant, so "follow the OS" (`None`) plus the two forced themes are
-    // offered as explicit View actions. Registered wherever runtime theming is
-    // supported (every desktop platform).
     if crate::titlebar::overridable() {
         let after_home = commands
             .iter()
@@ -261,15 +250,6 @@ pub fn advance_cursor(selected: Option<usize>, len: usize, delta: isize) -> Opti
     let base = selected.unwrap_or(0).min(len - 1) as isize;
     Some((base + delta).rem_euclid(len as isize) as usize)
 }
-
-// ─────────────────────────────────────────────────────────────────────
-// Dioxus components live below this line.
-//
-// The `use dioxus::prelude::*;` glob MUST be at module scope (not
-// inside an `#[component]` body) per the openkite-dev Dioxus 0.7
-// gotchas. The pure-logic helpers above deliberately do not import
-// the dioxus prelude so they stay unit-testable without glib-2.0.
-// ─────────────────────────────────────────────────────────────────────
 
 use dioxus::prelude::*;
 
@@ -408,11 +388,8 @@ fn PalettePanel() -> Element {
     let query = PALETTE_QUERY.read().clone();
     let candidates = filter_commands(&all, &query);
     let mut selected = use_signal(|| 0usize);
-    // Clamp each render: a shrinking query can orphan the cursor.
     let cursor = (*selected.read()).min(candidates.len().saturating_sub(1));
 
-    // Precompute rows + section groups OUTSIDE rsx! (skill rule: no
-    // `let` with method-call / nested-call RHS inside the macro).
     let rows: Vec<(usize, Command)> = candidates.iter().cloned().enumerate().collect();
     let mut grouped: Vec<(String, Vec<(usize, Command)>)> = Vec::new();
     for (idx, cmd) in rows {
@@ -491,9 +468,7 @@ fn PalettePanel() -> Element {
 /// description as a v1 hover tooltip.
 #[component]
 fn PaletteRow(cmd: Command, is_selected: bool) -> Element {
-    // Navigator is not PartialEq, so it cannot be a component prop (the
-    // `#[component]` macro compares props for change detection). Grab it
-    // from context inside the component instead.
+    // `Navigator` is not `PartialEq`, so it cannot be a component prop — read it from context inside the component.
     let nav = use_navigator();
     let row_class = if is_selected {
         "palette-row selected"

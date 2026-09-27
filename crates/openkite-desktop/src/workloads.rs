@@ -228,8 +228,6 @@ fn qos_cell(pod: &Pod) -> Cell {
     Cell::text(qos)
 }
 
-// --- Pods ---
-
 /// Pod columns: name, health, ready, restarts, controller, node, QoS, age, status.
 pub fn pod_columns() -> Vec<ColumnDef> {
     kind_columns(&[
@@ -337,8 +335,6 @@ fn pod_restarts(pod: &Pod) -> i32 {
         .unwrap_or(0)
 }
 
-// --- Nodes ---
-
 /// Node columns: name, roles, status, age, conditions.
 pub fn node_columns() -> Vec<ColumnDef> {
     kind_columns(&[
@@ -438,8 +434,6 @@ fn node_conditions_cell(node: &k8s_openapi::api::core::v1::Node) -> Cell {
         .unwrap_or(Cell::text("-"))
 }
 
-// --- Deployments ---
-
 /// Deployment columns: name, ready, up-to-date, available, controller, age, status.
 pub fn deployment_columns() -> Vec<ColumnDef> {
     kind_columns(&[
@@ -506,8 +500,6 @@ pub fn deployment_row(d: &Deployment) -> ResourceRow {
     }
 }
 
-// --- StatefulSets ---
-
 /// StatefulSet columns: name, ready, up-to-date, age, status.
 pub fn stateful_set_columns() -> Vec<ColumnDef> {
     kind_columns(&[
@@ -554,8 +546,6 @@ pub fn stateful_set_row(s: &StatefulSet) -> ResourceRow {
         ],
     }
 }
-
-// --- DaemonSets ---
 
 /// DaemonSet columns: name, ready, desired, current, available, age, status.
 pub fn daemon_set_columns() -> Vec<ColumnDef> {
@@ -623,8 +613,6 @@ pub fn daemon_set_row(ds: &DaemonSet) -> ResourceRow {
     }
 }
 
-// --- ReplicaSets ---
-
 /// ReplicaSet columns: name, ready, desired, age, status.
 pub fn replica_set_columns() -> Vec<ColumnDef> {
     kind_columns(&[
@@ -666,8 +654,6 @@ pub fn replica_set_row(rs: &ReplicaSet) -> ResourceRow {
         ],
     }
 }
-
-// --- Jobs ---
 
 /// Job columns: name, completions, duration, age, status.
 pub fn job_columns() -> Vec<ColumnDef> {
@@ -734,8 +720,6 @@ pub fn job_row(job: &Job) -> ResourceRow {
     }
 }
 
-// --- CronJobs ---
-
 /// CronJob columns: name, schedule, suspend, last schedule, age, status.
 pub fn cron_job_columns() -> Vec<ColumnDef> {
     kind_columns(&[
@@ -789,8 +773,6 @@ pub fn cron_job_row(cj: &CronJob) -> ResourceRow {
         ],
     }
 }
-
-// --- Secrets ---
 
 /// Secret columns: name, type, keys (count only — never the key names —
 /// the names live in the slide-over), age, status.

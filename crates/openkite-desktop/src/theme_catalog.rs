@@ -94,7 +94,6 @@ mod tests {
         assert_eq!(catalog.len(), 39);
         let defaults: Vec<&ThemeEntry> = catalog.iter().filter(|e| e.is_default).collect();
         assert_eq!(defaults.len(), 5);
-        // Defaults are the first 5 entries, in declared order.
         for (i, id) in DEFAULT_THEME_IDS.iter().enumerate() {
             assert_eq!(catalog[i].id, *id);
         }

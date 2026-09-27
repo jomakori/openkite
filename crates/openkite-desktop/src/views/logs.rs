@@ -137,8 +137,6 @@ mod pure_logic_tests {
             snap,
             vec!["a".to_string(), "b".to_string(), "c".to_string()]
         );
-        // Mutating the buffer after the snapshot does not affect the
-        // captured clone (the helper is `&LineBuffer`, not `&mut`).
         buf.push("d");
         assert_eq!(snap.len(), 3);
     }
@@ -155,9 +153,6 @@ pub fn LogsView() -> Element {
     use tokio::sync::Mutex;
     use tokio::task::JoinHandle;
 
-    // The pod comes from the shared `SELECTED_POD` signal (the same one the
-    // inspector reads). A direct pod picker is a follow-up; OKT-35 ships
-    // the "open from inspector" hand-off as the entry point.
     let pod: Option<Pod> = crate::runtime::SELECTED_POD.read().clone();
 
     let Some(pod) = pod else {
@@ -190,25 +185,17 @@ pub fn LogsView() -> Element {
     let mut at_bottom = use_signal_sync(|| true);
     let mut lines = use_signal_sync(LineBuffer::default);
 
-    // Task slot: holds the in-flight drain `JoinHandle` so re-runs (container
-    // change, follow toggle, pod change) abort the prior task before spawning
-    // fresh. Skill: OKT-51 reflector-leak pattern.
+    // Task slot: abort the in-flight drain before spawning a replacement, or re-runs stack loops.
     let mut task_slot = use_hook(|| CopyValue::new(None::<JoinHandle<()>>));
 
-    // Snapshot the reactive inputs the effect subscribes to. `container_for_effect`,
-    // `follow_for_effect`, `lines_for_effect`, `follow_state_for_effect` are aliased
-    // once (Skill: `Signal<T>` is `Copy`; signal writes inside a use_effect that
-    // captured the signal by value would E0507-move it).
     use_effect(move || {
         let container_name = container();
         let should_follow = follow();
         if container_name.is_empty() {
             return;
         }
-        // Wipe the buffer on every fresh open (container / follow / pod change).
         lines.write().clear();
 
-        // Abort any prior drain task before spawning a replacement.
         if let Some(handle) = task_slot.write().take() {
             handle.abort();
         }
@@ -220,9 +207,6 @@ pub fn LogsView() -> Element {
         let name = pod_name.clone();
         let cont = container_name.clone();
 
-        // Pending buffer between the line-drain task and the 50ms tick that
-        // flushes into the Dioxus signal. Caps signal writes at ~20/sec on a
-        // chatty pod (Dioxus absorbs that without dropping frames).
         let pending: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
 
         let handle = tokio::spawn(async move {
@@ -275,7 +259,6 @@ pub fn LogsView() -> Element {
                     }
                 }
             }
-            // Final flush: drain anything still pending.
             let drained: Vec<String> = {
                 let mut guard = pending.lock().await;
                 std::mem::take(&mut *guard)
@@ -291,14 +274,7 @@ pub fn LogsView() -> Element {
         *task_slot.write() = Some(handle);
     });
 
-    // Scroll listener: tiny JS handler writes a window-level flag on every
-    // scroll event. A 100ms host-side poll reads the flag into `at_bottom`.
-    // Skill: `use_effect` re-runs do NOT stop previously spawned tasks — we
-    // install the listener once, in an effect that does no async work, and
-    // let a `spawn`ed task own the polling lifetime.
     use_effect(move || {
-        // One-time install guarded via a window flag so route changes don't
-        // re-attach duplicate listeners. (Pattern from OKT-48 JsRouteSlot.)
         let install = r#"
             (function() {
                 if (window.__openkite_log_scroll_installed) return;
@@ -316,9 +292,6 @@ pub fn LogsView() -> Element {
     });
 
     use_effect(move || {
-        // Cheap 100ms poll of the JS-set global. The JS side writes the
-        // global on every scroll event, so the viewer's "show paused hint"
-        // lags by at most 100ms.
         spawn(async move {
             loop {
                 tokio::time::sleep(Duration::from_millis(100)).await;
@@ -333,9 +306,6 @@ pub fn LogsView() -> Element {
         });
     });
 
-    // Auto-pause when the user scrolls up; auto-resume (and scroll to bottom)
-    // when they scroll back. Effect subscribes to `at_bottom`; the body
-    // never writes a signal.
     use_effect(move || {
         let bottom = at_bottom();
         if follow_state().is_following() && !bottom {
@@ -345,10 +315,6 @@ pub fn LogsView() -> Element {
         }
     });
 
-    // Sync the explicit follow checkbox into `follow_state`. The checkbox
-    // is the user's authoritative intent; auto-pause from scrolling only
-    // sets `follow_state` (the visual hint), and the explicit follow toggle
-    // is what the user wants next.
     use_effect(move || {
         let f = follow();
         if f && !follow_state().is_following() {
@@ -358,7 +324,6 @@ pub fn LogsView() -> Element {
         }
     });
 
-    // Auto-scroll to bottom when following + at-bottom. Effect, not render body.
     use_effect(move || {
         if follow_state().is_following() && at_bottom() {
             let _ = document::eval(
@@ -368,8 +333,6 @@ pub fn LogsView() -> Element {
         }
     });
 
-    // Precompute the (line, class) tuples for the rsx! for-loop (skill:
-    // precompute Vec<T> outside rsx!).
     let lines_snapshot: Vec<(String, &'static str)> = {
         let buf = lines.read();
         buf.lines()

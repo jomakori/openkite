@@ -127,8 +127,6 @@ fn settings_snapshot() -> SettingsSnapshot {
         menu_bar_hideable: crate::menubar::hideable(),
         title_bar_overridable: crate::titlebar::overridable(),
         version: crate::version::reported(),
-        // `crud::apply_mutation` is the Phase-1 placeholder, so mutations are
-        // off; list-based logs/events are served today.
         capabilities: Capabilities {
             mutations: false,
             logs: true,

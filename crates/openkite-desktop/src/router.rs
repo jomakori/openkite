@@ -142,9 +142,7 @@ pub enum Route {
 
 #[component]
 fn AppShell() -> Element {
-    // Start the Dioxus-side mirror task. The `/openkite` handler is polled on a
-    // tokio worker and cannot touch a Dioxus signal, so it pings `MIRROR_TX`
-    // instead and this receiver does the actual write, here, in-runtime.
+    // The `/openkite` handler is polled on a tokio worker and cannot touch a Dioxus signal: it pings `MIRROR_TX` and this receiver writes in-runtime.
     use_hook(|| {
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<()>();
         let _ = MIRROR_TX.set(tx);
@@ -157,9 +155,6 @@ fn AppShell() -> Element {
         });
     });
 
-    // Apply persisted OS settings (menu bar visibility, title bar
-    // theme) on the Dioxus side. The settings handler runs off-runtime and can
-    // only ping; this receiver does the `desktop::window()` work in-runtime.
     use_hook(|| {
         if let Some(mut rx) = crate::runtime::install_settings_apply() {
             spawn(async move {
@@ -170,11 +165,7 @@ fn AppShell() -> Element {
         }
     });
 
-    // OKT-91: drain the Rust → JS push channel, on the Dioxus side. The eval
-    // must happen here — `document::eval` resolves the document from the
-    // thread-local Dioxus runtime, and from a tokio worker it silently targets
-    // the no-op document (the push would evaporate with no error). Publishers
-    // only ever write into the channel.
+    // `document::eval` resolves the document from the thread-local Dioxus runtime, so from a tokio worker it would silently target the no-op document.
     use_hook(|| {
         if let Some(mut rx) = crate::push::install() {
             spawn(async move {
@@ -185,17 +176,8 @@ fn AppShell() -> Element {
         }
     });
 
-    // OKT-96: start live reflector state once a cluster client exists.
-    //
-    // This has to happen *inside* the Dioxus runtime — each kind creates a
-    // Signal — so it cannot live at the boot connect in `lib.rs`, which runs
-    // on a plain tokio runtime before the Dioxus runtime exists. Reading
-    // `runtime::client()` here is a reactive read, so this effect re-runs when
-    // the client appears (boot) or changes (context switch). `start` is
-    // idempotent per kind, so the re-runs are cheap.
+    // Live reflector state must start inside the Dioxus runtime (each kind creates a `Signal`), so it cannot live at the boot connect in `lib.rs`; `start` is idempotent per kind.
     use_effect(move || {
-        // Reactive read of the client: re-runs when it appears (boot) or
-        // changes (context switch). `start` is sync and idempotent per kind.
         if let Some(client) = crate::runtime::client() {
             if !crate::state::live::is_watching() {
                 crate::state::live::start(client);
@@ -203,10 +185,6 @@ fn AppShell() -> Element {
         }
     });
 
-    // Test hook (OPENKITE_ROUTE=/cluster): boot the app directly onto a
-    // route so E2E/visual-baseline captures are deterministic — no input
-    // automation needed to reach a surface. Read once; navigate after the
-    // router is live (first mount). Ignored when unset or empty.
     {
         let nav = use_navigator();
         let mut routed = use_signal(|| false);
@@ -225,11 +203,6 @@ fn AppShell() -> Element {
         });
     }
 
-    // Mount the `/openkite` bridge endpoint. The webview's fetch
-    // POSTs (plugin `register` calls + `openkite.api.*` requests) dispatch on
-    // the first URL path segment, so the handler name `openkite` is the route.
-    // The shared bridge lives in a process-wide `OnceLock` (set in `run`
-    // before launch), so re-renders never re-mount or race it.
     #[cfg(feature = "desktop")]
     use_asset_handler(
         "openkite",
@@ -238,20 +211,12 @@ fn AppShell() -> Element {
         },
     );
 
-    // Evaluate every discovered JS plugin bundle exactly once per process:
-    // the first AppShell mount, after the asset handler is registered and
-    // the bootstrap script (`window.openkite`, injected in the page head by
-    // `run`) is live. Register POSTs from the bundles then flow through the
-    // asset handler, which refreshes the `REGISTRATIONS` mirror — the
-    // sidebar and status footer re-render.
     use_effect(move || {
         if EVALUATED_JS_PLUGINS.set(()).is_ok() {
             for bundle in js_plugins() {
                 match crate::plugin_js::load_source(&bundle) {
                     Ok(source) => {
                         tracing::info!(plugin = %bundle.name, "evaluating js plugin bundle");
-                        // Stamp the plugin identity for the envelope `plugin`
-                        // field; clear it so stray calls can't masquerade.
                         let wrapped = format!(
                             "window.__openkite_plugin = {:?};\n{}\nwindow.__openkite_plugin = null;",
                             bundle.name, source,
@@ -352,9 +317,7 @@ fn dispatch_bridge_post(req: AssetRequest, responder: RequestAsyncResponder) {
         return;
     };
     let text = text.to_string();
-    // The register path feeds the Dioxus-side mirror, so record its exact
-    // response envelope: a contained panic there could leave the UI looking
-    // healthy (OKT-94), and the E2E bridge guard keys on this greppable line.
+    // The E2E bridge guard keys on this greppable envelope: a contained panic in the mirror would otherwise leave the UI looking healthy.
     let is_register = serde_json::from_str::<BridgeRequest>(&text)
         .map(|envelope| matches!(envelope.request, ApiRequest::Register { .. }))
         .unwrap_or(false);
@@ -365,12 +328,7 @@ fn dispatch_bridge_post(req: AssetRequest, responder: RequestAsyncResponder) {
                 serde_json::to_string(&resp).unwrap_or_else(|err| format!("serialize: {err}"));
             tracing::info!(envelope = %envelope, "bridge register response");
         }
-        // Answer first: a failure in the mirror below must never hang the
-        // bridge response the webview is awaiting.
         responder.respond(json_response(resp));
-        // This task runs on a tokio worker, i.e. OUTSIDE the Dioxus runtime, so
-        // it must not touch a Dioxus signal (that panics — see `MIRROR_TX` /
-        // OKT-94). Ping the Dioxus-side task instead; it does the write.
         match MIRROR_TX.get() {
             Some(tx) => {
                 let _ = tx.send(());
@@ -393,8 +351,7 @@ fn refresh_registrations(bridge: &Arc<Bridge>) {
             let snapshot = bridge.snapshot();
             if *mirror != snapshot {
                 *mirror = snapshot;
-                // Greppable by the E2E bridge guard (OKT-95): proves the mirror
-                // write executed on the Dioxus side after the tokio ping.
+                // Greppable by the E2E bridge guard: proves the mirror write ran on the Dioxus side after the tokio ping.
                 tracing::info!(plugins = ?mirror.plugins(), "registration mirror updated");
             }
         }
@@ -639,9 +596,6 @@ fn ReactConsoleMount(route: String) -> Element {
 fn Plugin(path: Vec<String>) -> Element {
     let full = full_path(&path);
 
-    // Publish the current path for JS-side consumers that need to know
-    // the host's URL (e.g. plugins that want to read the current route
-    // without waiting for the next `_renderRoute` dispatch).
     *crate::runtime::CURRENT_ROUTE.write() = full.clone();
 
     let table = ROUTE_TABLE.read();
@@ -650,10 +604,6 @@ fn Plugin(path: Vec<String>) -> Element {
     }
     drop(table);
 
-    // Static table missed — try the JS-registered renderer paths. A path
-    // match here means a JS plugin declared "I render `<full>`" via
-    // `openkite.registerRouteRenderer`; the host's `Route::Plugin`
-    // wildcard has captured it, so render the slot.
     let registrations = REGISTRATIONS.read();
     let is_js_route = registrations
         .all_renderer_paths()
@@ -683,10 +633,6 @@ fn Plugin(path: Vec<String>) -> Element {
 /// re-runs cheap).
 #[component]
 fn JsRouteSlot(path: String) -> Element {
-    // Precompute the eval source outside `rsx!` and `use_effect` so the
-    // path is an owned `String` (the `&'static` requirement of
-    // `document::eval` is satisfied by the runtime-allocated literal
-    // inside the format!).
     let source = format!(
         r#"(function() {{
           var el = document.querySelector('[data-js-route-mount="{}"]');

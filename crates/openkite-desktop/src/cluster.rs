@@ -260,7 +260,6 @@ users:
         state.invalidate("a");
         assert_eq!(state.clients.len(), 1);
         assert!(state.clients.contains_key("b"));
-        // The active client is gone → client() falls back to None.
         assert!(state.client().is_none());
     }
 
@@ -277,8 +276,7 @@ users:
         };
 
         assert!(state.discovery().is_some());
-        // kube::Client/tokio::Handle have no PartialEq — presence is the
-        // observable surface for the Some-path.
+        // `kube::Client`/`tokio::Handle` have no `PartialEq`, so presence is the observable surface.
         assert!(state
             .plugin_context(tokio::runtime::Handle::current())
             .is_some());

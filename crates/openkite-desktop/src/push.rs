@@ -215,10 +215,7 @@ pub fn publish(kind: &str, ns: Option<&str>, rows: Vec<Value>) -> usize {
     let messages = {
         let mut reg = match registry().lock() {
             Ok(reg) => reg,
-            // A poisoned lock means another thread panicked mid-update. Skip
-            // this publish rather than propagate the panic into the caller's
-            // task: dropping a UI update is survivable, aborting a bridge
-            // request is not.
+            // Poisoned lock: dropping a UI update is survivable, aborting a bridge request is not.
             Err(poisoned) => poisoned.into_inner(),
         };
         let matched = reg.matching(kind, ns);
@@ -238,7 +235,6 @@ pub fn publish(kind: &str, ns: Option<&str>, rows: Vec<Value>) -> usize {
     };
 
     let Some(tx) = PUSH_TX.get() else {
-        // Pump not started (headless test, or a push before first mount).
         return 0;
     };
     let mut sent = 0;
@@ -273,7 +269,6 @@ mod tests {
         let one = reg.subscribe("pods", Some("default".into()));
         let other = reg.subscribe("pods", Some("kube-system".into()));
 
-        // A cluster-wide publish reaches every pods subscription.
         let mut got: Vec<u64> = reg
             .matching("pods", None)
             .into_iter()
@@ -282,7 +277,6 @@ mod tests {
         got.sort();
         assert_eq!(got, vec![all, one, other]);
 
-        // A namespaced publish reaches the wildcard AND the exact match only.
         let mut got: Vec<u64> = reg
             .matching("pods", Some("default"))
             .into_iter()
@@ -292,7 +286,6 @@ mod tests {
         assert_eq!(got, vec![all, one]);
         assert!(!got.contains(&other));
 
-        // Different kind matches nothing.
         assert!(reg.matching("secrets", Some("default")).is_empty());
     }
 
@@ -330,7 +323,6 @@ mod tests {
         let sub = reg.subscribe("pods", None);
         assert_eq!(reg.advance(sub), 1);
         assert_eq!(reg.advance(sub), 2);
-        // Unknown sub yields 0 rather than panicking.
         assert_eq!(reg.advance(999), 0);
     }
 
@@ -356,14 +348,12 @@ mod tests {
 
     #[test]
     fn publish_without_a_pump_is_a_no_op_not_a_panic() {
-        // No AppShell mount in a unit test, so there is no channel. This must
-        // return 0 rather than panic — the whole point of the guard.
+        // No AppShell mount in a unit test means no channel: return 0 rather than panic.
         let mut reg = registry().lock().unwrap();
         let sub = reg.subscribe("pods", None);
         drop(reg);
         let sent = publish("pods", None, vec![serde_json::json!({ "name": "x" })]);
         assert_eq!(sent, 0, "no pump installed ⇒ nothing sent");
-        // clean up the shared registry for other tests
         let _ = registry().lock().unwrap().unsubscribe(sub);
     }
 }

@@ -110,15 +110,10 @@ impl Bridge {
     pub async fn execute(&self, plugin: &str, request: ApiRequest) -> ApiResponse {
         let outcome: Result<Value, String> = match request {
             ApiRequest::Exec { .. } => Err("exec is not supported yet".into()),
-            // Additive push channel (OKT-91). Allocating a subscription only
-            // touches the host registry; the caller also gets an immediate
-            // snapshot so it need not follow up with `list`. Later updates
-            // arrive via `crate::push::publish` → the Dioxus-side pump.
             ApiRequest::Subscribe { kind, ns } => {
                 let sub = match crate::push::registry().lock() {
                     Ok(mut reg) => reg.subscribe(kind.clone(), ns.clone()),
-                    // Poisoned lock: another thread panicked mid-update. Recover
-                    // the data rather than failing the caller's request.
+                    // Poisoned lock: recover the data rather than failing the caller's request.
                     Err(poisoned) => poisoned.into_inner().subscribe(kind.clone(), ns.clone()),
                 };
                 let initial = match self.client() {
@@ -144,11 +139,6 @@ impl Bridge {
                 Some(client) => list_resource(&client, &kind, ns.as_deref()).await,
                 None => Err(NO_CLUSTER.into()),
             },
-            // OKT-96: serve from live reflector state when the kind is being
-            // watched, so the response reflects cluster changes without a
-            // re-list. Kinds without a reflector fall back to a one-shot list.
-            // Either way the wire contract — a promise resolving once — is
-            // unchanged, so this is safe for existing callers.
             ApiRequest::Watch { kind, ns } => match crate::state::live::snapshot_json(&kind) {
                 Some(rows) => Ok(Value::Array(crate::state::live::filter_ns(
                     rows,

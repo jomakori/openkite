@@ -69,12 +69,7 @@ pub fn CodeEditor(
     #[props(default)] on_change: Option<EventHandler<String>>,
     #[props(default)] diagnostics: Vec<Diagnostic>,
 ) -> Element {
-    // Stable per-mount instance id. `use_hook` returns state by value
-    // (skill: avoids the !Send RefCell trap of use_hook's return-type
-    // contract). The id is fixed for the lifetime of this component
-    // instance, so the data-cm-host attribute is stable across renders
-    // and the JS mount effect's `document.querySelector` finds the
-    // same div on every prop change.
+    // Stable per-mount id: the JS mount effect's `querySelector` must find the same `data-cm-host` div on every render.
     let instance_id = use_hook(|| {
         use std::sync::atomic::{AtomicU32, Ordering};
         static COUNTER: AtomicU32 = AtomicU32::new(0);
@@ -82,20 +77,10 @@ pub fn CodeEditor(
     });
     let cache_id = code_editor_path();
     let data_attr = format!("{cache_id}-{instance_id}");
-    // The mount effect below captures `data_attr` by move, but the
-    // `rsx!` after the effect also references it. Clone for the
-    // closure so the rsx! can keep the original (the effect runs on
-    // text/read_only prop changes, so the closure-captured value is
-    // the only one that mutates; the rsx! uses the outer one).
     let data_attr_for_effect = data_attr.clone();
     let text_json = serde_json::to_string(&text).unwrap_or_else(|_| "\"\"".into());
     let read_only_js = if read_only { "true" } else { "false" };
-    // Precompute the diagnostics payload as an OWNED `String` (JSON)
-    // before the effect. The `diagnostics` prop is a temporary; a
-    // `Option<&Diagnostic>` borrow of it cannot be captured by the
-    // `use_effect(move || ...)` closure (E0716 — dangling reference
-    // after the temporary drops). Owned data moves into the closure
-    // safely.
+    // Owned `String` before the effect: an `Option<&Diagnostic>` borrow of a temporary cannot be captured by a `'static` closure (E0716).
     let diag_json = match diagnostics.first() {
         Some(d) => serde_json::to_string(&serde_json::json!({
             "message": d.message,
@@ -106,12 +91,6 @@ pub fn CodeEditor(
         None => "null".to_string(),
     };
 
-    // Bootstrap effect: inject the vendored CSS once (guarded by an
-    // <html> class), inject the vendored JS once (guarded by
-    // `window.__openkite_cm_loaded`), then push the latest parse
-    // diagnostic so the lint marker is rendered without a per-keystroke
-    // re-parse on the JS side. Mount-once: not subscribed to `text` or
-    // `read_only`; the mount effect below handles per-prop updates.
     use_effect(move || {
         let css = include_str!("../../assets/vendored/codemirror/editor.css");
         let js = include_str!("../../assets/vendored/codemirror/editor.js");
@@ -136,13 +115,8 @@ pub fn CodeEditor(
         let _ = document::eval(&format!("window.__openkite_yaml_diag = {diag_json};"));
     });
 
-    // Mount effect: re-runs on (text, read_only) prop changes. Calls the
-    // bundle's `_cm_mount` on the first run for this host div, then
-    // `_cm_set_text` on subsequent runs to keep the document in sync
-    // without recreating the EditorState.
     use_effect(move || {
-        // Suppress the unused-warning on `on_change`: the prop is part
-        // of the public surface; consumers wire it in OKT-43.
+        // `on_change` is public surface with no consumer yet, hence the `let _ =`.
         let _ = on_change;
         let selector = format!("[data-cm-host=\"{data_attr_for_effect}\"]");
         let mount = format!(
@@ -169,9 +143,6 @@ pub fn CodeEditor(
         let _ = document::eval(&mount);
     });
 
-    // The host div carries `data-cm-host` so the mount effect's
-    // `document.querySelector` finds it. The `.code-editor` class
-    // supplies the design-system surface (border, padding, surface).
     let rows = diagnostics_rows(&diagnostics);
     rsx! {
         div { class: "code-editor", "data-cm-host": "{data_attr}",

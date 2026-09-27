@@ -20,9 +20,9 @@ pub struct PromQuery {
 #[derive(Debug, Clone, PartialEq)]
 pub struct PromRangeQuery {
     pub expr: String,
-    pub start: f64, // unix seconds
-    pub end: f64,   // unix seconds
-    pub step: f64,  // seconds
+    pub start: f64,
+    pub end: f64,
+    pub step: f64,
 }
 
 /// One `(timestamp_unix, value)` pair. Timestamp is seconds (Prometheus
@@ -100,9 +100,6 @@ pub fn now_unix() -> f64 {
 /// tiny (the chars Prometheus cares about are all encodeable as
 /// percent-escapes).
 pub fn url_encode_query(expr: &str) -> String {
-    // Minimal encode: spaces, quotes, braces, brackets, commas — the chars
-    // a PromQL expression carries that an HTTP query string would otherwise
-    // mangle.
     let mut out = String::with_capacity(expr.len());
     for byte in expr.bytes() {
         match byte {
@@ -237,8 +234,6 @@ pub fn parse_range_response(json: &serde_json::Value) -> Result<Vec<PromSeries>,
                 Some((ts, parse_value_str(value_str)))
             })
             .collect();
-        // Stable order by timestamp: a `rate()`-driven range can come back
-        // out of order, and the chart wants a monotone x-axis.
         samples.sort_by(|a, b| a.0.total_cmp(&b.0));
         series.push(PromSeries {
             metric,
@@ -570,8 +565,6 @@ mod tests {
         )
         .await
         .unwrap_err();
-        // Connection refused surfaces as PromError::Http(0, …) — the wire
-        // never got far enough for a status code.
         assert!(matches!(err, PromError::Http(0, _)));
     }
 

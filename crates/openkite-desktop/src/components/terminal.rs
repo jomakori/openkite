@@ -122,8 +122,7 @@ mod tests {
         assert!(js.contains("_term_mount"));
         assert!(js.contains("tryMount(64)"));
         assert!(js.contains("__openkite_term_input"));
-        // The selector is interpolated as `var sel = "…"` (Rust `:?` debug
-        // quoting escapes the inner quotes), then used via `querySelector(sel)`.
+        // The selector is interpolated as `var sel = ...` (Rust `:?` quoting escapes the inner quotes), then used via `querySelector(sel)`.
         assert!(js.contains(r#"var sel = "[data-term-host=\"xterm-bundle-v1-1\"]";"#));
         assert!(js.contains("document.querySelector(sel)"));
     }

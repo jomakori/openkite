@@ -56,18 +56,10 @@ where
     let api = Api::<T>::all(client);
     let kind = kind.to_string();
     ResourceState::watch_with(api, move |rows| {
-        // Serialise on the reflector task so the cost stays off the render
-        // path. `publish` is thread-safe and a no-op when nobody subscribed.
         let payload: Vec<Value> = rows
             .iter()
             .filter_map(|obj| serde_json::to_value(obj.as_ref()).ok())
             .collect();
-        // `publish` returns how many subscriptions it delivered to. Logging it
-        // is what makes a live update observable from outside the process: the
-        // harness greps for this line after mutating the cluster, which is the
-        // difference between "the watch started" and "the watch actually reacts
-        // to a real cluster change". `delivered=0` is also the honest signal
-        // that state updated but nobody is subscribed yet.
         let delivered = crate::push::publish(&kind, None, payload);
         tracing::info!(kind = %kind, rows = rows.len(), delivered, "live: snapshot");
     })
@@ -157,8 +149,6 @@ impl LiveResources {
         let started = self.count() - before;
         if started > 0 {
             tracing::info!(started, total = self.count(), "live: reflectors running");
-            // Bump the reactive generation so views that rendered before the
-            // reflectors existed re-run and pick up their signal.
             *LIVE_GEN.write() += 1;
         }
         started
@@ -166,8 +156,7 @@ impl LiveResources {
 
     /// Tear every reflector down (disconnect / context switch).
     pub fn stop(&mut self) {
-        // Explicit per-kind stop rather than a loop over a map: `ResourceState<T>`
-        // is generic and each kind is a distinct type.
+        // Explicit per-kind stop rather than a loop over a map: `ResourceState<T>` is generic, so each kind is a distinct type.
         macro_rules! stop_all {
             ($($field:ident),* $(,)?) => {
                 $( if let Some(mut state) = self.$field.take() { state.stop(); } )*
@@ -428,8 +417,7 @@ mod tests {
 
     #[test]
     fn snapshot_of_an_unwatched_kind_is_none_not_empty() {
-        // `None` (not `Some(vec![])`) is what tells the bridge to fall back to a
-        // real list, so an unwatched kind must never report as watched.
+        // `None` (not `Some(vec![])`) is what tells the bridge to fall back to a real list, so an unwatched kind must never report as watched.
         let resources = LiveResources::default();
         for kind in ["pods", "deployments", "secrets", "services", "nonsense"] {
             assert!(resources.snapshot_json(kind).is_none(), "{kind}");

@@ -399,8 +399,6 @@ mod tests {
 
     #[test]
     fn status_dot_color_rejects_non_color_strings() {
-        // Unknown words, empty values, and anything that could escape the
-        // inline style fall back to the muted default.
         assert_eq!(status_dot_color(""), "var(--fg-2)");
         assert_eq!(status_dot_color("orange"), "var(--fg-2)");
         assert_eq!(status_dot_color("red;} *{display:none"), "var(--fg-2)");
