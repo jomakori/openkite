@@ -37,7 +37,7 @@ if pr != '':
     # tilt/out/bundle is produced by tilt/build-bundle.sh (no Docker involved).
     # Creating it here keeps a fresh checkout from failing on a missing deps path.
     if not os.path.exists('tilt/out/bundle'):
-        local('mkdir -p tilt/out/bundle', quiet=True)
+        local('mkdir -p tilt/out/bundle')
 
     coordinates = {
         'OPENKITE_PR': pr,
