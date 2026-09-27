@@ -18,10 +18,10 @@ inputs:
     required: false
     default: ''
   platforms:
-    description: Platforms to publish, in buildx's list form. The cluster runs arm64, so an
-      amd64-only index is unpullable there.
+    description: Platforms to publish, in buildx's list form. The cluster is arm64 only, so an
+      amd64 leg is content nothing pulls and a QEMU-emulated build on every release.
     required: false
-    default: 'linux/amd64,linux/arm64'
+    default: 'linux/arm64'
 
 outputs:
   digest:
