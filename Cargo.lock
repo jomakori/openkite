@@ -3877,6 +3877,7 @@ dependencies = [
  "dioxus",
  "http",
  "kube",
+ "openkite",
  "openkite-api",
  "openkite-host",
  "openkite-ui",
