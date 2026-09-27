@@ -27,19 +27,17 @@ on:
     branches:
       - main
     paths:
-      - '**.rs'
-      - '**/Cargo.toml'
+      - 'Cargo.toml'
       - 'Cargo.lock'
+      - '**.rs'
+      - 'crates/**'
       - 'web/**'
-      - 'crates/openkite-desktop/assets/**'
-      - 'crates/openkite-desktop/Dioxus.toml'
-      - 'crates/openkite-desktop/icons/**'
-      - '.github/workflows/build-e2e.yml'
-      - '.github/workflows/release.yml'
+      - 'Dockerfile'
+      - 'choco/**'
       - '.github/actions/build-release-artifacts/**'
       - '.github/actions/build-image/**'
       - '.github/actions/rust-setup/**'
-      - '.github/scripts/**'
+      - '.github/workflows/build-e2e.yml'
 
 permissions:
   contents: write
