@@ -80,21 +80,29 @@ jobs:
     name: Run tests
     runs-on: ubuntu-latest
     needs: [changes, fmt, clippy]
-    if: needs.changes.outputs.src == 'true' || github.event_name == 'push'
     timeout-minutes: 45
     permissions:
       contents: read
       checks: write
       pull-requests: write
     steps:
+      - name: Report no source changes
+        if: needs.changes.outputs.src != 'true' && github.event_name != 'push'
+        run: |
+          echo "No source changes detected; skipping test execution."
+          echo "This run exists so the required check reports a conclusion."
       - uses: actions/checkout@v4
+        if: needs.changes.outputs.src == 'true' || github.event_name == 'push'
       - uses: ./.github/actions/rust-setup
+        if: needs.changes.outputs.src == 'true' || github.event_name == 'push'
       - name: Install cargo-nextest
+        if: needs.changes.outputs.src == 'true' || github.event_name == 'push'
         uses: taiki-e/install-action@cargo-nextest
       - name: Run tests
+        if: needs.changes.outputs.src == 'true' || github.event_name == 'push'
         run: cargo nextest run --profile ci --workspace --config-file nextest.toml
       - name: Test report
-        if: always()
+        if: always() && (needs.changes.outputs.src == 'true' || github.event_name == 'push')
         uses: dorny/test-reporter@v1
         with:
           name: Test report
@@ -107,14 +115,21 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     needs: [changes, fmt, clippy]
-    if: needs.changes.outputs.src == 'true' || github.event_name == 'push'
     timeout-minutes: 30
     permissions:
       contents: read
     steps:
+      - name: Report no source changes
+        if: needs.changes.outputs.src != 'true' && github.event_name != 'push'
+        run: |
+          echo "No source changes detected; skipping the build."
+          echo "This run exists so the required check reports a conclusion."
       - uses: actions/checkout@v4
+        if: needs.changes.outputs.src == 'true' || github.event_name == 'push'
       - uses: ./.github/actions/rust-setup
+        if: needs.changes.outputs.src == 'true' || github.event_name == 'push'
       - name: Build
+        if: needs.changes.outputs.src == 'true' || github.event_name == 'push'
         run: cargo build --workspace
 
   bundle-freshness:
@@ -195,19 +210,27 @@ jobs:
     name: Coverage gate
     runs-on: ubuntu-latest
     needs: [changes, fmt, clippy]
-    if: needs.changes.outputs.src == 'true' || github.event_name == 'push'
     timeout-minutes: 60
     permissions:
       contents: read
     steps:
+      - name: Report no source changes
+        if: needs.changes.outputs.src != 'true' && github.event_name != 'push'
+        run: |
+          echo "No source changes detected; skipping coverage measurement."
+          echo "This run exists so the required check reports a conclusion."
       - uses: actions/checkout@v4
+        if: needs.changes.outputs.src == 'true' || github.event_name == 'push'
       - uses: ./.github/actions/rust-setup
+        if: needs.changes.outputs.src == 'true' || github.event_name == 'push'
       - name: Install cargo-tarpaulin
+        if: needs.changes.outputs.src == 'true' || github.event_name == 'push'
         run: cargo install cargo-tarpaulin --locked
       - name: Measure line coverage
+        if: needs.changes.outputs.src == 'true' || github.event_name == 'push'
         run: cargo tarpaulin --workspace --engine llvm --out xml --output-dir coverage/ --fail-under 45
       - name: Publish coverage summary
-        if: always()
+        if: always() && (needs.changes.outputs.src == 'true' || github.event_name == 'push')
         uses: irongut/CodeCoverageSummary@v1.3.0
         with:
           filename: coverage/cobertura.xml
@@ -217,7 +240,7 @@ jobs:
           fail_below_min: true
           output: file
       - name: Add coverage to job summary
-        if: always()
+        if: always() && (needs.changes.outputs.src == 'true' || github.event_name == 'push')
         run: cat code-coverage-results.md >> "$GITHUB_STEP_SUMMARY"
 
   report:
