@@ -314,3 +314,14 @@ pub fn TerminalView() -> Element {
         }
     }
 }
+
+#[component]
+pub fn TerminalUnsupported() -> Element {
+    rsx! {
+        div { class: "view view-terminal-unsupported",
+            h2 { "Terminal not available" }
+            p { "This host does not advertise the terminal surface." }
+            p { "The Dioxus console renders the in-app terminal only when the host reports a terminal capability. The browser host serves the React console instead." }
+        }
+    }
+}

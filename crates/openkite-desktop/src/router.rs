@@ -436,7 +436,9 @@ fn Sidebar() -> Element {
                 NavItem { label: "Cluster", to: Route::Cluster {} }
                 NavItem { label: "Workloads", to: Route::Workloads {} }
                 NavItem { label: "Logs", to: Route::Logs {} }
-                NavItem { label: "Terminal", to: Route::Terminal {} }
+                if openkite_ui::runtime::terminal_can_render() {
+                    NavItem { label: "Terminal", to: Route::Terminal {} }
+                }
                 NavItem { label: "Config", to: Route::Config {} }
                 if !sections.is_empty() {
                     div { class: "nav-divider" }
@@ -588,6 +590,9 @@ fn Logs() -> Element {
 
 #[component]
 fn Terminal() -> Element {
+    if !openkite_ui::runtime::terminal_can_render() {
+        return rsx! { crate::views::terminal::TerminalUnsupported {} };
+    }
     rsx! { crate::views::terminal::TerminalView {} }
 }
 

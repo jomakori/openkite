@@ -109,3 +109,17 @@ pub fn gateway() -> Option<Arc<dyn Gateway>> {
 pub fn capabilities() -> Option<Capabilities> {
     gateway().map(|gateway| gateway.capabilities())
 }
+
+/// True when the host advertises the standalone terminal surface.
+pub fn terminal_can_render() -> bool {
+    capabilities()
+        .map(|caps| caps.supports_terminal())
+        .unwrap_or(false)
+}
+
+/// True when the host reports either window menu bar or title-bar override.
+pub fn native_chrome_can_render() -> bool {
+    capabilities()
+        .map(|caps| caps.supports_native_menu_bar() || caps.supports_title_bar_override())
+        .unwrap_or(false)
+}
