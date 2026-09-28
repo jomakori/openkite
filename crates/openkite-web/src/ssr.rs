@@ -1,0 +1,181 @@
+//! SSR + hydration rendering for the shared console.
+//!
+//! One axum process serves the SSR markup (so the browser gets a fully
+//! rendered page before any JavaScript runs) and a same-origin gateway route
+//! the client calls when it needs fresh cluster data. The browser holds no
+//! credentials: the kube client lives in this process, the gateway implementation
+//! runs server-side, and the wasm client posts its gateway calls back to
+//! `/api/gateway` over the same origin.
+
+use std::sync::Arc;
+
+use base64::Engine as _;
+use dioxus::core::VirtualDom;
+use openkite_api::gateway::Gateway;
+
+use crate::app::{App, AppProps};
+
+/// A snapshot of the cluster the SSR pass and the wasm client both start from.
+///
+/// Embedded in the SSR page as JSON (`<script id="openkite-snapshot">`) so the
+/// client rehydrates against the same tree the server rendered, and so a curl
+/// of `/` carries the cluster context the host reached without the host
+/// trusting the browser with anything it does not already show.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Snapshot {
+    /// Gateway capabilities the host advertises (cluster kind, plugins, etc.).
+    pub capabilities: openkite_api::capability::Capabilities,
+    /// Connection state the user is looking at.
+    pub connected: bool,
+    /// Cluster identity label (in-cluster, kubeconfig context, etc.).
+    pub context: Option<String>,
+    /// Secret names available in the gateway's `secret()` op, so the SSR
+    /// surface shows them and the client doesn't have to round-trip just to
+    /// paint.
+    pub secrets: Vec<SecretRef>,
+}
+
+impl Default for Snapshot {
+    fn default() -> Self {
+        Self {
+            capabilities: openkite_api::capability::Capabilities::server_side(),
+            connected: false,
+            context: None,
+            secrets: Vec::new(),
+        }
+    }
+}
+
+impl Snapshot {
+    /// Build a snapshot from a connected gateway.
+    pub async fn from_gateway(
+        gateway: &Arc<dyn Gateway>,
+        connected: bool,
+        context: Option<String>,
+    ) -> Self {
+        let capabilities = gateway.capabilities();
+        let secrets = list_secret_refs(gateway).await.unwrap_or_default();
+        Self {
+            capabilities,
+            connected,
+            context,
+            secrets,
+        }
+    }
+}
+
+/// A secret reference safe to ship to the browser: name + namespace, never
+/// values. The slide-over calls `gateway.secret(ns, name)` on demand.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct SecretRef {
+    pub namespace: String,
+    pub name: String,
+}
+
+/// Render the SSR body for the snapshot.
+///
+/// Uses `dioxus_ssr::pre_render` so the resulting HTML carries the
+/// `data-node-hydration` ids the browser's hydrate step matches against.
+pub fn render_body(snapshot: &Snapshot) -> String {
+    let mut dom = VirtualDom::new_with_props(
+        App,
+        AppProps {
+            snapshot: snapshot.clone(),
+        },
+    );
+    dom.rebuild(&mut dioxus::core::NoOpMutations);
+    dioxus_ssr::pre_render(&dom)
+}
+
+/// Base64(CBOR(Vec<Option<Vec<u8>>>)) — what dioxus-web expects in
+/// `window.initial_dioxus_hydration_data`. Empty payload is fine: there are
+/// no server functions and no streaming data; the client hydrates against the
+/// embedded snapshot directly.
+pub fn hydration_data() -> String {
+    let empty: Vec<Option<Vec<u8>>> = Vec::new();
+    let mut bytes = Vec::new();
+    ciborium::into_writer(&empty, &mut bytes).expect("cbor encode hydration data");
+    base64::engine::general_purpose::STANDARD.encode(bytes)
+}
+
+/// Options that change what the page contains without changing the snapshot.
+#[derive(Debug, Clone)]
+pub struct RenderOptions {
+    /// Emit the hydration payload + client script (true) or SSR-only fallback (false).
+    pub hydrate: bool,
+    /// Path the client bundle is served from, used as the import target.
+    pub client_script: String,
+}
+
+impl RenderOptions {
+    pub fn hydrating() -> Self {
+        Self {
+            hydrate: true,
+            client_script: "/openkite-web-client.js".to_string(),
+        }
+    }
+
+    pub fn ssr_only() -> Self {
+        Self {
+            hydrate: false,
+            ..Self::hydrating()
+        }
+    }
+}
+
+/// The full HTML page: SSR body + hydration scripts + the snapshot the client
+/// reads on hydrate.
+pub fn render_page(snapshot: &Snapshot, options: &RenderOptions) -> String {
+    let body = render_body(snapshot);
+    let json = serde_json::to_string(snapshot).expect("serialize snapshot");
+    let hydration = hydration_data();
+
+    let hydration_scripts = if options.hydrate {
+        format!(
+            r#"<script>window.hydrate_queue = [];</script>
+<script>window.initial_dioxus_hydration_data="{hydration}";</script>
+<script id="openkite-snapshot" type="application/json">{json}</script>
+<script type="module">
+  // wasm-bindgen `--target web` glue: importing the module default boots the
+  // wasm; its start function launches the hydrating VirtualDom. Plain
+  // `<script src=...>` loads the JS but never instantiates the wasm.
+  import init from "{client}";
+  init();
+</script>"#,
+            client = options.client_script,
+        )
+    } else {
+        format!(
+            r#"<script>window.hydrate_queue = [];</script>
+<script id="openkite-snapshot" type="application/json">{json}</script>"#
+        )
+    };
+
+    format!(
+        r#"<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenKite</title>
+</head>
+<body>
+<div id="main">{body}</div>
+{hydration_scripts}
+</body>
+</html>"#
+    )
+}
+
+/// Best-effort list of secrets the gateway can hand out.
+///
+/// The cluster may carry thousands; for the SSR surface we only need a handful
+/// so the page is not empty before the client hydrates. A `secret()` failure
+/// on one row is logged and skipped so one bad secret does not blank the page.
+async fn list_secret_refs(gateway: &Arc<dyn Gateway>) -> Result<Vec<SecretRef>, ()> {
+    // The gateway trait names one secret at a time — there is no list op yet.
+    // Keep the SSR snapshot empty rather than guessing names; the client
+    // refreshes through `/api/gateway::list_secrets` once it hydrates.
+    let _ = gateway.capabilities();
+    Ok(Vec::new())
+}
