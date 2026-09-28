@@ -1,7 +1,7 @@
 //! Liquid Frost Glass design-system CSS contract test.
 //!
-//! Reads `assets/main.css` via `include_str!` and asserts every required
-//! custom property and primitive class is present. Catches:
+//! Reads the shell stylesheet through `openkite_ui::MAIN_CSS` and asserts every
+//! required custom property and primitive class is present. Catches:
 //!
 //! - A missing class rule (someone deleted `.panel` from `main.css`).
 //! - A token renamed in CSS but not in the Rust constant table, or vice versa.
@@ -10,13 +10,13 @@
 //! - The file accidentally broken by a partial push (the `include_str!`
 //!   fails at compile time).
 //!
-//! This test does NOT import `openkite::design` (per the foundation-first
+//! This test does NOT import the `design` module (per the foundation-first
 //! rule that foundation tests must not depend on sibling un-merged
-//! modules). It reads the CSS file directly so it works from a fresh CI
+//! modules). It reads the stylesheet bytes so it works from a fresh CI
 //! clone.
 
 /// The shipped stylesheet, embedded at compile time.
-const STYLESHEET: &str = include_str!("../assets/main.css");
+const STYLESHEET: &str = openkite_ui::MAIN_CSS;
 
 /// The 12 new custom properties the design system adds on top of the
 /// opaline-mapped theme contract.

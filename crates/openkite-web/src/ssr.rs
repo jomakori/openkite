@@ -169,12 +169,14 @@ pub fn render_page(snapshot: &Snapshot, options: &RenderOptions) -> String {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OpenKite</title>
+<style>{css}</style>
 </head>
 <body>
 <div id="main">{body}</div>
 {hydration_scripts}
 </body>
-</html>"#
+</html>"#,
+        css = openkite_ui::MAIN_CSS,
     )
 }
 

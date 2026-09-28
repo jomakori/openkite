@@ -33,7 +33,7 @@ pub fn should_show_paused_hint(state: FollowState, at_bottom: bool) -> bool {
 ///
 /// Returns `"warn"` for `WARN|warn`, `"error"` for `ERROR|ERR|error|err`,
 /// and `""` otherwise. The class names line up with the CSS rules in
-/// `assets/main.css:366-368`. The sniff is deliberately narrow — a
+/// `crates/openkite-ui/assets/main.css:366-368`. The sniff is deliberately narrow — a
 /// structured JSON / logfmt parser is a follow-up ticket.
 pub fn level_class(line: &str) -> &'static str {
     let head = line.split_ascii_whitespace().next().unwrap_or("");

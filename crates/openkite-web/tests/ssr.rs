@@ -86,3 +86,15 @@ fn hydrating_page_embeds_the_snapshot_and_client_import() {
         "hydrating page must point at the wasm client bundle: {page}"
     );
 }
+
+#[test]
+fn every_page_carries_the_shell_stylesheet() {
+    let wrapped = format!("<style>{}</style>", openkite_ui::MAIN_CSS);
+    for options in [RenderOptions::ssr_only(), RenderOptions::hydrating()] {
+        let page = render_page(&snapshot(), &options);
+        assert!(
+            page.contains(&wrapped),
+            "page must inline the shared shell stylesheet"
+        );
+    }
+}
