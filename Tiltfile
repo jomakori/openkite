@@ -28,7 +28,6 @@ if pr != '':
         local('bash web/build.sh')
 
     flags = [
-        '--create-namespace',
         '--take-ownership',
         '--set=appName=openkite',
         '--set=openkite.namespaceOverride=' + namespace,
