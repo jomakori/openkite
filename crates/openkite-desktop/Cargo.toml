@@ -15,6 +15,9 @@ desktop = ["dioxus/desktop"]
 
 [dependencies]
 dioxus = { version = "0.7", features = ["router"] }
+openkite-api = { path = "../openkite-api" }
+openkite-ui = { path = "../openkite-ui" }
+openkite-host = { path = "../openkite-host" }
 openkite-plugin-sdk = { path = "../plugin-sdk" }
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
@@ -22,15 +25,11 @@ tracing-subscriber = "0.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde-saphyr = "0.0.29"
-toml = "0.8"
 dirs = "5"
 anyhow = "1"
 futures = "0.3"
 http = "1"
 http-body-util = "0.1"
-
-# Opaline token theme engine as a theme source (OKT-30): 39 builtin themes.
-opaline = { version = "0.4", default-features = false, features = ["builtin-themes"] }
 # JS plugin host hot-reload watcher (OKT-45): plugins dir change events.
 notify = "8"
 

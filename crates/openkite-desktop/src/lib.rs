@@ -1,41 +1,46 @@
 #![allow(non_snake_case)]
 
-pub mod bridge;
+#[cfg(feature = "desktop")]
+use std::sync::Arc;
+
+#[cfg(feature = "desktop")]
+use openkite_api::gateway::Gateway;
+#[cfg(feature = "desktop")]
+use openkite_host::gateway::KubeGateway;
+
+// The shared halves of the app live in their own crates and are re-exported
+// here, so every host-side path (`crate::components::…`, `crate::bridge::…`)
+// and every test path (`openkite::…`) keeps working unchanged:
+// `openkite-ui` is the console, `openkite-host` the kube-side runtime this host
+// runs with.
+pub use openkite_host::{bridge, config, push, state};
+pub use openkite_ui::{
+    components, design, plugin_api, secrets, shell, theme, theme_catalog, theme_opaline,
+};
+
 pub mod cluster;
-pub mod components;
-pub mod config;
 pub mod crud;
-pub mod design;
 pub mod fuzzy;
 pub mod logs;
 pub mod menubar;
 pub mod metrics;
 pub mod network;
 pub mod palette;
-pub mod plugin_api;
 pub mod plugin_host;
 pub mod plugin_js;
 pub mod pod;
 pub mod prometheus;
 pub mod promql;
-pub mod push;
 #[cfg(feature = "desktop")]
 pub mod react_spike;
 pub mod router;
 pub mod runtime;
-pub mod secrets;
-pub mod shell;
-pub mod state;
 pub mod switcher;
 pub mod terminal;
-pub mod theme;
-pub mod theme_catalog;
-pub mod theme_opaline;
 pub mod titlebar;
 pub mod version;
 pub mod views;
 pub mod workloads;
-pub mod yaml;
 
 /// Bootstrap OpenKite: load config, plugins, and kubeconfig, then launch the UI.
 #[cfg(feature = "desktop")]
@@ -122,7 +127,12 @@ pub fn run() {
     let vdom = dioxus::prelude::VirtualDom::new(router::app);
     vdom.in_runtime(|| {
         router::install_plugins(sections, routes);
-        crate::runtime::set_client(client);
+        crate::runtime::set_client(client.clone());
+        // The console reaches the cluster through the contract, never through
+        // the client: install the in-process kube adapter next to it.
+        crate::runtime::set_gateway(
+            client.map(|client| Arc::new(KubeGateway::new(client)) as Arc<dyn Gateway>),
+        );
         if let Some(active) = active {
             crate::runtime::set_context(Some(active));
         }

@@ -1,6 +1,6 @@
 //! The headless Dioxus runtime the reflector set needs.
 //!
-//! `openkite::state::live` keeps its snapshots in Dioxus `Signal`s, and a dioxus
+//! `openkite_host::state::live` keeps its snapshots in Dioxus `Signal`s, and a dioxus
 //! 0.7 signal resolves its owner scope from the ambient runtime: creating one
 //! goes `Signal::new_maybe_sync` → `generational_box::current_owner` →
 //! `Runtime::current().current_owner()`, which needs both a current runtime and a
@@ -18,11 +18,11 @@ use kube::Client;
 
 /// Start the core reflectors inside the runtime that owns their signals.
 ///
-/// Idempotent per kind, like [`openkite::state::live::start`]: it answers how
+/// Idempotent per kind, like [`openkite_host::state::live::start`]: it answers how
 /// many reflectors were newly started.
 pub fn start_reflectors(client: Client) -> usize {
     DOM.with(|dom| {
-        dom.in_runtime(|| dom.in_scope(ScopeId::ROOT, || openkite::state::live::start(client)))
+        dom.in_runtime(|| dom.in_scope(ScopeId::ROOT, || openkite_host::state::live::start(client)))
     })
 }
 

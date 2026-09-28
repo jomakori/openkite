@@ -128,15 +128,12 @@ pub fn config_map_entries(config_map: &ConfigMap) -> Vec<(String, String)> {
 }
 
 /// The keys present in a Secret (from `data` and `string_data`), sorted.
+///
+/// The key rule is the contract crate's (`openkite_api::secret::secret_keys`);
+/// this maps the kube object onto the owned type so the host table and the
+/// console slide-over can never disagree about which keys a secret has.
 pub fn secret_keys(secret: &Secret) -> Vec<String> {
-    let mut keys = BTreeSet::new();
-    if let Some(data) = &secret.data {
-        keys.extend(data.keys().cloned());
-    }
-    if let Some(string_data) = &secret.string_data {
-        keys.extend(string_data.keys().cloned());
-    }
-    keys.into_iter().collect()
+    openkite_api::secret::secret_keys(&openkite_host::gateway::secret_object(secret))
 }
 
 /// The four kinds the `/config` view lists. Order is the tab order

@@ -12,9 +12,9 @@
 
 use std::collections::BTreeMap;
 
-use openkite::config::{MenuBarVisibility, OpenKiteConfig, TitleBarTheme};
-use openkite::plugin_api::ApiResponse;
-use openkite::{theme, theme_catalog};
+use openkite_api::bridge::ApiResponse;
+use openkite_host::config::{MenuBarVisibility, OpenKiteConfig, TitleBarTheme};
+use openkite_ui::{theme, theme_catalog};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 

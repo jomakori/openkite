@@ -4,13 +4,22 @@ pr = os.getenv('OPENKITE_PR', '')
 dev_loop = os.getenv('OPENKITE_DEV_LOOP', '1') != '0'
 chart = os.getenv('OPENKITE_CHART', '../gke_GitOps/apps/helm')
 
+context = os.getenv('OPENKITE_CONTEXT', '')
+if context != '':
+    allow_k8s_contexts(context)
+
 if pr != '':
     if not os.path.exists(chart):
         fail('No chart at ' + chart + '. Point OPENKITE_CHART at the gke_GitOps apps/helm checkout.')
 
     namespace = 'openkite-pr' + pr
     host = 'pr' + pr + '-openkite.maklab.net'
-    base = os.getenv('OPENKITE_BASE_TAG', local('git tag --merged HEAD --sort=-v:refname --list "v*" | head -1'))
+    base = str(
+        os.getenv(
+            'OPENKITE_BASE_TAG',
+            local('git tag --merged HEAD --sort=-v:refname --list "v*" | head -1'),
+        )
+    ).strip()
 
     if base == '':
         fail('No release tag is an ancestor of this branch. Run: git fetch --tags')
@@ -19,7 +28,7 @@ if pr != '':
         local('bash web/build.sh')
 
     flags = [
-        '--create-namespace',
+        '--take-ownership',
         '--set=appName=openkite',
         '--set=openkite.namespaceOverride=' + namespace,
         '--set=openkite.createNamespace=true',
@@ -32,11 +41,11 @@ if pr != '':
     ]
 
     # Helm ignores a value key the chart revision does not know, which would render this preview at prod coordinates.
-    rendered = local(
+    rendered = str(local(
         'helm template openkite-preview-' + pr + ' ' + chart + ' ' + ' '.join(flags)
         + ' 2>/dev/null || true',
         echo_off=True,
-    )
+    ))
     for needle in [namespace, host, base]:
         if needle not in rendered:
             fail('The chart did not render ' + needle + '. It is stale or the values moved; refusing to install.')

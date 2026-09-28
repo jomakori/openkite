@@ -9,9 +9,10 @@
 //! through its wry asset handler, mounted on axum instead.
 //!
 //! Nothing in the desktop path changes. The kube client, the reflectors
-//! ([`openkite::state::live`]) and the bridge are the core crate's own; the only
-//! new code here is HTTP glue, plus the headless runtime the reflectors need
-//! (see [`headless`]).
+//! ([`openkite_host::state::live`]) and the bridge are the shared host
+//! runtime's own — this crate depends on the contract, the console and that
+//! runtime, never on the desktop app. The only new code here is HTTP glue,
+//! plus the headless runtime the reflectors need (see [`headless`]).
 
 pub mod headless;
 pub mod routes;
@@ -23,7 +24,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use kube::Client;
-use openkite::bridge::Bridge;
+use openkite_host::bridge::Bridge;
 use tokio::net::TcpListener;
 
 /// Address the host binds unless `OPENKITE_ADDR` overrides it. Matches the port

@@ -25,7 +25,6 @@ jobs:
       OPENKITE_PR: ${{ github.event.pull_request.number }}
       OPENKITE_DEV_LOOP: '0'
       OPENKITE_CHART: gke_GitOps/apps/helm
-      KUBECONFIG: ${{ github.workspace }}/kubeconfig
     steps:
       - name: Check out the pull request
         uses: actions/checkout@v4
@@ -37,26 +36,20 @@ jobs:
         with:
           repository: jomakori/gke_GitOps
           path: gke_GitOps
-          token: ${{ secrets.GITOPS_TOKEN }}
       - name: Install Tilt
         run: |
           curl -fsSL "https://github.com/tilt-dev/tilt/releases/download/${TILT_VERSION}/tilt.${TILT_VERSION#v}.linux.x86_64.tar.gz" \
             | tar -xz -C /usr/local/bin tilt
           tilt version
-      - name: Fetch the cluster credentials
-        uses: dopplerhq/secrets-fetch-action@main
-        with:
-          doppler-token: ${{ secrets.DOPPLER_TOKEN }}
-          doppler-project: devops
-          doppler-config: ci
       - name: Join the tailnet
-        uses: tailscale/github-action@main
+        uses: tailscale/github-action@v4
         with:
-          authkey: ${{ env.TAILSCALE_AUTH_KEY }}
+          authkey: ${{ secrets.TAILSCALE_AUTH_KEY }}
       - name: Write the client kubeconfig
         run: |
-          install -m 600 /dev/null "$KUBECONFIG"
-          printf '%s\n' "$TAILSCALE_KUBECONFIG" > "$KUBECONFIG"
+          tailscale configure kubeconfig ${{ secrets.TAILSCALE_PROXY_HOST }}
+          kubectl config current-context
+          echo "OPENKITE_CONTEXT=$(kubectl config current-context)" >> "$GITHUB_ENV"
       - name: Assert cluster access
         run: kubectl auth can-i list namespaces
       - name: Build the console bundle
@@ -108,22 +101,15 @@ jobs:
     env:
       RELEASE: openkite-preview-${{ github.event.pull_request.number }}
       ENVIRONMENT: openkite-pr${{ github.event.pull_request.number }}
-      KUBECONFIG: ${{ github.workspace }}/kubeconfig
     steps:
-      - name: Fetch the cluster credentials
-        uses: dopplerhq/secrets-fetch-action@main
-        with:
-          doppler-token: ${{ secrets.DOPPLER_TOKEN }}
-          doppler-project: devops
-          doppler-config: ci
       - name: Join the tailnet
-        uses: tailscale/github-action@main
+        uses: tailscale/github-action@v4
         with:
-          authkey: ${{ env.TAILSCALE_AUTH_KEY }}
+          authkey: ${{ secrets.TAILSCALE_AUTH_KEY }}
       - name: Write the client kubeconfig
         run: |
-          install -m 600 /dev/null "$KUBECONFIG"
-          printf '%s\n' "$TAILSCALE_KUBECONFIG" > "$KUBECONFIG"
+          tailscale configure kubeconfig ${{ secrets.TAILSCALE_PROXY_HOST }}
+          kubectl config current-context
       - name: Assert cluster access
         run: kubectl auth can-i list namespaces
       - name: Remove the environment

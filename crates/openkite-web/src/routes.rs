@@ -11,8 +11,8 @@ use std::sync::Arc;
 use axum::extract::State;
 use axum::routing::post;
 use axum::{Json, Router};
-use openkite::bridge::Bridge;
-use openkite::plugin_api::ApiResponse;
+use openkite_api::bridge::ApiResponse;
+use openkite_host::bridge::Bridge;
 use tower_http::services::{ServeDir, ServeFile};
 
 use crate::spike;
