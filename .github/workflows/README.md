@@ -10,7 +10,7 @@ Four workflows, one job each of them owns:
 | Workflow | Trigger | Jobs |
 |---|---|---|
 | [`lint-test.yml`](lint-test.yml) | `pull_request` (drafts included), push `main` | `changes` · `fmt` · `clippy` · `test` · `build` · `bundle-freshness` · `cross-platform` · `web-target` · `coverage` · `report` |
-| [`build-e2e.yml`](build-e2e.yml) | `pull_request` (not draft), push `main` | `changes` · `binaries` (6 targets) · `e2e-binary` · `desktop-e2e` · `user-flows` · `bridge-guard` · `desktop-e2e-connected` · `visual-regression` · `gate` · `report` |
+| [`build-test-staging.yml`](build-test-staging.yml) | `pull_request` (not draft), push `main` | `changes` · `binaries` (6 targets) · `e2e-binary` · `desktop-e2e` · `user-flows` · `bridge-guard` · `desktop-e2e-connected` · `visual-regression` · `gate` · `report` |
 | [`preview.yml`](preview.yml) | `pull_request` on the `preview` label | `image` · `ready` · `prune` · `report` |
 | [`release.yml`](release.yml) | push `main` (Rust/web/CI paths), dispatch | `analyze` · `locate` · `packages` · `publish` · `image` · `image-rebuild` · `manifest` · `tap` · `choco` · `report` |
 
@@ -71,11 +71,11 @@ and deleting all of them for one that did not.
 
 ## Build once, reuse at release
 
-The six native packages are built once per commit by `build-e2e.yml` and reused:
+The six native packages are built once per commit by `build-test-staging.yml` and reused:
 
 ```
 PR (artifact-affecting)                     release (push to main)
-  build-e2e.yml                               release.yml
+  build-test-staging.yml                               release.yml
         │ six native builds                    │
         │ uploads openkite_<os>_<arch>          ▼
         └──────────── artifacts ──────────► locate: the PR build for this commit
@@ -91,7 +91,7 @@ PR (artifact-affecting)                     release (push to main)
 
 Squash merges mint a brand-new commit SHA, so the PR build cannot be found by
 the merged SHA alone. `locate` maps the merged commit back to its PR head SHA
-through the API, finds the newest **successful** `build-e2e` run for that SHA,
+through the API, finds the newest **successful** `build-test-staging` run for that SHA,
 and requires a complete, unexpired six-asset set. Missing, expired, cancelled,
 or
 a direct push to `main` → `reuse=false` and the `packages` fallback rebuilds.
@@ -164,7 +164,7 @@ path-filtered, so a workflow-only merge never runs it.
 
 ## Process rule: verify the workflows a change can trigger
 
-Write down the workflows your diff can trigger — `lint-test`, `build-e2e`,
+Write down the workflows your diff can trigger — `lint-test`, `build-test-staging`,
 `preview`, `Release` — and say which ones you actually observed. "The PR used to
 pass" is not the same statement as "these workflows passed on this diff", and
 only the second one is evidence.
@@ -173,7 +173,7 @@ only the second one is evidence.
 
 `Cargo.toml` stays at `[workspace.package] version = "0.0.0"` on `main`, so the
 compile-time constant is a placeholder rather than a release: a package built by
-`build-e2e.yml` cannot know the version semantic-release computes after the
+`build-test-staging.yml` cannot know the version semantic-release computes after the
 merge. The reported version is therefore resolved **at runtime**, in
 `crates/openkite-desktop/src/version.rs` (`openkite::version::reported()`), and
 every surface reads that one resolver — the desktop status bar, the desktop and
@@ -205,7 +205,7 @@ for the version inputs.
   [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md)
 - The loops these workflows run previews and tests with:
   [`../../tilt/README.md`](../../tilt/README.md)
-- The suites `build-e2e.yml` runs: [`../../e2e/README.md`](../../e2e/README.md)
+- The suites `build-test-staging.yml` runs: [`../../e2e/README.md`](../../e2e/README.md)
 - The chart a release ships into: the `apps/helm` chart in the GitOps repository
 
 ## Staging
