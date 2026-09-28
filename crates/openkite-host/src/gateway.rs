@@ -8,7 +8,7 @@
 use k8s_openapi::api::core::v1::Secret;
 use kube::{Api, Client};
 
-use openkite_api::capability::Capabilities;
+use openkite_api::capability::{Capabilities, GatewayKind};
 use openkite_api::crud::Mutation;
 use openkite_api::gateway::{Gateway, GatewayError, GatewayFuture};
 use openkite_api::secret::SecretObject;
@@ -39,16 +39,31 @@ pub fn secret_object(secret: &Secret) -> SecretObject {
     }
 }
 
-/// The in-process gateway: the desktop host's cluster client, answering the
-/// contract's typed requests directly over kube-rs.
+/// The kube gateway: a host's cluster client answering the contract's typed
+/// requests directly over kube-rs. The `kind` is the one thing the desktop and
+/// the browser hosts do not agree on — the desktop reaches kube in-process,
+/// the browser reaches it on the server side of the same origin.
 pub struct KubeGateway {
     client: Client,
+    kind: GatewayKind,
 }
 
 impl KubeGateway {
-    /// Wrap a connected cluster client.
+    /// Wrap a connected cluster client for the desktop host.
     pub fn new(client: Client) -> Self {
-        Self { client }
+        Self {
+            client,
+            kind: GatewayKind::InProcess,
+        }
+    }
+
+    /// Wrap a connected cluster client for the browser host, whose wasm client
+    /// cannot reach kube and posts its gateway calls back to the server.
+    pub fn server_side(client: Client) -> Self {
+        Self {
+            client,
+            kind: GatewayKind::ServerSide,
+        }
     }
 
     /// The client behind the gateway (the desktop host still needs it for
@@ -60,7 +75,10 @@ impl KubeGateway {
 
 impl Gateway for KubeGateway {
     fn capabilities(&self) -> Capabilities {
-        Capabilities::in_process()
+        match self.kind {
+            GatewayKind::InProcess => Capabilities::in_process(),
+            GatewayKind::ServerSide => Capabilities::server_side(),
+        }
     }
 
     fn apply(&self, mutation: Mutation) -> GatewayFuture<'_, Result<(), GatewayError>> {

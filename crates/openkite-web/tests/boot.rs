@@ -1,9 +1,4 @@
-//! Smoke test: boot the host the way the binary boots it, against a fake API
-//! server, and drive it over HTTP.
-//!
-//! `list pods` must answer a real kube `List` and `watch pods` must answer the
-//! reflector snapshot — those two are exactly what the console's fixture
-//! fallback rides on, so asserting them here is the browser build's acceptance.
+//! Smoke test: boot the host end-to-end against a fake API server.
 
 mod support;
 
@@ -13,9 +8,8 @@ use openkite_web::serve;
 use serde_json::json;
 use support::{fake_api_client, raw_http, wait_until_serving, POD_NAME, POD_NAMESPACE};
 
-const SHELL: &str = "<!doctype html><title>OpenKite console</title>";
+const SHELL: &str = "<!doctype html><title>placeholder</title>";
 
-/// The console's `list pods` call, as `web/src/bridge.ts` builds it.
 fn list_pods_body() -> String {
     json!({
         "id": 1,
@@ -41,14 +35,15 @@ async fn booted_host_answers_the_console_over_http() {
     let shell = raw_http(addr, "GET", "/", None).await;
     assert!(shell.contains("200 OK"), "shell response: {shell}");
     assert!(
-        shell.contains("OpenKite console"),
-        "shell response: {shell}"
+        shell.contains("data-surface=\"app\""),
+        "ssr shell response: {shell}"
     );
+
     let deep_link = raw_http(addr, "GET", "/cluster", None).await;
     assert!(deep_link.contains("200 OK"), "deep link: {deep_link}");
     assert!(
-        deep_link.contains("OpenKite console"),
-        "deep link: {deep_link}"
+        deep_link.contains("placeholder"),
+        "deep link fell back to bundle: {deep_link}"
     );
 
     let response = raw_http(addr, "POST", "/openkite", Some(&list_pods_body())).await;

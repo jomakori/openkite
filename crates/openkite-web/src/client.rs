@@ -35,7 +35,7 @@ pub async fn fetch_snapshot() -> Result<Option<Snapshot>, String> {
     opts.set_body(&wasm_bindgen::JsValue::from_str(&body));
     let request = match Request::new_with_str_and_init("/api/gateway", &opts) {
         Ok(request) => request,
-        Err(err) => return Err(format!("build request: {err}")),
+        Err(err) => return Err(format!("build request: {err:?}")),
     };
     if let Err(err) = request.headers().set("content-type", "application/json") {
         return Err(format!("set header: {err:?}"));
