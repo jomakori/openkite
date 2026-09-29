@@ -1,27 +1,149 @@
 //! SSR + hydration assertions for the crate-rendered console.
+//!
+//! The page is the *shared* console: these tests pin the shell chrome the
+//! shared model produces, the surfaces the snapshot fills, and the hydration
+//! wiring the client attaches to. The class contract with the stylesheet lives
+//! in `tests/css_contract.rs`.
 
 use base64::Engine as _;
-use openkite_web::ssr::{hydration_data, render_body, render_page, RenderOptions, Snapshot};
+use openkite_api::capability::Capabilities;
+use openkite_web::ssr::{
+    hydration_data, render_body, render_page, RenderOptions, SecretRef, Snapshot,
+};
 
 fn snapshot() -> Snapshot {
     Snapshot::default()
 }
 
+/// A connected host carrying data, so the surfaces render with rows in them
+/// (capability flags on, a cluster context, one secret in scope).
+fn connected() -> Snapshot {
+    Snapshot {
+        capabilities: Capabilities::in_process(),
+        connected: true,
+        context: Some("in-cluster".into()),
+        secrets: vec![SecretRef {
+            namespace: "default".into(),
+            name: "regcred".into(),
+        }],
+    }
+}
+
 #[test]
 fn render_body_includes_the_data_surface_markers() {
+    for surface in ["app", "overview", "capabilities"] {
+        let needle = format!("data-surface=\"{surface}\"");
+        let body = render_body(&snapshot());
+        assert!(body.contains(&needle), "ssr body missing {surface}: {body}");
+    }
+}
+
+#[test]
+fn render_body_renders_the_shared_shell_chrome() {
+    let body = render_body(&connected());
+    for chrome in [
+        "class=\"app-shell\"",
+        "class=\"sidebar\"",
+        "class=\"brand\"",
+        "class=\"nav\"",
+        "class=\"nav-section\"",
+        "class=\"nav-section-label\"",
+        "class=\"nav-item\"",
+        "class=\"topbar\"",
+        "class=\"main-col\"",
+        "class=\"content\"",
+        "class=\"status\"",
+        "class=\"status-entry\"",
+        "class=\"status-dot\"",
+    ] {
+        assert!(
+            body.contains(chrome),
+            "ssr body missing shell chrome {chrome}: {body}"
+        );
+    }
+}
+
+#[test]
+fn render_body_renders_the_shared_sidebar_model() {
     let body = render_body(&snapshot());
+    for (label, route) in [
+        ("Cluster", "/cluster"),
+        ("Workloads", "/workloads"),
+        ("Config", "/config"),
+    ] {
+        assert!(
+            body.contains(&format!(">{label}<")),
+            "nav label {label}: {body}"
+        );
+        assert!(
+            body.contains(&format!("href=\"{route}\"")),
+            "nav route {route}: {body}"
+        );
+    }
+}
+
+#[test]
+fn render_body_paints_a_connected_snapshot() {
+    let body = render_body(&connected());
     assert!(
-        body.contains("data-surface=\"app\""),
-        "ssr body missing app surface: {body}"
+        body.contains("in-cluster · Connected"),
+        "status footer: {body}"
+    );
+    assert!(body.contains("class=\"pill success\""), "pill: {body}");
+    assert!(body.contains(">Running<"), "pill label: {body}");
+    assert!(body.contains(">in-process<"), "gateway kind: {body}");
+    assert!(body.contains(">regcred<"), "secret row: {body}");
+    assert!(
+        body.contains("class=\"resource-name\""),
+        "secret row markup: {body}"
+    );
+    let server_side = render_body(&Snapshot {
+        capabilities: Capabilities::server_side(),
+        connected: true,
+        context: Some("kubeconfig".into()),
+        secrets: Vec::new(),
+    });
+    assert!(
+        server_side.contains(">server-side<"),
+        "gateway kind: {server_side}"
     );
     assert!(
-        body.contains("data-surface=\"overview\""),
-        "ssr body missing overview surface: {body}"
+        server_side.contains(">off<"),
+        "capability flags: {server_side}"
     );
     assert!(
-        body.contains("data-surface=\"capabilities\""),
-        "ssr body missing capabilities surface: {body}"
+        server_side.contains("kubeconfig · Connected"),
+        "footer: {server_side}"
     );
+}
+
+#[test]
+fn render_body_paints_a_disconnected_snapshot() {
+    let body = render_body(&snapshot());
+    assert!(body.contains("no cluster · Disconnected"), "footer: {body}");
+    assert!(body.contains("class=\"pill danger\""), "pill: {body}");
+    assert!(body.contains(">Failed<"), "pill label: {body}");
+    assert!(
+        body.contains("No secrets in the gateway"),
+        "empty secrets surface: {body}"
+    );
+}
+
+#[test]
+fn render_body_carries_no_bespoke_console_markup() {
+    for body in [render_body(&connected()), render_body(&snapshot())] {
+        for gone in [
+            "class=\"surface\"",
+            "status-ok",
+            "status-warn",
+            "status-badge",
+        ] {
+            assert!(
+                !body.contains(gone),
+                "bespoke markup {gone} still rendered: {body}"
+            );
+        }
+    }
 }
 
 #[test]
@@ -35,8 +157,8 @@ fn render_body_includes_a_hydration_marker() {
 
 #[test]
 fn render_body_is_byte_identical_across_runs() {
-    let first = render_body(&snapshot());
-    let second = render_body(&snapshot());
+    let first = render_body(&connected());
+    let second = render_body(&connected());
     assert_eq!(first, second, "ssr body should be deterministic");
 }
 
