@@ -2,6 +2,37 @@
 //! wildcard that dispatches unknown paths through the plugin route table;
 //! the app shell chrome (sidebar + status footer); the `/openkite` bridge
 //! asset handler; and one-time JS plugin bundle evaluation.
+//!
+//! Native RSX surfaces kept on purpose (OKT-127):
+//!
+//! - [`Route::Logs`] → [`crate::views::logs::LogsView`] — standalone log
+//!   viewer with `kube::log_stream` follow/pause and a `LineBuffer`
+//!   coalescer. `openkite-ui` exports no equivalent surface; the crate
+//!   currently ships only the capabilities summary (`openkite-web::App`).
+//!   Retirement would leave the user with no logs UI.
+//! - [`Route::Terminal`] → [`crate::views::terminal::TerminalView`] —
+//!   xterm.js host + pod/container picker + reconnect state machine, on
+//!   top of the vendored bundle in `openkite-ui/assets/vendored/xterm/`.
+//!   The exec transport is deferred (Phase 1); the view renders the typed
+//!   input and surfaces the bridge-pending hint. No crate-rendered
+//!   replacement exists.
+//! - [`PodDetail`] slide-over (mounted inside [`AppShell`]) — the
+//!   5-tab inspector (Overview / Logs / Events / YAML / Containers)
+//!   driven by `SELECTED_POD`. The kube `Api::log_stream` in the Logs
+//!   tab and the container-state mapping in the Containers tab are not
+//!   duplicated by any crate view; `openkite-ui` has no PodDetail.
+//!   PodDetail is intentionally native until OKT-127's successor
+//!   builds a console-side inspector.
+//! - [`Route::Plugin`] wildcard → [`Plugin`] dispatcher — Rust SDK
+//!   plugin routes (`ROUTE_TABLE`) plus JS plugin renderers (the
+//!   `JsRouteSlot` mount). The console does not own plugin routing;
+//!   declaring the wildcard native is what keeps the SDK contract
+//!   and the JS bundle eval surface where their owners (the desktop
+//!   host) can evolve them independently.
+//!
+//! `console_route` is the gate that says which core browse routes the
+//! crate-rendered console takes over; the four routes listed above are
+//! the ones it deliberately leaves native.
 
 #![allow(non_snake_case)]
 
@@ -101,13 +132,20 @@ fn full_path(path: &[String]) -> String {
 }
 
 /// Core routes that render the React console instead of the native RSX views,
-/// mapped to the console nav id they open on. `None` keeps the route on the
-/// native shell — logs, terminal, and the plugin wildcard are not ported.
+/// mapped to the console nav id they open on.
+///
+/// `None` keeps the route on the native shell — the four `None` arms below
+/// are the OKT-127 keep-native list. See the module doc for the reasons;
+/// in short: the crate-rendered console (OKT-135) does not yet expose
+/// logs, terminal exec, the pod-detail inspector, or a plugin route
+/// dispatcher, so retiring the native counterparts would remove a user
+/// surface rather than replace one.
 fn console_route(route: &Route) -> Option<&'static str> {
     match route {
         Route::Home {} | Route::Workloads {} | Route::Spike {} => Some("pods"),
         Route::Cluster {} => Some("overview"),
         Route::Config {} => Some("configmaps"),
+        // OKT-127 keep-native: see module doc.
         Route::Logs {} | Route::Terminal {} | Route::Plugin { .. } => None,
     }
 }
@@ -744,6 +782,13 @@ mod tests {
 
     #[test]
     fn console_route_takes_over_core_browse_routes_and_leaves_native_ones() {
+        // OKT-127 keep-native contract: the crate-rendered console takes
+        // over the core browse routes, while Logs, Terminal, and the
+        // Plugin wildcard stay native. See the module doc for the full
+        // rationale per surface. Touching the `None` arms is a deletion
+        // of a working UI surface, not a consolidation — fail loudly if
+        // the keep-native list shrinks before the crate supplies a
+        // replacement.
         for route in [Route::Home {}, Route::Workloads {}, Route::Spike {}] {
             assert_eq!(console_route(&route), Some("pods"), "{route:?}");
         }
