@@ -124,7 +124,7 @@ pub fn capabilities() -> Option<Capabilities> {
     if let Some(slot) = PUBLISHED_CAPABILITIES.get() {
         if let Ok(slot) = slot.lock() {
             if slot.is_some() {
-                return slot.clone();
+                return *slot;
             }
         }
     }
