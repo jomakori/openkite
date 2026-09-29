@@ -58,6 +58,17 @@ body {
 
 .app-shell { display: flex; height: 100vh; }
 
+.surface {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 16px;
+}
+.kv dt { color: var(--fg-2); font-size: 12px; }
+.kv dd { color: var(--fg-0); font-size: 13px; margin: 0; }
+.status-ok { color: var(--green); }
+.status-warn { color: var(--yellow); }
+
 .sidebar {
   width: 224px;
   background: var(--bg-2);
@@ -278,6 +289,18 @@ body {
 .search-field input::placeholder { color: var(--fg-2); }
 .search-field:focus-within { border-color: var(--accent); }
 
+.field-input {
+  font: inherit; font-size: 13px;
+  color: var(--fg-0);
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 8px 12px;
+  box-sizing: border-box;
+  outline: none;
+}
+.field-input:focus { border-color: var(--accent); }
+
 /* --- Pills (semantic status badges) --- */
 .pill {
   display: inline-flex; align-items: center; gap: 6px;
@@ -321,6 +344,44 @@ body {
 .dot.ok { background: var(--green); }
 .dot.warn { background: var(--yellow); }
 .dot.err { background: var(--red); }
+
+/* --- Resource table (grid-row primitives) --- */
+.resource-table {
+  display: flex; flex-direction: column;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.table-toolbar {
+  display: flex; align-items: center; gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.table-filter { flex: 1; min-width: 0; }
+.table-header { color: var(--fg-2); }
+.table-header .table-cell {
+  text-transform: uppercase;
+  letter-spacing: 0.075em;
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 500;
+}
+.table-body { position: relative; }
+.table-row { display: flex; align-items: center; border-bottom: 1px solid var(--border); }
+.table-cell {
+  padding: 0 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.table-state, .table-empty {
+  padding: 24px 16px;
+  font-family: var(--font-sans);
+  color: var(--fg-2);
+  text-align: center;
+}
+.table-error { color: var(--red); }
+.table-actions { display: flex; justify-content: flex-end; gap: 4px; }
 
 /* --- Table primitives --- */
 .table-wrap {
@@ -414,6 +475,21 @@ body {
   display: flex; flex-direction: column; gap: 4px;
   padding: 16px;
   border-bottom: 1px solid var(--border);
+}
+.inspector-title {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.inspector-title h2 {
+  margin: 0; font-size: 15px; font-weight: 600; color: var(--fg-0);
+}
+.resource-kind {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.09em;
+  color: var(--fg-2);
+}
+.inspector-meta {
+  display: flex; gap: 12px;
+  font-size: 11.5px; font-family: var(--font-mono);
+  color: var(--fg-2);
 }
 .inspector-eyebrow {
   font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
@@ -746,6 +822,14 @@ body {
   font-size: 12px;
   color: var(--red);
 }
+
+/* Diagnostics + status-badge status colors. */
+.message { color: var(--fg-1); }
+.status-badge { font-weight: 600; }
+.status-badge.status-ok { color: var(--green); }
+.status-badge.status-warn { color: var(--yellow); }
+.status-badge.status-err { color: var(--red); }
+.status-badge.status-muted { color: var(--fg-2); }
 
 /* Destructive confirm copy. */
 .confirm-warning {
