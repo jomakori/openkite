@@ -1,10 +1,11 @@
 //! The console's context and settings ops (`/openkite-spike`).
 //!
-//! The desktop answers these from `openkite::react_spike`, which is
-//! desktop-gated because it hangs off the wry asset handler. The payloads are
-//! the console's wire contract (`web/src/bridge.ts::fetchClusterContext` and
-//! `web/src/settings.ts`), and the persisted fields are the same
-//! `OpenKiteConfig`, so both hosts answer field for field.
+//! The desktop used to answer these from `openkite::react_spike`, desktop-gated
+//! because it hung off the wry asset handler; after OKT-137 that module is gone
+//! and this host is the only one serving the console. The payloads were the
+//! console's wire contract (fetchClusterContext and the settings surface), and
+//! the persisted fields are the same
+//! `OpenKiteConfig`, so both hosts answered field for field.
 //!
 //! What a server has no counterpart for, it says so: there is no menu bar and no
 //! window chrome here, so `menuBarHideable` and `titleBarOverridable` are false

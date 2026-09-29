@@ -30,9 +30,9 @@
 //!   and the JS bundle eval surface where their owners (the desktop
 //!   host) can evolve them independently.
 //!
-//! `console_route` is the gate that says which core browse routes the
-//! crate-rendered console takes over; the four routes listed above are
-//! the ones it deliberately leaves native.
+//! After OKT-137 the console lives only in `crates/openkite-web` (SSR +
+//! wasm hydration in the browser image); the desktop keeps these native
+//! surfaces, and the routes the browser console serves render a placeholder.
 
 #![allow(non_snake_case)]
 
@@ -80,7 +80,7 @@ static EVALUATED_JS_PLUGINS: OnceLock<()> = OnceLock::new();
 ///
 /// Latent until now: no JS plugin ever registered (`js plugins discovered
 /// count=0`), so nothing had exercised the bridge dispatch end-to-end. The
-/// React spike is the first caller. See OKT-94.
+/// first JS-registered plugin is the first caller. See OKT-94.
 static MIRROR_TX: OnceLock<tokio::sync::mpsc::UnboundedSender<()>> = OnceLock::new();
 
 /// Install plugin navigation + routes from the registry (once, in `main`).
@@ -121,7 +121,6 @@ pub fn route_from_path(path: &str) -> Route {
         "logs" => Route::Logs {},
         "terminal" => Route::Terminal {},
         "config" => Route::Config {},
-        "spike" => Route::Spike {},
         other => plugin_route(other),
     }
 }
@@ -131,32 +130,11 @@ fn full_path(path: &[String]) -> String {
     format!("/{}", path.join("/"))
 }
 
-/// Core routes that render the React console instead of the native RSX views,
-/// mapped to the console nav id they open on.
-///
-/// `None` keeps the route on the native shell — the four `None` arms below
-/// are the OKT-127 keep-native list. See the module doc for the reasons;
-/// in short: the crate-rendered console (OKT-135) does not yet expose
-/// logs, terminal exec, the pod-detail inspector, or a plugin route
-/// dispatcher, so retiring the native counterparts would remove a user
-/// surface rather than replace one.
-fn console_route(route: &Route) -> Option<&'static str> {
-    match route {
-        Route::Home {} | Route::Workloads {} | Route::Spike {} => Some("pods"),
-        Route::Cluster {} => Some("overview"),
-        Route::Config {} => Some("configmaps"),
-        // OKT-127 keep-native: see module doc.
-        Route::Logs {} | Route::Terminal {} | Route::Plugin { .. } => None,
-    }
-}
-
-fn nav_for(route: Route) -> String {
-    console_route(&route).unwrap_or("pods").to_string()
-}
-
-/// Every route renders inside [`AppShell`]: the React console takes over the
-/// core browse routes, while logs, terminal, and plugin routes keep the native
-/// chrome.
+/// Placeholder routes the desktop binary keeps on its surface so the
+/// navigation entries stay live: the rich console moved to the SSR/wasm
+/// crate and lives in the browser preview image. Removing the routes
+/// entirely would shrink the navigation; surfacing the same stub instead
+/// keeps every NavItem clickable.
 #[derive(Routable, Clone, Debug, PartialEq, Eq)]
 pub enum Route {
     #[layout(AppShell)]
@@ -172,8 +150,6 @@ pub enum Route {
     Terminal {},
     #[route("/config")]
     Config {},
-    #[route("/spike")]
-    Spike {},
     #[route("/:..path")]
     Plugin { path: Vec<String> },
 }
@@ -266,9 +242,6 @@ fn AppShell() -> Element {
         }
     });
 
-    let current = use_route::<Route>();
-    let console = console_route(&current).is_some();
-
     rsx! {
         div { class: "app-shell",
             SwitcherKeybind {}
@@ -278,19 +251,13 @@ fn AppShell() -> Element {
             crate::components::secret_detail::SecretDetail {}
             crate::components::crud_modal::CrudOverlay {}
             CommandPalette {}
-            if !console {
-                Sidebar {}
-            }
+            Sidebar {}
             div { class: "main-col",
-                if !console {
-                    TopBar {}
-                }
+                TopBar {}
                 main { class: "content",
                     Outlet::<Route> {}
                 }
-                if !console {
-                    StatusFooter {}
-                }
+                StatusFooter {}
             }
         }
     }
@@ -570,17 +537,17 @@ fn StatusFooter() -> Element {
 
 #[component]
 fn Home() -> Element {
-    rsx! { ReactConsoleMount { route: nav_for(Route::Home {}) } }
+    rsx! { BrowserOnlySurface {} }
 }
 
 #[component]
 fn Cluster() -> Element {
-    rsx! { ReactConsoleMount { route: nav_for(Route::Cluster {}) } }
+    rsx! { BrowserOnlySurface {} }
 }
 
 #[component]
 fn Workloads() -> Element {
-    rsx! { ReactConsoleMount { route: nav_for(Route::Workloads {}) } }
+    rsx! { BrowserOnlySurface {} }
 }
 
 #[component]
@@ -598,31 +565,22 @@ fn Terminal() -> Element {
 
 #[component]
 fn Config() -> Element {
-    rsx! { ReactConsoleMount { route: nav_for(Route::Config {}) } }
+    rsx! { BrowserOnlySurface {} }
 }
 
+/// Placeholder every browse route renders after the React console was
+/// decommissioned (OKT-137): the rich console now lives in the browser
+/// preview image, where `crates/openkite-web` server-renders it from the
+/// shared UI crate. The routes stay in the [`Route`] enum so the
+/// navigation entries the sidebar renders still resolve to a real surface
+/// rather than 404, and the native chrome (Logs, Terminal, the plugin
+/// wildcard) stays available where it always has been.
 #[component]
-fn Spike() -> Element {
-    rsx! { ReactConsoleMount { route: nav_for(Route::Spike {}) } }
-}
-
-/// Mount the React console inside the real webview.
-#[cfg(feature = "desktop")]
-#[component]
-fn ReactConsoleMount(route: String) -> Element {
-    rsx! { crate::react_spike::ReactConsole { route: route } }
-}
-
-/// The console is served from the static browser bundle when the desktop
-/// renderer is compiled out, so this build only names the surface.
-#[cfg(not(feature = "desktop"))]
-#[component]
-fn ReactConsoleMount(route: String) -> Element {
-    let _ = route;
+fn BrowserOnlySurface() -> Element {
     rsx! {
         div { class: "not-found",
             h2 { "OpenKite" }
-            p { "The React console is served from the static web bundle." }
+            p { "The console is served from the browser preview image (openkite-web)." }
         }
     }
 }
@@ -770,7 +728,6 @@ mod tests {
         assert_eq!(route_from_path("/logs"), Route::Logs {});
         assert_eq!(route_from_path("/terminal"), Route::Terminal {});
         assert_eq!(route_from_path("/config"), Route::Config {});
-        assert_eq!(route_from_path("/spike"), Route::Spike {});
     }
 
     #[test]
@@ -783,39 +740,6 @@ mod tests {
             Route::Plugin { path } => assert_eq!(path, vec!["argocd"]),
             other => panic!("expected Plugin variant, got {other:?}"),
         }
-    }
-
-    #[test]
-    fn console_route_takes_over_core_browse_routes_and_leaves_native_ones() {
-        // OKT-127 keep-native contract: the crate-rendered console takes
-        // over the core browse routes, while Logs, Terminal, and the
-        // Plugin wildcard stay native. See the module doc for the full
-        // rationale per surface. Touching the `None` arms is a deletion
-        // of a working UI surface, not a consolidation — fail loudly if
-        // the keep-native list shrinks before the crate supplies a
-        // replacement.
-        for route in [Route::Home {}, Route::Workloads {}, Route::Spike {}] {
-            assert_eq!(console_route(&route), Some("pods"), "{route:?}");
-        }
-        assert_eq!(console_route(&Route::Cluster {}), Some("overview"));
-        assert_eq!(console_route(&Route::Config {}), Some("configmaps"));
-
-        for route in [Route::Logs {}, Route::Terminal {}] {
-            assert_eq!(console_route(&route), None, "{route:?}");
-        }
-        match route_from_path("/argocd/apps") {
-            plugin @ Route::Plugin { .. } => assert_eq!(console_route(&plugin), None),
-            other => panic!("expected Plugin variant, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn nav_for_returns_the_console_nav_id_for_each_taken_over_route() {
-        assert_eq!(nav_for(Route::Home {}), "pods");
-        assert_eq!(nav_for(Route::Cluster {}), "overview");
-        assert_eq!(nav_for(Route::Workloads {}), "pods");
-        assert_eq!(nav_for(Route::Config {}), "configmaps");
-        assert_eq!(nav_for(Route::Spike {}), "pods");
     }
 
     #[test]

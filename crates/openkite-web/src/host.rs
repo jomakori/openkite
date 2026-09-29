@@ -24,9 +24,12 @@ use tokio::net::TcpListener;
 /// the preview image and its chart target.
 pub const DEFAULT_ADDR: &str = "0.0.0.0:8080";
 
-/// Bundle directory the host serves unless `OPENKITE_WEB_ROOT` overrides it,
-/// resolved against the process working directory.
-pub const DEFAULT_WEB_ROOT: &str = "web/dist";
+/// Directory the wasm hydration bundle is served from unless
+/// `OPENKITE_WEB_ROOT` overrides it, resolved against the process working
+/// directory. After OKT-137 there is no prebuilt console bundle: the crate
+/// server-renders the page, and this root only carries the hydration assets
+/// (`openkite-web-client.js` and its `.wasm`).
+pub const DEFAULT_WEB_ROOT: &str = "public";
 
 /// Whether the default client comes from the pod's ServiceAccount token.
 ///

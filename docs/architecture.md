@@ -116,9 +116,9 @@ Dylib loading is experimental and opt-in; WASM is the v2 candidate.
 
 ## Native RSX surfaces (OKT-127)
 
-The console renders from `crates/openkite-ui` (the React console in the
-wry webview for the core browse routes — see
-`crates/openkite-desktop/src/router.rs::console_route`). The native
+The browser console renders from `crates/openkite-ui` and is served by
+`crates/openkite-web` (SSR + wasm hydration in the preview image — see
+`crates/openkite-web/src/routes.rs::ssr_root`). The native
 RSX surfaces in `crates/openkite-desktop/src/views/` and the plugin
 wildcard route are kept on purpose, because the crate does not yet
 expose an equivalent:

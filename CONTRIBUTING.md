@@ -108,7 +108,6 @@ The contributor documents:
 | `tilt/README.md` | how the local and preview loops run: what each one proves, and what it cannot |
 | `.github/workflows/README.md` | what CI does: the four workflows, their triggers, artifacts, and the checks a merge requires |
 | `e2e/README.md` | the end-to-end suites, their layout, and how to run one |
-| `web/README.md` | the UI build targets and what each one ships |
 
 An area README follows one order:
 

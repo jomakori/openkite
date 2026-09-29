@@ -89,12 +89,12 @@ OK_CAPTURE_EXTRA_ROUTES='/cluster:cluster /terminal:terminal' \
   ./e2e/visual/cluster/capture.sh      # -> docs/media/cluster.png, docs/media/terminal.png
 ```
 
-### Routes after OKT-98
+### Routes after OKT-98 (and OKT-137)
 
-The React console now serves the core browse routes; `/logs` and `/terminal`
-are deliberately still the native shell. The defaults capture the console on
-`/` and the native shell on `/logs`. Both `/` and `/workloads` open the console
-on **Pods** (`src/router.rs: console_route`).
+The shared UI crate renders the desktop's `Home`, `Cluster`, `Workloads`, and
+`Config` surfaces (no React bundle, no eval-based mount). `/logs` and
+`/terminal` are deliberately still the native shell. The defaults capture the
+crate-rendered console on `/` and the native shell on `/logs`.
 
 ## Gotchas (each cost real time)
 
@@ -130,13 +130,13 @@ a local `cargo build`.
   window's client geometry. The webview does not reliably photograph by window
   id.
 - **Prefer coordinate clicks and cluster-side data changes** over `xdotool key`
-  into the webview. The React table is not bound to `Page_Down`/`Down`/`Up`, and
-  an earlier GIF built from keyboard paging was nearly static (~18 bytes between
-  frames). The only keyboard path we rely on is `ctrl+p` to open the palette
-  after a click focuses the webview (the same path `e2e/desktop/run.sh`
-  uses).
-- The layout is deterministic: 252px sidebar, 56px topbar, 20px view padding.
-  The click coordinates in `capture-script.sh` are derived from `web/src/theme.css`.
+  into the webview. The React-era table was not bound to `Page_Down`/`Down`/`Up`,
+  and an earlier GIF built from keyboard paging was nearly static (~18 bytes
+  between frames). The only keyboard path we rely on is `ctrl+p` to open the
+  palette after a click focuses the webview (the same path `e2e/desktop/run.sh`
+  uses). The layout is deterministic: 252px sidebar, 56px topbar, 20px view
+  padding; the click coordinates in `capture-script.sh` are derived from
+  `crates/openkite-ui/assets/main.css`.
 - The most convincing "it is alive" loop is cluster-side: create sample pods in
   the scratch namespace and delete them while capturing, so badge counts, status
   chips and table rows change.
@@ -145,7 +145,7 @@ a local `cargo build`.
 
 | Media | Surface | Motion |
 |---|---|---|
-| `console-shell.png` | React console shell: sidebar + count badges, breadcrumbs, status | still |
+| `console-shell.png` | Crate-rendered console shell: sidebar + count badges, breadcrumbs, status | still |
 | `console-workloads.png` | Resource table + log dock on `/workloads` | still |
 | `native-logs-route.png` | Native shell on `/logs` (not ported) | still |
 | `resource-table.gif` | Live, paginated pods table + per-namespace counts | sample pods created then deleted |

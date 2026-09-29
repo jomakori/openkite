@@ -62,11 +62,11 @@ tag, both Doppler configs, and the Cloudflare Access gate. Tilt owns the release
 it
 created, so health, logs, port-forwards, and `tilt down` work on it.
 
-Overlay. The branch's browser bundle is synced into the served root, so a
-reviewer
-sees the change on top of the released build. The chart must be checked out next
-to
-this repository, at `OPENKITE_CHART` if it is elsewhere.
+Overlay. The preview pulls the browser-host image at `base` (the newest release
+tag an ancestor of HEAD carries). The chart must be checked out next to this
+repository, at `OPENKITE_CHART` if it is elsewhere. After OKT-137 the image
+itself server-renders the console from the crate — there is no separate
+browser bundle to sync into the served root.
 
 The chart values a preview passes are asserted against the rendered output
 before the
@@ -76,10 +76,8 @@ that trusts its own flags can therefore install at production's coordinates.
 
 The dev loop:
 
-- `openkite-bundle` builds the browser bundle with the repository's own
-  `web/build.sh`.
 - `openkite-host` runs the server binary, `cargo run -p openkite-web`, which
-  serves the
+  server-renders the
   console and answers the bridge the console calls. It reads the cluster through
   `KUBECONFIG` and listens on `8090`, leaving `8080` to `dx`.
 - `openkite-ui` runs `dx serve`, the Dioxus dev server, for hot reload of the
@@ -92,20 +90,16 @@ A preview proves the branch's UI on a released base. It does not prove:
 
 - the image, since none is built: `Dockerfile` changes, package additions, and
   anything `docker build` does belong to staging;
-- Rust that runs in the container, since a file sync moves files and not
-  compiled
-  behaviour: `crates/openkite-web` is a server process, and today's released
-  image
-  carries no host binary to replace, so a server-crate change is proven by
-  staging;
+- Rust that runs in the container, since the preview replaces no binary:
+  `crates/openkite-web` is a server process, and a server-crate change is
+  proven by
+  staging, where the image is rebuilt and published;
 - dependencies, migrations, new environment values, and the release pipeline:
   staging.
 
 A preview is not reconciled. Nothing re-applies the chart while the environment
-lives,
-and a container that restarts keeps the released bundle until the job runs
-again,
-because the synced files live in the container.
+lives, so a container that restarts keeps the released image until the job runs
+again.
 
 The dev loop's desktop crates link WebKitGTK and GTK, so a workstation running
 `dx serve` needs the native packages CI installs

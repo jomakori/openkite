@@ -31,7 +31,6 @@ on:
       - 'Cargo.lock'
       - '**.rs'
       - 'crates/**'
-      - 'web/**'
       - 'Dockerfile'
       - 'choco/**'
       - '.github/actions/build-release-artifacts/**'

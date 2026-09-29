@@ -1,7 +1,7 @@
 //! OpenKite web host — the binary half of the browser target.
 //!
-//! Serves the console bundle built from `web/` and answers the bridge endpoint
-//! that bundle calls, so a browser console reads the cluster instead of its
+//! Server-renders the console from the shared UI crate and answers its kube
+//! bridge over HTTP, so a browser console reads the cluster instead of
 //! bundled fixtures.
 
 use std::net::SocketAddr;

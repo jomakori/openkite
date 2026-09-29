@@ -16,12 +16,12 @@ use std::sync::Arc;
 
 use openkite_api::gateway::Gateway;
 
-#[cfg(feature = "ssr")]
+#[cfg(all(feature = "ssr", not(target_arch = "wasm32")))]
 use base64::Engine as _;
-#[cfg(feature = "ssr")]
+#[cfg(all(feature = "ssr", not(target_arch = "wasm32")))]
 use dioxus::core::VirtualDom;
 
-#[cfg(feature = "ssr")]
+#[cfg(all(feature = "ssr", not(target_arch = "wasm32")))]
 use crate::app::{App, AppProps};
 
 /// A snapshot of the cluster the SSR pass and the wasm client both start from.
@@ -85,7 +85,7 @@ pub struct SecretRef {
 ///
 /// Uses `dioxus_ssr::pre_render` so the resulting HTML carries the
 /// `data-node-hydration` ids the browser's hydrate step matches against.
-#[cfg(feature = "ssr")]
+#[cfg(all(feature = "ssr", not(target_arch = "wasm32")))]
 pub fn render_body(snapshot: &Snapshot) -> String {
     let mut dom = VirtualDom::new_with_props(
         App,
@@ -101,7 +101,7 @@ pub fn render_body(snapshot: &Snapshot) -> String {
 /// `window.initial_dioxus_hydration_data`. Empty payload is fine: there are
 /// no server functions and no streaming data; the client hydrates against the
 /// embedded snapshot directly.
-#[cfg(feature = "ssr")]
+#[cfg(all(feature = "ssr", not(target_arch = "wasm32")))]
 pub fn hydration_data() -> String {
     let empty: Vec<Option<Vec<u8>>> = Vec::new();
     let mut bytes = Vec::new();
@@ -110,7 +110,7 @@ pub fn hydration_data() -> String {
 }
 
 /// Options that change what the page contains without changing the snapshot.
-#[cfg(feature = "ssr")]
+#[cfg(all(feature = "ssr", not(target_arch = "wasm32")))]
 #[derive(Debug, Clone)]
 pub struct RenderOptions {
     /// Emit the hydration payload + client script (true) or SSR-only fallback (false).
@@ -119,7 +119,7 @@ pub struct RenderOptions {
     pub client_script: String,
 }
 
-#[cfg(feature = "ssr")]
+#[cfg(all(feature = "ssr", not(target_arch = "wasm32")))]
 impl RenderOptions {
     pub fn hydrating() -> Self {
         Self {
@@ -138,7 +138,7 @@ impl RenderOptions {
 
 /// The full HTML page: SSR body + hydration scripts + the snapshot the client
 /// reads on hydrate.
-#[cfg(feature = "ssr")]
+#[cfg(all(feature = "ssr", not(target_arch = "wasm32")))]
 pub fn render_page(snapshot: &Snapshot, options: &RenderOptions) -> String {
     let body = render_body(snapshot);
     let json = serde_json::to_string(snapshot).expect("serialize snapshot");

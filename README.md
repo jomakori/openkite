@@ -47,8 +47,8 @@ mockups.
 252px sidebar with live count badges, cluster selector, breadcrumb topbar and
 connection status.
 
-![The React console shell: sidebar with count badges, cluster selector and
-topbar](docs/media/console-shell.png)
+![The crate-rendered console shell: sidebar with count badges, cluster
+selector and topbar](docs/media/console-shell.png)
 
 ### Resource table
 

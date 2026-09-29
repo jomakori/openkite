@@ -31,8 +31,6 @@ pub mod plugin_js;
 pub mod pod;
 pub mod prometheus;
 pub mod promql;
-#[cfg(feature = "desktop")]
-pub mod react_spike;
 pub mod router;
 pub mod runtime;
 pub mod switcher;
