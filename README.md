@@ -1,17 +1,11 @@
 <div align="center">
-  <h1>OpenKite</h1>
-  <p><em>Kubernetes from above.</em></p>
+  <img src="docs/media/banner.svg" alt="OpenKite — Kubernetes from above" width="880">
 
   <p align="center">
-    <img src="https://img.shields.io/github/actions/workflow/status/jomakori/ope
-    nkite/lint-test.yml?logo=githubactions&logoColor=white&label=CI" alt="CI">
-    <img src="https://img.shields.io/github/license/jomakori/openkite?logo=opens
-    ourceinitiative&logoColor=white&label=License" alt="License">
-    <img src="https://img.shields.io/github/stars/jomakori/openkite?logo=github&
-    logoColor=white&label=Stars" alt="Stars">
-    <img src="https://img.shields.io/github/last-
-    commit/jomakori/openkite?logo=git&logoColor=white&label=Last%20commit"
-    alt="Last commit">
+    <img src="https://img.shields.io/github/actions/workflow/status/jomakori/openkite/lint-test.yml?logo=githubactions&logoColor=white&label=CI" alt="CI">
+    <img src="https://img.shields.io/github/license/jomakori/openkite?logo=opensourceinitiative&logoColor=white&label=License" alt="License">
+    <img src="https://img.shields.io/github/stars/jomakori/openkite?logo=github&logoColor=white&label=Stars" alt="Stars">
+    <img src="https://img.shields.io/github/last-commit/jomakori/openkite?logo=git&logoColor=white&label=Last%20commit" alt="Last commit">
   </p>
 </div>
 
