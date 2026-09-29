@@ -52,8 +52,6 @@ jobs:
           echo "OPENKITE_CONTEXT=$(kubectl config current-context)" >> "$GITHUB_ENV"
       - name: Assert cluster access
         run: kubectl auth can-i list namespaces
-      - name: Build the console bundle
-        run: bash web/build.sh
       - name: Deploy the preview
         run: tilt ci
 

@@ -3,7 +3,7 @@
 //! The `/openkite` bridge in [`openkite_ui::plugin_api`] is strictly
 //! request/response: `openkite.api.*` answers a call and `watch` resolves a
 //! single one-shot snapshot. Phase 3 needs live cluster state (reflector
-//! deltas) to reach the React layer without the page polling, so this module
+//! deltas) to reach the UI layer without the page polling, so this module
 //! adds a *push* direction without touching the existing wire contract.
 //!
 //! Shape:

@@ -1,5 +1,10 @@
 name: Build and publish an image
-description: Build the console bundle into a container image and publish it to GHCR under the given tag.
+
+description: |
+  Build the browser host crate (`openkite-web`) plus its wasm hydration
+  bundle into a single container image and publish it to GHCR under the
+  given tag. The image server-renders the shared console from the crate
+  on `:8080`; the React bundle path it used to mount is gone.
 
 inputs:
   ref:
@@ -35,27 +40,6 @@ runs:
       uses: actions/checkout@v4
       with:
         ref: ${{ inputs.ref != '' && inputs.ref || github.sha }}
-
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '26'
-        cache: npm
-        cache-dependency-path: web/package-lock.json
-
-    - name: Build the console bundle
-      shell: bash
-      run: |
-        set -euo pipefail
-        if [ ! -x web/build.sh ]; then
-          echo "::error title=No bundle script::web/build.sh is missing or not executable, so no image is published."
-          exit 1
-        fi
-        ./web/build.sh
-        if [ ! -f web/dist/index.html ]; then
-          echo "::error title=Web build produced no bundle::web/build.sh ran but web/dist/index.html is missing."
-          exit 1
-        fi
 
     - name: Validate the image tag
       shell: bash

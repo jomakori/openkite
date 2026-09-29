@@ -9,10 +9,10 @@ Four workflows, one job each of them owns:
 
 | Workflow | Trigger | Jobs |
 |---|---|---|
-| [`lint-test.yml`](lint-test.yml) | `pull_request` (drafts included), push `main` | `changes` · `fmt` · `clippy` · `test` · `build` · `bundle-freshness` · `cross-platform` · `web-target` · `coverage` · `report` |
+| [`lint-test.yml`](lint-test.yml) | `pull_request` (drafts included), push `main` | `changes` · `fmt` · `clippy` · `test` · `build` · `cross-platform` · `web-host` · `wasm-ui` · `coverage` · `report` |
 | [`build-test-staging.yml`](build-test-staging.yml) | `pull_request` (not draft), push `main` | `changes` · `binaries` (6 targets) · `e2e-binary` · `desktop-e2e` · `user-flows` · `bridge-guard` · `desktop-e2e-connected` · `visual-regression` · `gate` · `report` |
-| [`preview.yml`](preview.yml) | `pull_request` on the `preview` label | `image` · `ready` · `prune` · `report` |
-| [`release.yml`](release.yml) | push `main` (Rust/web/CI paths), dispatch | `analyze` · `locate` · `packages` · `publish` · `image` · `image-rebuild` · `manifest` · `tap` · `choco` · `report` |
+| [`preview.yml`](preview.yml) | `pull_request` on the `preview` label | `deploy` · `withdraw` · `teardown` · `staging` · `withdraw-staging` · `prune` |
+| [`release.yml`](release.yml) | push `main` (Rust/CI paths), dispatch | `analyze` · `locate` · `packages` · `publish` · `image` · `image-rebuild` · `manifest` · `tap` · `choco` · `report` |
 
 Everything shared lives in [`../actions/`](../actions) as composite actions:
 `rust-setup` (toolchain + the one apt list + cache), `build-image` (the one
@@ -151,9 +151,9 @@ reports.
 
 A heavy check is runner minutes, so it is activated by the diff rather than
 automatic: `Run tests`, `Build` and `Coverage gate` run when the change touches
-what they watch (`crates/**`, `src/**`, `Cargo.toml`, `Cargo.lock`, the spike
-fixture, `nextest.toml`, or this workflow) or on a push to `main`. A docs-only
-pull request does not start them.
+what they watch (`crates/**`, `Cargo.toml`, `Cargo.lock`, `nextest.toml`, or
+this workflow) or on a push to `main`. A docs-only pull request does not start
+them.
 
 GitHub reports a job skipped by a job-level condition as **Success**, so a
 skipped heavy context does not block a merge:

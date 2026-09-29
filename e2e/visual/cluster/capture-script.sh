@@ -3,7 +3,7 @@
 # capture-job.yaml.tmpl). It builds the app from a branch, boots it under
 # Xvfb + openbox, and produces the documentation media:
 #
-#   console-shell.png       full-window still of the React console (route /)
+#   console-shell.png       full-window still of the crate-rendered console (route /)
 #   console-workloads.png   full-window still of the live resource table
 #   native-logs-route.png   still of the native shell on /logs (not ported)
 #   resource-table.gif      live rows as scratch pods appear and disappear
@@ -24,10 +24,10 @@
 # container. Never build the openkite binary on the review machine.
 #
 # Input automation notes (each cost real time to learn):
-#   - Keyboard paging into the React webview is unreliable: nothing on the
-#     React table is bound to Page_Down/Down/Up, and those never reached the
-#     webview in the earlier harness. Drive the console with coordinate clicks
-#     at the deterministic layout, and animate data from the cluster side.
+#   - Keyboard paging into the webview is unreliable: the React-era table was
+#     not bound to Page_Down/Down/Up, and those never reached the webview in
+#     the earlier harness. Drive the console with coordinate clicks at the
+#     deterministic layout, and animate data from the cluster side.
 #   - The X root is the reliable surface to photograph; each shot is cropped to
 #     the app window's client geometry (recorded per boot).
 #   - The palette IS reachable with ctrl+p after a click focuses the webview;
@@ -51,9 +51,9 @@ SAMPLE_PREFIX="aaa-ok-capture"
 SAMPLE_LABEL="ok-capture=sample"
 mkdir -p "$ART" "$MEDIA"
 
-# --- deterministic React-console coordinates (window-relative px) ----------
+# --- deterministic console coordinates (window-relative px) ----------------
 # Layout: 252px sidebar, 56px sticky topbar, .view padding 20. See
-# web/src/theme.css.
+# crates/openkite-ui/assets/main.css.
 ROW1_X=700;   ROW1_Y=305     # first resource-table row (click -> inspector)
 SCRIM_X=120;  SCRIM_Y=450    # inspector scrim (outside the 420px panel)
 REFRESH_X=1294; REFRESH_Y=28 # topbar "Refresh resources" (raises a toast)

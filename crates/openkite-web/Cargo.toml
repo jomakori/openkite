@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
-description = "OpenKite web host — serves the console bundle and answers its kube bridge over HTTP."
+description = "OpenKite web host — server-renders the console and answers its kube bridge over HTTP."
 
 [features]
 default = ["ssr"]

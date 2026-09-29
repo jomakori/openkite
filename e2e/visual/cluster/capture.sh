@@ -57,7 +57,7 @@ Environment (all optional):
   OK_CAPTURE_SAMPLE_PODS          scratch pods for the table GIF (default 4)
   OK_CAPTURE_DATA_MOUNT           volume mount path in-container (default /data)
   OK_CAPTURE_MEDIA_DIR            in-container media directory   (default <mount>/media)
-  OK_CAPTURE_SHELL_ROUTE          route for the console capture  (default /, the React console)
+  OK_CAPTURE_SHELL_ROUTE          route for the console capture  (default /, the crate-rendered console)
   OK_CAPTURE_FLOWS                1 to capture the interaction GIFs, 0 for stills only
   OK_CAPTURE_NATIVE_ROUTE         legacy native route still, "" to skip (default /logs)
   OK_CAPTURE_EXTRA_ROUTES         space-separated route:slug stills (default none)

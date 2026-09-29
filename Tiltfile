@@ -24,9 +24,6 @@ if pr != '':
     if base == '':
         fail('No release tag is an ancestor of this branch. Run: git fetch --tags')
 
-    if not os.path.exists('web/dist'):
-        local('bash web/build.sh')
-
     flags = [
         '--take-ownership',
         '--set=appName=openkite',
@@ -56,12 +53,7 @@ if pr != '':
         namespace=namespace,
         release_name='openkite-preview-' + pr,
         flags=flags,
-        deps=['web/dist'],
         container_selector='openkite',
-        live_update=[
-            initial_sync(),
-            sync('./web/dist', '/usr/share/nginx/html'),
-        ],
         port_forwards=['8080:8080'],
         links=['https://' + host],
     )
@@ -89,7 +81,7 @@ if dev_loop:
     local_resource(
         'openkite-ui',
         serve_cmd='cd crates/openkite-desktop && dx serve',
-        deps=['crates', 'web/src', 'Cargo.toml', 'Cargo.lock'],
+        deps=['crates', 'Cargo.toml', 'Cargo.lock'],
     )
 
 if pr == '' and not dev_loop:

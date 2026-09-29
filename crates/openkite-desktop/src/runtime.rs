@@ -105,11 +105,12 @@ pub fn js_plugins() -> Vec<crate::plugin_js::JsBundle> {
 
 /// Ping channel for applying persisted settings on the Dioxus side.
 ///
-/// The `/openkite-spike` settings handler runs on the webview asset-handler
-/// thread, where `dioxus::desktop::window()` (a Dioxus context lookup) and the
-/// Dioxus runtime are unavailable. It only *pings* this channel; the receiver
-/// started by `router::AppShell` reads the persisted config and applies the
-/// OS-level settings in-runtime.
+/// Settings are persisted from the SSR/wasm console (the same `OpenKiteConfig`
+/// the desktop reads). The persisted-config writer runs on the host
+/// main-thread tokio worker, where `dioxus::desktop::window()` (a Dioxus
+/// context lookup) and the Dioxus runtime are unavailable. It only *pings*
+/// this channel; the receiver started by `router::AppShell` reads the
+/// persisted config and applies the OS-level settings in-runtime.
 static SETTINGS_TX: OnceLock<tokio::sync::mpsc::UnboundedSender<()>> = OnceLock::new();
 
 /// Start the settings-apply receiver (idempotent; first caller wins).

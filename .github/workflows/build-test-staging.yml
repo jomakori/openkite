@@ -38,7 +38,6 @@ jobs:
               - 'crates/**'
               - 'Cargo.toml'
               - 'Cargo.lock'
-              - 'web/**'
               - 'e2e/**'
               - '.github/workflows/build-test-staging.yml'
               - '.github/actions/build-release-artifacts/**'
