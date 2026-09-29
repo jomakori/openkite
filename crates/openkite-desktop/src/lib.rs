@@ -159,7 +159,7 @@ pub fn run() {}
 fn bootstrap_head() -> String {
     format!(
         "<style>{}</style>\n<script>{}</script>",
-        include_str!("../assets/main.css"),
+        openkite_ui::MAIN_CSS,
         plugin_api::OPENKITE_BRIDGE_JS,
     )
 }
@@ -180,6 +180,7 @@ mod tests {
     fn bootstrap_head_carries_shell_css_and_openkite_global() {
         let head = bootstrap_head();
         assert!(head.contains(".app-shell"));
+        assert!(head.contains(openkite_ui::MAIN_CSS));
         assert!(head.contains("window.openkite"));
         assert!(head.contains(&format!(
             "<script>{}</script>",

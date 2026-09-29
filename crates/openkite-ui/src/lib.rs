@@ -19,3 +19,8 @@ pub mod shell;
 pub mod theme;
 pub mod theme_catalog;
 pub mod theme_opaline;
+
+/// The shell stylesheet, so a host renders the console with the design the
+/// tokens in [`design`] describe.
+#[cfg(not(target_arch = "wasm32"))]
+pub const MAIN_CSS: &str = include_str!("../assets/main.css");

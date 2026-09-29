@@ -5,7 +5,7 @@ out_dir = "dist"
 asset_dir = "assets"
 
 [web.resource]
-style = ["main.css"]
+style = []
 script = []
 
 [web.resource.dev]
