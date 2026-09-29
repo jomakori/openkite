@@ -12,7 +12,9 @@ use std::sync::Arc;
 use axum::http::StatusCode;
 use openkite_host::bridge::Bridge;
 use serde_json::{json, Value};
-use support::{app, get_body, list_pods_envelope, post_json, unreachable_client};
+use support::{
+    app, get_body, get_bytes, get_full, list_pods_envelope, post_json, unreachable_client,
+};
 
 fn temp_root() -> tempfile::TempDir {
     tempfile::tempdir().expect("tempdir")
@@ -213,6 +215,50 @@ async fn static_assets_are_served_with_an_spa_fallback() {
     let (status, body) = get_body(app, "/cluster").await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body, "<!doctype html>SHELL");
+}
+
+#[tokio::test]
+async fn every_vendored_typeface_is_served_byte_for_byte() {
+    let dir = temp_root();
+    let app = app(Arc::new(Bridge::new()), dir.path());
+    for face in openkite_ui::assets::FACES {
+        let url = openkite_ui::assets::src_url(face);
+        let (status, headers, bytes) = get_full(app.clone(), &url).await;
+        assert_eq!(status, StatusCode::OK, "{url}");
+        assert_eq!(
+            headers
+                .get(axum::http::header::CONTENT_TYPE)
+                .and_then(|value| value.to_str().ok()),
+            Some("font/woff2"),
+            "{url}"
+        );
+        assert_eq!(
+            headers
+                .get(axum::http::header::CACHE_CONTROL)
+                .and_then(|value| value.to_str().ok()),
+            Some("public, max-age=31536000, immutable"),
+            "{url}"
+        );
+        assert_eq!(bytes, face.bytes, "{url} did not round-trip");
+    }
+}
+
+#[tokio::test]
+async fn an_unvendored_typeface_is_a_404_not_the_spa_shell() {
+    let dir = temp_root();
+    std::fs::write(dir.path().join("index.html"), "<!doctype html>SHELL").expect("write index");
+    let app = app(Arc::new(Bridge::new()), dir.path());
+
+    let (status, body) = get_body(app.clone(), "/assets/fonts/ibm-plex-sans-800.woff2").await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(body, "unknown typeface");
+
+    let (status, _) = get_bytes(app, "/assets/fonts/..%2Findex.html").await;
+    assert_ne!(
+        status,
+        StatusCode::OK,
+        "the face route served a path escape"
+    );
 }
 
 #[tokio::test]

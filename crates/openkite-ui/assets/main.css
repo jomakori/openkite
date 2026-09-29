@@ -47,6 +47,65 @@
   --r-pill: 999px;
 }
 
+/* Vendored IBM Plex faces (assets/fonts/, OFL-1.1 — see its SOURCE.txt). The
+   browser host serves these URLs; the desktop host inlines them as data: URIs
+   (`openkite_ui::assets::embedded_css`). Latin1 subsets: ASCII + Latin-1. */
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/assets/fonts/ibm-plex-sans-400.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/assets/fonts/ibm-plex-sans-500.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/assets/fonts/ibm-plex-sans-600.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/assets/fonts/ibm-plex-sans-700.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/assets/fonts/ibm-plex-mono-400.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/assets/fonts/ibm-plex-mono-500.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/assets/fonts/ibm-plex-mono-600.woff2") format("woff2");
+}
+
 html, body { margin: 0; height: 100%; }
 
 body {

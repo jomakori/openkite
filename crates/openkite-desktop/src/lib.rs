@@ -152,14 +152,15 @@ pub fn run() {
 pub fn run() {}
 
 /// The page-`<head>` bootstrap handed to the desktop window: the shell
-/// stylesheet plus the `window.openkite` bridge script, inlined so shell
-/// chrome paints before any plugin bundle evaluates. Pure — the sole
-/// sub-logic of [`run`] that is testable without a desktop event loop.
+/// stylesheet with the vendored typefaces embedded as `data:` URIs (a webview
+/// has no origin to fetch them from), plus the `window.openkite` bridge script —
+/// inlined so shell chrome paints before any plugin bundle evaluates. Pure — the
+/// sole sub-logic of [`run`] that is testable without a desktop event loop.
 #[cfg(feature = "desktop")]
 fn bootstrap_head() -> String {
     format!(
         "<style>{}</style>\n<script>{}</script>",
-        openkite_ui::MAIN_CSS,
+        openkite_ui::assets::embedded_css(),
         plugin_api::OPENKITE_BRIDGE_JS,
     )
 }
@@ -180,11 +181,29 @@ mod tests {
     fn bootstrap_head_carries_shell_css_and_openkite_global() {
         let head = bootstrap_head();
         assert!(head.contains(".app-shell"));
-        assert!(head.contains(openkite_ui::MAIN_CSS));
+        assert!(head.contains("var(--font-sans)"));
         assert!(head.contains("window.openkite"));
         assert!(head.contains(&format!(
             "<script>{}</script>",
             plugin_api::OPENKITE_BRIDGE_JS
         )));
+    }
+
+    #[test]
+    fn bootstrap_head_embeds_every_face_instead_of_fetching_it() {
+        let head = bootstrap_head();
+        let faces = openkite_ui::assets::FACES;
+        assert_eq!(head.matches("data:font/woff2;base64,").count(), faces.len());
+        assert!(
+            !head.contains(openkite_ui::assets::FONT_ROUTE),
+            "the window has no origin to serve the faces from"
+        );
+        for face in faces {
+            assert!(
+                head.contains(&format!("font-family: \"{}\"", face.family)),
+                "{} not declared in the window head",
+                face.file
+            );
+        }
     }
 }

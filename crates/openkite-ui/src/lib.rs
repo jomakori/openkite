@@ -10,6 +10,8 @@
 //! host publishes them at boot and on connect) and through [`runtime::gateway`]
 //! for anything that must be fetched or mutated on demand.
 
+#[cfg(not(target_arch = "wasm32"))]
+pub mod assets;
 pub mod components;
 pub mod design;
 pub mod plugin_api;

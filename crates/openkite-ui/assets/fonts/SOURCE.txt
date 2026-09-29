@@ -1,0 +1,43 @@
+OpenKite vendored IBM Plex faces.
+
+Source:  https://github.com/IBM/plex
+         commit 763c36ef9117782905ae010056dfbe8fd2653a25 (master)
+         packages/plex-sans/fonts/split/woff2/IBMPlexSans-{Regular,Medium,SemiBold,Bold}-Latin1.woff2
+         packages/plex-mono/fonts/split/woff2/IBMPlexMono-{Regular,Medium,SemiBold}-Latin1.woff2
+
+Licence: SIL Open Font License 1.1. OFL.txt here is packages/plex-sans/LICENSE.txt
+         copied verbatim; the mono package's copy is byte-identical.
+
+Files:
+
+  file                        family        weight  bytes   sha256 (first 16)
+  ibm-plex-sans-400.woff2     IBM Plex Sans   400   20984   b5ad7bd39f996144
+  ibm-plex-sans-500.woff2     IBM Plex Sans   500   21960   b5610af04d0d4b5a
+  ibm-plex-sans-600.woff2     IBM Plex Sans   600   22260   fff0ab3a88b0b4aa
+  ibm-plex-sans-700.woff2     IBM Plex Sans   700   21256  914f1400f363e636
+  ibm-plex-mono-400.woff2     IBM Plex Mono   400   17544   e8993d946649b9d0
+  ibm-plex-mono-500.woff2     IBM Plex Mono   500   17868   41201b658a328b9d
+  ibm-plex-mono-600.woff2     IBM Plex Mono   600   17872   b7acd05041ab65f3
+
+  payload: 139744 bytes (136.5 KiB) of WOFF2 across the seven faces.
+
+Coverage: the Latin1 split is U+0020-U+007E, U+00A0-U+00FF plus the typography
+the design already uses (U+2013/U+2014 dashes, U+2018-U+201E quotes, U+2026
+ellipsis, U+2212 minus, U+20AC euro). It does NOT carry U+25B2/U+25BC (the
+`.sort-indicator` triangles) or U+21B5 (the editor's return glyph); those fall
+back per-glyph to the system stack that follows IBM Plex in --font-sans /
+--font-mono. The all-script "complete" faces would cover them at 410080 bytes
+(400 KiB) raw — 2.9x the payload — so the Latin1 subsets ship instead.
+
+Delivery: crates/openkite-ui/assets/main.css declares each face with the URL
+the browser host serves it from (`/assets/fonts/<file>`, served by
+`crates/openkite-web/src/routes.rs::font_get`). The desktop window has no
+origin to serve them from, so it inlines `openkite_ui::assets::embedded_css()`
+instead — the same stylesheet with each face URL replaced by a `data:` URI.
+Base64 costs 4/3 of the raw bytes, so the desktop head carries ~182 KiB of
+inline font data; an SSR page is unaffected (a few hundred bytes of CSS, then
+one cached fetch per face).
+
+Rebuild: re-download at the pinned commit, e.g.
+  curl -sSLo ibm-plex-sans-400.woff2 \
+    https://raw.githubusercontent.com/IBM/plex/763c36ef9117782905ae010056dfbe8fd2653a25/packages/plex-sans/fonts/split/woff2/IBMPlexSans-Regular-Latin1.woff2

@@ -4206,6 +4206,7 @@ dependencies = [
 name = "openkite-ui"
 version = "0.0.0"
 dependencies = [
+ "base64",
  "dioxus",
  "dioxus-core",
  "dioxus-signals",

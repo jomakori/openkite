@@ -20,8 +20,10 @@ opaline = { version = "0.4", default-features = false, features = ["builtin-them
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { version = "1", features = ["time"] }
+base64 = "0.22"
 
 [dev-dependencies]
 dioxus-ssr = "0.7"
 dioxus-signals = "0.7"
 dioxus-core = "0.7"
+base64 = "0.22"
