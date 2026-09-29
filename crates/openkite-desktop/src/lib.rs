@@ -126,6 +126,10 @@ pub fn run() {
 
     let vdom = dioxus::prelude::VirtualDom::new(router::app);
     vdom.in_runtime(|| {
+        // Publish host capabilities before any gateway exists (disconnected boot).
+        crate::runtime::set_published_capabilities(Some(
+            openkite_api::capability::Capabilities::in_process(),
+        ));
         router::install_plugins(sections, routes);
         crate::runtime::set_client(client.clone());
         // The console reaches the cluster through the contract, never through

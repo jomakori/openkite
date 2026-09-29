@@ -82,6 +82,11 @@ fn capability_descriptor_round_trips() {
     assert!(desktop.plugins);
     assert!(desktop.terminal);
     assert!(!desktop.exec);
+    assert!(desktop.native_menu_bar);
+    assert!(desktop.title_bar_override);
+    assert!(desktop.file_dialogs);
+    assert!(desktop.supports_terminal());
+    assert!(desktop.supports_native_menu_bar());
 
     let wire = serde_json::to_string(&desktop).unwrap();
     assert_eq!(
@@ -92,6 +97,28 @@ fn capability_descriptor_round_trips() {
     let browser = Capabilities::server_side();
     assert_eq!(browser.gateway, GatewayKind::ServerSide);
     assert!(!browser.plugins);
+    assert!(!browser.terminal);
+    assert!(!browser.native_menu_bar);
+    assert!(!browser.file_dialogs);
+    assert!(!browser.supports_terminal());
+    assert!(!browser.supports_file_dialogs());
+
+    let minimal = Capabilities::minimal();
+    assert!(!minimal.supports_terminal());
+    assert!(!minimal.supports_plugins());
+    assert!(!minimal.supports_exec());
+    assert!(!minimal.supports_native_menu_bar());
+    assert!(!minimal.supports_title_bar_override());
+    assert!(!minimal.supports_file_dialogs());
+}
+
+#[test]
+fn server_side_host_publishes_no_surfaces_without_a_gateway() {
+    let browser = Capabilities::server_side();
+    assert!(!browser.supports_terminal());
+    assert!(!browser.supports_native_menu_bar());
+    assert!(!browser.supports_title_bar_override());
+    assert_eq!(browser.gateway, GatewayKind::ServerSide);
 }
 
 #[test]

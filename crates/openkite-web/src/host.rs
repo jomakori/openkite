@@ -64,6 +64,11 @@ pub async fn bind_and_serve(
 /// reflectors start, and so a test can bind `127.0.0.1:0` and read the port
 /// back.
 pub async fn serve(listener: TcpListener, web_root: PathBuf, client: Client) -> anyhow::Result<()> {
+    // Publish host capabilities before any gateway exists (disconnected boot).
+    openkite_ui::runtime::set_published_capabilities(Some(
+        openkite_api::capability::Capabilities::server_side(),
+    ));
+
     let bridge = Arc::new(Bridge::connected(client.clone()));
 
     let started = crate::headless::start_reflectors(client);

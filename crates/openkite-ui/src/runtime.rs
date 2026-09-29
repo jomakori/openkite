@@ -90,6 +90,19 @@ pub fn open_new_for(kind: String) {
 /// no cluster is reachable, which is what the CRUD overlay reports verbatim.
 static GATEWAY: OnceLock<Mutex<Option<Arc<dyn Gateway>>>> = OnceLock::new();
 
+/// The descriptor the host itself publishes at boot, before any cluster
+/// connect. Capabilities are a property of the host, so they must not wait
+/// for a gateway; the gateway's own value remains the fallback.
+static PUBLISHED_CAPABILITIES: OnceLock<Mutex<Option<Capabilities>>> = OnceLock::new();
+
+/// Publish what the host itself can do, independently of any cluster connect.
+pub fn set_published_capabilities(caps: Option<Capabilities>) {
+    let slot = PUBLISHED_CAPABILITIES.get_or_init(|| Mutex::new(None));
+    if let Ok(mut slot) = slot.lock() {
+        *slot = caps;
+    }
+}
+
 /// Install the host's gateway, replacing any previous one.
 pub fn set_gateway(gateway: Option<Arc<dyn Gateway>>) {
     let slot = GATEWAY.get_or_init(|| Mutex::new(None));
@@ -105,7 +118,29 @@ pub fn gateway() -> Option<Arc<dyn Gateway>> {
         .and_then(|slot| slot.lock().ok().and_then(|slot| slot.clone()))
 }
 
-/// What the installed host can do (OKT-126). `None` before a gateway lands.
+/// What the host can do: the published descriptor when the host has stated
+/// one, else the gateway's own verdict once a gateway exists.
 pub fn capabilities() -> Option<Capabilities> {
+    if let Some(slot) = PUBLISHED_CAPABILITIES.get() {
+        if let Ok(slot) = slot.lock() {
+            if slot.is_some() {
+                return *slot;
+            }
+        }
+    }
     gateway().map(|gateway| gateway.capabilities())
+}
+
+/// True when the host advertises the standalone terminal surface.
+pub fn terminal_can_render() -> bool {
+    capabilities()
+        .map(|caps| caps.supports_terminal())
+        .unwrap_or(false)
+}
+
+/// True when the host reports either window menu bar or title-bar override.
+pub fn native_chrome_can_render() -> bool {
+    capabilities()
+        .map(|caps| caps.supports_native_menu_bar() || caps.supports_title_bar_override())
+        .unwrap_or(false)
 }

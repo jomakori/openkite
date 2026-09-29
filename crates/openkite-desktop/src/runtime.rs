@@ -13,7 +13,7 @@ use crate::bridge::Bridge;
 // through `runtime::`.
 pub use openkite_ui::runtime::{
     clear_crud_target, open_delete_for, open_editor_for, open_new_for, open_scale_for, set_gateway,
-    CrudTarget, CRUD_TARGET,
+    set_published_capabilities, CrudTarget, CRUD_TARGET,
 };
 
 /// The active cluster client, published by `run()` after connect and read by
