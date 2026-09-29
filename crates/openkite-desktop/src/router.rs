@@ -3,13 +3,11 @@
 //! the app shell chrome (sidebar + status footer); the `/openkite` bridge
 //! asset handler; and one-time JS plugin bundle evaluation.
 //!
-//! Native RSX surfaces kept on purpose (OKT-127):
+//! Native RSX surfaces kept on purpose:
 //!
-//! - [`Route::Logs`] → [`crate::views::logs::LogsView`] — standalone log
-//!   viewer with `kube::log_stream` follow/pause and a `LineBuffer`
-//!   coalescer. `openkite-ui` exports no equivalent surface; the crate
-//!   currently ships only the capabilities summary (`openkite-web::App`).
-//!   Retirement would leave the user with no logs UI.
+//! - [`Route::Logs`] → `openkite_ui::components::logs::LogsView` — the
+//!   crate-rendered viewer reads the shared `LOGS_BUFFER`; the desktop host
+//!   streams the pod's kube log into that buffer (see [`Logs`]).
 //! - [`Route::Terminal`] → [`crate::views::terminal::TerminalView`] —
 //!   xterm.js host + pod/container picker + reconnect state machine, on
 //!   top of the vendored bundle in `openkite-ui/assets/vendored/xterm/`.
@@ -21,7 +19,7 @@
 //!   driven by `SELECTED_POD`. The kube `Api::log_stream` in the Logs
 //!   tab and the container-state mapping in the Containers tab are not
 //!   duplicated by any crate view; `openkite-ui` has no PodDetail.
-//!   PodDetail is intentionally native until OKT-127's successor
+//!   PodDetail is intentionally native until the OKT-136 umbrella
 //!   builds a console-side inspector.
 //! - [`Route::Plugin`] wildcard → [`Plugin`] dispatcher — Rust SDK
 //!   plugin routes (`ROUTE_TABLE`) plus JS plugin renderers (the
@@ -552,7 +550,95 @@ fn Workloads() -> Element {
 
 #[component]
 fn Logs() -> Element {
-    rsx! { crate::views::logs::LogsView {} }
+    use crate::logs::{LogOptions, LogStream};
+    use futures::{AsyncBufReadExt, StreamExt};
+    use k8s_openapi::api::core::v1::Pod;
+    use kube::Api;
+    use openkite_ui::runtime::{LOGS_BUFFER, LOGS_CONTAINER, SELECTED_POD};
+    use std::sync::Arc;
+    use std::time::Duration;
+    use tokio::sync::Mutex;
+    use tokio::task::JoinHandle;
+
+    // Host-side stream controller: drain the selected pod's container logs
+    // into the shared buffer the crate view renders.
+    let mut task_slot = use_hook(|| CopyValue::new(None::<JoinHandle<()>>));
+
+    use_effect(move || {
+        if let Some(handle) = task_slot.write().take() {
+            handle.abort();
+        }
+        let Some(pod) = SELECTED_POD.read().clone() else {
+            return;
+        };
+        let container_name = LOGS_CONTAINER.cloned();
+        if container_name.is_empty() {
+            return;
+        }
+        let Some(client) = crate::runtime::client() else {
+            return;
+        };
+        LOGS_BUFFER.write().clear();
+
+        let api: Api<Pod> = Api::namespaced(
+            client,
+            &pod.namespace.clone().unwrap_or_else(|| "default".into()),
+        );
+        let name = pod.name.clone();
+        let cont = container_name.clone();
+        let pending: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+
+        let handle = tokio::spawn(async move {
+            let opts = LogOptions {
+                container: Some(cont),
+                follow: true,
+                tail_lines: Some(5000),
+                timestamps: true,
+            };
+            let reader = match LogStream::new(api, name, opts).open().await {
+                Ok(r) => r,
+                Err(e) => {
+                    tracing::warn!(error = %e, "log stream open failed");
+                    return;
+                }
+            };
+
+            let mut line_stream = reader.lines();
+            let mut ticker = tokio::time::interval(Duration::from_millis(50));
+            ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
+            loop {
+                tokio::select! {
+                    biased;
+                    next = line_stream.next() => {
+                        match next {
+                            Some(Ok(text)) => pending.lock().await.push(text),
+                            Some(Err(e)) => {
+                                tracing::warn!(error = %e, "log line read failed");
+                                break;
+                            }
+                            None => break,
+                        }
+                    }
+                    _ = ticker.tick() => {}
+                }
+                let drained: Vec<String> = {
+                    let mut guard = pending.lock().await;
+                    std::mem::take(&mut *guard)
+                };
+                if !drained.is_empty() {
+                    let mut buf = LOGS_BUFFER.write();
+                    for line in drained {
+                        buf.push(line);
+                    }
+                }
+            }
+        });
+
+        *task_slot.write() = Some(handle);
+    });
+
+    rsx! { openkite_ui::components::logs::LogsView {} }
 }
 
 #[component]

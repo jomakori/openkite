@@ -4183,6 +4183,7 @@ dependencies = [
  "openkite-ui",
  "rustls",
  "serde",
+ "serde-saphyr",
  "serde_json",
  "tokio",
  "toml",

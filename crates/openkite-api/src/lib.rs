@@ -12,4 +12,5 @@ pub mod capability;
 pub mod crud;
 pub mod gateway;
 pub mod manifest;
+pub mod pod;
 pub mod secret;
