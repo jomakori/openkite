@@ -9,11 +9,51 @@ use std::sync::{Arc, Mutex, OnceLock};
 use dioxus::prelude::*;
 use openkite_api::capability::Capabilities;
 use openkite_api::gateway::Gateway;
+use openkite_api::pod::{LineBuffer, PodObject};
 use openkite_api::secret::SecretObject;
 use serde_json::Value;
 
 /// The secret the detail slide-over shows (`None` = closed).
 pub static SELECTED_SECRET: GlobalSignal<Option<SecretObject>> = Signal::global(|| None);
+
+/// The pod the detail slide-over shows (`None` = closed). Holds the owned
+/// contract shape so both hosts can publish a pod without importing a kube
+/// type.
+pub static SELECTED_POD: GlobalSignal<Option<PodObject>> = Signal::global(|| None);
+
+/// Open the pod slide-over for `pod`. Convenience for the host adapters that
+/// own a kube `Pod` — this helper takes the owned contract shape directly so
+/// the host never imports Dioxus globals.
+pub fn set_selected_pod(pod: Option<PodObject>) {
+    *SELECTED_POD.write() = pod;
+}
+
+/// Close the pod slide-over.
+pub fn clear_selected_pod() {
+    set_selected_pod(None);
+}
+
+/// Streaming log buffer the log viewer renders. The host populates this when
+/// `SELECTED_POD`, the chosen container, or the follow flag changes; the
+/// viewer's `use_effect` only reads. Keeping the buffer global means the
+/// viewer's mount/unmount is a no-op while logs stream.
+pub static LOGS_BUFFER: GlobalSignal<LineBuffer> = Signal::global(LineBuffer::default);
+
+/// Stop the host's log stream and clear the buffer. Idempotent — the host
+/// adapter is the authority on what is actually running.
+pub fn reset_logs_buffer() {
+    LOGS_BUFFER.write().clear();
+}
+
+/// The container the log viewer is currently streaming. The host's stream
+/// controller watches this and switches the kube stream on change. Stored as
+/// a global so the controller survives the viewer's mount/unmount lifecycle.
+pub static LOGS_CONTAINER: GlobalSignal<String> = Signal::global(String::new);
+
+/// Whether the viewer is in follow-tail mode. Same rationale as
+/// [`LOGS_CONTAINER`]: a global so the host-side stream controller can
+/// pause/resume without owning the Dioxus component tree.
+pub static LOGS_FOLLOW: GlobalSignal<bool> = Signal::global(|| true);
 
 /// The resource the CRUD overlay is currently showing, or `None` when the
 /// overlay is closed. Dispatched on by
