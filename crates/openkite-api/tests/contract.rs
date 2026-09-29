@@ -113,6 +113,15 @@ fn capability_descriptor_round_trips() {
 }
 
 #[test]
+fn server_side_host_publishes_no_surfaces_without_a_gateway() {
+    let browser = Capabilities::server_side();
+    assert!(!browser.supports_terminal());
+    assert!(!browser.supports_native_menu_bar());
+    assert!(!browser.supports_title_bar_override());
+    assert_eq!(browser.gateway, GatewayKind::ServerSide);
+}
+
+#[test]
 fn bridge_envelope_round_trips_and_describes() {
     let request = ApiRequest::List {
         kind: "pods".into(),

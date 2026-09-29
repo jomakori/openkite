@@ -4,13 +4,23 @@
 //! reports the matching capability. These tests pin that the runtime surfaces
 //! the host's verdict instead of falling back to "assume desktop".
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use openkite_api::capability::Capabilities;
 use openkite_api::crud::{Mutation, PropagationPolicy};
 use openkite_api::gateway::{Gateway, GatewayError, GatewayFuture};
 use openkite_api::secret::SecretObject;
 use openkite_ui::runtime::{native_chrome_can_render, terminal_can_render};
+
+// The runtime slots are process-global; hold this guard in every test that
+// mutates them so parallel test threads cannot gate on each other's state.
+static RUNTIME_SLOTS: Mutex<()> = Mutex::new(());
+
+fn gate_lock() -> std::sync::MutexGuard<'static, ()> {
+    RUNTIME_SLOTS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
 
 struct FixedGateway(Capabilities);
 
@@ -40,6 +50,7 @@ impl Gateway for FixedGateway {
 
 #[test]
 fn terminal_surface_gates_on_reported_capability() {
+    let _gate = gate_lock();
     openkite_ui::runtime::set_gateway(Some(Arc::new(FixedGateway(Capabilities::in_process()))));
     assert!(terminal_can_render());
 
@@ -52,6 +63,7 @@ fn terminal_surface_gates_on_reported_capability() {
 
 #[test]
 fn native_chrome_surface_gates_on_reported_capability() {
+    let _gate = gate_lock();
     openkite_ui::runtime::set_gateway(Some(Arc::new(FixedGateway(Capabilities::in_process()))));
     assert!(native_chrome_can_render());
 
@@ -64,9 +76,45 @@ fn native_chrome_surface_gates_on_reported_capability() {
 
 #[test]
 fn missing_gateway_means_no_surfaces_render() {
+    let _gate = gate_lock();
     openkite_ui::runtime::set_gateway(None);
+    openkite_ui::runtime::set_published_capabilities(None);
     assert!(!terminal_can_render());
     assert!(!native_chrome_can_render());
+}
+
+#[test]
+fn published_descriptor_gates_without_a_gateway() {
+    let _gate = gate_lock();
+    openkite_ui::runtime::set_gateway(None);
+    openkite_ui::runtime::set_published_capabilities(Some(Capabilities::in_process()));
+    assert!(terminal_can_render());
+    assert!(native_chrome_can_render());
+
+    openkite_ui::runtime::set_published_capabilities(Some(Capabilities::server_side()));
+    assert!(!terminal_can_render());
+    assert!(!native_chrome_can_render());
+
+    openkite_ui::runtime::set_published_capabilities(None);
+    assert!(!terminal_can_render());
+    assert!(!native_chrome_can_render());
+}
+
+#[test]
+fn published_descriptor_outranks_the_gateway() {
+    let _gate = gate_lock();
+    openkite_ui::runtime::set_gateway(Some(Arc::new(FixedGateway(Capabilities::server_side()))));
+    openkite_ui::runtime::set_published_capabilities(Some(Capabilities::in_process()));
+    assert!(terminal_can_render());
+    assert!(native_chrome_can_render());
+
+    openkite_ui::runtime::set_gateway(Some(Arc::new(FixedGateway(Capabilities::in_process()))));
+    openkite_ui::runtime::set_published_capabilities(Some(Capabilities::server_side()));
+    assert!(!terminal_can_render());
+    assert!(!native_chrome_can_render());
+
+    openkite_ui::runtime::set_gateway(None);
+    openkite_ui::runtime::set_published_capabilities(None);
 }
 
 #[test]
