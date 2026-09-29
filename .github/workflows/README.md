@@ -145,8 +145,39 @@ gate`
 Path filtering lives in a `changes` job, not in `on.pull_request.paths`: a
 workflow skipped by a top-level path filter reports no check at all, so a
 docs-only PR would sit on "Expected" forever. `changes` always runs and always
-reports; the heavy jobs skip on a docs-only PR, which is a skipped (not a
-fail-open green) context.
+reports.
+
+### A skipped heavy job is not a failed one
+
+A heavy check is runner minutes, so it is activated by the diff rather than
+automatic: `Run tests`, `Build` and `Coverage gate` run when the change touches
+what they watch (`crates/**`, `src/**`, `Cargo.toml`, `Cargo.lock`, the spike
+fixture, `nextest.toml`, or this workflow) or on a push to `main`. A docs-only
+pull request does not start them.
+
+GitHub reports a job skipped by a job-level condition as **Success**, so a
+skipped heavy context does not block a merge:
+
+> A job that is skipped will report its status as "Success". It will not
+> prevent a pull request from merging, even if it is a required check.
+
+Keep that consequence in view: a green tick on `Run tests` can mean **not
+activated**, not **passed**. Read the job's real conclusion, not the tick — see
+[Process rule](#process-rule-verify-the-workflows-a-change-can-trigger).
+
+Heavier proof comes from the environment labels, not from a CI label. `staging`
+builds the branch into an image and publishes it, which is what proves a
+dependency bump, a native library, or anything a file overlay cannot carry; the
+ladder and its labels are in
+[CONTRIBUTING.md](../../CONTRIBUTING.md#environments).
+
+Only a workflow skipped by path or branch filtering leaves a required context
+waiting; that is why the filters live in `changes`.
+
+The three heavy jobs used to run on every pull request as an empty shell whose
+only purpose was to report a conclusion for itself (OKT-146). A job-level skip
+already reports Success, so that shell bought nothing and cost three runner
+boots per pull request; it is gone.
 
 ## Post-merge surfacing
 
