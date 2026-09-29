@@ -21,6 +21,45 @@ fn temp_root() -> tempfile::TempDir {
 }
 
 #[tokio::test]
+async fn root_route_renders_the_shared_console_shell() {
+    let (status, body) = get_body(app(Arc::new(Bridge::new()), temp_root().path()), "/").await;
+    assert_eq!(status, StatusCode::OK);
+    for chrome in [
+        "class=\"app-shell\"",
+        "class=\"sidebar\"",
+        "class=\"brand\"",
+        "class=\"nav-item\"",
+        "class=\"topbar\"",
+        "class=\"content\"",
+        "class=\"panel\"",
+        "class=\"kv-list\"",
+        "class=\"status-entry\"",
+    ] {
+        assert!(body.contains(chrome), "root route missing {chrome}: {body}");
+    }
+    for surface in ["app", "overview", "capabilities", "secrets"] {
+        assert!(
+            body.contains(&format!("data-surface=\"{surface}\"")),
+            "root route missing the {surface} surface: {body}"
+        );
+    }
+    assert!(
+        body.contains("no cluster · Disconnected"),
+        "root route status footer: {body}"
+    );
+    assert!(
+        body.contains("class=\"pill danger\""),
+        "root route pill: {body}"
+    );
+    assert!(!body.contains("class=\"surface\""), "root route: {body}");
+    assert!(!body.contains("status-ok"), "root route: {body}");
+    assert!(
+        body.contains("id=\"openkite-snapshot\""),
+        "root route must embed the snapshot: {body}"
+    );
+}
+
+#[tokio::test]
 async fn bridge_route_answers_the_no_cluster_envelope() {
     let dir = temp_root();
     let (status, body) = post_json(
