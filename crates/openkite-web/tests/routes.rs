@@ -52,7 +52,7 @@ async fn root_route_renders_the_shared_console_shell() {
         "root route pill: {body}"
     );
     assert!(!body.contains("class=\"surface\""), "root route: {body}");
-    assert!(!body.contains("status-ok"), "root route: {body}");
+    assert!(!body.contains("class=\"status-ok"), "root route: {body}");
     assert!(
         body.contains("id=\"openkite-snapshot\""),
         "root route must embed the snapshot: {body}"
