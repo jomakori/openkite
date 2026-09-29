@@ -28,8 +28,8 @@ pub struct PodSummary {
     pub message: Option<String>,
 }
 
-/// The shared pod contract: name/namespace + summary fields + container rows
-/// + labels/annotations + a pre-rendered YAML blob for the YAML tab. The host
+/// The shared pod contract: name/namespace, summary fields, container rows,
+/// labels/annotations, and a pre-rendered YAML blob for the YAML tab. The host
 /// computes `yaml` (it owns the YAML serializer).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PodObject {

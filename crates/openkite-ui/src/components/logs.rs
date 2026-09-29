@@ -74,6 +74,7 @@ pub fn LogsView() -> Element {
         document::eval(install);
     });
 
+    #[cfg(not(target_arch = "wasm32"))]
     use_effect(move || {
         spawn(async move {
             loop {
