@@ -182,18 +182,18 @@ fn log_panel_is_the_only_opaque_surface() {
 }
 
 /* ---------------------------------------------------------------------------
-   RSX-vs-stylesheet contract (OKT-153).
+RSX-vs-stylesheet contract (OKT-153).
 
-   Every CSS class the crate renders must exist in `assets/main.css`. The
-   failure mode is silent: the markup looks right and the elements are
-   simply unstyled. This test greps the rsx `class:` / `class=` attributes
-   across every component and the host `App`, extracts the literal tokens,
-   and asserts each is covered by a selector in the shipped stylesheet
-   (either as a bare selector or as a sub-piece of a compound one).
+Every CSS class the crate renders must exist in `assets/main.css`. The
+failure mode is silent: the markup looks right and the elements are
+simply unstyled. This test greps the rsx `class:` / `class=` attributes
+across every component and the host `App`, extracts the literal tokens,
+and asserts each is covered by a selector in the shipped stylesheet
+(either as a bare selector or as a sub-piece of a compound one).
 
-   The source files are pulled in via `include_str!` so the test runs from
-   a fresh CI clone without depending on the workspace being on disk.
-   --------------------------------------------------------------------------- */
+The source files are pulled in via `include_str!` so the test runs from
+a fresh CI clone without depending on the workspace being on disk.
+--------------------------------------------------------------------------- */
 
 const APP_RSX: &str = include_str!("../../openkite-web/src/app.rs");
 const STATUS_BADGE_RSX: &str = include_str!("../src/components/status_badge.rs");
@@ -322,10 +322,7 @@ fn for_each_class_literal(source: &str, mut cb: impl FnMut(&str)) {
 /// Hand-rolled walker that finds every `class: if <cond> { "a" } else { "b" }`
 /// rsx ternary and hands both branches to `cb`. Sufficient because the
 /// ternary shape is fixed (a literal string in each arm).
-fn for_each_class_ternary(
-    source: &str,
-    mut cb: impl FnMut(&str, &str),
-) {
+fn for_each_class_ternary(source: &str, mut cb: impl FnMut(&str, &str)) {
     let bytes = source.as_bytes();
     let mut i = 0;
     while i < bytes.len() {
@@ -665,7 +662,10 @@ fn rsx_class_coverage_parser_sees_known_selectors() {
         } else {
             stylesheet_covers(must_exist, &bare, &compound)
         };
-        assert!(covered, "parser regression: .{must_exist} should be covered");
+        assert!(
+            covered,
+            "parser regression: .{must_exist} should be covered"
+        );
     }
 }
 
@@ -674,9 +674,15 @@ fn rsx_class_coverage_parser_sees_known_selectors() {
 #[test]
 fn rsx_class_walker_finds_known_tokens() {
     let tokens = collect_rsx_class_tokens();
-    let names: std::collections::BTreeSet<&str> =
-        tokens.iter().map(|(_, t)| t.as_str()).collect();
-    for must_find in ["app-shell", "topbar", "btn", "btn-primary", "panel", "kv-row"] {
+    let names: std::collections::BTreeSet<&str> = tokens.iter().map(|(_, t)| t.as_str()).collect();
+    for must_find in [
+        "app-shell",
+        "topbar",
+        "btn",
+        "btn-primary",
+        "panel",
+        "kv-row",
+    ] {
         assert!(
             names.contains(must_find),
             "walker regression: rsx must surface `{must_find}` as a class token"
