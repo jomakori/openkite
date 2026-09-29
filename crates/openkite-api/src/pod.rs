@@ -125,10 +125,19 @@ pub fn level_class(line: &str) -> &'static str {
 /// A bounded line buffer the log viewer drains the stream into. The cap keeps
 /// the rendered DOM small; the public API stays minimal so the viewer swap is
 /// mechanical.
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub const MAX_LINES: usize = 10_000;
+
+/// A fixed-capacity buffer of log lines that drops the oldest when full.
+#[derive(Debug, Clone)]
 pub struct LineBuffer {
     lines: Vec<String>,
     cap: usize,
+}
+
+impl Default for LineBuffer {
+    fn default() -> Self {
+        Self::with_cap(MAX_LINES)
+    }
 }
 
 impl LineBuffer {
@@ -139,12 +148,13 @@ impl LineBuffer {
         }
     }
 
-    /// Append a single line; drop the oldest when at cap.
+    /// Append a single line, evicting the overflow batch when at cap.
     pub fn push(&mut self, line: String) {
-        if self.lines.len() >= self.cap {
-            self.lines.remove(0);
-        }
         self.lines.push(line);
+        if self.lines.len() > self.cap {
+            let overflow = self.lines.len() - self.cap;
+            self.lines.drain(..overflow);
+        }
     }
 
     /// Drop every retained line.
