@@ -1,11 +1,14 @@
 //! Standalone log viewer: pod/container picker, follow/pause state, and a
 //! streaming `LineBuffer` drained from a kube `log_stream`.
 //!
-//! The pure-logic helpers at the top of this file are testable without a
-//! Dioxus runtime; the `#[component]` lives at the bottom and depends on the
-//! `dioxus::prelude` glob (split per the openkite-dev skill
-//! §"Split pure logic from the Dioxus view"). Reuses the P1 surface in
-//! `crate::logs` (`LogOptions`, `LogStream`, `LineBuffer`, `FollowState`).
+//! OKT-127 keep-native: the crate-rendered console does not yet expose a
+//! log viewer; see `crates/openkite-desktop/src/router.rs` for the full
+//! rationale. The pure-logic helpers at the top of this file are
+//! testable without a Dioxus runtime; the `#[component]` lives at the
+//! bottom and depends on the `dioxus::prelude` glob (split per the
+//! openkite-dev skill §"Split pure logic from the Dioxus view"). Reuses
+//! the P1 surface in `crate::logs` (`LogOptions`, `LogStream`,
+//! `LineBuffer`, `FollowState`).
 
 use crate::logs::{FollowState, LineBuffer};
 use dioxus::prelude::*;

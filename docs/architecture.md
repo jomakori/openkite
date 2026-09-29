@@ -113,6 +113,27 @@ Dylib loading is experimental and opt-in; WASM is the v2 candidate.
   feature) are in progress; the terminal is not yet wired into a view.
 - **Metrics** require a cluster with `metrics-server` (T1) / Prometheus (T2);
   absence is detected and rendered as a clean empty state.
+
+## Native RSX surfaces (OKT-127)
+
+The console renders from `crates/openkite-ui` (the React console in the
+wry webview for the core browse routes — see
+`crates/openkite-desktop/src/router.rs::console_route`). The native
+RSX surfaces in `crates/openkite-desktop/src/views/` and the plugin
+wildcard route are kept on purpose, because the crate does not yet
+expose an equivalent:
+
+| Surface | Path | Reason native |
+| --- | --- | --- |
+| Logs viewer | `src/views/logs.rs` (`Route::Logs`) | `openkite-ui` has no log viewer; the console's `App` only paints capabilities. Retirement would delete a working UI. |
+| Terminal exec | `src/views/terminal.rs` (`Route::Terminal`) | Pod/container picker + xterm.js host + reconnect state machine on top of the vendored bundle. No crate replacement exists; exec transport is deferred to Phase 1. |
+| Pod detail inspector | `src/views/pod_detail.rs` (mounted in `AppShell`) | 5-tab slide-over driven by `SELECTED_POD`; uses `kube::Api::log_stream` and the container-state mapper that no crate view duplicates. |
+| Plugin wildcard | `Route::Plugin` → `Plugin` dispatcher | Rust SDK routes (`ROUTE_TABLE`) + JS plugin renderers (`JsRouteSlot`); plugin routing is a host concern, not a console concern. |
+
+The keep-native declaration lives at
+`crates/openkite-desktop/src/router.rs` (module doc + `console_route`)
+and at the top of each view module, so the rationale is visible where
+a reader is most likely to look when deciding to delete a route.
 - **Webview RAM floor** — the WebKitGTK webview carries a ~200 MB baseline per
   window; this is a Dioxus-desktop cost, not app state.
 - **Eval-bridge throughput** — the Dioxus↔JS eval bridge used for the terminal

@@ -1,7 +1,10 @@
 //! Pod detail slide-over: 5-tab inspector (Overview, Logs, Events, YAML, Containers).
 //!
-//! Reads `SELECTED_POD` from the runtime; renders as a right-side slide-over
-//! panel with `.inspector` / `.inspector.open` CSS classes.
+//! OKT-127 keep-native: the crate-rendered console does not yet expose a
+//! pod-detail inspector; see `crates/openkite-desktop/src/router.rs` for
+//! the full rationale. Reads `SELECTED_POD` from the runtime; renders as
+//! a right-side slide-over panel with `.inspector` / `.inspector.open`
+//! CSS classes.
 
 use dioxus::prelude::*;
 use k8s_openapi::api::core::v1::Pod;

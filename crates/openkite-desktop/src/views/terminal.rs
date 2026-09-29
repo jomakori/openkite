@@ -1,12 +1,14 @@
 //! Standalone terminal view: the toolbar (pod/container picker, reconnect /
 //! disconnect), the phase state machine, and a vendored xterm.js host.
 //!
-//! The pure-logic helpers at the top of this file are testable without a
-//! Dioxus runtime; the `#[component]` lives at the bottom and depends on the
-//! `dioxus::prelude` glob (split per the openkite-dev skill §"Split pure
-//! logic from the Dioxus view"). Reuses the P1 surface in `crate::terminal`
-//! (`resolve_shell`, `OutputBuffer`) and the typed `ApiRequest::Exec` wire
-//! envelope from `crate::plugin_api`.
+//! OKT-127 keep-native: the crate-rendered console does not yet expose a
+//! terminal exec surface; see `crates/openkite-desktop/src/router.rs` for
+//! the full rationale. The pure-logic helpers at the top of this file are
+//! testable without a Dioxus runtime; the `#[component]` lives at the
+//! bottom and depends on the `dioxus::prelude` glob (split per the
+//! openkite-dev skill §"Split pure logic from the Dioxus view"). Reuses
+//! the P1 surface in `crate::terminal` (`resolve_shell`, `OutputBuffer`)
+//! and the typed `ApiRequest::Exec` wire envelope from `crate::plugin_api`.
 
 use dioxus::prelude::*;
 
