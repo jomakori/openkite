@@ -73,6 +73,19 @@ pub async fn post_json(app: Router, path: &str, body: Value) -> (StatusCode, Val
 
 /// GET a path from the router and read the body as text.
 pub async fn get_body(app: Router, path: &str) -> (StatusCode, String) {
+    let (status, bytes) = get_bytes(app, path).await;
+    (status, String::from_utf8_lossy(&bytes).into_owned())
+}
+
+/// GET a path and read the status plus the raw body back, for the binary
+/// responses (the vendored typefaces) a text body would corrupt.
+pub async fn get_bytes(app: Router, path: &str) -> (StatusCode, Vec<u8>) {
+    let (status, _, bytes) = get_full(app, path).await;
+    (status, bytes)
+}
+
+/// GET a path and read the status, the response headers and the raw body back.
+pub async fn get_full(app: Router, path: &str) -> (StatusCode, axum::http::HeaderMap, Vec<u8>) {
     let request = Request::builder()
         .method("GET")
         .uri(path)
@@ -80,10 +93,11 @@ pub async fn get_body(app: Router, path: &str) -> (StatusCode, String) {
         .expect("build request");
     let response = app.oneshot(request).await.expect("router call");
     let status = response.status();
+    let headers = response.headers().clone();
     let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .expect("read body");
-    (status, String::from_utf8_lossy(&bytes).into_owned())
+    (status, headers, bytes.to_vec())
 }
 
 /// A kube client over a fake API server that answers discovery and one pod list,

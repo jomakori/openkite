@@ -4,14 +4,16 @@
 //! the bridge envelope (there it is the wry asset handler's job), `POST
 //! /openkite-spike` carries the console's context and settings ops, and every
 //! other path is the bundle itself with an SPA fallback. `GET /` is the one
-//! route the crate renders itself, and `POST /api/gateway` is the same-origin
-//! round-trip the hydrating client refreshes through.
+//! route the crate renders itself, `POST /api/gateway` is the same-origin
+//! round-trip the hydrating client refreshes through, and
+//! `GET /assets/fonts/{file}` is where the stylesheet's `@font-face` URLs land.
 
 use std::path::Path;
 use std::sync::Arc;
 
-use axum::extract::State;
-use axum::http::header::CONTENT_TYPE;
+use axum::extract::{Path as UrlPath, State};
+use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE};
+use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -26,16 +28,35 @@ use crate::ssr;
 pub type SharedBridge = Arc<Bridge>;
 
 /// Build the host router: the crate-rendered root, the console's endpoints,
-/// then the bundle.
+/// the vendored typefaces, then the bundle.
 pub fn router(bridge: SharedBridge, web_root: &Path) -> Router {
     let assets = ServeDir::new(web_root).fallback(ServeFile::new(web_root.join("index.html")));
     Router::new()
         .route("/", get(ssr_root))
+        .route("/assets/fonts/{file}", get(font_get))
         .route("/openkite", post(bridge_post))
         .route("/openkite-spike", post(spike_post))
         .route("/api/gateway", post(gateway_post))
         .fallback_service(assets)
         .with_state(bridge)
+}
+
+/// Serve one vendored typeface the shell stylesheet declares.
+///
+/// The bytes are immutable for the life of the binary, so the client is told it
+/// never has to ask twice: a browser fetches each face once per install.
+async fn font_get(UrlPath(file): UrlPath<String>) -> Response {
+    match openkite_ui::assets::face_by_file(&file) {
+        Some(face) => (
+            [
+                (CONTENT_TYPE, "font/woff2"),
+                (CACHE_CONTROL, "public, max-age=31536000, immutable"),
+            ],
+            face.bytes,
+        )
+            .into_response(),
+        None => (StatusCode::NOT_FOUND, "unknown typeface").into_response(),
+    }
 }
 
 /// Dispatch one bridge POST through the shared [`Bridge`].

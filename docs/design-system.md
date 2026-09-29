@@ -6,8 +6,9 @@ views) consumes without re-deciding the visual language.
 
 It lives in two places:
 
-- `crates/openkite-ui/assets/main.css` — the single existing asset, already injected by
-  `src/lib.rs:107` via `include_str!` into the webview's `<head>`.
+- `crates/openkite-ui/assets/main.css` — the shell stylesheet, inlined into
+  both hosts' `<head>` (`openkite_ui::MAIN_CSS`). It declares the vendored
+  typefaces with `@font-face`.
 - `crates/openkite-ui/src/design/{mod.rs, tokens.rs}` — typed Rust view of the
   surface-treatment strings (blur radii, panel radii, shadow strings)
   so Dioxus `style:` attributes can reference them by name.
@@ -42,9 +43,24 @@ From `src/theme_opaline.rs:19-41` and `src/theme.rs:18-47`:
 | Group       | Properties                                                                 |
 |-------------|----------------------------------------------------------------------------|
 | Brand       | `--brand` (kite teal), `--argo` (ArgoCD orange), `--on-accent` (text on fills) |
-| Fonts       | `--font-sans`, `--font-mono` (IBM Plex + system stack)                    |
+| Fonts       | `--font-sans`, `--font-mono` (vendored IBM Plex, then the system stack)   |
 | Elevation   | `--shadow-rest`, `--shadow-hover`, `--shadow-terminal`                    |
 | Radii       | `--r-sm` (6px), `--r-md` (8px), `--r-pill` (999px)                        |
+
+## Vendored typefaces
+
+`crates/openkite-ui/assets/fonts/` holds the faces those two tokens resolve to:
+IBM Plex Sans 400/500/600/700 and IBM Plex Mono 400/500/600, IBM's Latin1 web
+subsets, under SIL OFL 1.1 (`OFL.txt`, provenance and checksums in
+`SOURCE.txt`). `assets/main.css` declares them with `@font-face`, so no page
+asks an external font host for type.
+
+The faces reach each host differently, because only one of them has an origin:
+
+| Host                       | How the bytes arrive                                                                 | Cost                                                            |
+|----------------------------|--------------------------------------------------------------------------------------|-----------------------------------------------------------------|
+| Browser (`openkite-web`)   | `GET /assets/fonts/{file}`, the URL each `@font-face` names; `immutable`              | 136.5 KiB, fetched once per install, then cached                 |
+| Desktop (wry webview)      | `openkite_ui::assets::embedded_css()` — the same stylesheet with every URL as a `data:` URI | ~182 KiB of base64 in the window head, and no request at all     |
 
 ## Primitive classes
 
@@ -75,13 +91,21 @@ From `src/theme_opaline.rs:19-41` and `src/theme.rs:18-47`:
   ticket.
 - **Icon sprite** (32 inline `<symbol>` SVGs from the mockup) — OKT-47
   alongside the first consumer.
-- **Explicit `@font-face` for IBM Plex** — OKT-42 (Settings UI) or a
-  follow-up visual polish ticket.
 
 ## Verification
 
 `crates/openkite-ui/tests/design.rs` reads `openkite_ui::MAIN_CSS` and asserts
 every required custom property and primitive class is present, plus a
 "exactly 12 new properties" guard against accidental re-declaration of
-an opaline-mapped var. The test runs on every CI push with no kube/JS
-dependencies.
+an opaline-mapped var.
+
+`crates/openkite-ui/tests/fonts.rs` pins the type layer: every vendored face is
+declared exactly once, every declared URL is a file the route serves, the
+embedded stylesheet decodes back to the file bytes, and the payload stays
+inside its budget. `crates/openkite-web/tests/routes.rs` serves each face
+byte-for-byte over HTTP, and `.../tests/ssr.rs` plus the `openkite-desktop`
+head tests assert each host's page declares them.
+
+All of it runs on every CI push with no kube/JS dependencies. The browser and
+desktop head tests need their host crates, so the full set rides the normal
+workspace jobs.

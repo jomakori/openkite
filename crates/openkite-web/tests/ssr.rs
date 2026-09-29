@@ -88,6 +88,31 @@ fn hydrating_page_embeds_the_snapshot_and_client_import() {
 }
 
 #[test]
+fn every_page_declares_the_vendored_typefaces() {
+    for options in [RenderOptions::ssr_only(), RenderOptions::hydrating()] {
+        let page = render_page(&snapshot(), &options);
+        for face in openkite_ui::assets::FACES {
+            assert!(
+                page.contains(&openkite_ui::assets::src_url(face)),
+                "page does not serve {}: {page}",
+                face.file
+            );
+            assert!(
+                page.contains(&format!("font-family: \"{}\";", face.family)),
+                "page does not declare {}: {page}",
+                face.family
+            );
+        }
+        for external in ["fonts.googleapis.com", "fonts.gstatic.com"] {
+            assert!(
+                !page.contains(external),
+                "page still asks {external} for type"
+            );
+        }
+    }
+}
+
+#[test]
 fn every_page_carries_the_shell_stylesheet() {
     let wrapped = format!("<style>{}</style>", openkite_ui::MAIN_CSS);
     for options in [RenderOptions::ssr_only(), RenderOptions::hydrating()] {
