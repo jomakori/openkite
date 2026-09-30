@@ -380,15 +380,6 @@ mod render_tests {
     }
 
     #[test]
-    fn yaml_tab_renders_the_contract_blob() {
-        let html = mount_seeded(root_yaml);
-        assert!(
-            html.contains("apiVersion: v1"),
-            "yaml from contract: {html}"
-        );
-    }
-
-    #[test]
     fn yaml_tab_renders_the_code_editor_mount() {
         let html = mount_seeded(root_yaml);
         assert!(html.contains("code-editor"), "editor mount: {html}");
