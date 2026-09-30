@@ -2,11 +2,15 @@
 # Visual regression gate: compare fresh screenshots against committed baselines.
 #
 # Uses ImageMagick `compare -metric AE` (absolute pixel count of difference).
-# WebKitGTK font rendering is not pixel-perfect across runs, so we use a
-# tolerant fuzzy threshold: a screenshot passes if the number of differing
-# pixels is below MAX_DIFF_PIXELS (default: 1% of total pixels).
+# WebKitGTK font rendering and overlay-scrollbar drawing are not pixel-perfect
+# across runs or runner images, so we use a tolerant threshold: a screenshot
+# passes if the number of differing pixels is below MAX_DIFF_PIXELS.
 #
-# Total pixels at 1280x800 = 1,024,000. 1% = 10,240 pixels.
+# Measured noise band: 12,006 px (~2.5% of the 800x600 capture) appeared on
+# every surface on 2026-09-30 as a 21px right-edge overlay-scrollbar strip,
+# content-identical to the baselines. Threshold = 16,000 px (~3.3%). If a
+# failure reports a count ABOVE 16,000, investigate the change itself — do
+# not raise the threshold again without a fresh measurement.
 #
 # Usage: e2e/visual/compare.sh <baselines-dir> <fresh-screenshots-dir>
 # Exit 0 if all pass, exit 1 if any fail.
@@ -16,8 +20,8 @@ set -euo pipefail
 BASELINES="${1:?baselines dir}"
 FRESH="${2:?fresh screenshots dir}"
 
-# Threshold: max differing pixels (AE metric). ~1% of 1280x800.
-MAX_DIFF_PIXELS="${MAX_DIFF_PIXELS:-10240}"
+# Threshold: max differing pixels (AE metric). ~3.3% of 800x600.
+MAX_DIFF_PIXELS="${MAX_DIFF_PIXELS:-16000}"
 
 log() { echo "[visual-regression] $*"; }
 fail() { log "FAIL: $*"; exit 1; }

@@ -15,12 +15,9 @@
 //!   input and surfaces the bridge-pending hint. No crate-rendered
 //!   replacement exists.
 //! - [`PodDetail`] slide-over (mounted inside [`AppShell`]) — the
-//!   5-tab inspector (Overview / Logs / Events / YAML / Containers)
-//!   driven by `SELECTED_POD`. The kube `Api::log_stream` in the Logs
-//!   tab and the container-state mapping in the Containers tab are not
-//!   duplicated by any crate view; `openkite-ui` has no PodDetail.
-//!   PodDetail is intentionally native until the OKT-136 umbrella
-//!   builds a console-side inspector.
+//!   5-tab inspector (Overview / Logs / Events / YAML / Containers) from
+//!   `openkite_ui::components::pod_detail`, driven by the owned
+//!   `SELECTED_POD` contract.
 //! - [`Route::Plugin`] wildcard → [`Plugin`] dispatcher — Rust SDK
 //!   plugin routes (`ROUTE_TABLE`) plus JS plugin renderers (the
 //!   `JsRouteSlot` mount). The console does not own plugin routing;
@@ -51,7 +48,7 @@ use std::sync::{Arc, OnceLock};
 
 use crate::palette::{CommandPalette, PaletteKeybind};
 use crate::switcher::{ClusterSwitcher, SwitcherKeybind};
-use crate::views::pod_detail::PodDetail;
+use openkite_ui::components::pod_detail::PodDetail;
 
 /// Plugin sidebar sections (static Rust SDK plugins), populated at startup.
 static PLUGIN_SECTIONS: GlobalSignal<Vec<SidebarSection>> = Signal::global(Vec::new);
