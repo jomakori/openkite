@@ -17,7 +17,7 @@
 use dioxus::prelude::*;
 
 use openkite_api::capability::{Capabilities, GatewayKind};
-use openkite_ui::components::shell::{AppShell, NamespaceChip};
+use openkite_ui::components::shell::{AppShell, ClusterInfo, ShellIcon, TopBarAction};
 use openkite_ui::components::status_badge::{StatusKind, StatusPill};
 use openkite_ui::plugin_api::RegistrationStore;
 use openkite_ui::shell::{sidebar_model, status_bar_model, ShellState};
@@ -56,7 +56,9 @@ pub fn App(props: AppProps) -> Element {
     let mut round = use_signal(|| 0u32);
     let mut last_error = use_signal(|| Option::<String>::None);
 
-    let on_refresh = move |_| {
+    // One refetch, two callers: the top bar's refresh action and the panel's
+    // button. The closure only captures signals, so both may hold a copy.
+    let refetch = move || {
         spawn(async move {
             match crate::client::fetch_snapshot().await {
                 Ok(Some(next)) => {
@@ -73,6 +75,8 @@ pub fn App(props: AppProps) -> Element {
             }
         });
     };
+    let on_refresh = move |_: ()| refetch();
+    let on_refresh_click = move |_: Event<MouseData>| refetch();
 
     let snapshot = state();
     let capabilities = snapshot.capabilities;
@@ -97,10 +101,18 @@ pub fn App(props: AppProps) -> Element {
         StatusKind::Failed
     };
 
-    let namespaces = vec![NamespaceChip {
+    // The sidebar's cluster button: the context this host serves, read-only
+    // because a server-side gateway has no context list to switch between.
+    let cluster = ClusterInfo {
         label: shell.cluster_label(),
-        active: true,
-        context: true,
+        detail: None,
+        connected: snapshot.connected,
+    };
+    // The top bar's one action this host owns: re-fetch the snapshot.
+    let actions = vec![TopBarAction {
+        icon: ShellIcon::Refresh,
+        label: "Refresh".into(),
+        on_click: EventHandler::new(on_refresh),
     }];
 
     rsx! {
@@ -109,8 +121,9 @@ pub fn App(props: AppProps) -> Element {
             // The page has no client router: entries are plain links, and
             // nothing is marked current until a route resolves.
             current_route: String::new(),
-            namespaces,
+            cluster: Some(cluster),
             status: status_entries,
+            actions,
             "data-surface": "app",
             section { class: "panel", "data-surface": "overview",
                 h2 { "Cluster" }
@@ -128,7 +141,7 @@ pub fn App(props: AppProps) -> Element {
                 button {
                     class: "btn btn-primary",
                     r#type: "button",
-                    onclick: on_refresh,
+                    onclick: on_refresh_click,
                     "data-action": "refresh",
                     "Refresh"
                 }
@@ -146,12 +159,12 @@ pub fn App(props: AppProps) -> Element {
                         }
                     }
                 }
-                p { class: "tagline", "data-round": "{round()}", "round {round()}" }
+                p { class: "message", "data-round": "{round()}", "round {round()}" }
             }
             section { class: "panel", "data-surface": "secrets",
                 h2 { "Secrets" }
                 if snapshot.secrets.is_empty() {
-                    p { class: "tagline", "data-empty": "secrets", "No secrets in the gateway's scope" }
+                    p { class: "message", "data-empty": "secrets", "No secrets in the gateway's scope" }
                 } else {
                     dl { class: "kv-list",
                         for secret in snapshot.secrets.iter() {

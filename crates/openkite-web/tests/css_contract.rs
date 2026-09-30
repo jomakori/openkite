@@ -36,7 +36,7 @@ fn stylesheet() -> String {
             let css = std::fs::read_to_string(&path)
                 .unwrap_or_else(|err| panic!("read {}: {err}", path.display()));
             assert!(
-                css.contains(".app-shell"),
+                css.contains(".app {"),
                 "{} does not look like the console stylesheet",
                 path.display()
             );
@@ -159,15 +159,16 @@ fn every_class_the_root_route_renders_is_declared() {
 fn the_route_renders_the_shared_shell_and_a_status_pill() {
     let body = render_body(&snapshots().remove(1));
     for class in [
-        "app-shell",
+        "app",
         "sidebar",
         "nav-item",
         "topbar",
-        "content",
+        "breadcrumbs",
+        "view",
         "panel",
         "kv-list",
-        "status-entry",
-        "status-dot",
+        "sidebar-footer",
+        "status-line",
         "pill",
     ] {
         assert!(

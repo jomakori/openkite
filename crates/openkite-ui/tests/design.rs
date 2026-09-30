@@ -83,6 +83,37 @@ const REQUIRED_CLASSES: &[&str] = &[
     ".field-error",
     ".confirm-warning",
     ".btn-danger",
+    // The shell's own vocabulary (OKT-154): the frame, its sidebar and top bar
+    // carry the design's class names, not the desktop's old ones.
+    ".app",
+    ".icon",
+    ".sidebar",
+    ".sidebar-backdrop",
+    ".sidebar-backdrop.show",
+    ".sidebar-footer",
+    ".brand",
+    ".brand-mark",
+    ".brand-word",
+    ".cluster-btn",
+    ".nav",
+    ".nav-title",
+    ".nav-item",
+    ".nav-item.active",
+    ".nav-badge",
+    ".main",
+    ".topbar",
+    ".menu-toggle",
+    ".breadcrumbs",
+    ".breadcrumbs .crumb",
+    ".breadcrumbs .current",
+    ".topbar-actions",
+    ".icon-btn",
+    ".avatar",
+    ".view",
+    ".view.active",
+    ".pull-indicator",
+    ".eyebrow",
+    ".status-line",
 ];
 
 /// Properties the opaline theme contract already provides — must not be
@@ -677,14 +708,7 @@ fn rsx_class_coverage_parser_sees_known_selectors() {
 fn rsx_class_walker_finds_known_tokens() {
     let tokens = collect_rsx_class_tokens();
     let names: std::collections::BTreeSet<&str> = tokens.iter().map(|(_, t)| t.as_str()).collect();
-    for must_find in [
-        "app-shell",
-        "topbar",
-        "btn",
-        "btn-primary",
-        "panel",
-        "kv-row",
-    ] {
+    for must_find in ["app", "topbar", "btn", "btn-primary", "panel", "kv-row"] {
         assert!(
             names.contains(must_find),
             "walker regression: rsx must surface `{must_find}` as a class token"

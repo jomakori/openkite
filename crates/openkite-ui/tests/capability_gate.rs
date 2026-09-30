@@ -10,7 +10,9 @@ use openkite_api::capability::Capabilities;
 use openkite_api::crud::{Mutation, PropagationPolicy};
 use openkite_api::gateway::{Gateway, GatewayError, GatewayFuture};
 use openkite_api::secret::SecretObject;
-use openkite_ui::runtime::{native_chrome_can_render, terminal_can_render};
+use openkite_ui::runtime::{
+    cluster_switch_can_render, native_chrome_can_render, terminal_can_render,
+};
 
 // The runtime slots are process-global; hold this guard in every test that
 // mutates them so parallel test threads cannot gate on each other's state.
@@ -75,12 +77,44 @@ fn native_chrome_surface_gates_on_reported_capability() {
 }
 
 #[test]
+fn cluster_switch_gates_on_the_gateway_the_host_owns() {
+    let _gate = gate_lock();
+    // The in-process gateway owns the kubeconfig, so it can list contexts.
+    openkite_ui::runtime::set_gateway(Some(Arc::new(FixedGateway(Capabilities::in_process()))));
+    assert!(cluster_switch_can_render());
+
+    // A server-side gateway serves exactly one cluster: no context list.
+    openkite_ui::runtime::set_gateway(Some(Arc::new(FixedGateway(Capabilities::server_side()))));
+    assert!(!cluster_switch_can_render());
+
+    openkite_ui::runtime::set_gateway(Some(Arc::new(FixedGateway(Capabilities::minimal()))));
+    assert!(!cluster_switch_can_render());
+
+    openkite_ui::runtime::set_gateway(None);
+    openkite_ui::runtime::set_published_capabilities(None);
+    assert!(!cluster_switch_can_render());
+}
+
+#[test]
+fn cluster_switch_follows_the_published_descriptor() {
+    let _gate = gate_lock();
+    openkite_ui::runtime::set_gateway(None);
+    openkite_ui::runtime::set_published_capabilities(Some(Capabilities::in_process()));
+    assert!(cluster_switch_can_render());
+
+    openkite_ui::runtime::set_published_capabilities(Some(Capabilities::server_side()));
+    assert!(!cluster_switch_can_render());
+    openkite_ui::runtime::set_published_capabilities(None);
+}
+
+#[test]
 fn missing_gateway_means_no_surfaces_render() {
     let _gate = gate_lock();
     openkite_ui::runtime::set_gateway(None);
     openkite_ui::runtime::set_published_capabilities(None);
     assert!(!terminal_can_render());
     assert!(!native_chrome_can_render());
+    assert!(!cluster_switch_can_render());
 }
 
 #[test]

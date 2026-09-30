@@ -67,6 +67,12 @@ A change that alters what a user sees refreshes `visual/baselines/` in the same
 PR: a moved
 baseline is a decision, not an accident.
 
+Stills are captured at the app's default window size (800x600), which is inside
+the design's `≤1024px` branch: the sidebar paints as the design's closed drawer
+with the top bar's menu toggle, so these stills cover the top bar and the routed
+surface. The sidebar's own chrome is pinned by `crates/openkite-ui/tests/shell_chrome.rs`
+and by the crate-rendered console still in `docs/media/`.
+
 `visual/cluster/` is the OOM-safe producer — a one-shot Job that builds the app
 in-cluster and
 fetches the media into `docs/media/`. See its [README](visual/cluster/README.md).

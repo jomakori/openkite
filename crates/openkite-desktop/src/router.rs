@@ -54,7 +54,9 @@ use std::sync::{Arc, OnceLock};
 
 use crate::palette::{CommandPalette, PaletteKeybind};
 use crate::switcher::{ClusterSwitcher, SwitcherKeybind};
-use openkite_ui::components::shell::{AppShell as ShellFrame, NamespaceChip};
+use openkite_ui::components::shell::{
+    AppShell as ShellFrame, ClusterInfo, ShellIcon, TopBarAction,
+};
 
 /// Plugin sidebar sections (static Rust SDK plugins), populated at startup.
 static PLUGIN_SECTIONS: GlobalSignal<Vec<SidebarSection>> = Signal::global(Vec::new);
@@ -247,17 +249,37 @@ fn AppShell() -> Element {
     // URL path, which is the same vocabulary the entries carry.
     let current_route = use_route::<Route>().to_string();
 
+    // The top bar's action row: what this host can actually honour — the
+    // command palette it binds to Ctrl+P and the settings route it serves.
+    let actions = vec![
+        TopBarAction {
+            icon: ShellIcon::Search,
+            label: "Command palette".into(),
+            on_click: EventHandler::new(|_| {
+                *crate::palette::PALETTE_OPEN.write() = true;
+            }),
+        },
+        TopBarAction {
+            icon: ShellIcon::Settings,
+            label: "Settings".into(),
+            on_click: EventHandler::new(move |_| {
+                nav.push(Route::Config {});
+            }),
+        },
+    ];
+
     rsx! {
         ShellFrame {
             sections: shell_sections(),
             current_route,
-            namespaces: namespace_chips(),
+            cluster: cluster_button(),
             status: status_entries(),
+            actions,
             on_navigate: Some(EventHandler::new(move |route: String| {
                 nav.push(route_from_path(&route));
             })),
-            on_toggle_namespace: Some(EventHandler::new(|ns: String| {
-                crate::runtime::toggle_namespace(ns);
+            on_switch_cluster: Some(EventHandler::new(|_| {
+                *crate::switcher::SWITCHER_OPEN.write() = true;
             })),
             // Host-only chrome: the key listeners and the overlays they drive.
             // The crate frame renders it when the host advertises native
@@ -274,24 +296,24 @@ fn AppShell() -> Element {
     }
 }
 
-/// The sidebar the crate shell renders: the desktop's flat core navigation
-/// (the terminal entry gated on the host capability), then the static Rust-SDK
+/// The sidebar the crate shell renders: the desktop's core navigation (the
+/// terminal entry gated on the host capability), then the static Rust-SDK
 /// plugin sections, then the JS-plugin sections mirrored from the bridge.
 ///
-/// The nav divider separates each of those blocks from the previous one rather
-/// than being drawn per section, which is what the desktop has always rendered.
+/// Every block is a `.nav-section` with its own `.nav-title`, which is how the
+/// design separates them; the core block carries the same title the shared
+/// model gives it, so the sidebar and the breadcrumbs name it alike.
 fn shell_sections() -> Vec<crate::shell::ShellSection> {
     use crate::shell::{core_nav, plugin_sections, ShellNavItem, ShellSection};
 
     let mut sections = vec![ShellSection {
-        label: String::new(),
+        label: "Overview".into(),
         accent: None,
-        divider: false,
         items: core_nav(openkite_ui::runtime::terminal_can_render()),
     }];
 
     let sdk_sections = PLUGIN_SECTIONS.read();
-    for (index, section) in sdk_sections.iter().enumerate() {
+    for section in sdk_sections.iter() {
         sections.push(ShellSection {
             label: section.label.clone(),
             accent: Some(
@@ -300,7 +322,6 @@ fn shell_sections() -> Vec<crate::shell::ShellSection> {
                     .clone()
                     .unwrap_or_else(|| "var(--accent)".into()),
             ),
-            divider: index == 0,
             items: section
                 .entries
                 .iter()
@@ -308,35 +329,32 @@ fn shell_sections() -> Vec<crate::shell::ShellSection> {
                     label: entry.label.clone(),
                     route: entry.route.clone(),
                     plugin: Some(section.label.clone()),
+                    // The SDK's count badge is the design's `.nav-badge`.
+                    badge: entry.badge.clone(),
                 })
                 .collect(),
         });
     }
 
     let registrations = REGISTRATIONS.read();
-    for (index, section) in plugin_sections(&registrations).into_iter().enumerate() {
-        sections.push(ShellSection {
-            divider: index == 0,
-            ..section
-        });
-    }
+    sections.extend(plugin_sections(&registrations));
 
     sections
 }
 
-/// The top bar's chips: one per namespace on the active cluster, active when
-/// the namespace is in the selected set.
-fn namespace_chips() -> Vec<NamespaceChip> {
-    let namespaces = crate::runtime::NAMESPACES.read().clone();
-    let selected = crate::runtime::SELECTED_NAMESPACES.read().clone();
-    namespaces
-        .into_iter()
-        .map(|namespace| NamespaceChip {
-            active: selected.iter().any(|selected| selected == &namespace),
-            label: namespace,
-            context: false,
-        })
-        .collect()
+/// The sidebar's cluster button: the active context, its connection state and
+/// the build the host reports. The button itself is the design's; whether it
+/// opens the context list is the host's to answer (see
+/// `openkite_ui::runtime::cluster_switch_can_render`).
+fn cluster_button() -> Option<ClusterInfo> {
+    Some(ClusterInfo {
+        label: crate::runtime::CONTEXT
+            .read()
+            .clone()
+            .unwrap_or_else(|| "no cluster".into()),
+        detail: crate::version::reported().map(|version| format!("v{version}")),
+        connected: crate::runtime::CLIENT.read().is_some(),
+    })
 }
 
 /// The status footer's entries for the current connection state.
