@@ -241,3 +241,148 @@ fn ContainersTab() -> Element {
         }
     }
 }
+
+#[cfg(test)]
+mod render_tests {
+    use super::*;
+    use crate::runtime::set_selected_pod;
+    use dioxus_ssr::Renderer;
+    use openkite_api::pod::{ContainerInfo, PodObject, PodSummary};
+    use std::collections::BTreeMap;
+
+    fn rich_pod() -> PodObject {
+        PodObject {
+            name: "web-1".into(),
+            namespace: Some("default".into()),
+            summary: PodSummary {
+                phase: "Running".into(),
+                node: "node-1".into(),
+                pod_ip: "10.0.0.7".into(),
+                qos: "Guaranteed".into(),
+                reason: Some("Evicted".into()),
+                message: Some("node low on memory".into()),
+            },
+            containers: vec![
+                ContainerInfo {
+                    name: "web".into(),
+                    image: "nginx:1.25".into(),
+                    ready: true,
+                    restarts: 1,
+                    state: "Running".into(),
+                },
+                ContainerInfo {
+                    name: "sidecar".into(),
+                    image: "envoy:1.30".into(),
+                    ready: false,
+                    restarts: 3,
+                    state: "Pending".into(),
+                },
+            ],
+            labels: BTreeMap::from([
+                ("app".to_string(), "web".to_string()),
+                ("tier".to_string(), "frontend".to_string()),
+            ]),
+            annotations: BTreeMap::from([("owner".to_string(), "platform".to_string())]),
+            yaml: "apiVersion: v1\nkind: Pod\n".to_string(),
+        }
+    }
+
+    fn mount_seeded(root: fn() -> Element) -> String {
+        let mut vdom = VirtualDom::new(root);
+        vdom.in_runtime(|| set_selected_pod(Some(rich_pod())));
+        vdom.rebuild_in_place();
+        Renderer::new().render(&vdom)
+    }
+
+    fn root_inspector() -> Element {
+        rsx! { PodDetail {} }
+    }
+
+    fn root_overview() -> Element {
+        rsx! { OverviewTab {} }
+    }
+
+    fn root_logs() -> Element {
+        rsx! { LogsTab {} }
+    }
+
+    fn root_events() -> Element {
+        rsx! { EventsTab {} }
+    }
+
+    fn root_yaml() -> Element {
+        rsx! { YamlTab {} }
+    }
+
+    fn root_containers() -> Element {
+        rsx! { ContainersTab {} }
+    }
+
+    #[test]
+    fn inspector_is_empty_when_no_pod_is_selected() {
+        let mut vdom = VirtualDom::new(PodDetail);
+        vdom.rebuild_in_place();
+        let html = Renderer::new().render(&vdom);
+        assert!(html.is_empty(), "no pod selected -> no inspector: {html}");
+    }
+
+    #[test]
+    fn inspector_renders_chrome_and_summary() {
+        let html = mount_seeded(root_inspector);
+        for needle in [
+            "inspector open",
+            "web-1",
+            "Pod",
+            "namespace: default",
+            "Overview",
+            "Logs",
+            "Events",
+            "YAML",
+            "Containers",
+            "Close",
+        ] {
+            assert!(html.contains(needle), "missing {needle}: {html}");
+        }
+    }
+
+    #[test]
+    fn overview_tab_renders_summary_labels_and_annotations() {
+        let html = mount_seeded(root_overview);
+        for needle in [
+            "Running",
+            "node-1",
+            "10.0.0.7",
+            "Guaranteed",
+            "Evicted",
+            "node low on memory",
+            "app=web",
+            "tier=frontend",
+            "owner=platform",
+        ] {
+            assert!(html.contains(needle), "missing {needle}: {html}");
+        }
+    }
+
+    #[test]
+    fn containers_tab_renders_the_owned_container_rows() {
+        let html = mount_seeded(root_containers);
+        for needle in ["nginx:1.25", "envoy:1.30", "dot ok", "dot err", "Restarts"] {
+            assert!(html.contains(needle), "missing {needle}: {html}");
+        }
+    }
+
+    #[test]
+    fn yaml_tab_renders_the_contract_blob() {
+        let html = mount_seeded(root_yaml);
+        assert!(
+            html.contains("apiVersion: v1"),
+            "yaml from contract: {html}"
+        );
+    }
+
+    #[test]
+    fn events_tab_keeps_the_documented_placeholder() {
+        let html = mount_seeded(root_events);
+        assert!(html.contains("Events will be fetched"), "{html}");
+    }
+}
