@@ -19,6 +19,8 @@ pub struct Capabilities {
     pub native_menu_bar: bool,
     pub title_bar_override: bool,
     pub file_dialogs: bool,
+    /// The host owns the cluster registry and can swap the live client.
+    pub cluster_switch: bool,
 }
 
 impl Capabilities {
@@ -31,6 +33,7 @@ impl Capabilities {
             native_menu_bar: true,
             title_bar_override: true,
             file_dialogs: true,
+            cluster_switch: true,
         }
     }
 
@@ -43,6 +46,7 @@ impl Capabilities {
             native_menu_bar: false,
             title_bar_override: false,
             file_dialogs: false,
+            cluster_switch: false,
         }
     }
 
@@ -55,6 +59,7 @@ impl Capabilities {
             native_menu_bar: false,
             title_bar_override: false,
             file_dialogs: false,
+            cluster_switch: false,
         }
     }
 
@@ -80,5 +85,9 @@ impl Capabilities {
 
     pub fn supports_file_dialogs(&self) -> bool {
         self.file_dialogs
+    }
+
+    pub fn supports_cluster_switch(&self) -> bool {
+        self.cluster_switch
     }
 }

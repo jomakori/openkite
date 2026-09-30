@@ -4,7 +4,7 @@
 > `crates/openkite-desktop/` (e.g. `src/lib.rs` means `crates/openkite-desktop/src/lib.rs`).
 >
 > The shareable halves have since extracted: the console (`components/`,
-> `design/`, `secrets/`, `shell.rs`, `theme*`) is `crates/openkite-ui`, and the
+> `design/`, `fuzzy/`, `secrets/`, `shell.rs`, `theme*`) is `crates/openkite-ui`, and the
 > kube-side runtime (`bridge/`, `state/`, `push/`, `config/`) is
 > `crates/openkite-host`. The map below is the desktop crate's; completing the
 > document for the three-crate split is its own change.
@@ -31,7 +31,6 @@ src/
 ├── logs/           LogStream, LineBuffer, FollowState
 ├── secrets/        mask(), MaskedSecret, mask_all()
 ├── theme/          Theme contract, 5 built-ins, Zed import, persistence
-├── fuzzy/          command-palette fuzzy matcher
 ├── metrics/        sparkline SVG generation
 ├── prometheus/     Prometheus service detection
 └── crates/plugin-sdk/   the author-facing plugin contract

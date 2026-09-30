@@ -50,6 +50,29 @@ pub fn reset_logs_buffer() {
 /// a global so the controller survives the viewer's mount/unmount lifecycle.
 pub static LOGS_CONTAINER: GlobalSignal<String> = Signal::global(String::new);
 
+/// The active cluster context name, published by the host on connect and read
+/// by the status footer and the cluster switcher.
+pub static CONTEXT: GlobalSignal<Option<String>> = Signal::global(|| None);
+
+/// All kubeconfig context names, published by the host at boot. The cluster
+/// switcher renders from it.
+pub static CONTEXTS: GlobalSignal<Vec<String>> = Signal::global(Vec::new);
+
+/// Publish the active context name (or `None` when disconnected).
+pub fn set_context(name: Option<String>) {
+    *CONTEXT.write() = name;
+}
+
+/// Publish the kubeconfig context list.
+pub fn set_contexts(names: Vec<String>) {
+    *CONTEXTS.write() = names;
+}
+
+/// The current context name, if a kubeconfig is loaded.
+pub fn context_name() -> Option<String> {
+    CONTEXT.read().clone()
+}
+
 /// Whether the viewer is in follow-tail mode. Same rationale as
 /// [`LOGS_CONTAINER`]: a global so the host-side stream controller can
 /// pause/resume without owning the Dioxus component tree.
@@ -182,5 +205,13 @@ pub fn terminal_can_render() -> bool {
 pub fn native_chrome_can_render() -> bool {
     capabilities()
         .map(|caps| caps.supports_native_menu_bar() || caps.supports_title_bar_override())
+        .unwrap_or(false)
+}
+
+/// True when the host owns the cluster registry and can swap the live client,
+/// which is what switching contexts takes.
+pub fn cluster_switch_can_render() -> bool {
+    capabilities()
+        .map(|caps| caps.supports_cluster_switch())
         .unwrap_or(false)
 }

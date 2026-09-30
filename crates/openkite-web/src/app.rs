@@ -17,7 +17,9 @@
 use dioxus::prelude::*;
 
 use openkite_api::capability::{Capabilities, GatewayKind};
+use openkite_ui::components::palette::{CommandPalette, PaletteHost, PaletteKeybind};
 use openkite_ui::components::status_badge::{StatusKind, StatusPill};
+use openkite_ui::components::switcher::{ClusterSwitcher, SwitcherKeybind};
 use openkite_ui::plugin_api::RegistrationStore;
 use openkite_ui::shell::{
     sidebar_model, status_bar_model, status_dot_color, ShellSection, ShellState, StatusBarEntry,
@@ -98,8 +100,21 @@ pub fn App(props: AppProps) -> Element {
         StatusKind::Failed
     };
 
+    // The page has no client router, so a palette navigation is a document
+    // load — the same thing a sidebar link does. Everything else the palette
+    // could offer stays unwired: this host has no theme store, no CRUD overlay
+    // and no cluster registry, and the crate does not list commands a host
+    // cannot run.
+    let palette_host = PaletteHost::navigation(EventHandler::new(|path: &'static str| {
+        let _ = document::eval(&format!("window.location.assign({path:?});"));
+    }));
+
     rsx! {
         div { class: "app-shell", "data-surface": "app",
+            PaletteKeybind {}
+            SwitcherKeybind {}
+            ClusterSwitcher {}
+            CommandPalette { host: palette_host }
             aside { class: "sidebar",
                 h1 { class: "brand", "OpenKite" }
                 span { class: "tagline", "Kubernetes from above." }

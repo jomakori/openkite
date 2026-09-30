@@ -85,8 +85,10 @@ fn capability_descriptor_round_trips() {
     assert!(desktop.native_menu_bar);
     assert!(desktop.title_bar_override);
     assert!(desktop.file_dialogs);
+    assert!(desktop.cluster_switch);
     assert!(desktop.supports_terminal());
     assert!(desktop.supports_native_menu_bar());
+    assert!(desktop.supports_cluster_switch());
 
     let wire = serde_json::to_string(&desktop).unwrap();
     assert_eq!(

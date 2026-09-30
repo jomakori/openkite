@@ -28,6 +28,11 @@
 //! After OKT-137 the console lives only in `crates/openkite-web` (SSR +
 //! wasm hydration in the browser image); the desktop keeps these native
 //! surfaces, and the routes the browser console serves render a placeholder.
+//!
+//! The command palette and the cluster switcher overlays are crate-rendered
+//! (`openkite_ui::components::{palette,switcher}`): the desktop mounts them in
+//! [`AppShell`] and supplies the host half — navigation, theme cycling, the OS
+//! chrome and the cluster connect — through their props.
 
 #![allow(non_snake_case)]
 
@@ -46,8 +51,8 @@ use openkite_plugin_sdk::{SidebarEntry, SidebarSection};
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
-use crate::palette::{CommandPalette, PaletteKeybind};
-use crate::switcher::{ClusterSwitcher, SwitcherKeybind};
+use crate::components::palette::{CommandPalette, PaletteHost, PaletteKeybind};
+use crate::components::switcher::{ClusterSwitcher, SwitcherKeybind};
 use openkite_ui::components::pod_detail::PodDetail;
 
 /// Plugin sidebar sections (static Rust SDK plugins), populated at startup.
@@ -191,8 +196,8 @@ fn AppShell() -> Element {
         }
     });
 
+    let nav = use_navigator();
     {
-        let nav = use_navigator();
         let mut routed = use_signal(|| false);
         use_effect(move || {
             if !*routed.read() {
@@ -237,15 +242,36 @@ fn AppShell() -> Element {
         }
     });
 
+    // The desktop answers every palette action: it owns the router, the theme
+    // store and the OS chrome. The crate registers only the commands whose
+    // hook exists and gates the OS-chrome entries on the descriptor published
+    // at boot.
+    let palette_host = PaletteHost {
+        navigate: Some(EventHandler::new(move |path: &'static str| {
+            nav.push(route_from_path(path));
+        })),
+        cycle_theme: Some(EventHandler::new(move |()| cycle_theme())),
+        toggle_menu_bar: crate::menubar::hideable()
+            .then_some(EventHandler::new(move |()| crate::menubar::toggle())),
+        set_title_bar_theme: crate::titlebar::overridable()
+            .then_some(EventHandler::new(crate::titlebar::set_choice)),
+        new_resource: Some(EventHandler::new(move |kind: &'static str| {
+            crate::runtime::open_new_for(kind.to_string());
+        })),
+    };
+
     rsx! {
         div { class: "app-shell",
             SwitcherKeybind {}
             PaletteKeybind {}
-            ClusterSwitcher {}
+            ClusterSwitcher { on_switch: move |context: String| crate::cluster::switch_to(context) }
             PodDetail {}
             crate::components::secret_detail::SecretDetail {}
             crate::components::crud_modal::CrudOverlay {}
-            CommandPalette {}
+            CommandPalette {
+                host: palette_host,
+                title_bar_effective: crate::titlebar::effective_label().map(str::to_string),
+            }
             Sidebar {}
             div { class: "main-col",
                 TopBar {}
@@ -256,6 +282,30 @@ fn AppShell() -> Element {
             }
         }
     }
+}
+
+/// Cycle to the next opaline theme: resolve it, apply the CSS variables, and
+/// persist the choice. The persisted `OpenKiteConfig.theme` is the source of
+/// truth across reloads; the eval covers the window until then.
+fn cycle_theme() {
+    let mut config = crate::config::OpenKiteConfig::load();
+    let current = config.theme.as_deref().unwrap_or("default");
+    let catalog = crate::theme_catalog::catalog();
+    let next = catalog
+        .iter()
+        .position(|t| crate::theme_catalog::matches_current(&t.id, current))
+        .map(|i| (i + 1) % catalog.len())
+        .and_then(|i| catalog.get(i).map(|t| t.id.clone()))
+        .unwrap_or_else(|| "default".to_string());
+    let resolved = crate::theme::resolve(Some(&next));
+    let css = resolved.to_css_vars();
+    let source = format!(
+        r#"document.documentElement.style.cssText = {css_json};"#,
+        css_json = serde_json::to_string(&css).unwrap_or_else(|_| "\"\"".into()),
+    );
+    let _ = document::eval(&source);
+    config.theme = Some(next);
+    let _ = config.save();
 }
 
 /// Top bar: namespace multi-select chips.

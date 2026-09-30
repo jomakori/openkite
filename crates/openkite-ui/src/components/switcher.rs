@@ -2,11 +2,15 @@
 //!
 //! [`SwitcherKeybind`] installs a webview-level key listener via the eval
 //! channel (works regardless of focus) and toggles [`SWITCHER_OPEN`];
-//! [`ClusterSwitcher`] renders the centered overlay while open. Selecting a
-//! context connects through the process-global [`crate::cluster::SHARED`]
-//! registry (cached clients — switching back is instant), swaps the bridge
-//! client, and publishes the new client/context so every view re-renders and
-//! re-aims its reflector.
+//! [`ClusterSwitcher`] renders the centered overlay while open, listing the
+//! contexts the host published into [`crate::runtime::CONTEXTS`].
+//!
+//! Connecting is the host's half: the registry with its cached clients, the
+//! bridge client swap and the reflector restart all belong to the process that
+//! owns the kube client. [`ClusterSwitcher`] therefore hands the chosen
+//! context to `on_switch`, and a host that reports no
+//! [`crate::runtime::cluster_switch_can_render`] capability gets chrome that
+//! says so instead of a list that cannot connect.
 
 use dioxus::prelude::*;
 
@@ -56,38 +60,14 @@ pub fn advance_index(selected: Option<usize>, len: usize, delta: isize) -> Optio
     Some((base + delta).rem_euclid(len as isize) as usize)
 }
 
-/// Connect to `context` through the shared cluster registry, wire the new
-/// client into the runtime globals and the plugin bridge, and publish the
-/// context name. Views re-run their fetch effects on the client change.
-async fn select_context(context: String) -> Result<(), String> {
-    let registry = crate::cluster::SHARED
-        .get()
-        .ok_or_else(|| "cluster registry unavailable".to_string())?;
-    let mut guard = registry.lock().await;
-    crate::state::live::stop();
-    let client = guard
-        .connect(&context)
-        .await
-        .map_err(|error| format!("{error:#}"))?;
-    crate::runtime::set_client(Some(client.clone()));
-    crate::runtime::set_context(Some(context));
-    crate::state::live::start(client.clone());
-    if let Some(bridge) = crate::runtime::bridge() {
-        bridge.set_client(Some(client));
-    }
-    Ok(())
-}
-
-/// Begin switching to `context`: close the overlay, connect in the
-/// background; reopen with the error visible if the switch fails.
-fn pick_context(context: String) {
+/// Begin switching to `context`: close the overlay, then ask the host to
+/// connect. The host reopens the overlay with [`SWITCHER_ERROR`] set if the
+/// switch fails, so a failed connect never leaves the app half-switched.
+fn pick_context(context: String, on_switch: &Option<EventHandler<String>>) {
     close_switcher();
-    spawn(async move {
-        if let Err(error) = select_context(context).await {
-            *SWITCHER_ERROR.write() = Some(error);
-            *SWITCHER_OPEN.write() = true;
-        }
-    });
+    if let Some(on_switch) = on_switch {
+        on_switch.call(context);
+    }
 }
 
 /// Keybind listener source: installs once per webview. Ctrl+Tab toggles the
@@ -136,11 +116,11 @@ pub fn SwitcherKeybind() -> Element {
 
 /// The mounted overlay: renders only while open (`SWITCHER_OPEN`).
 #[component]
-pub fn ClusterSwitcher() -> Element {
+pub fn ClusterSwitcher(#[props(default)] on_switch: Option<EventHandler<String>>) -> Element {
     let open = *SWITCHER_OPEN.read();
     rsx! {
         if open {
-            SwitcherPanel {}
+            SwitcherPanel { on_switch: on_switch }
         }
     }
 }
@@ -148,7 +128,11 @@ pub fn ClusterSwitcher() -> Element {
 /// Overlay panel: filter field + context list + inline error. Owns the
 /// selection cursor; selecting (click or Enter) connects immediately.
 #[component]
-fn SwitcherPanel() -> Element {
+fn SwitcherPanel(#[props(default)] on_switch: Option<EventHandler<String>>) -> Element {
+    if !crate::runtime::cluster_switch_can_render() {
+        return rsx! { SwitcherUnsupported {} };
+    }
+
     let contexts = crate::runtime::CONTEXTS.read().clone();
     let query = SWITCHER_QUERY.read().clone();
     let error_line = SWITCHER_ERROR.read().clone().unwrap_or_default();
@@ -176,6 +160,7 @@ fn SwitcherPanel() -> Element {
                     },
                     onkeydown: {
                         let list = candidates.clone();
+                        let keys_switch = on_switch;
                         move |event| match event.key() {
                             Key::ArrowDown => {
                                 if let Some(next) = advance_index(Some(cursor), list.len(), 1) {
@@ -189,7 +174,7 @@ fn SwitcherPanel() -> Element {
                             }
                             Key::Enter => {
                                 if let Some(name) = list.get(cursor) {
-                                    pick_context(name.clone());
+                                    pick_context(name.clone(), &keys_switch);
                                 }
                             }
                             Key::Escape => close_switcher(),
@@ -204,6 +189,7 @@ fn SwitcherPanel() -> Element {
                     class: "switcher-list",
                     {candidates.iter().enumerate().map(|(idx, name)| {
                         let pick = name.clone();
+                        let row_switch = on_switch;
                         let is_selected = idx == cursor;
                         let is_active = Some(name.as_str()) == active.as_deref();
                         let row_class = if is_selected {
@@ -215,7 +201,7 @@ fn SwitcherPanel() -> Element {
                             div {
                                 key: "{name}",
                                 class: row_class,
-                                onclick: move |_| pick_context(pick.clone()),
+                                onclick: move |_| pick_context(pick.clone(), &row_switch),
                                 if is_active {
                                     span {
                                         class: "switcher-connected-dot",
@@ -230,6 +216,23 @@ fn SwitcherPanel() -> Element {
                         div { class: "switcher-empty", "no matching context" }
                     }
                 }
+            }
+        }
+    }
+}
+
+/// What a host without the cluster registry sees: the same overlay frame with
+/// an explicit line, never an empty list that looks like an empty kubeconfig.
+#[component]
+fn SwitcherUnsupported() -> Element {
+    rsx! {
+        div {
+            class: "switcher-backdrop",
+            onclick: move |_| close_switcher(),
+            div {
+                class: "switcher",
+                onclick: move |event| event.stop_propagation(),
+                div { class: "switcher-empty", "Cluster switching needs the desktop host." }
             }
         }
     }

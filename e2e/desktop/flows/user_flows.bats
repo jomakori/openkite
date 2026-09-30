@@ -127,7 +127,7 @@ teardown() {
   # Single palette session only (WebKitGTK autofocus does not re-grab on
   # remount; a second session's typing may never reach the filter).
   # Multi-session route round-trips are covered headlessly in
-  # tests/palette.rs instead.
+  # crates/openkite-ui/tests/palette.rs instead.
   xdotool key --clearmodifiers ctrl+p
   sleep 2
   xdotool type --delay 60 "go to workloads"

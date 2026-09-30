@@ -1,6 +1,6 @@
 //! Integration tests for fuzzy matching.
 
-use openkite::fuzzy::{fuzzy_match, rank};
+use openkite_ui::fuzzy::{fuzzy_match, rank};
 
 #[test]
 fn exact_match_beats_partial() {

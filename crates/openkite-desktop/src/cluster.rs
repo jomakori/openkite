@@ -126,6 +126,44 @@ impl ClusterState {
     }
 }
 
+/// Connect to `context` through the shared registry, wire the new client into
+/// the runtime globals and the plugin bridge, and publish the context name.
+/// Views re-run their fetch effects on the client change.
+async fn select_context(context: String) -> Result<(), String> {
+    let registry = SHARED
+        .get()
+        .ok_or_else(|| "cluster registry unavailable".to_string())?;
+
+    let mut guard = registry.lock().await;
+    crate::state::live::stop();
+    let client = guard
+        .connect(&context)
+        .await
+        .map_err(|error| format!("{error:#}"))?;
+    crate::runtime::set_client(Some(client.clone()));
+    crate::runtime::set_context(Some(context));
+    crate::state::live::start(client.clone());
+    if let Some(bridge) = crate::runtime::bridge() {
+        bridge.set_client(Some(client));
+    }
+    Ok(())
+}
+
+/// Begin switching to `context`: connect in the background and, when the
+/// switch fails, reopen the cluster switcher with the error visible rather
+/// than leaving the app half-switched. The switcher overlay closes itself
+/// before calling this.
+pub fn switch_to(context: String) {
+    use openkite_ui::components::switcher::{SWITCHER_ERROR, SWITCHER_OPEN};
+
+    dioxus::prelude::spawn(async move {
+        if let Err(error) = select_context(context).await {
+            *SWITCHER_ERROR.write() = Some(error);
+            *SWITCHER_OPEN.write() = true;
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

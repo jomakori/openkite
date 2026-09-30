@@ -7,24 +7,19 @@ use std::sync::{Arc, OnceLock};
 
 use crate::bridge::Bridge;
 
-// The CRUD overlay state and the gateway handle are the console's own: they
-// live in `openkite_ui::runtime` so the components can read them on both hosts.
-// Re-exported here because the palette and this crate's tests address them
-// through `runtime::`.
+// The console's overlay and cluster-context state is its own: it lives in
+// `openkite_ui::runtime` so the crate's components read it on both hosts.
+// Re-exported here because the shell, the host adapters and this crate's tests
+// address them through `runtime::`.
 pub use openkite_ui::runtime::{
-    clear_crud_target, open_delete_for, open_editor_for, open_new_for, open_scale_for, set_gateway,
-    set_published_capabilities, CrudTarget, CRUD_TARGET,
+    clear_crud_target, context_name, open_delete_for, open_editor_for, open_new_for,
+    open_scale_for, set_context, set_contexts, set_gateway, set_published_capabilities, CrudTarget,
+    CONTEXT, CONTEXTS, CRUD_TARGET,
 };
 
 /// The active cluster client, published by `run()` after connect and read by
 /// views that need a live `Api`.
 pub static CLIENT: GlobalSignal<Option<Client>> = Signal::global(|| None);
-
-/// The active context name, published by `run()` (status bar/footer).
-pub static CONTEXT: GlobalSignal<Option<String>> = Signal::global(|| None);
-
-/// All kubeconfig context names, published by `run()` (switcher overlay).
-pub static CONTEXTS: GlobalSignal<Vec<String>> = Signal::global(Vec::new);
 
 /// Namespaces on the active cluster (for the multi-select chips).
 pub static NAMESPACES: GlobalSignal<Vec<String>> = Signal::global(Vec::new);
@@ -60,24 +55,9 @@ pub fn set_client(client: Option<Client>) {
     *CLIENT.write() = client;
 }
 
-/// Publish the active context name (or `None` when disconnected).
-pub fn set_context(name: Option<String>) {
-    *CONTEXT.write() = name;
-}
-
-/// Publish the kubeconfig context list (ctrl-tab switcher).
-pub fn set_contexts(names: Vec<String>) {
-    *CONTEXTS.write() = names;
-}
-
 /// The current client, if connected.
 pub fn client() -> Option<Client> {
     CLIENT.read().clone()
-}
-
-/// The current context name, if a kubeconfig is loaded.
-pub fn context_name() -> Option<String> {
-    CONTEXT.read().clone()
 }
 
 /// Install the plugin bridge (idempotent: first write wins).

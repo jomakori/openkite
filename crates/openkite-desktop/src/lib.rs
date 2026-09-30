@@ -20,12 +20,10 @@ pub use openkite_ui::{
 
 pub mod cluster;
 pub mod crud;
-pub mod fuzzy;
 pub mod logs;
 pub mod menubar;
 pub mod metrics;
 pub mod network;
-pub mod palette;
 pub mod plugin_host;
 pub mod plugin_js;
 pub mod pod;
@@ -33,7 +31,6 @@ pub mod prometheus;
 pub mod promql;
 pub mod router;
 pub mod runtime;
-pub mod switcher;
 pub mod terminal;
 pub mod titlebar;
 pub mod version;
@@ -124,10 +121,14 @@ pub fn run() {
 
     let vdom = dioxus::prelude::VirtualDom::new(router::app);
     vdom.in_runtime(|| {
-        // Publish host capabilities before any gateway exists (disconnected boot).
-        crate::runtime::set_published_capabilities(Some(
-            openkite_api::capability::Capabilities::in_process(),
-        ));
+        // Publish host capabilities before any gateway exists (disconnected
+        // boot). The descriptor is what the shared chrome gates on, so it
+        // states what this platform can render rather than what the desktop
+        // host is in general.
+        let mut caps = openkite_api::capability::Capabilities::in_process();
+        caps.native_menu_bar = menubar::hideable();
+        caps.title_bar_override = titlebar::overridable();
+        crate::runtime::set_published_capabilities(Some(caps));
         router::install_plugins(sections, routes);
         crate::runtime::set_client(client.clone());
         // The console reaches the cluster through the contract, never through

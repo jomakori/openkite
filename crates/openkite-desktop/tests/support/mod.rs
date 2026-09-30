@@ -2,7 +2,8 @@
 //!
 //! Mounts a zero-prop `fn() -> Element` root in a throwaway VirtualDom and
 //! rebuilds it for real — hooks/signals run, no desktop webview. Same
-//! `VirtualDom::new` shape as the `with_runtime` helper in tests/palette.rs,
+//! `VirtualDom::new` shape as the `with_runtime` helper in
+//! `crates/openkite-ui/tests/palette.rs`,
 //! but the root component actually renders via `rebuild_in_place` (the
 //! documented headless render path; mutations are discarded).
 //!
