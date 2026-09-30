@@ -25,15 +25,17 @@ async fn root_route_renders_the_shared_console_shell() {
     let (status, body) = get_body(app(Arc::new(Bridge::new()), temp_root().path()), "/").await;
     assert_eq!(status, StatusCode::OK);
     for chrome in [
-        "class=\"app-shell\"",
+        "class=\"app\"",
         "class=\"sidebar\"",
         "class=\"brand\"",
         "class=\"nav-item\"",
         "class=\"topbar\"",
-        "class=\"content\"",
+        "class=\"breadcrumbs\"",
+        "class=\"view active\"",
         "class=\"panel\"",
         "class=\"kv-list\"",
-        "class=\"status-entry\"",
+        "class=\"sidebar-footer\"",
+        "class=\"status-line\"",
     ] {
         assert!(body.contains(chrome), "root route missing {chrome}: {body}");
     }

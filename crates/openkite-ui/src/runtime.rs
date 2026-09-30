@@ -7,7 +7,7 @@
 use std::sync::{Arc, Mutex, OnceLock};
 
 use dioxus::prelude::*;
-use openkite_api::capability::Capabilities;
+use openkite_api::capability::{Capabilities, GatewayKind};
 use openkite_api::gateway::Gateway;
 use openkite_api::pod::{LineBuffer, PodObject};
 use openkite_api::secret::SecretObject;
@@ -175,6 +175,18 @@ pub fn capabilities() -> Option<Capabilities> {
 pub fn terminal_can_render() -> bool {
     capabilities()
         .map(|caps| caps.supports_terminal())
+        .unwrap_or(false)
+}
+
+/// True when the host can list and switch cluster contexts.
+///
+/// The in-process gateway owns a kubeconfig, so the desktop can offer the
+/// context list; a server-side host serves exactly one cluster and has no
+/// contexts to switch between, so its sidebar cluster button renders
+/// read-only instead of opening a menu it cannot fill.
+pub fn cluster_switch_can_render() -> bool {
+    capabilities()
+        .map(|caps| caps.gateway == GatewayKind::InProcess)
         .unwrap_or(false)
 }
 

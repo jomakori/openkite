@@ -77,7 +77,16 @@ The faces reach each host differently, because only one of them has an origin:
 | `.inspector` (+ 5 children)  | Slide-over panel (420px, right-anchored)                    |
 | `.toast` + `.toast.show`     | Bottom-anchored notification (340px max-width)              |
 | `.health-dots` + `.dot`      | Inline-cell semantic dots (`.ok`, `.warn`, `.err`)          |
-| `.nav-section`               | Parent wrapper for the existing `.nav-section-label`        |
+| `.nav-section` + `.nav-title`| Sidebar section wrapper and its micro-label                  |
+| `.app` + `.sidebar` + `.main`| Console frame: sidebar, top bar and the routed `.view`       |
+| `.cluster-btn`               | Sidebar cluster button (context + connection dot)            |
+| `.nav-item` (+ `.active`, `.nav-badge`) | Sidebar entry, current entry, count badge          |
+| `.topbar` + `.breadcrumbs` + `.topbar-actions` | Top bar: trail, action row, avatar            |
+| `.icon-btn` + `.avatar` + `.menu-toggle` | Top-bar icon button, user avatar, drawer toggle  |
+| `.sidebar-footer` + `.status-line` | Host build + one line per live status slot             |
+| `.sidebar-backdrop` + `.pull-indicator` | Drawer scrim and pull-to-refresh affordance       |
+| `.icon`                      | 16px stroke glyph (inline SVG paths, no sprite yet)          |
+| `.eyebrow`                   | Uppercase micro-label for a block of secondary text          |
 
 ## Deferred to dependent tickets
 
@@ -89,8 +98,9 @@ The faces reach each host differently, because only one of them has an origin:
   (ArgoCD JS plugin), the first consumer.
 - **Mobile bottom-nav, pull-to-refresh, card swipe** — consumer view
   ticket.
-- **Icon sprite** (32 inline `<symbol>` SVGs from the mockup) — OKT-47
-  alongside the first consumer.
+- **Icon sprite** (the mockup's 32 `<symbol>` SVGs) — the shell inlines the
+  five glyphs it draws (menu, search, refresh, settings, chevron) plus the kite
+  brand mark; the remaining symbols land with their consumers (OKT-47).
 
 ## Verification
 
