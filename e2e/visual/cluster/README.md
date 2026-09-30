@@ -89,12 +89,12 @@ OK_CAPTURE_EXTRA_ROUTES='/cluster:cluster /terminal:terminal' \
   ./e2e/visual/cluster/capture.sh      # -> docs/media/cluster.png, docs/media/terminal.png
 ```
 
-### Routes after OKT-98 (and OKT-137)
+### Routes after OKT-98 (OKT-137, OKT-136)
 
-The shared UI crate renders the desktop's `Home`, `Cluster`, `Workloads`, and
-`Config` surfaces (no React bundle, no eval-based mount). `/logs` and
-`/terminal` are deliberately still the native shell. The defaults capture the
-crate-rendered console on `/` and the native shell on `/logs`.
+The shared UI crate renders every console surface; the desktop mounts the same
+components. There is no React bundle and no eval-based mount. The defaults
+capture the crate-rendered console on `/` and the crate-rendered log viewer on
+`/logs`.
 
 ## Gotchas (each cost real time)
 
