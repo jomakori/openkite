@@ -389,6 +389,12 @@ mod render_tests {
     }
 
     #[test]
+    fn yaml_tab_renders_the_code_editor_mount() {
+        let html = mount_seeded(root_yaml);
+        assert!(html.contains("code-editor"), "editor mount: {html}");
+    }
+
+    #[test]
     fn events_tab_keeps_the_documented_placeholder() {
         let html = mount_seeded(root_events);
         assert!(html.contains("Events will be fetched"), "{html}");
