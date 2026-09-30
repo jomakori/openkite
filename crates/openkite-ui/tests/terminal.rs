@@ -57,13 +57,11 @@ fn terminal() -> Element {
 
 fn mount_with(capabilities: Capabilities, seed: impl FnOnce()) -> String {
     let _gate = gate_lock();
-    let html = support::mount_html(terminal, move || {
+    support::mount_html(terminal, move || {
         openkite_ui::runtime::set_published_capabilities(Some(capabilities));
+        openkite_ui::runtime::clear_selected_pod();
         seed();
-    });
-    openkite_ui::runtime::set_published_capabilities(None);
-    *openkite_ui::runtime::SELECTED_POD.write() = None;
-    html
+    })
 }
 
 #[test]
@@ -83,9 +81,10 @@ fn host_without_the_capability_renders_the_unsupported_chrome() {
 #[test]
 fn missing_capability_descriptor_gates_the_surface_too() {
     let _gate = gate_lock();
-    openkite_ui::runtime::set_published_capabilities(None);
-    let html = support::mount_html(terminal, || {});
-    *openkite_ui::runtime::SELECTED_POD.write() = None;
+    let html = support::mount_html(terminal, || {
+        openkite_ui::runtime::set_published_capabilities(None);
+        openkite_ui::runtime::clear_selected_pod();
+    });
     assert!(html.contains("Terminal not available"), "got: {html}");
     assert!(!html.contains("data-term-host"), "got: {html}");
 }
