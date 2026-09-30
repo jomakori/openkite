@@ -190,6 +190,19 @@ pub fn cluster_switch_can_render() -> bool {
         .unwrap_or(false)
 }
 
+/// True when the host's gateway accepts cluster changes (create/edit/delete).
+///
+/// The in-process gateway applies mutations through the `Gateway` contract;
+/// the browser host answers the bridge, whose op set is read-only, behind a
+/// server-side gateway. Routes therefore offer their write actions only where
+/// this holds, and declare the rest instead of painting a button that cannot
+/// be honoured.
+pub fn mutations_can_render() -> bool {
+    capabilities()
+        .map(|caps| caps.gateway == GatewayKind::InProcess)
+        .unwrap_or(false)
+}
+
 /// True when the host reports either window menu bar or title-bar override.
 pub fn native_chrome_can_render() -> bool {
     capabilities()

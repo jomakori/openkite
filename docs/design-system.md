@@ -87,6 +87,11 @@ The faces reach each host differently, because only one of them has an origin:
 | `.sidebar-backdrop` + `.pull-indicator` | Drawer scrim and pull-to-refresh affordance       |
 | `.icon`                      | 16px stroke glyph (inline SVG paths, no sprite yet)          |
 | `.eyebrow`                   | Uppercase micro-label for a block of secondary text          |
+| `.page-head` + `.page-sub` + `.page-actions` | Route heading row: micro-label, title, summary, buttons |
+| `.toolbar` + `.chip-row`     | Route filter row: namespace chips and the search field       |
+| `.panel-footer` + `.pager`   | Panel footer: row count and page buttons                     |
+| `.tag` + `.tag-row`          | Monospace fact chips (the route's capability declaration)    |
+| `.spinner`                   | In-flight affordance (route chrome and pull-to-refresh)      |
 
 ## Deferred to dependent tickets
 
@@ -94,8 +99,9 @@ The faces reach each host differently, because only one of them has an origin:
   `<Inspector>`, `<LogPanel>`, `<AppCard>`) — land in the consuming
   view ticket alongside its first live use.
 - **ArgoCD-specific primitives** (`.app-card`, `.card-status`,
-  `.source-icon`, `.tag`, `.card-meta`, `.card-swipe-actions`) — OKT-47
-  (ArgoCD JS plugin), the first consumer.
+  `.source-icon`, `.card-meta`, `.card-swipe-actions`) — OKT-47
+  (ArgoCD JS plugin), the first consumer. (`.tag` / `.tag-row` ship with
+  the route chrome, OKT-155.)
 - **Mobile bottom-nav, pull-to-refresh, card swipe** — consumer view
   ticket.
 - **Icon sprite** (the mockup's 32 `<symbol>` SVGs) — the shell inlines the
@@ -107,7 +113,14 @@ The faces reach each host differently, because only one of them has an origin:
 `crates/openkite-ui/tests/design.rs` reads `openkite_ui::MAIN_CSS` and asserts
 every required custom property and primitive class is present, plus a
 "exactly 12 new properties" guard against accidental re-declaration of
-an opaline-mapped var.
+an opaline-mapped var. The same file walks every rsx source the crate renders
+(`RSX_SOURCES`, including the route chrome) and fails on a class the stylesheet
+has no rule for.
+
+`crates/openkite-ui/tests/route_views.rs` mounts the route chrome headlessly on
+both host profiles (desktop: in-process gateway; browser: server-side) and pins
+the design's structure, the declared empty state and the unsupported
+declarations.
 
 `crates/openkite-ui/tests/fonts.rs` pins the type layer: every vendored face is
 declared exactly once, every declared URL is a file the route serves, the

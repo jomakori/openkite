@@ -31,9 +31,14 @@
 //!   and the JS bundle eval surface where their owners (the desktop
 //!   host) can evolve them independently.
 //!
-//! After OKT-137 the console lives only in `crates/openkite-web` (SSR +
-//! wasm hydration in the browser image); the desktop keeps these native
-//! surfaces, and the routes the browser console serves render a placeholder.
+//! After OKT-137 the rich console lives only in `crates/openkite-web` (SSR +
+//! wasm hydration in the browser image). The four primary routes
+//! ([`Route::Home`], [`Route::Cluster`], [`Route::Workloads`],
+//! [`Route::Config`]) render the crate's route chrome (OKT-155) —
+//! `openkite_ui::components::route_views` — so both hosts paint the design's
+//! head, toolbar and declared empty/unsupported states from one crate, and
+//! this host supplies only the route it resolved and the handlers for the
+//! actions it can honour.
 
 #![allow(non_snake_case)]
 
@@ -54,6 +59,7 @@ use std::sync::{Arc, OnceLock};
 
 use crate::palette::{CommandPalette, PaletteKeybind};
 use crate::switcher::{ClusterSwitcher, SwitcherKeybind};
+use openkite_ui::components::route_views::RouteView;
 use openkite_ui::components::shell::{
     AppShell as ShellFrame, ClusterInfo, ShellIcon, TopBarAction,
 };
@@ -133,11 +139,10 @@ fn full_path(path: &[String]) -> String {
     format!("/{}", path.join("/"))
 }
 
-/// Placeholder routes the desktop binary keeps on its surface so the
-/// navigation entries stay live: the rich console moved to the SSR/wasm
-/// crate and lives in the browser preview image. Removing the routes
-/// entirely would shrink the navigation; surfacing the same stub instead
-/// keeps every NavItem clickable.
+/// The core routes. Every primary route mounts the crate's route chrome, so
+/// the navigation entries the sidebar renders resolve to a real surface; the
+/// route contract is the URL path, which is what the shell's breadcrumbs, the
+/// sidebar's active entry and the route chrome all read.
 #[derive(Routable, Clone, Debug, PartialEq, Eq)]
 pub enum Route {
     #[layout(AppShell)]
@@ -457,19 +462,51 @@ pub(crate) fn json_response(resp: ApiResponse) -> AssetHttpResponse<Vec<u8>> {
         .expect("static response parts")
 }
 
+/// The four primary routes mount the crate's route chrome (OKT-155). The
+/// desktop keeps only the wiring: the route contract its router resolved, the
+/// sidebar model the shell renders, and the handlers for the actions this host
+/// can honour. What the crate chrome needs from the descriptor
+/// (`terminal_can_render`, `mutations_can_render`, `cluster_switch_can_render`)
+/// it reads itself, so a host that cannot do something declares it instead of
+/// painting a control that does nothing.
+fn route_view(route: &'static str) -> Element {
+    let nav = use_navigator();
+    let on_action = EventHandler::new(move |action: String| {
+        match action.as_str() {
+            // The terminal route is this host's own native surface.
+            "terminal" => {
+                nav.push(Route::Terminal {});
+            }
+            // Create flows open the crate's CRUD editor, which applies through
+            // the in-process gateway.
+            "new-pod" => openkite_ui::runtime::open_new_for("Pod".into()),
+            "new-config-map" => openkite_ui::runtime::open_new_for("ConfigMap".into()),
+            "switch-context" => *crate::switcher::SWITCHER_OPEN.write() = true,
+            other => tracing::warn!(action = other, "route chrome action not wired"),
+        }
+    });
+    rsx! {
+        RouteView {
+            route: route.to_string(),
+            sections: shell_sections(),
+            on_action: Some(on_action),
+        }
+    }
+}
+
 #[component]
 fn Home() -> Element {
-    rsx! { BrowserOnlySurface {} }
+    route_view("/")
 }
 
 #[component]
 fn Cluster() -> Element {
-    rsx! { BrowserOnlySurface {} }
+    route_view("/cluster")
 }
 
 #[component]
 fn Workloads() -> Element {
-    rsx! { BrowserOnlySurface {} }
+    route_view("/workloads")
 }
 
 #[component]
@@ -575,24 +612,7 @@ fn Terminal() -> Element {
 
 #[component]
 fn Config() -> Element {
-    rsx! { BrowserOnlySurface {} }
-}
-
-/// Placeholder every browse route renders after the React console was
-/// decommissioned (OKT-137): the rich console now lives in the browser
-/// preview image, where `crates/openkite-web` server-renders it from the
-/// shared UI crate. The routes stay in the [`Route`] enum so the
-/// navigation entries the sidebar renders still resolve to a real surface
-/// rather than 404, and the native chrome (Logs, Terminal, the plugin
-/// wildcard) stays available where it always has been.
-#[component]
-fn BrowserOnlySurface() -> Element {
-    rsx! {
-        div { class: "not-found",
-            h2 { "OpenKite" }
-            p { "The console is served from the browser preview image (openkite-web)." }
-        }
-    }
+    route_view("/config")
 }
 
 /// Wildcard dispatcher: reconstruct the path, look it up in the static
