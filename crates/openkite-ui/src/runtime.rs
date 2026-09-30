@@ -209,3 +209,16 @@ pub fn native_chrome_can_render() -> bool {
         .map(|caps| caps.supports_native_menu_bar() || caps.supports_title_bar_override())
         .unwrap_or(false)
 }
+
+/// True when the host advertises plugin routes.
+///
+/// A plugin route is rendered by a plugin: a Rust SDK route's own view, or a JS
+/// bundle the host evaluates into its own webview. The bundle half is host
+/// machinery — there is no webview to eval into on a host that serves no plugin
+/// bundles — so the wildcard route declares the gap through this predicate
+/// instead of mounting a slot nothing will fill.
+pub fn plugin_route_can_render() -> bool {
+    capabilities()
+        .map(|caps| caps.supports_plugins())
+        .unwrap_or(false)
+}

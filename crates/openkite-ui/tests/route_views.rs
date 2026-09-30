@@ -113,10 +113,15 @@ fn every_route_declares_capabilities_and_offers_actions() {
         route_page("/config", &sections).declared_capabilities(),
         vec![RouteCapability::Mutations]
     );
-    // A route the chrome does not own still gets a head and no dead controls.
+    // A route the chrome does not own still gets a head, declares the one
+    // capability it needs (a host that serves plugin bundles — OKT-156) and
+    // offers no dead controls.
     let unknown = route_page("/argocd/apps", &sections);
     assert!(unknown.actions.is_empty());
-    assert!(unknown.declared_capabilities().is_empty());
+    assert_eq!(
+        unknown.declared_capabilities(),
+        vec![RouteCapability::PluginRoute]
+    );
 }
 
 #[test]
