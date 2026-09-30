@@ -55,3 +55,28 @@ fn plugin_wildcard_preserves_multi_segment_path() {
         }
     );
 }
+
+#[test]
+fn routes_display_as_the_paths_the_sidebar_links_to() {
+    // The shell marks a sidebar entry active by comparing the entry's route
+    // with the current route's `Display`, so the two vocabularies have to
+    // agree — and `Display` has to round-trip back through `route_from_path`.
+    for (route, path) in [
+        (Route::Home {}, "/"),
+        (Route::Cluster {}, "/cluster"),
+        (Route::Workloads {}, "/workloads"),
+        (Route::Logs {}, "/logs"),
+        (Route::Terminal {}, "/terminal"),
+        (Route::Config {}, "/config"),
+    ] {
+        let displayed = route.to_string();
+        assert_eq!(displayed, path);
+        assert_eq!(route_from_path(&displayed), route);
+    }
+
+    let plugin = Route::Plugin {
+        path: vec!["argocd".into(), "apps".into()],
+    };
+    assert_eq!(plugin.to_string(), "/argocd/apps");
+    assert_eq!(route_from_path(&plugin.to_string()), plugin);
+}

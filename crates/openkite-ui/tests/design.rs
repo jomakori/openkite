@@ -202,11 +202,13 @@ const SECRET_DETAIL_RSX: &str = include_str!("../src/components/secret_detail.rs
 const RESOURCE_TABLE_RSX: &str = include_str!("../src/components/resource_table.rs");
 const CODE_EDITOR_RSX: &str = include_str!("../src/components/code_editor.rs");
 const CRUD_MODAL_RSX: &str = include_str!("../src/components/crud_modal.rs");
+const SHELL_RSX: &str = include_str!("../src/components/shell.rs");
 
 /// Every rsx source file the crate renders. Order is for stable error
 /// messages — does not affect semantics.
 const RSX_SOURCES: &[(&str, &str)] = &[
     ("crates/openkite-web/src/app.rs", APP_RSX),
+    ("crates/openkite-ui/src/components/shell.rs", SHELL_RSX),
     (
         "crates/openkite-ui/src/components/status_badge.rs",
         STATUS_BADGE_RSX,

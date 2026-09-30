@@ -226,6 +226,17 @@ body {
 .status-entry { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--fg-2); display: inline-block; }
 
+/* Native window chrome the host cannot provide (OKT-154): the sidebar states
+   which chrome is missing instead of the frame rendering an empty slot. */
+.native-chrome-unsupported {
+  margin-top: 12px;
+  padding: 0 12px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--fg-2);
+  opacity: 0.75;
+}
+
 /* Top bar: cluster selector + namespace chips. */
 .topbar {
   display: flex; align-items: center; gap: 10px;

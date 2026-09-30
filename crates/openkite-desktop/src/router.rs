@@ -1,7 +1,17 @@
-//! Router + navigation shell: core routes plus a root
-//! wildcard that dispatches unknown paths through the plugin route table;
-//! the app shell chrome (sidebar + status footer); the `/openkite` bridge
-//! asset handler; and one-time JS plugin bundle evaluation.
+//! Router + host adapter: core routes plus a root wildcard that dispatches
+//! unknown paths through the plugin route table; the `/openkite` bridge asset
+//! handler; one-time JS plugin bundle evaluation; and the desktop half of the
+//! app shell.
+//!
+//! The shell chrome itself — the frame, sidebar, top bar, status footer and the
+//! overlays the frame mounts — is rendered by
+//! [`openkite_ui::components::shell`], the same code the browser console
+//! mounts. What stays here is what only a desktop host can do: the host hooks
+//! (registration mirror, settings apply, push channel, live watch), the plugin
+//! registration, and the `document::eval` surfaces — the plugin bundles, the
+//! key listeners, and the overlays those listeners drive. Those are handed to
+//! the crate frame as its chrome slot, so a host that cannot provide them
+//! renders the crate's explicit stand-in instead.
 //!
 //! Native RSX surfaces kept on purpose:
 //!
@@ -14,10 +24,6 @@
 //!   The exec transport is deferred (Phase 1); the view renders the typed
 //!   input and surfaces the bridge-pending hint. No crate-rendered
 //!   replacement exists.
-//! - [`PodDetail`] slide-over (mounted inside [`AppShell`]) — the
-//!   5-tab inspector (Overview / Logs / Events / YAML / Containers) from
-//!   `openkite_ui::components::pod_detail`, driven by the owned
-//!   `SELECTED_POD` contract.
 //! - [`Route::Plugin`] wildcard → [`Plugin`] dispatcher — Rust SDK
 //!   plugin routes (`ROUTE_TABLE`) plus JS plugin renderers (the
 //!   `JsRouteSlot` mount). The console does not own plugin routing;
@@ -42,13 +48,13 @@ use dioxus::desktop::wry::http::Response as AssetHttpResponse;
 #[cfg(feature = "desktop")]
 use dioxus::desktop::{use_asset_handler, AssetRequest, RequestAsyncResponder};
 use dioxus::prelude::*;
-use openkite_plugin_sdk::{SidebarEntry, SidebarSection};
+use openkite_plugin_sdk::SidebarSection;
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
 use crate::palette::{CommandPalette, PaletteKeybind};
 use crate::switcher::{ClusterSwitcher, SwitcherKeybind};
-use openkite_ui::components::pod_detail::PodDetail;
+use openkite_ui::components::shell::{AppShell as ShellFrame, NamespaceChip};
 
 /// Plugin sidebar sections (static Rust SDK plugins), populated at startup.
 static PLUGIN_SECTIONS: GlobalSignal<Vec<SidebarSection>> = Signal::global(Vec::new);
@@ -191,8 +197,8 @@ fn AppShell() -> Element {
         }
     });
 
+    let nav = use_navigator();
     {
-        let nav = use_navigator();
         let mut routed = use_signal(|| false);
         use_effect(move || {
             if !*routed.read() {
@@ -237,54 +243,116 @@ fn AppShell() -> Element {
         }
     });
 
+    // The route the sidebar marks active; `Routable`'s `Display` writes the
+    // URL path, which is the same vocabulary the entries carry.
+    let current_route = use_route::<Route>().to_string();
+
     rsx! {
-        div { class: "app-shell",
-            SwitcherKeybind {}
-            PaletteKeybind {}
-            ClusterSwitcher {}
-            PodDetail {}
-            crate::components::secret_detail::SecretDetail {}
-            crate::components::crud_modal::CrudOverlay {}
-            CommandPalette {}
-            Sidebar {}
-            div { class: "main-col",
-                TopBar {}
-                main { class: "content",
-                    Outlet::<Route> {}
-                }
-                StatusFooter {}
-            }
+        ShellFrame {
+            sections: shell_sections(),
+            current_route,
+            namespaces: namespace_chips(),
+            status: status_entries(),
+            on_navigate: Some(EventHandler::new(move |route: String| {
+                nav.push(route_from_path(&route));
+            })),
+            on_toggle_namespace: Some(EventHandler::new(|ns: String| {
+                crate::runtime::toggle_namespace(ns);
+            })),
+            // Host-only chrome: the key listeners and the overlays they drive.
+            // The crate frame renders it when the host advertises native
+            // window chrome (this host always does) and states what is missing
+            // when it does not.
+            chrome: rsx! {
+                SwitcherKeybind {}
+                PaletteKeybind {}
+                ClusterSwitcher {}
+                CommandPalette {}
+            },
+            Outlet::<Route> {}
         }
     }
 }
 
-/// Top bar: namespace multi-select chips.
+/// The sidebar the crate shell renders: the desktop's flat core navigation
+/// (the terminal entry gated on the host capability), then the static Rust-SDK
+/// plugin sections, then the JS-plugin sections mirrored from the bridge.
 ///
-/// The cluster switcher lives in the ctrl-tab overlay (OKT-51), so the top
-/// bar only shows namespace chips for scoping resource queries.
-#[component]
-fn TopBar() -> Element {
-    let namespaces = crate::runtime::NAMESPACES.read();
-    let selected = crate::runtime::SELECTED_NAMESPACES.read();
-    let ns_list: Vec<String> = namespaces.clone();
-    let chips: Vec<(String, bool)> = ns_list
-        .iter()
-        .map(|ns| (ns.clone(), selected.iter().any(|s| s == ns)))
-        .collect();
+/// The nav divider separates each of those blocks from the previous one rather
+/// than being drawn per section, which is what the desktop has always rendered.
+fn shell_sections() -> Vec<crate::shell::ShellSection> {
+    use crate::shell::{core_nav, plugin_sections, ShellNavItem, ShellSection};
 
-    rsx! {
-        header { class: "topbar",
-            div { class: "ns-chips",
-                for (ns, is_active) in chips {
-                    button {
-                        class: if is_active { "ns-chip active" } else { "ns-chip" },
-                        onclick: move |_| crate::runtime::toggle_namespace(ns.clone()),
-                        "{ns}"
-                    }
-                }
-            }
-        }
+    let mut sections = vec![ShellSection {
+        label: String::new(),
+        accent: None,
+        divider: false,
+        items: core_nav(openkite_ui::runtime::terminal_can_render()),
+    }];
+
+    let sdk_sections = PLUGIN_SECTIONS.read();
+    for (index, section) in sdk_sections.iter().enumerate() {
+        sections.push(ShellSection {
+            label: section.label.clone(),
+            accent: Some(
+                section
+                    .accent_color
+                    .clone()
+                    .unwrap_or_else(|| "var(--accent)".into()),
+            ),
+            divider: index == 0,
+            items: section
+                .entries
+                .iter()
+                .map(|entry| ShellNavItem {
+                    label: entry.label.clone(),
+                    route: entry.route.clone(),
+                    plugin: Some(section.label.clone()),
+                })
+                .collect(),
+        });
     }
+
+    let registrations = REGISTRATIONS.read();
+    for (index, section) in plugin_sections(&registrations).into_iter().enumerate() {
+        sections.push(ShellSection {
+            divider: index == 0,
+            ..section
+        });
+    }
+
+    sections
+}
+
+/// The top bar's chips: one per namespace on the active cluster, active when
+/// the namespace is in the selected set.
+fn namespace_chips() -> Vec<NamespaceChip> {
+    let namespaces = crate::runtime::NAMESPACES.read().clone();
+    let selected = crate::runtime::SELECTED_NAMESPACES.read().clone();
+    namespaces
+        .into_iter()
+        .map(|namespace| NamespaceChip {
+            active: selected.iter().any(|selected| selected == &namespace),
+            label: namespace,
+            context: false,
+        })
+        .collect()
+}
+
+/// The status footer's entries for the current connection state.
+fn status_entries() -> Vec<crate::shell::StatusBarEntry> {
+    let state = crate::shell::ShellState {
+        cluster: crate::runtime::CONTEXT.read().clone(),
+        namespace: "default".into(),
+        connected: crate::runtime::CLIENT.read().is_some(),
+        prometheus: crate::runtime::PROMETHEUS.read().clone(),
+    };
+    let version = crate::version::reported();
+    crate::shell::status_bar_model(
+        &state,
+        &REGISTRATIONS.read(),
+        version.as_deref().unwrap_or_default(),
+    )
 }
 
 /// Dispatch one bridge POST from the webview.
@@ -369,165 +437,6 @@ pub(crate) fn json_response(resp: ApiResponse) -> AssetHttpResponse<Vec<u8>> {
         .header("Content-Type", "application/json")
         .body(body)
         .expect("static response parts")
-}
-
-/// One status-bar slot: precomputed label + dot style (pure render data).
-fn status_rows(entries: &[crate::shell::StatusBarEntry]) -> Vec<(String, String)> {
-    entries
-        .iter()
-        .map(|entry| {
-            let dot = match entry.color.as_deref() {
-                Some(color) => format!("background: {}", crate::shell::status_dot_color(color)),
-                None => "display: none".into(),
-            };
-            (entry.label.clone(), dot)
-        })
-        .collect()
-}
-
-#[component]
-fn Sidebar() -> Element {
-    let sections = PLUGIN_SECTIONS.read();
-    let registrations = REGISTRATIONS.read();
-    let js_sections = crate::shell::plugin_sections(&registrations);
-    rsx! {
-        aside { class: "sidebar",
-            h1 { class: "brand", "OpenKite" }
-            span { class: "tagline", "Kubernetes from above." }
-            nav { class: "nav",
-                NavItem { label: "Cluster", to: Route::Cluster {} }
-                NavItem { label: "Workloads", to: Route::Workloads {} }
-                NavItem { label: "Logs", to: Route::Logs {} }
-                if openkite_ui::runtime::terminal_can_render() {
-                    NavItem { label: "Terminal", to: Route::Terminal {} }
-                }
-                NavItem { label: "Config", to: Route::Config {} }
-                if !sections.is_empty() {
-                    div { class: "nav-divider" }
-                    for section in sections.iter() {
-                        SectionView { section: section.clone() }
-                    }
-                }
-                if !js_sections.is_empty() {
-                    div { class: "nav-divider" }
-                    for section in js_sections.iter() {
-                        ShellSectionView { section: section.clone() }
-                    }
-                }
-            }
-        }
-    }
-}
-
-#[component]
-fn NavItem(label: String, to: Route) -> Element {
-    let current = use_route::<Route>();
-    let active = current == to;
-    rsx! {
-        Link {
-            to: to,
-            class: if active { "nav-item active" } else { "nav-item" },
-            "{label}"
-        }
-    }
-}
-
-#[component]
-fn SectionView(section: SidebarSection) -> Element {
-    let accent = section
-        .accent_color
-        .clone()
-        .unwrap_or_else(|| "var(--accent)".into());
-    rsx! {
-        div { class: "nav-section",
-            div { class: "nav-section-label", style: "color: {accent}", "{section.label}" }
-            for entry in section.entries.iter() {
-                PluginNavItem { entry: entry.clone(), accent: accent.clone() }
-            }
-        }
-    }
-}
-
-#[component]
-fn PluginNavItem(entry: SidebarEntry, accent: String) -> Element {
-    let current = use_route::<Route>();
-    let target = plugin_route(&entry.route);
-    let active = match &current {
-        Route::Plugin { path } => full_path(path) == entry.route,
-        _ => false,
-    };
-    rsx! {
-        Link {
-            to: target,
-            class: if active { "nav-item plugin active" } else { "nav-item plugin" },
-            style: "color: {accent}",
-            "{entry.label}"
-        }
-    }
-}
-
-/// A sidebar section contributed by a JS plugin at runtime (rendered from the
-/// `REGISTRATIONS` mirror, not the static SDK registry).
-#[component]
-fn ShellSectionView(section: crate::shell::ShellSection) -> Element {
-    rsx! {
-        div { class: "nav-section",
-            div { class: "nav-section-label", "{section.label}" }
-            for item in section.items.iter() {
-                ShellNavItemView { item: item.clone() }
-            }
-        }
-    }
-}
-
-#[component]
-fn ShellNavItemView(item: crate::shell::ShellNavItem) -> Element {
-    let current = use_route::<Route>();
-    let target = plugin_route(&item.route);
-    let active = match &current {
-        Route::Plugin { path } => full_path(path) == item.route,
-        _ => false,
-    };
-    rsx! {
-        Link {
-            to: target,
-            class: if active { "nav-item plugin active" } else { "nav-item plugin" },
-            "{item.label}"
-        }
-    }
-}
-
-/// Status footer: cluster · connection dot + app version + plugin
-/// status items — the mockup's bottom bar. Renders from the same model the
-/// pure shell module exposes.
-#[component]
-fn StatusFooter() -> Element {
-    let context = crate::runtime::CONTEXT.read();
-    let connected = crate::runtime::CLIENT.read().is_some();
-    let registrations = REGISTRATIONS.read();
-    let state = crate::shell::ShellState {
-        cluster: context.clone(),
-        namespace: "default".into(),
-        connected,
-        prometheus: crate::runtime::PROMETHEUS.read().clone(),
-    };
-    let version = crate::version::reported();
-    let entries = crate::shell::status_bar_model(
-        &state,
-        &registrations,
-        version.as_deref().unwrap_or_default(),
-    );
-    let rows = status_rows(&entries);
-    rsx! {
-        footer { class: "status",
-            for (label, dot) in rows {
-                span { class: "status-entry",
-                    span { class: "status-dot", style: "{dot}" }
-                    "{label}"
-                }
-            }
-        }
-    }
 }
 
 #[component]
@@ -759,27 +668,6 @@ mod tests {
             panic!("expected Plugin variant");
         };
         assert_eq!(full_path(&path), "/argocd/apps");
-    }
-
-    #[test]
-    fn status_rows_maps_colors_and_hides_undotted_entries() {
-        let entries = vec![
-            crate::shell::StatusBarEntry {
-                label: "prod · Connected".into(),
-                color: Some("green".into()),
-                plugin: None,
-            },
-            crate::shell::StatusBarEntry {
-                label: "v0.0.0".into(),
-                color: None,
-                plugin: None,
-            },
-        ];
-        let rows = status_rows(&entries);
-        assert_eq!(rows[0].0, "prod · Connected");
-        assert_eq!(rows[0].1, "background: var(--green)");
-        assert_eq!(rows[1].0, "v0.0.0");
-        assert_eq!(rows[1].1, "display: none");
     }
 
     #[test]

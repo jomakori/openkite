@@ -6,6 +6,7 @@ pub mod logs;
 pub mod pod_detail;
 pub mod resource_table;
 pub mod secret_detail;
+pub mod shell;
 pub mod status_badge;
 pub mod terminal;
 pub mod theme_selector;

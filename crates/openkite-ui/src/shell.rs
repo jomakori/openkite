@@ -21,7 +21,18 @@ pub struct ShellNavItem {
 /// A sidebar section: core (built-in) or one per plugin.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ShellSection {
+    /// Section header. Empty renders no header at all, which is how the
+    /// desktop shows its core navigation: one unlabelled block above the
+    /// plugin sections.
     pub label: String,
+    /// Inline accent for the header and its entries (`None` = the stylesheet's
+    /// own colour, no inline style). Plugin sections carry their contributor's
+    /// accent; the built-in ones do not.
+    pub accent: Option<String>,
+    /// Draw the nav divider above this section. The desktop separates each
+    /// plugin block from the core navigation with one; a host whose sidebar is
+    /// a single block never draws one.
+    pub divider: bool,
     pub items: Vec<ShellNavItem>,
 }
 
@@ -29,6 +40,8 @@ pub struct ShellSection {
 pub fn core_sections() -> Vec<ShellSection> {
     vec![ShellSection {
         label: "Overview".into(),
+        accent: None,
+        divider: false,
         items: vec![
             ShellNavItem {
                 label: "Cluster".into(),
@@ -47,6 +60,46 @@ pub fn core_sections() -> Vec<ShellSection> {
             },
         ],
     }]
+}
+
+/// The desktop's core navigation: the flat entry list it shows above the
+/// plugin sections, in order, with the terminal entry gated on the host
+/// capability.
+///
+/// The terminal surface is host-only (OKT-126), so a host that cannot run one
+/// never advertises the entry — passing the gate in keeps the decision with
+/// the host and the vocabulary with the crate.
+pub fn core_nav(terminal: bool) -> Vec<ShellNavItem> {
+    let mut items = vec![
+        ShellNavItem {
+            label: "Cluster".into(),
+            route: "/cluster".into(),
+            plugin: None,
+        },
+        ShellNavItem {
+            label: "Workloads".into(),
+            route: "/workloads".into(),
+            plugin: None,
+        },
+        ShellNavItem {
+            label: "Logs".into(),
+            route: "/logs".into(),
+            plugin: None,
+        },
+    ];
+    if terminal {
+        items.push(ShellNavItem {
+            label: "Terminal".into(),
+            route: "/terminal".into(),
+            plugin: None,
+        });
+    }
+    items.push(ShellNavItem {
+        label: "Config".into(),
+        route: "/config".into(),
+        plugin: None,
+    });
+    items
 }
 
 /// The ordered sidebar model: core sections, then one section per plugin
@@ -81,6 +134,8 @@ pub fn plugin_sections(store: &RegistrationStore) -> Vec<ShellSection> {
         if !items.is_empty() {
             sections.push(ShellSection {
                 label: plugin,
+                accent: None,
+                divider: false,
                 items,
             });
         }
@@ -230,6 +285,22 @@ pub fn status_dot_color(color: &str) -> String {
         other if is_css_color(other) => other.to_string(),
         _ => "var(--fg-2)".into(),
     }
+}
+
+/// One status-bar slot as render data: the label, and the inline
+/// `background` for its dot (`display: none` when the entry carries no dot).
+/// The status footer renders these; both hosts build them from the same model.
+pub fn status_rows(entries: &[StatusBarEntry]) -> Vec<(String, String)> {
+    entries
+        .iter()
+        .map(|entry| {
+            let dot = match entry.color.as_deref() {
+                Some(color) => format!("background: {}", status_dot_color(color)),
+                None => "display: none".into(),
+            };
+            (entry.label.clone(), dot)
+        })
+        .collect()
 }
 
 /// A conservative CSS color check: short hex or one of a few color
@@ -384,6 +455,45 @@ mod tests {
         assert_eq!(nav.route, "/argocd/apps");
         assert_eq!(status_items_of(&store, "argocd").len(), 1);
         assert!(status_items_of(&store, "missing").is_empty());
+    }
+
+    #[test]
+    fn status_rows_map_colors_and_hide_undotted_entries() {
+        let entries = vec![
+            StatusBarEntry {
+                label: "prod · Connected".into(),
+                color: Some("green".into()),
+                plugin: None,
+            },
+            StatusBarEntry {
+                label: "v0.0.0".into(),
+                color: None,
+                plugin: None,
+            },
+        ];
+        let rows = status_rows(&entries);
+        assert_eq!(rows[0].0, "prod · Connected");
+        assert_eq!(rows[0].1, "background: var(--green)");
+        assert_eq!(rows[1].0, "v0.0.0");
+        assert_eq!(rows[1].1, "display: none");
+    }
+
+    #[test]
+    fn core_nav_gates_the_terminal_entry_on_the_capability() {
+        let routes = |terminal| {
+            core_nav(terminal)
+                .into_iter()
+                .map(|item| item.route)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            routes(true),
+            vec!["/cluster", "/workloads", "/logs", "/terminal", "/config"]
+        );
+        assert_eq!(
+            routes(false),
+            vec!["/cluster", "/workloads", "/logs", "/config"]
+        );
     }
 
     #[test]
