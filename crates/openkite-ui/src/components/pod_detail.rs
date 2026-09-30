@@ -372,6 +372,14 @@ mod render_tests {
     }
 
     #[test]
+    fn logs_tab_renders_the_container_selector_and_buffer() {
+        let html = mount_seeded(root_logs);
+        for needle in ["log-body", "web", "sidecar"] {
+            assert!(html.contains(needle), "missing {needle}: {html}");
+        }
+    }
+
+    #[test]
     fn yaml_tab_renders_the_contract_blob() {
         let html = mount_seeded(root_yaml);
         assert!(
