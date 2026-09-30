@@ -38,7 +38,7 @@ pub fn PodDetail() -> Element {
         return rsx! {};
     }
 
-    let mut active_tab = use_signal(|| DetailTab::Overview);
+    let active_tab = use_signal(|| DetailTab::Overview);
 
     let name = SELECTED_POD
         .read()
