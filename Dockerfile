@@ -60,15 +60,6 @@ WORKDIR /src
 COPY --from=manifests /manifests/ ./
 COPY --from=wasm-bindgen /usr/local/bin/wasm-bindgen /usr/local/bin/wasm-bindgen
 
-# The wasm hydration client's graph pulls a build-dependency that needs OpenSSL
-# headers on the HOST (cargo compiles build-scripts/proc-macros for the host even
-# when --target is wasm32), and the plain rust image ships none. Without these
-# the hydrate step dies on `openssl-sys`: "Could not find directory of OpenSSL
-# installation". Nothing links OpenSSL into the wasm output; it is host-side only.
-RUN apt-get update \
- && apt-get install -y --no-install-recommends pkg-config libssl-dev \
- && rm -rf /var/lib/apt/lists/*
-
 # Install the wasm32 target the hydration client compiles against.
 RUN rustup target add wasm32-unknown-unknown
 
@@ -92,11 +83,19 @@ RUN find crates -name '*.rs' -exec touch {} + \
 
 # Build the hydration client. The `hydrate` feature pulls in
 # dioxus-web + wasm-bindgen glue; the resulting wasm is what the SSR
-# page boots in the browser. `openkite-web-client` is a [[bin]] of the
-# openkite-web package, not a package of its own, so it is selected with
-# --bin — `-p openkite-web-client` fails with "did not match any
-# packages".
-RUN cargo build --release --bin openkite-web-client \
+# page boots in the browser.
+#
+# `openkite-web-client` is a [[bin]] of openkite-web, not a package of its own,
+# so `-p openkite-web-client` fails ("did not match any packages") and the target
+# is named with --bin. `-p openkite-web` is not optional either: with no package
+# selector cargo resolves the WHOLE virtual workspace for this target, which
+# pulls the desktop stack in with it (dioxus -> dioxus-fullstack ->
+# async-tungstenite -> tungstenite -> native-tls -> openssl-sys), and openssl-sys
+# cannot build for wasm32 — pkg-config refuses to cross-compile it, and the
+# failure lands 10 s in at:
+#   "Could not find openssl via pkg-config: pkg-config has not been configured
+#    to support cross-compilation".
+RUN cargo build --release -p openkite-web --bin openkite-web-client \
       --target wasm32-unknown-unknown --features hydrate --locked
 
 # Stage the wasm-bindgen output the way the SSR HTML references it
