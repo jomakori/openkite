@@ -60,6 +60,15 @@ WORKDIR /src
 COPY --from=manifests /manifests/ ./
 COPY --from=wasm-bindgen /usr/local/bin/wasm-bindgen /usr/local/bin/wasm-bindgen
 
+# The wasm hydration client's graph pulls a build-dependency that needs OpenSSL
+# headers on the HOST (cargo compiles build-scripts/proc-macros for the host even
+# when --target is wasm32), and the plain rust image ships none. Without these
+# the hydrate step dies on `openssl-sys`: "Could not find directory of OpenSSL
+# installation". Nothing links OpenSSL into the wasm output; it is host-side only.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends pkg-config libssl-dev \
+ && rm -rf /var/lib/apt/lists/*
+
 # Install the wasm32 target the hydration client compiles against.
 RUN rustup target add wasm32-unknown-unknown
 
