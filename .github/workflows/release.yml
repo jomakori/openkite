@@ -319,7 +319,10 @@ jobs:
         id: build
         uses: ./.github/actions/build-image
         with:
-          ref: v${{ needs.analyze.outputs.new_release_version }}
+          # No ref. The version tag is created by publish, which now runs after
+          # this job, so fetching it fails; the action falls back to github.sha,
+          # which is that same commit. The tag is applied to the image below, it
+          # is not read from git.
           tag: v${{ needs.analyze.outputs.new_release_version }}
           host: openkite.maklab.net
 
