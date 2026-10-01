@@ -8,7 +8,7 @@
 # release into the stage so the build does not depend on cargo install
 # resolving on every release.
 # ─────────────────────────────────────────────────────────────────────
-FROM rust:1.82-bookworm AS wasm-bindgen
+FROM rust:1.98-bookworm AS wasm-bindgen
 ARG WASM_BINDGEN_VERSION=0.2.127
 RUN curl -fsSL \
   https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz \
@@ -23,7 +23,11 @@ RUN curl -fsSL \
 # wasm hydration bundle from `$OPENKITE_WEB_ROOT`. After OKT-137 the
 # prebuilt React bundle is gone — the crate IS the UI.
 # ─────────────────────────────────────────────────────────────────────
-FROM rust:1.82-bookworm AS builder
+# Keep the pin at or above the workspace's minimum: kube 4.x (kube-runtime
+# 4.2.0) declares edition 2024, which Cargo only accepts from 1.85 — a lower
+# pin fails the build here with "feature `edition2024` is required" and
+# publishes no image, leaving the cluster's tag unfetchable.
+FROM rust:1.98-bookworm AS builder
 WORKDIR /src
 COPY Cargo.toml Cargo.lock ./
 COPY crates crates
