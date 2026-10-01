@@ -1,20 +1,29 @@
 #!/usr/bin/env bash
 #
-# Delete the container image versions a closed pull request left behind.
+# Delete the preview image versions a pull request left behind.
 #
-# A MERGED pull request keeps its sha-pinned version: `pr-<N>-<sha>` is the
-# record of exactly what was reviewed and released, so only the mutable
-# `pr-<N>` goes away. A closed-unmerged pull request keeps nothing.
+# Previews are NOT pruned when the PR closes. The preview image is the input the
+# release transports, so a merge that deletes it strands that release on a cold
+# full rebuild. Transport and pruning both belong to the release workflow:
+#
+#   --transported <pr>   the release retagged pr-<N> as v<X.Y.Z>. The released
+#                        tag and the manifest's digest are the record now, so
+#                        the preview version goes away whole.
+#   --sweep              every pr-* version whose PR closed WITHOUT merging. A
+#                        merged PR keeps its sha pin until its release runs.
+#   --merged <pr>        keep the sha-pinned version: the pre-transport record of
+#                        what was reviewed. The sweep uses this.
 #
 # GitHub's container packages expose no tag-delete call — a version (one digest)
 # is deleted whole, together with every tag on it. When `pr-<N>` and
 # `pr-<N>-<sha>` are tags on the SAME version (one build, two tags, one digest),
 # keeping the pin necessarily keeps both tags; the mutable tag then lives until
 # the version itself is pruned. That is the conservative direction: losing the
-# pin would lose the record the merged PR is supposed to keep.
+# pin would lose the record a merged-but-unreleased PR is supposed to keep.
 #
 # Usage: prune-pr-image.sh <pr-number>...             # closed, unmerged
 #        prune-pr-image.sh --merged <pr-number>...    # merged, keep the sha pin
+#        prune-pr-image.sh --transported <pr-number>... # released, delete all
 #        prune-pr-image.sh --sweep                    # every pr-* version whose PR is closed or merged
 set -euo pipefail
 
@@ -44,7 +53,7 @@ ids_to_delete() {
       }
       drop = 0
       if (mutable) { if (!(mode == "merged" && pinned)) drop = 1 }
-      else if (pinned && mode == "closed") drop = 1
+      else if (pinned && mode != "merged") drop = 1
       if (drop) print $1
     }'
 }
@@ -68,18 +77,18 @@ prune_pr() {
 }
 
 sweep() {
-  local pr state pruned=0 kept=0
+  local pr state merged=0 closed=0 kept=0
   while read -r pr; do
     [ -n "$pr" ] || continue
     state="$(gh pr view "$pr" --repo "$REPO" --json state -q .state 2>/dev/null || true)"
     case "$state" in
       MERGED)
         prune_pr "$pr" merged
-        pruned=$((pruned + 1))
+        merged=$((merged + 1))
         ;;
       CLOSED)
-        prune_pr "$pr" closed
-        pruned=$((pruned + 1))
+        prune_pr "$pr" whole
+        closed=$((closed + 1))
         ;;
       *)
         log "pr-${pr}: ${state:-unknown}, kept"
@@ -87,7 +96,7 @@ sweep() {
         ;;
     esac
   done < <(versions | awk -F'\t' '{ n = split($2, t, ","); for (i = 1; i <= n; i++) if (t[i] ~ /^pr-[0-9]+$/) print substr(t[i], 4) }' | sort -un)
-  log "sweep: ${pruned} closed PR(s) pruned, ${kept} PR(s) kept"
+  log "sweep: ${merged} merged PR(s) kept as sha pins, ${closed} closed PR(s) pruned, ${kept} open PR(s) kept"
 }
 
 case "${1:-}" in
@@ -100,9 +109,18 @@ case "${1:-}" in
     }
     for pr in "$@"; do prune_pr "$pr" merged; done
     ;;
+  --transported)
+    shift
+    [ $# -gt 0 ] || {
+      printf 'usage: %s --transported <pr-number>...\n' "$0" >&2
+      exit 2
+    }
+    # The release tag carries this digest now, so nothing is kept.
+    for pr in "$@"; do prune_pr "$pr" whole; done
+    ;;
   '')
-    printf 'usage: %s [--merged] <pr-number>... | --sweep\n' "$0" >&2
+    printf 'usage: %s [--merged|--transported] <pr-number>... | --sweep\n' "$0" >&2
     exit 2
     ;;
-  *) for pr in "$@"; do prune_pr "$pr" closed; done ;;
+  *) for pr in "$@"; do prune_pr "$pr" whole; done ;;
 esac

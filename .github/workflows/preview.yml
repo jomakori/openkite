@@ -166,29 +166,3 @@ jobs:
             } catch (error) {
               if (error.status !== 404) throw error;
             }
-
-  prune:
-    name: Delete the images this PR published
-    if: github.event.action == 'closed'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
-      packages: write
-      pull-requests: read
-    concurrency:
-      group: preview-prune-${{ github.event.pull_request.number }}
-      cancel-in-progress: false
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-      - name: Prune the image versions this PR published
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          if [ "${{ github.event.pull_request.merged }}" = "true" ]; then
-            ./.github/scripts/prune-pr-image.sh --merged "${{ github.event.pull_request.number }}"
-          else
-            ./.github/scripts/prune-pr-image.sh "${{ github.event.pull_request.number }}"
-          fi
