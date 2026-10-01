@@ -90,6 +90,11 @@ runs:
         push: true
         platforms: ${{ inputs.platforms }}
         tags: ${{ steps.tags.outputs.tags }}
+        # Reuse the layers a previous run published. The dependency compile
+        # in the Dockerfile is keyed on the manifests, so a warm cache turns
+        # a release image from tens of minutes into a few.
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
 
     - name: Record the published references
       shell: bash
