@@ -128,10 +128,11 @@ expose an equivalent:
 | Logs viewer | `src/views/logs.rs` (`Route::Logs`) | `openkite-ui` has no log viewer; the console's `App` only paints capabilities. Retirement would delete a working UI. |
 | Terminal exec | `src/views/terminal.rs` (`Route::Terminal`) | Pod/container picker + xterm.js host + reconnect state machine on top of the vendored bundle. No crate replacement exists; exec transport is deferred to Phase 1. |
 | Pod detail inspector | `src/views/pod_detail.rs` (mounted in `AppShell`) | 5-tab slide-over driven by `SELECTED_POD`; uses `kube::Api::log_stream` and the container-state mapper that no crate view duplicates. |
-| Plugin wildcard | `Route::Plugin` → `Plugin` dispatcher | Rust SDK routes (`ROUTE_TABLE`) + JS plugin renderers (`JsRouteSlot`); plugin routing is a host concern, not a console concern. |
+| Plugin wildcard | `Route::Plugin` → `PluginRouteView` (crate) + `JsRouteEvaluator` | The route chrome, the JS mount node and the declaration of the plugin-route capability render from `openkite_ui` (OKT-156); what stays native is the `document::eval` that mounts a JS bundle into the webview, plus the host's own plugin tables (an SDK route's view is the plugin's chrome and mounts as-is). |
 
 The keep-native declaration lives at
-`crates/openkite-desktop/src/router.rs` (module doc + `console_route`)
+`crates/openkite-desktop/src/router.rs` (module doc + the `Logs`, `Terminal`
+and `Plugin` route components)
 and at the top of each view module, so the rationale is visible where
 a reader is most likely to look when deciding to delete a route.
 - **Webview RAM floor** — the WebKitGTK webview carries a ~200 MB baseline per

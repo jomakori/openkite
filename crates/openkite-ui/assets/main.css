@@ -281,9 +281,10 @@ body {
 
 .not-found { text-align: center; padding: 48px; color: var(--fg-2); }
 
-/* Host-rendered mount node for JS plugin routes. `display: contents`
-   keeps the plugin's children in the host main outlet without an extra
-   box; the plugin's CSS handles its own layout. */
+/* The crate-rendered mount node a JS plugin route renders into. `display:
+   contents` keeps the plugin's children in the host main outlet without an
+   extra box; the plugin's CSS handles its own layout. The host's evaluator
+   (desktop) fills it via `[data-js-route-mount]`. */
 .js-route-slot { display: contents; }
 
 /* CodeMirror 6 host surface (OKT-37). The vendored IIFE bundle injects
