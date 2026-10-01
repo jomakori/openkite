@@ -10,10 +10,20 @@
 # ─────────────────────────────────────────────────────────────────────
 FROM rust:1.98-bookworm AS wasm-bindgen
 ARG WASM_BINDGEN_VERSION=0.2.127
-RUN curl -fsSL \
-  https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz \
+# The CLI is a fixed-binary release per host architecture. This stage builds
+# for the TARGET platform (linux/arm64 for this cluster), so the archive has to
+# follow TARGETARCH — fetching the x86_64 archive into an arm64 image produces a
+# binary the container cannot execute.
+ARG TARGETARCH
+RUN case "${TARGETARCH:-amd64}" in \
+      amd64) wb_arch=x86_64 ;; \
+      arm64) wb_arch=aarch64 ;; \
+      *) echo "unsupported TARGETARCH: ${TARGETARCH:-<unset>}" >&2; exit 1 ;; \
+    esac \
+ && curl -fsSL \
+  "https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/wasm-bindgen-${WASM_BINDGEN_VERSION}-${wb_arch}-unknown-linux-musl.tar.gz" \
   | tar -xz -C /usr/local/bin --strip-components=1 \
-      wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl/wasm-bindgen
+      "wasm-bindgen-${WASM_BINDGEN_VERSION}-${wb_arch}-unknown-linux-musl/wasm-bindgen"
 
 # ─────────────────────────────────────────────────────────────────────
 # Stage 2 — manifests: the workspace manifests and nothing else.
