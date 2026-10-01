@@ -278,7 +278,10 @@ jobs:
 
   image-rebuild:
     name: Rebuild the release image (fallback)
-    runs-on: ubuntu-latest
+    # Native arm64: the image is linux/arm64 only, and emulating that on an
+    # amd64 runner costs 4-5x on the compile. The arm64 runner label is the
+    # same one the aarch64 release packages already build on.
+    runs-on: ubuntu-24.04-arm
     needs: [analyze, locate, publish, image]
     if: >-
       always() &&
