@@ -174,13 +174,22 @@ jobs:
   publish:
     name: Publish release
     runs-on: ubuntu-latest
-    needs: [analyze, locate, packages]
+    # LAST, and gated on BOTH artifacts: the desktop installers (packages) and the
+    # container image the cluster actually pulls. Publishing before the image
+    # existed is what let v0.39.1-v0.43.0 ship tag + installers with no image, so
+    # every `image.tag` pin resolved to nothing. A release now cannot exist
+    # without the thing the deployment pulls.
+    needs: [analyze, locate, packages, image, image-rebuild]
     if: >-
       always() &&
       (inputs.dry_run == 'true' ||
        (needs.analyze.outputs.new_release_published == 'true' &&
         needs.locate.result == 'success' &&
-        (needs.packages.result == 'success' || needs.packages.result == 'skipped')))
+        (needs.packages.result == 'success' || needs.packages.result == 'skipped') &&
+        needs.image.result == 'success' &&
+        (needs.image.outputs.promoted == 'true' ||
+         (needs.image-rebuild.result == 'success' &&
+          needs.image-rebuild.outputs.image_digest != ''))))
     timeout-minutes: 30
     permissions:
       contents: write
@@ -234,9 +243,13 @@ jobs:
   image:
     name: Promote the preview image to the release tag
     runs-on: ubuntu-latest
-    needs: [analyze, locate, publish]
+    # Runs BEFORE publish: the release must not exist until the image the cluster
+    # will pull does. Only analyze (the version) and locate (the PR's tag) are
+    # inputs, so this needs no release to exist.
+    needs: [analyze, locate]
     if: needs.analyze.outputs.new_release_published == 'true' && inputs.dry_run != 'true'
-    timeout-minutes: 15
+    # A registry-side retag, not a build: seconds when it works at all.
+    timeout-minutes: 10
     permissions:
       contents: read
       packages: write
@@ -282,14 +295,18 @@ jobs:
     # amd64 runner costs 4-5x on the compile. The arm64 runner label is the
     # same one the aarch64 release packages already build on.
     runs-on: ubuntu-24.04-arm
-    needs: [analyze, locate, publish, image]
+    # Also before publish: this is the path that actually produces the image the
+    # cluster pulls, so the release waits on it too.
+    needs: [analyze, locate, image]
     if: >-
       always() &&
       needs.analyze.outputs.new_release_published == 'true' &&
       inputs.dry_run != 'true' &&
-      needs.publish.result == 'success' &&
       needs.image.outputs.promoted != 'true'
-    timeout-minutes: 45
+    # Native arm64 with the manifests-keyed dependency layer: the compile that
+    # needed 34+ minutes under QEMU on amd64 finishes in single digits here, so a
+    # build that overruns this is hung, not slow.
+    timeout-minutes: 15
     permissions:
       contents: read
       packages: write

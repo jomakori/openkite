@@ -121,7 +121,9 @@ jobs:
       contains(github.event.pull_request.labels.*.name, 'staging') &&
       github.event.action != 'closed'
     runs-on: ubuntu-24.04-arm
-    timeout-minutes: 40
+    # Native arm64 build: see the release image job. A preview image is smaller
+    # than a release one, so 40 minutes only ever bought a hung runner time.
+    timeout-minutes: 15
     permissions:
       contents: read
       packages: write
