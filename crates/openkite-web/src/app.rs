@@ -132,8 +132,8 @@ pub fn App(props: AppProps) -> Element {
             actions,
             "data-surface": "app",
             // The route chrome the desktop mounts too (OKT-155). This host
-            // serves one route — `GET /` is the SSR page, every other path is
-            // the bundle's SPA fallback — and the snapshot panels below are
+            // serves one route — `GET /` and every path the bundle has no file
+            // for both render this document — and the snapshot panels below are
             // that route's body: the chrome around them is the crate's.
             RouteView {
                 route: "/".to_string(),
