@@ -24,7 +24,9 @@ inputs:
     default: ''
   platforms:
     description: Platforms to publish, in buildx's list form. The cluster is arm64 only, so an
-      amd64 leg is content nothing pulls and a QEMU-emulated build on every release.
+      amd64 leg is content nothing pulls and a QEMU-emulated build on every release. No QEMU is
+      registered, so a platform other than the runner's own fails the build rather than
+      running emulated.
     required: false
     default: 'linux/arm64'
 
@@ -52,9 +54,10 @@ runs:
           exit 1
         fi
 
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@v3
-
+    # No QEMU: every caller runs on ubuntu-24.04-arm and never overrides
+    # `platforms`, so the one platform built is the runner's own. Registering
+    # binfmt for a build that never crosses architecture cost a step on every
+    # preview and release image. A foreign platform now fails loudly instead.
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
