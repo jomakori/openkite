@@ -42,19 +42,22 @@ fn render_body_includes_the_data_surface_markers() {
 fn render_body_renders_the_shared_shell_chrome() {
     let body = render_body(&connected());
     for chrome in [
-        "class=\"app-shell\"",
+        "class=\"app\"",
         "class=\"sidebar\"",
         "class=\"brand\"",
+        "class=\"brand-mark\"",
+        "class=\"brand-word\"",
         "class=\"nav\"",
         "class=\"nav-section\"",
-        "class=\"nav-section-label\"",
+        "class=\"nav-title\"",
         "class=\"nav-item\"",
         "class=\"topbar\"",
-        "class=\"main-col\"",
-        "class=\"content\"",
-        "class=\"status\"",
-        "class=\"status-entry\"",
-        "class=\"status-dot\"",
+        "class=\"breadcrumbs\"",
+        "class=\"topbar-actions\"",
+        "class=\"main\"",
+        "class=\"view active\"",
+        "class=\"sidebar-footer\"",
+        "class=\"status-line\"",
     ] {
         assert!(
             body.contains(chrome),

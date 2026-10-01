@@ -77,7 +77,21 @@ The faces reach each host differently, because only one of them has an origin:
 | `.inspector` (+ 5 children)  | Slide-over panel (420px, right-anchored)                    |
 | `.toast` + `.toast.show`     | Bottom-anchored notification (340px max-width)              |
 | `.health-dots` + `.dot`      | Inline-cell semantic dots (`.ok`, `.warn`, `.err`)          |
-| `.nav-section`               | Parent wrapper for the existing `.nav-section-label`        |
+| `.nav-section` + `.nav-title`| Sidebar section wrapper and its micro-label                  |
+| `.app` + `.sidebar` + `.main`| Console frame: sidebar, top bar and the routed `.view`       |
+| `.cluster-btn`               | Sidebar cluster button (context + connection dot)            |
+| `.nav-item` (+ `.active`, `.nav-badge`) | Sidebar entry, current entry, count badge          |
+| `.topbar` + `.breadcrumbs` + `.topbar-actions` | Top bar: trail, action row, avatar            |
+| `.icon-btn` + `.avatar` + `.menu-toggle` | Top-bar icon button, user avatar, drawer toggle  |
+| `.sidebar-footer` + `.status-line` | Host build + one line per live status slot             |
+| `.sidebar-backdrop` + `.pull-indicator` | Drawer scrim and pull-to-refresh affordance       |
+| `.icon`                      | 16px stroke glyph (inline SVG paths, no sprite yet)          |
+| `.eyebrow`                   | Uppercase micro-label for a block of secondary text          |
+| `.page-head` + `.page-sub` + `.page-actions` | Route heading row: micro-label, title, summary, buttons |
+| `.toolbar` + `.chip-row`     | Route filter row: namespace chips and the search field       |
+| `.panel-footer` + `.pager`   | Panel footer: row count and page buttons                     |
+| `.tag` + `.tag-row`          | Monospace fact chips (the route's capability declaration)    |
+| `.spinner`                   | In-flight affordance (route chrome and pull-to-refresh)      |
 
 ## Deferred to dependent tickets
 
@@ -85,19 +99,28 @@ The faces reach each host differently, because only one of them has an origin:
   `<Inspector>`, `<LogPanel>`, `<AppCard>`) — land in the consuming
   view ticket alongside its first live use.
 - **ArgoCD-specific primitives** (`.app-card`, `.card-status`,
-  `.source-icon`, `.tag`, `.card-meta`, `.card-swipe-actions`) — OKT-47
-  (ArgoCD JS plugin), the first consumer.
+  `.source-icon`, `.card-meta`, `.card-swipe-actions`) — OKT-47
+  (ArgoCD JS plugin), the first consumer. (`.tag` / `.tag-row` ship with
+  the route chrome, OKT-155.)
 - **Mobile bottom-nav, pull-to-refresh, card swipe** — consumer view
   ticket.
-- **Icon sprite** (32 inline `<symbol>` SVGs from the mockup) — OKT-47
-  alongside the first consumer.
+- **Icon sprite** (the mockup's 32 `<symbol>` SVGs) — the shell inlines the
+  five glyphs it draws (menu, search, refresh, settings, chevron) plus the kite
+  brand mark; the remaining symbols land with their consumers (OKT-47).
 
 ## Verification
 
 `crates/openkite-ui/tests/design.rs` reads `openkite_ui::MAIN_CSS` and asserts
 every required custom property and primitive class is present, plus a
 "exactly 12 new properties" guard against accidental re-declaration of
-an opaline-mapped var.
+an opaline-mapped var. The same file walks every rsx source the crate renders
+(`RSX_SOURCES`, including the route chrome) and fails on a class the stylesheet
+has no rule for.
+
+`crates/openkite-ui/tests/route_views.rs` mounts the route chrome headlessly on
+both host profiles (desktop: in-process gateway; browser: server-side) and pins
+the design's structure, the declared empty state and the unsupported
+declarations.
 
 `crates/openkite-ui/tests/fonts.rs` pins the type layer: every vendored face is
 declared exactly once, every declared URL is a file the route serves, the

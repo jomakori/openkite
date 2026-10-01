@@ -17,11 +17,11 @@
 use dioxus::prelude::*;
 
 use openkite_api::capability::{Capabilities, GatewayKind};
+use openkite_ui::components::route_views::RouteView;
+use openkite_ui::components::shell::{AppShell, ClusterInfo, ShellIcon, TopBarAction};
 use openkite_ui::components::status_badge::{StatusKind, StatusPill};
 use openkite_ui::plugin_api::RegistrationStore;
-use openkite_ui::shell::{
-    sidebar_model, status_bar_model, status_dot_color, ShellSection, ShellState, StatusBarEntry,
-};
+use openkite_ui::shell::{sidebar_model, status_bar_model, ShellState};
 
 use crate::ssr::Snapshot;
 
@@ -56,9 +56,15 @@ pub fn App(props: AppProps) -> Element {
     let mut state = use_signal(|| props.snapshot.clone());
     let mut round = use_signal(|| 0u32);
     let mut last_error = use_signal(|| Option::<String>::None);
+    // The route chrome's spinner: true only while a refetch is in flight, so
+    // the SSR markup and the client's first render agree (both start false).
+    let mut pending = use_signal(|| false);
 
-    let on_refresh = move |_| {
+    // One refetch, two callers: the top bar's refresh action and the panel's
+    // button. The closure only captures signals, so both may hold a copy.
+    let refetch = move || {
         spawn(async move {
+            pending.set(true);
             match crate::client::fetch_snapshot().await {
                 Ok(Some(next)) => {
                     state.set(next);
@@ -72,8 +78,11 @@ pub fn App(props: AppProps) -> Element {
                     last_error.set(Some(err));
                 }
             }
+            pending.set(false);
         });
     };
+    let on_refresh = move |_: ()| refetch();
+    let on_refresh_click = move |_: Event<MouseData>| refetch();
 
     let snapshot = state();
     let capabilities = snapshot.capabilities;
@@ -98,24 +107,39 @@ pub fn App(props: AppProps) -> Element {
         StatusKind::Failed
     };
 
+    // The sidebar's cluster button: the context this host serves, read-only
+    // because a server-side gateway has no context list to switch between.
+    let cluster = ClusterInfo {
+        label: shell.cluster_label(),
+        detail: None,
+        connected: snapshot.connected,
+    };
+    // The top bar's one action this host owns: re-fetch the snapshot.
+    let actions = vec![TopBarAction {
+        icon: ShellIcon::Refresh,
+        label: "Refresh".into(),
+        on_click: EventHandler::new(on_refresh),
+    }];
+
     rsx! {
-        div { class: "app-shell", "data-surface": "app",
-            aside { class: "sidebar",
-                h1 { class: "brand", "OpenKite" }
-                span { class: "tagline", "Kubernetes from above." }
-                nav { class: "nav",
-                    for section in sections {
-                        ShellNavSection { section }
-                    }
-                }
-            }
-            div { class: "main-col",
-                header { class: "topbar",
-                    div { class: "ns-chips",
-                        span { class: "ns-chip active", "data-context": "1", "{shell.cluster_label()}" }
-                    }
-                }
-                main { class: "content",
+        AppShell {
+            sections: sections.clone(),
+            // The page has no client router: entries are plain links, and
+            // nothing is marked current until a route resolves.
+            current_route: String::new(),
+            cluster: Some(cluster),
+            status: status_entries,
+            actions,
+            "data-surface": "app",
+            // The route chrome the desktop mounts too (OKT-155). This host
+            // serves one route — `GET /` is the SSR page, every other path is
+            // the bundle's SPA fallback — and the snapshot panels below are
+            // that route's body: the chrome around them is the crate's.
+            RouteView {
+                route: "/".to_string(),
+                sections,
+                busy: pending(),
+                content: rsx! {
                     section { class: "panel", "data-surface": "overview",
                         h2 { "Cluster" }
                         dl { class: "kv-list",
@@ -132,7 +156,7 @@ pub fn App(props: AppProps) -> Element {
                         button {
                             class: "btn btn-primary",
                             r#type: "button",
-                            onclick: on_refresh,
+                            onclick: on_refresh_click,
                             "data-action": "refresh",
                             "Refresh"
                         }
@@ -150,12 +174,12 @@ pub fn App(props: AppProps) -> Element {
                                 }
                             }
                         }
-                        p { class: "tagline", "data-round": "{round()}", "round {round()}" }
+                        p { class: "message", "data-round": "{round()}", "round {round()}" }
                     }
                     section { class: "panel", "data-surface": "secrets",
                         h2 { "Secrets" }
                         if snapshot.secrets.is_empty() {
-                            p { class: "tagline", "data-empty": "secrets", "No secrets in the gateway's scope" }
+                            p { class: "message", "data-empty": "secrets", "No secrets in the gateway's scope" }
                         } else {
                             dl { class: "kv-list",
                                 for secret in snapshot.secrets.iter() {
@@ -167,29 +191,7 @@ pub fn App(props: AppProps) -> Element {
                             }
                         }
                     }
-                }
-                footer { class: "status",
-                    for entry in status_entries {
-                        span { class: "status-entry",
-                            span { class: "status-dot", style: status_dot_style(&entry) }
-                            "{entry.label}"
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/// One section of the shared sidebar model, rendered with the console's nav
-/// classes as plain links (the page has no client router).
-#[component]
-fn ShellNavSection(section: ShellSection) -> Element {
-    rsx! {
-        div { class: "nav-section",
-            div { class: "nav-section-label", "{section.label}" }
-            for item in section.items.iter() {
-                a { class: "nav-item", href: "{item.route}", "{item.label}" }
+                },
             }
         }
     }
@@ -202,12 +204,4 @@ fn capability_rows(capabilities: &Capabilities) -> [(&'static str, bool); 3] {
         ("Terminal", capabilities.terminal),
         ("Exec", capabilities.exec),
     ]
-}
-
-/// Inline `background` for one status dot; `None` hides the dot.
-fn status_dot_style(entry: &StatusBarEntry) -> String {
-    match entry.color.as_deref() {
-        Some(color) => format!("background: {}", status_dot_color(color)),
-        None => "display: none".into(),
-    }
 }

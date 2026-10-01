@@ -25,17 +25,49 @@ async fn root_route_renders_the_shared_console_shell() {
     let (status, body) = get_body(app(Arc::new(Bridge::new()), temp_root().path()), "/").await;
     assert_eq!(status, StatusCode::OK);
     for chrome in [
-        "class=\"app-shell\"",
+        "class=\"app\"",
         "class=\"sidebar\"",
         "class=\"brand\"",
         "class=\"nav-item\"",
         "class=\"topbar\"",
-        "class=\"content\"",
+        "class=\"breadcrumbs\"",
+        "class=\"view active\"",
         "class=\"panel\"",
         "class=\"kv-list\"",
-        "class=\"status-entry\"",
+        "class=\"sidebar-footer\"",
+        "class=\"status-line\"",
+        // The route chrome (OKT-155): the page this host serves is a route
+        // like any other, so it carries the same head, toolbar and declaration
+        // row the desktop's routes mount.
+        "class=\"page-head\"",
+        "class=\"page-sub\"",
+        "class=\"page-actions\"",
+        "class=\"toolbar\"",
+        "class=\"chip-row\"",
+        "class=\"tag-row\"",
+        "data-route=\"/\"",
     ] {
         assert!(body.contains(chrome), "root route missing {chrome}: {body}");
+    }
+    // The page head is the route's: the home route's title is the cluster's.
+    // (The SSR pass writes hydration markers inside the text nodes, so the
+    //  assertion reads the head's own marker, not `<h1>Cluster</h1>`.)
+    assert!(
+        body.contains("data-page=\"Cluster\""),
+        "root route page head: {body}"
+    );
+    assert!(
+        !body.contains("data-state=\"empty\""),
+        "the snapshot fills the route, so it has no empty state: {body}"
+    );
+    for declared in [
+        "data-unsupported=\"cluster-switch\"",
+        "context switching: off",
+    ] {
+        assert!(
+            body.contains(declared),
+            "a server-side host declares {declared}: {body}"
+        );
     }
     for surface in ["app", "overview", "capabilities", "secrets"] {
         assert!(

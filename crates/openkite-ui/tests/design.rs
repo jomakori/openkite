@@ -83,6 +83,49 @@ const REQUIRED_CLASSES: &[&str] = &[
     ".field-error",
     ".confirm-warning",
     ".btn-danger",
+    // The shell's own vocabulary (OKT-154): the frame, its sidebar and top bar
+    // carry the design's class names, not the desktop's old ones.
+    ".app",
+    ".icon",
+    ".sidebar",
+    ".sidebar-backdrop",
+    ".sidebar-backdrop.show",
+    ".sidebar-footer",
+    ".brand",
+    ".brand-mark",
+    ".brand-word",
+    ".cluster-btn",
+    ".nav",
+    ".nav-title",
+    ".nav-item",
+    ".nav-item.active",
+    ".nav-badge",
+    ".main",
+    ".topbar",
+    ".menu-toggle",
+    ".breadcrumbs",
+    ".breadcrumbs .crumb",
+    ".breadcrumbs .current",
+    ".topbar-actions",
+    ".icon-btn",
+    ".avatar",
+    ".view",
+    ".view.active",
+    ".pull-indicator",
+    ".eyebrow",
+    ".status-line",
+    // The route chrome (OKT-155): the heading row, the filter toolbar, the
+    // panel footer and the declaration chips every primary route carries.
+    ".page-head",
+    ".page-sub",
+    ".page-actions",
+    ".toolbar",
+    ".chip-row",
+    ".panel-footer",
+    ".pager",
+    ".pager button.active",
+    ".tag",
+    ".tag-row",
 ];
 
 /// Properties the opaline theme contract already provides — must not be
@@ -202,11 +245,18 @@ const SECRET_DETAIL_RSX: &str = include_str!("../src/components/secret_detail.rs
 const RESOURCE_TABLE_RSX: &str = include_str!("../src/components/resource_table.rs");
 const CODE_EDITOR_RSX: &str = include_str!("../src/components/code_editor.rs");
 const CRUD_MODAL_RSX: &str = include_str!("../src/components/crud_modal.rs");
+const SHELL_RSX: &str = include_str!("../src/components/shell.rs");
+const ROUTE_VIEWS_RSX: &str = include_str!("../src/components/route_views.rs");
 
 /// Every rsx source file the crate renders. Order is for stable error
 /// messages — does not affect semantics.
 const RSX_SOURCES: &[(&str, &str)] = &[
     ("crates/openkite-web/src/app.rs", APP_RSX),
+    ("crates/openkite-ui/src/components/shell.rs", SHELL_RSX),
+    (
+        "crates/openkite-ui/src/components/route_views.rs",
+        ROUTE_VIEWS_RSX,
+    ),
     (
         "crates/openkite-ui/src/components/status_badge.rs",
         STATUS_BADGE_RSX,
@@ -675,14 +725,7 @@ fn rsx_class_coverage_parser_sees_known_selectors() {
 fn rsx_class_walker_finds_known_tokens() {
     let tokens = collect_rsx_class_tokens();
     let names: std::collections::BTreeSet<&str> = tokens.iter().map(|(_, t)| t.as_str()).collect();
-    for must_find in [
-        "app-shell",
-        "topbar",
-        "btn",
-        "btn-primary",
-        "panel",
-        "kv-row",
-    ] {
+    for must_find in ["app", "topbar", "btn", "btn-primary", "panel", "kv-row"] {
         assert!(
             names.contains(must_find),
             "walker regression: rsx must surface `{must_find}` as a class token"

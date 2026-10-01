@@ -125,7 +125,7 @@ fn embedded_css_is_the_stylesheet_with_only_the_faces_swapped() {
     for outside in [
         "var(--font-sans)",
         "var(--font-mono)",
-        ".app-shell",
+        ".app",
         ".log-panel",
         "--r-pill: 999px;",
     ] {

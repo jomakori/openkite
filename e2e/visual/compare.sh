@@ -55,7 +55,16 @@ for baseline in "$BASELINES"/*.png; do
 
   # compare -metric AE prints the pixel count to stderr and returns non-zero
   # when images differ (which is expected). Capture the metric value.
-  diff_pixels=$(compare -metric AE "$baseline" "$fresh" null: 2>&1 || true)
+  #
+  # `-fuzz` so the metric counts *perceptible* differences only. Capturing the
+  # same screen in two environments (a maintainer's in-cluster pod vs the GitHub
+  # runner) rasterises text slightly differently: measured 2026-09-30 on the
+  # OKT-155 refresh, 142,369 of 480,000 pixels differed by 1-3 levels (invisible)
+  # against 792 by >15, so a raw AE count over a fixed threshold measures the
+  # capture environment, not the UI. With -fuzz 3% the refreshed baselines score
+  # 106-3,726 while stale baselines (shell + route chrome missing) still score
+  # 19,241-242,306 and fail. The threshold below stays as it is.
+  diff_pixels=$(compare -metric AE -fuzz "${MAX_DIFF_FUZZ:-3%}" "$baseline" "$fresh" null: 2>&1 || true)
 
   # Strip any non-numeric suffixes (compare sometimes outputs "1024 (0.001)")
   diff_pixels=$(echo "$diff_pixels" | grep -oE '^[0-9]+' || echo "0")
