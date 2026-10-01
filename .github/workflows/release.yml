@@ -248,7 +248,8 @@ jobs:
     # inputs, so this needs no release to exist.
     needs: [analyze, locate]
     if: needs.analyze.outputs.new_release_published == 'true' && inputs.dry_run != 'true'
-    timeout-minutes: 15
+    # A registry-side retag, not a build: seconds when it works at all.
+    timeout-minutes: 10
     permissions:
       contents: read
       packages: write
@@ -302,7 +303,10 @@ jobs:
       needs.analyze.outputs.new_release_published == 'true' &&
       inputs.dry_run != 'true' &&
       needs.image.outputs.promoted != 'true'
-    timeout-minutes: 45
+    # Native arm64 with the manifests-keyed dependency layer: the compile that
+    # needed 34+ minutes under QEMU on amd64 finishes in single digits here, so a
+    # build that overruns this is hung, not slow.
+    timeout-minutes: 15
     permissions:
       contents: read
       packages: write
