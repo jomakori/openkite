@@ -164,7 +164,7 @@ fn LogsTab() -> Element {
         div { style: "display: flex; flex-direction: column; gap: 8px;",
             div { style: "display: flex; gap: 8px; align-items: center;",
                 select {
-                    style: "font: inherit; font-size: 12px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-2); color: var(--fg-0);",
+                    style: "font: inherit; font-size: 12px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-solid); color: var(--fg);",
                     value: "{selected}",
                     oninput: move |e| selected.set(e.value()),
                     for c in containers.iter() {
@@ -185,7 +185,7 @@ fn LogsTab() -> Element {
 #[component]
 fn EventsTab() -> Element {
     rsx! {
-        div { style: "color: var(--fg-2); font-size: 13px; padding: 8px;",
+        div { style: "color: var(--subtle); font-size: 13px; padding: 8px;",
             "Events will be fetched from the cluster and displayed here."
         }
     }
@@ -218,11 +218,11 @@ fn ContainersTab() -> Element {
         table { style: "width: 100%; border-collapse: collapse; font-size: 12px;",
             thead {
                 tr { style: "border-bottom: 1px solid var(--border);",
-                    th { style: "text-align: left; padding: 6px 8px; color: var(--fg-2);", "Name" }
-                    th { style: "text-align: left; padding: 6px 8px; color: var(--fg-2);", "Image" }
-                    th { style: "text-align: left; padding: 6px 8px; color: var(--fg-2);", "State" }
-                    th { style: "text-align: left; padding: 6px 8px; color: var(--fg-2);", "Ready" }
-                    th { style: "text-align: left; padding: 6px 8px; color: var(--fg-2);", "Restarts" }
+                    th { style: "text-align: left; padding: 6px 8px; color: var(--subtle);", "Name" }
+                    th { style: "text-align: left; padding: 6px 8px; color: var(--subtle);", "Image" }
+                    th { style: "text-align: left; padding: 6px 8px; color: var(--subtle);", "State" }
+                    th { style: "text-align: left; padding: 6px 8px; color: var(--subtle);", "Ready" }
+                    th { style: "text-align: left; padding: 6px 8px; color: var(--subtle);", "Restarts" }
                 }
             }
             tbody {

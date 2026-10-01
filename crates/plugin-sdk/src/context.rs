@@ -117,7 +117,7 @@ mod tests {
 
         let _guard = handle.spawn(async { 1 });
 
-        assert_eq!(ctx.theme.get("--bg-0"), None);
+        assert_eq!(ctx.theme.get("--bg"), None);
         assert!(ctx.ui.toast_tx.is_none());
     }
 }

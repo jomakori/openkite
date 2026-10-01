@@ -319,7 +319,7 @@ fn the_cluster_button_carries_the_context_and_its_state() {
         "the button's state line: {html}"
     );
     assert!(
-        html.contains("style=\"background: var(--green)\""),
+        html.contains("style=\"background: var(--success)\""),
         "a connected cluster paints green: {html}"
     );
     assert!(
@@ -391,7 +391,7 @@ fn the_sidebar_footer_renders_a_connected_cluster() {
     assert!(html.contains(">v1.2.3<"), "got: {html}");
     assert!(html.contains("prod · Connected"), "got: {html}");
     assert!(
-        html.contains("style=\"background: var(--green)\""),
+        html.contains("style=\"background: var(--success)\""),
         "the connected dot paints green: {html}"
     );
     assert!(
@@ -407,7 +407,7 @@ fn the_sidebar_footer_renders_a_disconnected_host() {
 
     assert!(html.contains("no cluster · Disconnected"), "got: {html}");
     assert!(
-        html.contains("style=\"background: var(--red)\""),
+        html.contains("style=\"background: var(--danger)\""),
         "the disconnected dot paints red: {html}"
     );
     assert!(

@@ -17,17 +17,18 @@ use crate::theme::{Theme, CSS_VARS};
 
 /// OpenKite var → (opaline token, palette fallback, neutral default).
 const MAPPING: &[(&str, &str, &str, &str)] = &[
-    ("--bg-0", "bg.base", "base", "#f5f7fa"),
-    ("--bg-1", "bg.panel", "panel", "#ffffff"),
-    ("--bg-2", "bg.elevated", "surface1", "#f3f4f6"),
+    ("--bg", "bg.base", "base", "#f5f7fa"),
+    ("--surface", "bg.panel", "panel", "#ffffff"),
+    ("--surface-solid", "bg.elevated", "surface1", "#ffffff"),
     ("--border", "border.unfocused", "overlay0", "#e2e4e9"),
-    ("--fg-0", "text.primary", "text", "#1e2024"),
-    ("--fg-1", "text.secondary", "subtext1", "#383a42"),
-    ("--fg-2", "text.muted", "subtext0", "#6b7280"),
+    ("--fg", "text.primary", "text", "#262c34"),
+    ("--muted", "text.secondary", "subtext1", "#6e7581"),
+    ("--subtle", "text.muted", "subtext0", "#999fa8"),
     ("--accent", "accent.primary", "blue", "#4d8ce8"),
-    ("--green", "success", "green", "#4d9a5e"),
-    ("--yellow", "warning", "yellow", "#c4841d"),
-    ("--red", "error", "red", "#e05252"),
+    ("--progress", "accent.primary", "blue", "#4d8ce8"),
+    ("--success", "success", "green", "#4d9a5e"),
+    ("--warn", "warning", "yellow", "#c4841d"),
+    ("--danger", "error", "red", "#e05252"),
     ("--violet", "accent.tertiary", "mauve", "#8b5cf6"),
     ("--term-black", "bg.base", "black", "#1e2024"),
     ("--term-red", "error", "red", "#e05252"),
@@ -67,7 +68,7 @@ fn bright(theme: &opaline::Theme, var: &str) -> String {
 }
 
 /// Build an OpenKite [`Theme`] from an opaline theme, covering the full
-/// `CSS_VARS` contract (all 28 vars, including derived terminal brights).
+/// `CSS_VARS` contract (all 29 vars, including derived terminal brights).
 pub fn theme_from_opaline(theme: &opaline::Theme) -> Theme {
     let mut out = Theme::new();
     for var in CSS_VARS {

@@ -170,7 +170,7 @@ pub fn Sidebar(
                     path {
                         d: "M12.2 15 16 13l6-4.8M12.9 20 16 13l6.3 5.2",
                         fill: "none",
-                        stroke: "var(--bg-1)",
+                        stroke: "var(--surface)",
                         "stroke-width": "1.8",
                         "stroke-linecap": "round",
                         "stroke-linejoin": "round",
@@ -270,9 +270,9 @@ fn ClusterButton(
 #[component]
 fn ClusterText(cluster: ClusterInfo) -> Element {
     let dot = if cluster.connected {
-        "background: var(--green)"
+        "background: var(--success)"
     } else {
-        "background: var(--red)"
+        "background: var(--danger)"
     };
     rsx! {
         span { class: "status-line",

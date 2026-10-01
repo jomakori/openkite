@@ -8,7 +8,7 @@
   font-family: var(--font-mono);
   font-size: 12px;
   line-height: 1.4;
-  color: var(--fg-0);
+  color: var(--fg);
   background: transparent;
   height: 100%;
 }
@@ -22,8 +22,8 @@
 }
 
 .cm-gutters {
-  background: var(--bg-2);
-  color: var(--fg-2);
+  background: var(--surface-solid);
+  color: var(--subtle);
   border-right: 1px solid var(--border);
 }
 
@@ -33,7 +33,7 @@
 
 .cm-activeLineGutter {
   background: color-mix(in srgb, var(--accent) 12%, transparent);
-  color: var(--fg-0);
+  color: var(--fg);
 }
 
 .cm-content {
@@ -50,12 +50,12 @@
 }
 
 .cm-diagnostic-error {
-  border-left: 2px solid var(--red);
+  border-left: 2px solid var(--danger);
 }
 
 .cm-tooltip {
-  background: var(--bg-1);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
-  color: var(--fg-0);
+  color: var(--fg);
 }
