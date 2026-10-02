@@ -40,6 +40,17 @@ pub fn set(theme: TitleBarTheme) {
     apply(theme);
 }
 
+/// Apply the shared palette's decoration-theme choice.
+pub fn set_choice(choice: openkite_ui::components::palette::TitleBarTheme) {
+    use openkite_ui::components::palette::TitleBarTheme as Choice;
+
+    set(match choice {
+        Choice::System => TitleBarTheme::System,
+        Choice::Light => TitleBarTheme::Light,
+        Choice::Dark => TitleBarTheme::Dark,
+    });
+}
+
 /// Build dioxus-desktop's window with the same defaults it installs itself
 /// (title from the Dioxus CLI config, debug-mode always-on-top) plus the
 /// requested decoration theme. Startup only.

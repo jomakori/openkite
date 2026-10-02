@@ -50,6 +50,29 @@ pub fn reset_logs_buffer() {
 /// a global so the controller survives the viewer's mount/unmount lifecycle.
 pub static LOGS_CONTAINER: GlobalSignal<String> = Signal::global(String::new);
 
+/// The active cluster context name, published by the host on connect and read
+/// by the status footer and the cluster switcher.
+pub static CONTEXT: GlobalSignal<Option<String>> = Signal::global(|| None);
+
+/// All kubeconfig context names, published by the host at boot. The cluster
+/// switcher renders from it.
+pub static CONTEXTS: GlobalSignal<Vec<String>> = Signal::global(Vec::new);
+
+/// Publish the active context name (or `None` when disconnected).
+pub fn set_context(name: Option<String>) {
+    *CONTEXT.write() = name;
+}
+
+/// Publish the kubeconfig context list.
+pub fn set_contexts(names: Vec<String>) {
+    *CONTEXTS.write() = names;
+}
+
+/// The current context name, if a kubeconfig is loaded.
+pub fn context_name() -> Option<String> {
+    CONTEXT.read().clone()
+}
+
 /// Whether the viewer is in follow-tail mode. Same rationale as
 /// [`LOGS_CONTAINER`]: a global so the host-side stream controller can
 /// pause/resume without owning the Dioxus component tree.

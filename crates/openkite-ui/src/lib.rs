@@ -14,6 +14,7 @@
 pub mod assets;
 pub mod components;
 pub mod design;
+pub mod fuzzy;
 pub mod plugin_api;
 pub mod runtime;
 pub mod secrets;

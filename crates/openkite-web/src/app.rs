@@ -17,9 +17,11 @@
 use dioxus::prelude::*;
 
 use openkite_api::capability::{Capabilities, GatewayKind};
+use openkite_ui::components::palette::{CommandPalette, PaletteHost, PaletteKeybind};
 use openkite_ui::components::route_views::RouteView;
 use openkite_ui::components::shell::{AppShell, ClusterInfo, ShellIcon, TopBarAction};
 use openkite_ui::components::status_badge::{StatusKind, StatusPill};
+use openkite_ui::components::switcher::{ClusterSwitcher, SwitcherKeybind};
 use openkite_ui::plugin_api::RegistrationStore;
 use openkite_ui::shell::{sidebar_model, status_bar_model, ShellState};
 
@@ -107,6 +109,15 @@ pub fn App(props: AppProps) -> Element {
         StatusKind::Failed
     };
 
+    // The page has no client router, so a palette navigation is a document
+    // load — the same thing a sidebar link does. Everything else the palette
+    // could offer stays unwired: this host has no theme store, no CRUD overlay
+    // and no cluster registry, and the crate does not list commands a host
+    // cannot run.
+    let palette_host = PaletteHost::navigation(EventHandler::new(|path: &'static str| {
+        let _ = document::eval(&format!("window.location.assign({path:?});"));
+    }));
+
     // The sidebar's cluster button: the context this host serves, read-only
     // because a server-side gateway has no context list to switch between.
     let cluster = ClusterInfo {
@@ -131,6 +142,13 @@ pub fn App(props: AppProps) -> Element {
             status: status_entries,
             actions,
             "data-surface": "app",
+            // The crate's overlays, the same ones the desktop mounts: the
+            // palette on this host's single hook (a navigation is a document
+            // load) and the switcher, which has no contexts to list here.
+            PaletteKeybind {}
+            SwitcherKeybind {}
+            ClusterSwitcher {}
+            CommandPalette { host: palette_host }
             // The route chrome the desktop mounts too (OKT-155). This host
             // serves one route — `GET /` and every path the bundle has no file
             // for both render this document — and the snapshot panels below are

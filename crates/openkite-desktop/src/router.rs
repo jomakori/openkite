@@ -47,6 +47,11 @@
 //! the design's head, toolbar and declared empty/unsupported states from one
 //! crate, and this host supplies only the route it resolved and the handlers
 //! for the actions it can honour.
+//!
+//! The command palette and the cluster switcher overlays are crate-rendered
+//! (`openkite_ui::components::{palette,switcher}`): this host mounts them in
+//! the crate's frame and supplies the host half — navigation, theme cycling,
+//! the OS chrome and the cluster connect — through their props.
 
 #![allow(non_snake_case)]
 
@@ -65,12 +70,12 @@ use openkite_plugin_sdk::SidebarSection;
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
-use crate::palette::{CommandPalette, PaletteKeybind};
-use crate::switcher::{ClusterSwitcher, SwitcherKeybind};
+use openkite_ui::components::palette::{CommandPalette, PaletteHost, PaletteKeybind};
 use openkite_ui::components::route_views::RouteView;
 use openkite_ui::components::shell::{
     AppShell as ShellFrame, ClusterInfo, ShellIcon, TopBarAction,
 };
+use openkite_ui::components::switcher::{ClusterSwitcher, SwitcherKeybind};
 
 /// Plugin sidebar sections (static Rust SDK plugins), populated at startup.
 static PLUGIN_SECTIONS: GlobalSignal<Vec<SidebarSection>> = Signal::global(Vec::new);
@@ -262,6 +267,24 @@ fn AppShell() -> Element {
     // URL path, which is the same vocabulary the entries carry.
     let current_route = use_route::<Route>().to_string();
 
+    // The desktop answers every palette action: it owns the router, the theme
+    // store and the OS chrome. The crate registers only the commands whose
+    // hook exists and gates the OS-chrome entries on the descriptor published
+    // at boot.
+    let palette_host = PaletteHost {
+        navigate: Some(EventHandler::new(move |path: &'static str| {
+            nav.push(route_from_path(path));
+        })),
+        cycle_theme: Some(EventHandler::new(move |()| cycle_theme())),
+        toggle_menu_bar: crate::menubar::hideable()
+            .then_some(EventHandler::new(move |()| crate::menubar::toggle())),
+        set_title_bar_theme: crate::titlebar::overridable()
+            .then_some(EventHandler::new(crate::titlebar::set_choice)),
+        new_resource: Some(EventHandler::new(move |kind: &'static str| {
+            crate::runtime::open_new_for(kind.to_string());
+        })),
+    };
+
     // The top bar's action row: what this host can actually honour — the
     // command palette it binds to Ctrl+P and the settings route it serves.
     let actions = vec![
@@ -269,7 +292,7 @@ fn AppShell() -> Element {
             icon: ShellIcon::Search,
             label: "Command palette".into(),
             on_click: EventHandler::new(|_| {
-                *crate::palette::PALETTE_OPEN.write() = true;
+                *openkite_ui::components::palette::PALETTE_OPEN.write() = true;
             }),
         },
         TopBarAction {
@@ -292,7 +315,7 @@ fn AppShell() -> Element {
                 nav.push(route_from_path(&route));
             })),
             on_switch_cluster: Some(EventHandler::new(|_| {
-                *crate::switcher::SWITCHER_OPEN.write() = true;
+                *openkite_ui::components::switcher::SWITCHER_OPEN.write() = true;
             })),
             // Host-only chrome: the key listeners and the overlays they drive.
             // The crate frame renders it when the host advertises native
@@ -301,12 +324,39 @@ fn AppShell() -> Element {
             chrome: rsx! {
                 SwitcherKeybind {}
                 PaletteKeybind {}
-                ClusterSwitcher {}
-                CommandPalette {}
+                ClusterSwitcher { on_switch: move |context: String| crate::cluster::switch_to(context) }
+                CommandPalette {
+                    host: palette_host,
+                    title_bar_effective: crate::titlebar::effective_label().map(str::to_string),
+                }
             },
             Outlet::<Route> {}
         }
     }
+}
+
+/// Cycle to the next opaline theme: resolve it, apply the CSS variables, and
+/// persist the choice. The persisted `OpenKiteConfig.theme` is the source of
+/// truth across reloads; the eval covers the window until then.
+fn cycle_theme() {
+    let mut config = crate::config::OpenKiteConfig::load();
+    let current = config.theme.as_deref().unwrap_or("default");
+    let catalog = crate::theme_catalog::catalog();
+    let next = catalog
+        .iter()
+        .position(|t| crate::theme_catalog::matches_current(&t.id, current))
+        .map(|i| (i + 1) % catalog.len())
+        .and_then(|i| catalog.get(i).map(|t| t.id.clone()))
+        .unwrap_or_else(|| "default".to_string());
+    let resolved = crate::theme::resolve(Some(&next));
+    let css = resolved.to_css_vars();
+    let source = format!(
+        r#"document.documentElement.style.cssText = {css_json};"#,
+        css_json = serde_json::to_string(&css).unwrap_or_else(|_| "\"\"".into()),
+    );
+    let _ = document::eval(&source);
+    config.theme = Some(next);
+    let _ = config.save();
 }
 
 /// The sidebar the crate shell renders: the desktop's core navigation (the
@@ -489,7 +539,7 @@ fn route_view(route: &'static str) -> Element {
             // the in-process gateway.
             "new-pod" => openkite_ui::runtime::open_new_for("Pod".into()),
             "new-config-map" => openkite_ui::runtime::open_new_for("ConfigMap".into()),
-            "switch-context" => *crate::switcher::SWITCHER_OPEN.write() = true,
+            "switch-context" => *openkite_ui::components::switcher::SWITCHER_OPEN.write() = true,
             other => tracing::warn!(action = other, "route chrome action not wired"),
         }
     });

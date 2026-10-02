@@ -153,7 +153,7 @@ a local `cargo build`.
 | `toast.gif` | Toast acknowledgement (*Resources refreshed*) | refresh → toast → auto-dismiss |
 | `table-controls.gif` | Sortable header + compact-density toggles | header/density clicks |
 | `log-dock.gif` | Inline log dock | pause / collapse / clear clicks |
-| `command-palette.gif` | Native command palette over the console | `ctrl+p` open → filter → Escape |
+| `command-palette.gif` | Command palette over the console (crate-rendered) | `ctrl+p` open → filter → Escape |
 | `native-menu-bar-{shown,hidden}.png` | OS menu-bar visibility (OKT-99) | palette action |
 | `titlebar-{system,light,dark}.png` | OS decoration theme (OKT-100) | palette action |
 
