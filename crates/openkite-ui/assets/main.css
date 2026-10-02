@@ -853,7 +853,11 @@ body {
   transform: translateX(100%);
   transition: transform 0.2s ease;
   display: flex; flex-direction: column;
-  z-index: 50;
+  /* Above the scrim (65) and above the toast's old stop: the reference's own
+     ladder is 65 scrim / 70 inspector / 90 toast, and the sheet has to sit on
+     top of its scrim or the ≤767px sheet is covered by its own backdrop and
+     cannot be closed. */
+  z-index: 70;
   box-sizing: border-box;
 }
 .inspector.open { transform: translateX(0); }
@@ -915,7 +919,9 @@ body {
   font-size: 13px;
   opacity: 0;
   transition: opacity 0.2s ease;
-  z-index: 60;
+  /* The reference's toast stop, above the inspector (70) so a toast is never
+     hidden behind an open pane. */
+  z-index: 90;
   pointer-events: none;
   box-sizing: border-box;
 }
@@ -974,6 +980,9 @@ body {
   }
   .inspector-scrim.show { display: block; }
   .inspector-resize { display: none; }
+  /* The reference narrows the pane's label column on touch so the value keeps
+     room on a full-width sheet. */
+  .kv-row { grid-template-columns: 110px 1fr; }
   .panel { padding: 12px; }
   .toast { bottom: 16px; max-width: calc(100% - 32px); }
 }

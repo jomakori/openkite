@@ -32,6 +32,30 @@
 //! At ≤767px the stylesheet turns the pane into the reference's full-width
 //! bottom sheet and the `.inspector-scrim` becomes visible; above that width
 //! the scrim stays inert so clicking another row still replaces the content.
+//!
+//! # What is wired, and what is still owed
+//!
+//! The row-selection path is [`toggle_resource_row`], which a host wires to
+//! `ResourceTable::on_row_click`: a second click on the same row clears the
+//! slot, a click on another row overwrites it, and the shell
+//! ([`crate::components::shell::AppShell`]) mounts the pane once so both hosts
+//! paint it at the same stop for every kind without a per-host copy.
+//!
+//! Three acceptance clauses depend on surfaces outside this ticket, and this
+//! module does not pretend otherwise:
+//!
+//! - **A click in a served app** needs the inventory list that supplies the
+//!   rows (ticket T5, pod inventory). Until that lands the row click is proven
+//!   by the crate's mount tests, not by a click in a running app.
+//! - **The interactive behaviours** (resize + persisted width, Escape,
+//!   backdrop, Tab trap, URL sync) ride `document::eval`, so they run only on a
+//!   host with a Dioxus client. The browser host still serves
+//!   `RenderOptions::ssr_only()` and emits no client script; the desktop
+//!   webview runs them.
+//! - **The pane's own actions** render disabled until a host passes
+//!   `on_action`. The reference mockup ships them inert as well — its
+//!   `.inspector-actions` buttons are `data-toast` stubs — so an inert action
+//!   is the reference's own state, not a regression introduced here.
 
 #![allow(dead_code)]
 #![allow(non_snake_case)]

@@ -236,3 +236,79 @@ fn the_selection_paints_the_resource_detail_pane() {
 fn unselected_snapshot() -> Snapshot {
     Snapshot::default()
 }
+
+/// The stylesheet with `/* … */` comments removed, so a rule block can be read
+/// without a preceding comment's prose matching first.
+fn uncommented(css: &str) -> String {
+    let mut out = String::with_capacity(css.len());
+    let mut rest = css;
+    while let Some(start) = rest.find("/*") {
+        out.push_str(&rest[..start]);
+        match rest[start + 2..].find("*/") {
+            Some(end) => rest = &rest[start + 2 + end + 2..],
+            None => return out,
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+/// The value of one declaration inside a selector's rule block.
+fn declaration(css: &str, selector: &str, property: &str) -> Option<String> {
+    let needle = format!("{selector} {{");
+    let start = css.find(&needle)?;
+    let open = start + needle.len();
+    let end = css[open..].find('}')? + open;
+    let block = &css[open..end];
+    let at = block.find(property)? + property.len();
+    let value: String = block[at..]
+        .trim_start_matches(|c: char| c.is_whitespace() || c == ':')
+        .chars()
+        .take_while(|c| !c.is_whitespace() && *c != ';')
+        .collect();
+    Some(value)
+}
+
+/// The ≤767px sheet is dismissed by tapping its scrim, so the pane has to sit
+/// **above** the scrim. The reference's ladder is 65 scrim / 70 pane; this
+/// contract fails if the pane is ever given a lower stop, which would cover
+/// the bottom sheet with its own backdrop and leave the × unreachable.
+#[test]
+fn the_scrim_sits_under_the_pane_it_dismisses() {
+    let css = uncommented(&stylesheet());
+    let scrim: i64 = declaration(&css, ".inspector-scrim", "z-index")
+        .expect(".inspector-scrim must declare a z-index")
+        .parse()
+        .expect("scrim z-index is a number");
+    let pane: i64 = declaration(&css, ".inspector", "z-index")
+        .expect(".inspector must declare a z-index")
+        .parse()
+        .expect("pane z-index is a number");
+    assert!(
+        scrim < pane,
+        "the scrim (z-index {scrim}) must sit under the pane (z-index {pane}), \
+         or the ≤767px sheet is covered by its own backdrop and cannot close"
+    );
+}
+
+/// The ≤767px sheet keeps the reference's own rules: the scrim comes alive,
+/// the drag handle is hidden, and the kv label column narrows so the value
+/// keeps room on a full-width sheet.
+#[test]
+fn the_mobile_sheet_keeps_the_reference_rules() {
+    let css = uncommented(&stylesheet());
+    let at = css
+        .find("@media (max-width: 767px)")
+        .expect("the ≤767px block");
+    let mobile = &css[at..];
+    for rule in [
+        ".inspector-scrim.show { display: block; }",
+        ".inspector-resize { display: none; }",
+        ".kv-row { grid-template-columns: 110px 1fr; }",
+    ] {
+        assert!(
+            mobile.contains(rule),
+            "the ≤767px sheet is missing `{rule}`"
+        );
+    }
+}
