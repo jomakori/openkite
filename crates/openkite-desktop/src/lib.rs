@@ -37,7 +37,6 @@ pub mod switcher;
 pub mod terminal;
 pub mod titlebar;
 pub mod version;
-pub mod views;
 pub mod workloads;
 
 /// Bootstrap OpenKite: load config, plugins, and kubeconfig, then launch the UI.

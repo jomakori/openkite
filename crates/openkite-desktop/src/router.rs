@@ -13,17 +13,22 @@
 //! the crate frame as its chrome slot, so a host that cannot provide them
 //! renders the crate's explicit stand-in instead.
 //!
-//! Native RSX surfaces kept on purpose:
+//! Surfaces the desktop mounts:
 //!
 //! - [`Route::Logs`] → `openkite_ui::components::logs::LogsView` — the
 //!   crate-rendered viewer reads the shared `LOGS_BUFFER`; the desktop host
 //!   streams the pod's kube log into that buffer (see [`Logs`]).
-//! - [`Route::Terminal`] → [`crate::views::terminal::TerminalView`] —
-//!   xterm.js host + pod/container picker + reconnect state machine, on
-//!   top of the vendored bundle in `openkite-ui/assets/vendored/xterm/`.
-//!   The exec transport is deferred (Phase 1); the view renders the typed
-//!   input and surfaces the bridge-pending hint. No crate-rendered
-//!   replacement exists.
+//! - [`Route::Terminal`] → `openkite_ui::components::terminal::TerminalView`
+//!   — the crate renders the xterm.js host + pod/container picker +
+//!   reconnect state machine on top of the vendored bundle in
+//!   `openkite-ui/assets/vendored/xterm/`, and consults the host
+//!   capability descriptor before rendering it at all. The exec transport
+//!   is deferred (Phase 1); the view renders the typed input and surfaces
+//!   the bridge-pending hint.
+//! - [`PodDetail`] slide-over (mounted inside [`AppShell`]) — the
+//!   5-tab inspector (Overview / Logs / Events / YAML / Containers) from
+//!   `openkite_ui::components::pod_detail`, driven by the owned
+//!   `SELECTED_POD` contract.
 //! - [`Route::Plugin`] wildcard → `openkite_ui::components::route_views::
 //!   PluginRouteView` around [`JsRouteEvaluator`] — the crate renders the
 //!   route's chrome, its mount node and its capability declaration (OKT-156);
@@ -32,14 +37,16 @@
 //!   tables. An SDK route (`ROUTE_TABLE`) still mounts the plugin's own view:
 //!   that view is the plugin's chrome, not the console's.
 //!
-//! After OKT-137 the rich console lives only in `crates/openkite-web` (SSR +
-//! wasm hydration in the browser image). The four primary routes
-//! ([`Route::Home`], [`Route::Cluster`], [`Route::Workloads`],
-//! [`Route::Config`]) render the crate's route chrome (OKT-155) —
-//! `openkite_ui::components::route_views` — so both hosts paint the design's
-//! head, toolbar and declared empty/unsupported states from one crate, and
-//! this host supplies only the route it resolved and the handlers for the
-//! actions it can honour.
+//! After OKT-137 the console lives only in `crates/openkite-web` (SSR +
+//! wasm hydration in the browser image); the desktop mounts the crate
+//! surfaces above and keeps the host-side plumbing (the kube log stream, the
+//! exec bridge), while the routes the browser console serves render a
+//! placeholder. The four primary routes ([`Route::Home`], [`Route::Cluster`],
+//! [`Route::Workloads`], [`Route::Config`]) render the crate's route chrome
+//! (OKT-155) — `openkite_ui::components::route_views` — so both hosts paint
+//! the design's head, toolbar and declared empty/unsupported states from one
+//! crate, and this host supplies only the route it resolved and the handlers
+//! for the actions it can honour.
 
 #![allow(non_snake_case)]
 
@@ -605,10 +612,7 @@ fn Logs() -> Element {
 
 #[component]
 fn Terminal() -> Element {
-    if !openkite_ui::runtime::terminal_can_render() {
-        return rsx! { crate::views::terminal::TerminalUnsupported {} };
-    }
-    rsx! { crate::views::terminal::TerminalView {} }
+    rsx! { openkite_ui::components::terminal::TerminalView {} }
 }
 
 #[component]
