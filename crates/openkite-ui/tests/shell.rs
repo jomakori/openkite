@@ -59,7 +59,13 @@ fn sidebar_orders_core_then_registered_plugins() {
             .iter()
             .map(|section| section.label.as_str())
             .collect::<Vec<_>>(),
-        vec!["Cluster", "Workloads", "Config & Storage", "argocd", "istio"]
+        vec![
+            "Cluster",
+            "Workloads",
+            "Config & Storage",
+            "argocd",
+            "istio"
+        ]
     );
 
     let plugins = plugin_sections(&store);
