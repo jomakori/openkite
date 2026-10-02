@@ -54,11 +54,11 @@ fn mapped_theme_covers_the_full_contract() {
 #[test]
 fn catppuccin_mocha_resolves_known_hexes() {
     let theme = load_and_map("catppuccin-mocha").unwrap();
-    assert_eq!(theme.get("--bg-0"), Some("#11111b"));
+    assert_eq!(theme.get("--bg"), Some("#11111b"));
     assert_eq!(theme.get("--accent"), Some("#cba6f7"));
-    assert_eq!(theme.get("--green"), Some("#a6e3a1"));
-    assert_eq!(theme.get("--red"), Some("#f38ba8"));
-    assert_eq!(theme.get("--fg-0"), Some("#cdd6f4"));
+    assert_eq!(theme.get("--success"), Some("#a6e3a1"));
+    assert_eq!(theme.get("--danger"), Some("#f38ba8"));
+    assert_eq!(theme.get("--fg"), Some("#cdd6f4"));
 }
 
 #[test]
@@ -86,8 +86,8 @@ fn bright_terminal_variants_are_lightened() {
 fn light_themes_produce_light_backgrounds() {
     let dark = load_and_map("catppuccin-mocha").unwrap();
     let light = load_and_map("github-light").unwrap();
-    let dark_bg = hex_luminance(dark.get("--bg-0").unwrap());
-    let light_bg = hex_luminance(light.get("--bg-0").unwrap());
+    let dark_bg = hex_luminance(dark.get("--bg").unwrap());
+    let light_bg = hex_luminance(light.get("--bg").unwrap());
     assert!(light_bg > dark_bg, "light theme bg must be lighter");
 }
 
@@ -100,6 +100,6 @@ fn hex_luminance(hex: &str) -> u32 {
 fn to_css_vars_serializes_opaline_mapping() {
     let theme = theme_from_opaline(&load_opaline("catppuccin-mocha").unwrap());
     let css = theme.to_css_vars();
-    assert!(css.contains("--bg-0: #11111b;"));
+    assert!(css.contains("--bg: #11111b;"));
     assert!(css.contains("--accent: #cba6f7;"));
 }

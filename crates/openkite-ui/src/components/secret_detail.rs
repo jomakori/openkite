@@ -83,7 +83,7 @@ fn ConfirmRevealAll(
                 }
                 div { class: "modal-body",
                     p { "Type the secret's name to reveal every value at once." }
-                    p { style: "color: var(--fg-2); font-size: 12px;",
+                    p { style: "color: var(--subtle); font-size: 12px;",
                         "Type \"{secret_name}\" to confirm."
                     }
                     input {

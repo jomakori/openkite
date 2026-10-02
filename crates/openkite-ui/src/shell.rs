@@ -348,12 +348,12 @@ pub fn status_dot_color(color: &str) -> String {
     let trimmed = color.trim();
     let lower = trimmed.to_ascii_lowercase();
     match lower.as_str() {
-        "green" | "ok" | "healthy" => "var(--green)".into(),
-        "yellow" | "warn" | "progressing" => "var(--yellow)".into(),
-        "red" | "error" | "critical" => "var(--red)".into(),
+        "green" | "ok" | "healthy" => "var(--success)".into(),
+        "yellow" | "warn" | "progressing" => "var(--warn)".into(),
+        "red" | "error" | "critical" => "var(--danger)".into(),
         "blue" | "info" => "var(--accent)".into(),
         other if is_css_color(other) => other.to_string(),
-        _ => "var(--fg-2)".into(),
+        _ => "var(--subtle)".into(),
     }
 }
 
@@ -543,7 +543,7 @@ mod tests {
         ];
         let rows = status_rows(&entries);
         assert_eq!(rows[0].0, "prod · Connected");
-        assert_eq!(rows[0].1, "background: var(--green)");
+        assert_eq!(rows[0].1, "background: var(--success)");
         assert_eq!(rows[1].0, "v0.0.0");
         assert_eq!(rows[1].1, "display: none");
     }
@@ -568,9 +568,9 @@ mod tests {
 
     #[test]
     fn status_dot_color_maps_keywords_and_plain_colors() {
-        assert_eq!(status_dot_color("green"), "var(--green)");
-        assert_eq!(status_dot_color(" Healthy "), "var(--green)");
-        assert_eq!(status_dot_color("error"), "var(--red)");
+        assert_eq!(status_dot_color("green"), "var(--success)");
+        assert_eq!(status_dot_color(" Healthy "), "var(--success)");
+        assert_eq!(status_dot_color("error"), "var(--danger)");
         assert_eq!(status_dot_color("BLUE"), "var(--accent)");
         assert_eq!(status_dot_color("#0d9488"), "#0d9488");
         assert_eq!(status_dot_color("rgb(13,148,136)"), "rgb(13,148,136)");
@@ -579,13 +579,16 @@ mod tests {
 
     #[test]
     fn status_dot_color_rejects_non_color_strings() {
-        assert_eq!(status_dot_color(""), "var(--fg-2)");
-        assert_eq!(status_dot_color("orange"), "var(--fg-2)");
-        assert_eq!(status_dot_color("red;} *{display:none"), "var(--fg-2)");
-        assert_eq!(status_dot_color("url(https://evil.test/x)"), "var(--fg-2)");
+        assert_eq!(status_dot_color(""), "var(--subtle)");
+        assert_eq!(status_dot_color("orange"), "var(--subtle)");
+        assert_eq!(status_dot_color("red;} *{display:none"), "var(--subtle)");
         assert_eq!(
-            status_dot_color("var(--green)\",background:url(a)"),
-            "var(--fg-2)"
+            status_dot_color("url(https://evil.test/x)"),
+            "var(--subtle)"
+        );
+        assert_eq!(
+            status_dot_color("var(--success)\",background:url(a)"),
+            "var(--subtle)"
         );
     }
 

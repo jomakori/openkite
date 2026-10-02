@@ -33,16 +33,18 @@ It lives in two places:
 
 ### Already shipped (opaline-mapped, do not redeclare)
 
-From `src/theme_opaline.rs:19-41` and `src/theme.rs:18-47`:
-`--bg-0`, `--bg-1`, `--bg-2`, `--border`, `--fg-0`, `--fg-1`, `--fg-2`,
-`--accent`, `--green`, `--yellow`, `--red`, `--violet`, and the full
-`--term-*` / `--term-bright-*` set.
+From `src/theme_opaline.rs:19-42` and `src/theme.rs:18-49`:
+`--bg`, `--surface`, `--surface-solid`, `--border`, `--fg`, `--muted`, `--subtle`,
+`--accent`, `--progress`, `--success`, `--warn`, `--danger`, `--violet`, and the
+full `--term-*` / `--term-bright-*` set.
 
-### Design-system additions (12 new custom properties)
+### Design-system additions (custom properties the theme engine does not carry)
 
 | Group       | Properties                                                                 |
 |-------------|----------------------------------------------------------------------------|
 | Brand       | `--brand` (kite teal), `--argo` (ArgoCD orange), `--on-accent` (text on fills) |
+| Terminal    | `--terminal-bg`, `--terminal-fg` (the opaque log surfaces)                 |
+| Log levels  | `--log-info`, `--log-method`, `--log-error`                                |
 | Fonts       | `--font-sans`, `--font-mono` (vendored IBM Plex, then the system stack)   |
 | Elevation   | `--shadow-rest`, `--shadow-hover`, `--shadow-terminal`                    |
 | Radii       | `--r-sm` (6px), `--r-md` (8px), `--r-pill` (999px)                        |
@@ -73,7 +75,7 @@ The faces reach each host differently, because only one of them has an origin:
 | `.pill` + semantic variants  | `.success`, `.warn`, `.danger`, `.muted` status badges      |
 | `.table-wrap`                | Horizontal-scroll wrapper for tabular content               |
 | `.resource-name` (+ `.icon`) | Icon + mono-font name cell                                  |
-| `.log-panel` (+ 7 children)  | Opaque terminal anchor (`var(--term-bg)`)                   |
+| `.log-panel` (+ 7 children)  | Opaque terminal anchor (`var(--terminal-bg)`)               |
 | `.inspector` (+ 5 children)  | Slide-over panel (420px, right-anchored)                    |
 | `.toast` + `.toast.show`     | Bottom-anchored notification (340px max-width)              |
 | `.health-dots` + `.dot`      | Inline-cell semantic dots (`.ok`, `.warn`, `.err`)          |

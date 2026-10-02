@@ -4,9 +4,11 @@
 //! required custom property and primitive class is present. Catches:
 //!
 //! - A missing class rule (someone deleted `.panel` from `main.css`).
-//! - A token renamed in CSS but not in the Rust constant table, or vice versa.
+//! - A token renamed in CSS but not in the Rust constant table, or vice versa
+//!   (`root_declares_only_the_theme_contract_and_the_design_system_properties`
+//!   pins the two layers to the same name set).
 //! - An accidental re-declaration of an opaline-mapped variable (the
-//!   "exactly 12 new properties" check).
+//!   "declared exactly once" checks).
 //! - The file accidentally broken by a partial push (the `include_str!`
 //!   fails at compile time).
 //!
@@ -18,12 +20,17 @@
 /// The shipped stylesheet, embedded at compile time.
 const STYLESHEET: &str = openkite_ui::MAIN_CSS;
 
-/// The 12 new custom properties the design system adds on top of the
-/// opaline-mapped theme contract.
+/// Custom properties the design-system `:root` declares that the opaline
+/// theme engine does not carry.
 const REQUIRED_PROPERTIES: &[&str] = &[
     "--brand",
     "--argo",
     "--on-accent",
+    "--terminal-bg",
+    "--terminal-fg",
+    "--log-info",
+    "--log-method",
+    "--log-error",
     "--font-sans",
     "--font-mono",
     "--shadow-rest",
@@ -131,8 +138,19 @@ const REQUIRED_CLASSES: &[&str] = &[
 /// Properties the opaline theme contract already provides — must not be
 /// re-declared by the design-system `:root` block.
 const PRE_EXISTING_PROPERTIES: &[&str] = &[
-    "--bg-0", "--bg-1", "--bg-2", "--border", "--fg-0", "--fg-1", "--fg-2", "--accent", "--green",
-    "--yellow", "--red", "--violet",
+    "--bg",
+    "--surface",
+    "--surface-solid",
+    "--border",
+    "--fg",
+    "--muted",
+    "--subtle",
+    "--accent",
+    "--progress",
+    "--success",
+    "--warn",
+    "--danger",
+    "--violet",
 ];
 
 #[test]
@@ -169,7 +187,7 @@ fn pre_existing_theme_properties_are_not_redeclared() {
 }
 
 #[test]
-fn design_system_adds_exactly_twelve_new_properties() {
+fn design_system_adds_each_new_property_exactly_once() {
     for name in REQUIRED_PROPERTIES {
         let needle = format!("{name}:");
         let count = STYLESHEET.matches(&needle).count();
@@ -178,6 +196,46 @@ fn design_system_adds_exactly_twelve_new_properties() {
             "design-system property `{name}` is declared {count} times (expected exactly 1)"
         );
     }
+}
+
+/// The custom-property names the stylesheet's `:root` block declares.
+fn declared_root_properties() -> Vec<String> {
+    let css = strip_css_comments(STYLESHEET);
+    let (_, rest) = css.split_once(":root {").expect("main.css declares :root");
+    let (block, _) = rest.split_once('}').expect("the :root block is closed");
+    let mut names = Vec::new();
+    let mut cursor = block;
+    while let Some(at) = cursor.find("--") {
+        cursor = &cursor[at..];
+        let end = cursor
+            .find(|c: char| !(c.is_ascii_alphanumeric() || c == '-'))
+            .unwrap_or(cursor.len());
+        if cursor[end..].starts_with(':') {
+            names.push(cursor[..end].to_string());
+        }
+        cursor = &cursor[end..];
+    }
+    names
+}
+
+#[test]
+fn root_declares_only_the_theme_contract_and_the_design_system_properties() {
+    let mut declared = declared_root_properties();
+    declared.sort();
+    declared.dedup();
+
+    let mut expected: Vec<String> = openkite_ui::theme::CSS_VARS
+        .iter()
+        .map(|v| (*v).to_string())
+        .collect();
+    expected.extend(REQUIRED_PROPERTIES.iter().map(|v| (*v).to_string()));
+    expected.sort();
+
+    assert_eq!(
+        declared, expected,
+        "assets/main.css :root and the crate's token tables disagree — a name \
+         exists in one layer but not the other"
+    );
 }
 
 #[test]
@@ -219,8 +277,8 @@ fn log_panel_is_the_only_opaque_surface() {
         .next()
         .expect(".log-panel block has a closing brace");
     assert!(
-        log_panel_body.contains("var(--term-bg)"),
-        ".log-panel must use the opaque --term-bg, got: {log_panel_body}"
+        log_panel_body.contains("var(--terminal-bg)"),
+        ".log-panel must use the opaque --terminal-bg, got: {log_panel_body}"
     );
 }
 

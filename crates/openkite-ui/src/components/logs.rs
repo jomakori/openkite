@@ -19,7 +19,7 @@ pub fn LogsView() -> Element {
         return rsx! {
             div { class: "log-panel",
                 div { class: "log-body",
-                    span { style: "color: var(--fg-2);",
+                    span { style: "color: var(--subtle);",
                         "Select a pod to view its logs (use the workload list or the inspector)."
                     }
                 }
@@ -130,14 +130,14 @@ pub fn LogsView() -> Element {
         div { style: "display: flex; flex-direction: column; gap: 8px; height: 100%;",
             div { style: "display: flex; gap: 8px; align-items: center;",
                 select {
-                    style: "font: inherit; font-size: 12px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-2); color: var(--fg-0);",
+                    style: "font: inherit; font-size: 12px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-solid); color: var(--fg);",
                     value: "{container}",
                     oninput: move |e| container.set(e.value()),
                     for c in containers.iter() {
                         option { value: "{c}", "{c}" }
                     }
                 }
-                label { style: "font-size: 12px; color: var(--fg-2);",
+                label { style: "font-size: 12px; color: var(--subtle);",
                     input {
                         r#type: "checkbox",
                         checked: follow(),
@@ -168,7 +168,7 @@ pub fn LogsView() -> Element {
             div { class: "log-panel", style: "flex: 1; min-height: 0;",
                 div { class: "log-body",
                     if lines_snapshot.is_empty() {
-                        span { style: "color: var(--fg-2);", "Select a container to view logs." }
+                        span { style: "color: var(--subtle);", "Select a container to view logs." }
                     } else {
                         for (text, cls) in lines_snapshot.iter().cloned() {
                             div { class: "log-line",
