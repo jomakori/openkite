@@ -608,13 +608,13 @@ mod tests {
             vec!["Cluster", "Workloads", "Config & Storage"]
         );
         assert!(sections.iter().all(|section| !section.is_plugin()));
-        let routes = |section: &ShellSection| {
+        fn routes(section: &ShellSection) -> Vec<(&str, &str)> {
             section
                 .items
                 .iter()
                 .map(|item| (item.label.as_str(), item.route.as_str()))
-                .collect::<Vec<_>>()
-        };
+                .collect()
+        }
         assert_eq!(
             routes(&sections[0]),
             vec![("Overview", "/"), ("Nodes", "/cluster")]

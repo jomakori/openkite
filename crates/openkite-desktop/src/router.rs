@@ -359,21 +359,18 @@ fn cycle_theme() {
     let _ = config.save();
 }
 
-/// Count the objects one watched kind contributes in scope, or `None` when the
-/// kind is not being watched at all.
+/// Count one kind's objects in scope, or `None` when the kind is not watched.
 ///
-/// The scope is the console's namespace selection; a cluster-scoped object (a
-/// node) is in no namespace, so a namespace scope never excludes it. An empty
-/// selection means every namespace.
-fn watched_count<T: 'static>(
-    signal: Option<Signal<Vec<Arc<T>>, SyncStorage>>,
+/// A cluster-scoped object (a node) is in no namespace, so a namespace scope
+/// never excludes it; an empty selection means every namespace.
+fn count_in_scope<T>(
+    rows: Option<Vec<Arc<T>>>,
     scope: &[String],
     namespace_of: impl Fn(&T) -> Option<String>,
 ) -> Option<u64> {
-    let rows = signal?;
-    let rows = rows.read();
     Some(
-        rows.iter()
+        rows?
+            .iter()
             .filter(|row| match namespace_of(row) {
                 None => true,
                 Some(namespace) => scope.is_empty() || scope.contains(&namespace),
@@ -395,27 +392,41 @@ fn nav_counts() -> openkite_ui::shell::NavCounts {
 
     let scope = crate::runtime::SELECTED_NAMESPACES.read().clone();
     NavCounts {
-        nodes: watched_count(live::nodes_signal(), &scope, |node| {
-            node.metadata.namespace.clone()
-        }),
-        pods: watched_count(live::pods_signal(), &scope, |pod| {
-            pod.metadata.namespace.clone()
-        }),
-        deployments: watched_count(live::deployments_signal(), &scope, |deploy| {
-            deploy.metadata.namespace.clone()
-        }),
-        services: watched_count(live::services_signal(), &scope, |service| {
-            service.metadata.namespace.clone()
-        }),
-        config_maps: watched_count(live::config_maps_signal(), &scope, |config_map| {
-            config_map.metadata.namespace.clone()
-        }),
-        storage: watched_count(live::persistent_volume_claims_signal(), &scope, |claim| {
-            claim.metadata.namespace.clone()
-        }),
-        network: watched_count(live::ingresses_signal(), &scope, |ingress| {
-            ingress.metadata.namespace.clone()
-        }),
+        nodes: count_in_scope(
+            live::nodes_signal().map(|signal| signal.cloned()),
+            &scope,
+            |node| node.metadata.namespace.clone(),
+        ),
+        pods: count_in_scope(
+            live::pods_signal().map(|signal| signal.cloned()),
+            &scope,
+            |pod| pod.metadata.namespace.clone(),
+        ),
+        deployments: count_in_scope(
+            live::deployments_signal().map(|signal| signal.cloned()),
+            &scope,
+            |deployment| deployment.metadata.namespace.clone(),
+        ),
+        services: count_in_scope(
+            live::services_signal().map(|signal| signal.cloned()),
+            &scope,
+            |service| service.metadata.namespace.clone(),
+        ),
+        config_maps: count_in_scope(
+            live::config_maps_signal().map(|signal| signal.cloned()),
+            &scope,
+            |config_map| config_map.metadata.namespace.clone(),
+        ),
+        storage: count_in_scope(
+            live::persistent_volume_claims_signal().map(|signal| signal.cloned()),
+            &scope,
+            |claim| claim.metadata.namespace.clone(),
+        ),
+        network: count_in_scope(
+            live::ingresses_signal().map(|signal| signal.cloned()),
+            &scope,
+            |ingress| ingress.metadata.namespace.clone(),
+        ),
     }
 }
 
