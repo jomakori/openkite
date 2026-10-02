@@ -65,7 +65,16 @@ against the committed baselines with `compare.sh` (ImageMagick).
 
 A change that alters what a user sees refreshes `visual/baselines/` in the same
 PR: a moved
-baseline is a decision, not an accident.
+baseline is a decision, not an accident. The comparison counts only perceptible
+differences (`-fuzz 3%`): the same screen captured in two environments rasterises
+text slightly differently, so a raw pixel count would fail a correct refresh —
+refresh the baselines when the UI changes, not when the capture host does.
+
+Stills are captured at the app's default window size (800x600), which is inside
+the design's `≤1024px` branch: the sidebar paints as the design's closed drawer
+with the top bar's menu toggle, so these stills cover the top bar and the routed
+surface. The sidebar's own chrome is pinned by `crates/openkite-ui/tests/shell_chrome.rs`
+and by the crate-rendered console still in `docs/media/`.
 
 `visual/cluster/` is the OOM-safe producer — a one-shot Job that builds the app
 in-cluster and

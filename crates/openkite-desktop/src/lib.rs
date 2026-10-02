@@ -34,7 +34,6 @@ pub mod runtime;
 pub mod terminal;
 pub mod titlebar;
 pub mod version;
-pub mod views;
 pub mod workloads;
 
 /// Bootstrap OpenKite: load config, plugins, and kubeconfig, then launch the UI.
@@ -183,7 +182,7 @@ mod tests {
     #[test]
     fn bootstrap_head_carries_shell_css_and_openkite_global() {
         let head = bootstrap_head();
-        assert!(head.contains(".app-shell"));
+        assert!(head.contains(".app {"));
         assert!(head.contains("var(--font-sans)"));
         assert!(head.contains("window.openkite"));
         assert!(head.contains(&format!(

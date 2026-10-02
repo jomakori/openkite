@@ -108,31 +108,38 @@ Dylib loading is experimental and opt-in; WASM is the v2 candidate.
   auto-resolved. This path may be removed if WASM lands.
 - **Web/mobile are not built** — the app is desktop-first (Dioxus desktop +
   WebKitGTK on Linux).
-- **Local shell terminal** (`portable-pty`) and **pod exec** (`kube` `ws`
-  feature) are in progress; the terminal is not yet wired into a view.
+- **Terminal exec transport is not wired yet** (`portable-pty` for a local
+  shell, `kube`'s `ws` feature for pod exec): the terminal surface renders the
+  xterm.js host, captures typed input, and reports the bridge-pending state;
+  the host-side exec channel is Phase 1.
 - **Metrics** require a cluster with `metrics-server` (T1) / Prometheus (T2);
   absence is detected and rendered as a clean empty state.
 
-## Native RSX surfaces (OKT-127)
+## Shared-UI surfaces (OKT-136)
 
-The browser console renders from `crates/openkite-ui` and is served by
-`crates/openkite-web` (SSR + wasm hydration in the preview image — see
-`crates/openkite-web/src/routes.rs::ssr_root`). The native
-RSX surfaces in `crates/openkite-desktop/src/views/` and the plugin
-wildcard route are kept on purpose, because the crate does not yet
-expose an equivalent:
+Every surface renders from `crates/openkite-ui`: the desktop mounts the crate
+components in its wry webview, and the browser host serves the same crate
+through `crates/openkite-web` (SSR + wasm hydration in the preview image — see
+`crates/openkite-web/src/routes.rs::ssr_root`).
 
-| Surface | Path | Reason native |
+| Surface | Crate component | Host-side plumbing |
 | --- | --- | --- |
-| Logs viewer | `src/views/logs.rs` (`Route::Logs`) | `openkite-ui` has no log viewer; the console's `App` only paints capabilities. Retirement would delete a working UI. |
-| Terminal exec | `src/views/terminal.rs` (`Route::Terminal`) | Pod/container picker + xterm.js host + reconnect state machine on top of the vendored bundle. No crate replacement exists; exec transport is deferred to Phase 1. |
-| Pod detail inspector | `src/views/pod_detail.rs` (mounted in `AppShell`) | 5-tab slide-over driven by `SELECTED_POD`; uses `kube::Api::log_stream` and the container-state mapper that no crate view duplicates. |
-| Plugin wildcard | `Route::Plugin` → `Plugin` dispatcher | Rust SDK routes (`ROUTE_TABLE`) + JS plugin renderers (`JsRouteSlot`); plugin routing is a host concern, not a console concern. |
+| Logs viewer (`Route::Logs`) | `components::logs::LogsView` | the desktop host streams the pod's kube log into `runtime::LOGS_BUFFER` |
+| Terminal (`Route::Terminal`) | `components::terminal::TerminalView` | the vendored xterm.js bundle in `crates/openkite-ui/assets/vendored/xterm/`; exec transport deferred to Phase 1 |
+| Pod detail inspector (mounted in `AppShell`) | `components::pod_detail::PodDetail` | driven by `runtime::SELECTED_POD` |
+| Plugin wildcard (`Route::Plugin`) | `components::route_views::PluginRouteView` | The route chrome, the JS mount node and the declaration of the plugin-route capability render from `openkite_ui` (OKT-156); what stays native is the `document::eval` that mounts a JS bundle into the webview, plus the host's own plugin tables (an SDK route's view is the plugin's chrome and mounts as-is). |
 
-The keep-native declaration lives at
-`crates/openkite-desktop/src/router.rs` (module doc + `console_route`)
-and at the top of each view module, so the rationale is visible where
-a reader is most likely to look when deciding to delete a route.
+A surface renders only when the host reports it through the capability
+descriptor (`openkite_api::capability::Capabilities`). `TerminalView` renders
+`TerminalUnsupported` when `runtime::terminal_can_render()` is false — the
+verdict the browser host reports (`Capabilities::server_side`, `terminal:
+false`); the desktop publishes `Capabilities::in_process()` at boot
+(`crates/openkite-desktop/src/lib.rs::run`) and renders all four. The
+desktop-side declaration of the wildcard route lives in the module doc at
+`crates/openkite-desktop/src/router.rs`.
+
+`crates/openkite-desktop/src/views/` no longer exists — the terminal view was
+its last module.
 - **Webview RAM floor** — the WebKitGTK webview carries a ~200 MB baseline per
   window; this is a Dioxus-desktop cost, not app state.
 - **Eval-bridge throughput** — the Dioxus↔JS eval bridge used for the terminal

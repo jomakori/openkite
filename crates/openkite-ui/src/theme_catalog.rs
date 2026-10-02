@@ -28,12 +28,12 @@ pub struct ThemeEntry {
     pub is_default: bool,
 }
 
-/// Preview swatches for a theme row: `(--bg-0, --fg-0, --accent)` hexes.
+/// Preview swatches for a theme row: `(--bg, --fg, --accent)` hexes.
 pub fn swatches(id: &str) -> (String, String, String) {
     match load_and_map(id) {
         Ok(theme) => (
-            theme.get("--bg-0").unwrap_or("#888888").to_string(),
-            theme.get("--fg-0").unwrap_or("#888888").to_string(),
+            theme.get("--bg").unwrap_or("#888888").to_string(),
+            theme.get("--fg").unwrap_or("#888888").to_string(),
             theme.get("--accent").unwrap_or("#888888").to_string(),
         ),
         Err(_) => ("#888888".into(), "#888888".into(), "#888888".into()),

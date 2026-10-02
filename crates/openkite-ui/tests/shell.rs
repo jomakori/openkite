@@ -98,11 +98,11 @@ fn status_bar_omits_the_version_slot_when_the_build_carries_none() {
 
 #[test]
 fn dot_colors_are_safe_css_values() {
-    assert_eq!(status_dot_color("green"), "var(--green)");
-    assert_eq!(status_dot_color("red"), "var(--red)");
+    assert_eq!(status_dot_color("green"), "var(--success)");
+    assert_eq!(status_dot_color("red"), "var(--danger)");
     assert_eq!(status_dot_color("#0d9488"), "#0d9488");
-    assert_eq!(status_dot_color("url(https://evil.test)"), "var(--fg-2)");
-    assert_eq!(status_dot_color("red;} body{display:none"), "var(--fg-2)");
+    assert_eq!(status_dot_color("url(https://evil.test)"), "var(--subtle)");
+    assert_eq!(status_dot_color("red;} body{display:none"), "var(--subtle)");
 }
 
 #[test]
@@ -165,7 +165,7 @@ fn status_bar_includes_prometheus_entry_when_detected() {
 fn dot_color_rejects_non_function_shapes_and_keeps_hex_lowercase() {
     assert_eq!(status_dot_color("#ABCDEF"), "#abcdef");
     assert_eq!(status_dot_color("info"), "var(--accent)");
-    assert_eq!(status_dot_color("red)"), "var(--fg-2)");
-    assert_eq!(status_dot_color("#0123456789"), "var(--fg-2)");
-    assert_eq!(status_dot_color("hsla(0,0%,0%)\",x:1)"), "var(--fg-2)");
+    assert_eq!(status_dot_color("red)"), "var(--subtle)");
+    assert_eq!(status_dot_color("#0123456789"), "var(--subtle)");
+    assert_eq!(status_dot_color("hsla(0,0%,0%)\",x:1)"), "var(--subtle)");
 }

@@ -1,19 +1,8 @@
-//! Terminal helpers: shell resolution and coalesced output buffering.
-
-/// Resolve the user's shell: `$SHELL`, falling back to `cmd` (Windows) or
-/// `sh` (Unix) when unset or empty.
-pub fn resolve_shell(shell_env: Option<&str>, is_windows: bool) -> String {
-    shell_env
-        .filter(|s| !s.is_empty())
-        .map(str::to_string)
-        .unwrap_or_else(|| {
-            if is_windows {
-                "cmd".to_string()
-            } else {
-                "sh".to_string()
-            }
-        })
-}
+//! Terminal host helpers: coalesced output buffering.
+//!
+//! The surface itself lives in `openkite_ui::components::terminal` (the shell
+//! it execs into, the picker and the xterm.js mount point); what stays here is
+//! the PTY-side buffer the host owns.
 
 /// Coalesces terminal output into bounded chunks for the eval bridge.
 ///

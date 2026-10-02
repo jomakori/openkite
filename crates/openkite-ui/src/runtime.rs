@@ -7,7 +7,7 @@
 use std::sync::{Arc, Mutex, OnceLock};
 
 use dioxus::prelude::*;
-use openkite_api::capability::Capabilities;
+use openkite_api::capability::{Capabilities, GatewayKind};
 use openkite_api::gateway::Gateway;
 use openkite_api::pod::{LineBuffer, PodObject};
 use openkite_api::secret::SecretObject;
@@ -201,6 +201,31 @@ pub fn terminal_can_render() -> bool {
         .unwrap_or(false)
 }
 
+/// True when the host can list and switch cluster contexts.
+///
+/// The in-process gateway owns a kubeconfig, so the desktop can offer the
+/// context list; a server-side host serves exactly one cluster and has no
+/// contexts to switch between, so its sidebar cluster button renders
+/// read-only instead of opening a menu it cannot fill.
+pub fn cluster_switch_can_render() -> bool {
+    capabilities()
+        .map(|caps| caps.gateway == GatewayKind::InProcess)
+        .unwrap_or(false)
+}
+
+/// True when the host's gateway accepts cluster changes (create/edit/delete).
+///
+/// The in-process gateway applies mutations through the `Gateway` contract;
+/// the browser host answers the bridge, whose op set is read-only, behind a
+/// server-side gateway. Routes therefore offer their write actions only where
+/// this holds, and declare the rest instead of painting a button that cannot
+/// be honoured.
+pub fn mutations_can_render() -> bool {
+    capabilities()
+        .map(|caps| caps.gateway == GatewayKind::InProcess)
+        .unwrap_or(false)
+}
+
 /// True when the host reports either window menu bar or title-bar override.
 pub fn native_chrome_can_render() -> bool {
     capabilities()
@@ -208,10 +233,15 @@ pub fn native_chrome_can_render() -> bool {
         .unwrap_or(false)
 }
 
-/// True when the host owns the cluster registry and can swap the live client,
-/// which is what switching contexts takes.
-pub fn cluster_switch_can_render() -> bool {
+/// True when the host advertises plugin routes.
+///
+/// A plugin route is rendered by a plugin: a Rust SDK route's own view, or a JS
+/// bundle the host evaluates into its own webview. The bundle half is host
+/// machinery — there is no webview to eval into on a host that serves no plugin
+/// bundles — so the wildcard route declares the gap through this predicate
+/// instead of mounting a slot nothing will fill.
+pub fn plugin_route_can_render() -> bool {
     capabilities()
-        .map(|caps| caps.supports_cluster_switch())
+        .map(|caps| caps.supports_plugins())
         .unwrap_or(false)
 }
