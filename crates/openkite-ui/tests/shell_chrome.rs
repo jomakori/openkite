@@ -249,7 +249,8 @@ fn nav_sections_carry_their_title_badge_and_accent() {
     for title in [
         ">Cluster<",
         ">Workloads<",
-        ">Config &amp; Storage<",
+        // The SSR pass escapes `&` as `&#38;` in a text node.
+        ">Config &#38; Storage<",
         ">argocd<",
     ] {
         assert!(html.contains(title), "section title {title}: {html}");
