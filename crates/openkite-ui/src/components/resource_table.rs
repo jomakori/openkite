@@ -76,13 +76,8 @@ pub fn matches_query(text: &str, query: &str) -> bool {
     needle.is_empty() || text.to_lowercase().contains(&needle)
 }
 
-/// Scope rows to a namespace selection (openkite-ui `NAMESPACE_SELECTION`).
-///
-/// The selection is the console's single namespace filter (OKT-171), so this
-/// table owns no namespace chips of its own. An empty selection shows every
-/// row, and — matching the host's snapshot filter — cluster-scoped rows (no
-/// namespace, e.g. nodes) stay visible under any selection: they are in no
-/// namespace, not in a different one.
+/// Scope rows to the console's namespace selection; an empty selection shows
+/// every row, and cluster-scoped rows (no namespace) stay visible.
 pub fn namespace_filter(rows: &[ResourceRow], selected: &[String]) -> Vec<ResourceRow> {
     rows.iter()
         .filter(|row| selection_matches(selected, row.namespace.as_deref()))

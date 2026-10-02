@@ -1,19 +1,4 @@
-//! OKT-171 namespace bar: the strip's guarantees are logic, so they are pinned
-//! here with no cluster and no browser.
-//!
-//! The four things the ticket owes evidence for:
-//!
-//! 1. Filtering the chip list never changes the selection —
-//!    [`filtering_the_chip_list_never_changes_the_selection`].
-//! 2. Reset returns to "all namespaces" —
-//!    [`reset_returns_to_all_namespaces`].
-//! 3. The strip is one line at narrow widths — the CSS contract in
-//!    `tests/design.rs::namespace_strip_is_one_hidden_scrollbar_line_with_scroll_snap`
-//!    plus the rendered `.ns-bar`/`.chip-row` markup pinned here.
-//! 4. Selection scopes data surfaces — [`selection_scopes_a_resource_table`]
-//!    mounts the crate's `ResourceTable` under a selection and asserts the rows
-//!    narrow; the host twin lives in
-//!    `openkite_host::state::live::filter_ns_multi`.
+//! The namespace bar's logic, pinned without a cluster or a browser.
 
 mod support;
 
@@ -85,8 +70,6 @@ fn selection_matches_treats_empty_selection_as_all_namespaces() {
 
 #[test]
 fn selection_matches_keeps_cluster_scoped_objects() {
-    // A node is in no namespace, not a different one: a namespace selection
-    // must not hide it (the same rule the host snapshot filter applies).
     assert!(selection_matches(&ns(&["default"]), None));
     assert!(selection_matches(&[], None));
 }
@@ -116,13 +99,12 @@ fn visible_namespaces_narrows_the_chip_list_case_insensitively() {
 }
 
 /// The headline guarantee: the search field narrows the *list*; the selection
-/// is an independent input and survives any query.
+/// survives any query.
 #[test]
 fn filtering_the_chip_list_never_changes_the_selection() {
     let options = ns(&["default", "kube-system", "argocd"]);
     let mut selection = ns(&["argocd"]);
 
-    // Filter so hard the selected namespace is filtered out of the list.
     let rows = chip_rows(&options, "default", &selection);
     assert_eq!(
         rows,
@@ -139,7 +121,6 @@ fn filtering_the_chip_list_never_changes_the_selection() {
         "the filtered-out namespace is still scoped in"
     );
 
-    // Clearing the query brings it back, still selected.
     let rows = chip_rows(&options, "", &selection);
     let active: Vec<&str> = rows
         .iter()
@@ -148,10 +129,8 @@ fn filtering_the_chip_list_never_changes_the_selection() {
         .collect();
     assert_eq!(active, vec!["argocd"]);
 
-    // A selection is only ever changed by an explicit toggle…
     selection = toggle_selection(&selection, "default");
     assert_eq!(selection, ns(&["argocd", "default"]));
-    // …or by the reset, which returns to "all namespaces".
     selection = toggle_selection(&selection, "argocd");
     selection = toggle_selection(&selection, "default");
     assert!(
@@ -226,8 +205,6 @@ fn a_selection_highlights_chips_and_pins_the_reset() {
         html.contains("aria-label=\"Clear namespace filter\""),
         "the reset is labelled: {html}"
     );
-    // The reset is a sibling *after* the scroll strip, so it is pinned and
-    // reachable without scrolling the chips.
     let strip = html.find("class=\"chip-row\"").expect("strip");
     let reset = html.find("ns-reset").expect("reset");
     assert!(reset > strip, "the reset trails the strip: {html}");
@@ -246,9 +223,8 @@ fn the_bar_declares_the_unsupported_state_without_namespaces() {
     );
 }
 
-/// Selection scopes the crate's table data surface. An empty selection shows
-/// every row (cluster-scoped rows included); selecting a namespace narrows the
-/// table without touching the selection itself.
+/// An empty selection shows every row (cluster-scoped rows included);
+/// selecting a namespace narrows the table without touching the selection.
 #[test]
 fn selection_scopes_a_resource_table() {
     let html = mount_html(table_with_rows, || {

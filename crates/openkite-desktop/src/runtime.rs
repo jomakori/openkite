@@ -22,11 +22,7 @@ pub use openkite_ui::runtime::{
 pub static CLIENT: GlobalSignal<Option<Client>> = Signal::global(|| None);
 
 /// Namespaces on the active cluster (the bar's chip options) and the console's
-/// namespace selection.
-///
-/// Both live in `openkite_ui` (OKT-171): the crate's namespace bar reads and
-/// writes the same signals, so a host cannot hold a private selection the data
-/// surfaces never see. Re-exported here under the desktop's historical names.
+/// namespace selection, re-exported under the desktop's historical names.
 pub use openkite_ui::runtime::{
     NAMESPACE_OPTIONS as NAMESPACES, NAMESPACE_SELECTION as SELECTED_NAMESPACES,
 };

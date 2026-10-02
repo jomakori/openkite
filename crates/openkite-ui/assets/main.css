@@ -480,8 +480,7 @@ body {
   margin-bottom: 14px;
   flex-wrap: wrap;
 }
-/* The namespace bar (OKT-171): search circle, the scrolling chip strip and
-   the × reset on one line at every width. */
+/* The one-line namespace bar: search circle, chip strip, × reset. */
 .ns-bar {
   display: flex;
   align-items: center;
@@ -490,9 +489,7 @@ body {
   min-width: 0;
   flex-wrap: nowrap;
 }
-/* The chip strip: one narrow line, never a wrapping section. It scrolls
-   horizontally with scroll-snap so a chip never rests half-visible, and the
-   scrollbar is hidden so the strip reads as one line rather than a box. */
+/* The chip strip: one scrolling line with snap points and a hidden scrollbar. */
 .chip-row {
   display: flex;
   align-items: center;
@@ -509,9 +506,7 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 .chip-row::-webkit-scrollbar { display: none; }
-/* The search circle: opens the inline namespace filter (T14) — it narrows
-   the chip list, never the selection. The × reset is its trailing twin and
-   renders only while a selection exists. */
+/* The 44px search circle and its × reset twin. */
 .ns-search,
 .ns-reset {
   display: inline-flex;
@@ -667,8 +662,7 @@ body {
   color: #fff;
   border-color: var(--fg);
 }
-/* A chip in the namespace strip never squashes or wraps: it keeps its
-   natural width and snaps to the strip's leading edge when scrolled to. */
+/* A chip in the strip keeps its natural width and snaps to the leading edge. */
 .chip-row .chip {
   flex: 0 0 auto;
   scroll-snap-align: start;

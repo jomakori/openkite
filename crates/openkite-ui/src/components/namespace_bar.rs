@@ -1,21 +1,4 @@
-//! The namespace bar (OKT-171, spec §5.1): one narrow strip, not a section.
-//!
-//! The console's namespace selector is a single horizontally scrollable line of
-//! chips that never grows taller and never wraps:
-//!
-//! - **Search circle on the left** — a 44px circular button opens an inline
-//!   field that narrows the *chip list*. It filters options only; the
-//!   selection is untouched ([`visible_namespaces`] takes `options`, never the
-//!   selection).
-//! - **Multi-select chips** — `.chip.active` marks a selected namespace; the
-//!   first chip restores the empty selection ("all namespaces"), which is the
-//!   only state that is *not* combinable with others.
-//! - **× circle reset** — rendered only while a selection exists, pinned after
-//!   the scroll container so it is reachable without scrolling.
-//!
-//! Selection lives in [`crate::runtime::NAMESPACE_SELECTION`], one selection
-//! for every data surface ([`selection_matches`] is the predicate they all
-//! call). The bar owns the state; the surfaces read it.
+//! The console namespace bar: one narrow strip of chips, not a section.
 
 use dioxus::prelude::*;
 
@@ -26,8 +9,8 @@ pub const ALL_LABEL: &str = "All namespaces";
 
 /// The namespaces the strip shows for `query`.
 ///
-/// The search field narrows this list only: the caller passes the *options*,
-/// so a filter can never change which namespaces are selected.
+/// Takes the options, never the selection, so a filter cannot change what is
+/// selected.
 pub fn visible_namespaces(options: &[String], query: &str) -> Vec<String> {
     let needle = query.trim().to_lowercase();
     options
@@ -38,9 +21,6 @@ pub fn visible_namespaces(options: &[String], query: &str) -> Vec<String> {
 }
 
 /// Toggle `namespace` in `selection`, preserving insertion order.
-///
-/// Pure so the chip handler and the tests share one definition of
-/// "multi-select".
 pub fn toggle_selection(selection: &[String], namespace: &str) -> Vec<String> {
     let mut next = selection.to_vec();
     if let Some(position) = next.iter().position(|candidate| candidate == namespace) {
@@ -53,11 +33,9 @@ pub fn toggle_selection(selection: &[String], namespace: &str) -> Vec<String> {
 
 /// The namespace chips the strip paints for `query`: `(label, active)` pairs.
 ///
-/// The visible list comes from `options` narrowed by `query` (the search
-/// circle's job); `active` comes from `selection`. Keeping the two inputs
-/// separate in one function is what makes "filtering never changes the
-/// selection" testable: a selected namespace filtered out of the list is still
-/// selected, and reappears active the moment the query clears.
+/// `active` comes from `selection`, the visible list from `options` narrowed by
+/// `query`; the two inputs stay separate so a filter cannot change the
+/// selection.
 pub fn chip_rows(options: &[String], query: &str, selection: &[String]) -> Vec<(String, bool)> {
     visible_namespaces(options, query)
         .into_iter()
@@ -70,10 +48,8 @@ pub fn chip_rows(options: &[String], query: &str, selection: &[String]) -> Vec<(
 
 /// Whether `namespace` is in scope for `selection`.
 ///
-/// The one predicate every data surface uses: an empty selection matches
-/// everything ("all namespaces"), a cluster-scoped object (`None`, e.g. a
-/// node) is never excluded by a namespace selection, and a namespaced object
-/// matches when its namespace is selected.
+/// Empty selection matches everything; a cluster-scoped object (`None`) is
+/// never excluded by a namespace selection.
 pub fn selection_matches(selection: &[String], namespace: Option<&str>) -> bool {
     match namespace {
         None => true,
@@ -81,12 +57,7 @@ pub fn selection_matches(selection: &[String], namespace: Option<&str>) -> bool 
     }
 }
 
-/// The namespace strip.
-///
-/// `options` are the namespace names the host published. The host advertises
-/// none (a server-side console with no namespace inventory): the strip renders
-/// the design's disabled chip marked `data-unsupported="namespace-filter"`
-/// instead of a control that cannot be honoured.
+/// The namespace strip; `options` are the namespace names the host published.
 #[component]
 pub fn NamespaceBar(options: Vec<String>) -> Element {
     let mut filter_open = use_signal(|| false);
@@ -100,7 +71,6 @@ pub fn NamespaceBar(options: Vec<String>) -> Element {
             class: "ns-bar",
             "data-empty": if empty { Some("namespaces") } else { None },
             if empty {
-                // No namespaces to filter by is declared, not silently absent.
                 div { class: "chip-row", role: "group", aria_label: "Namespace filter",
                     button {
                         class: "chip",
@@ -112,8 +82,6 @@ pub fn NamespaceBar(options: Vec<String>) -> Element {
                     }
                 }
             } else {
-                // The search circle sits *outside* the scroll strip: it is the
-                // fixed left edge of the bar, so it never scrolls away.
                 button {
                     class: "ns-search",
                     r#type: "button",
@@ -170,8 +138,6 @@ pub fn NamespaceBar(options: Vec<String>) -> Element {
                         }
                     }
                 }
-                // The × reset trails the strip (a fixed trailing edge), so it
-                // is reachable without scrolling the chips.
                 if has_selection {
                     button {
                         class: "ns-reset",

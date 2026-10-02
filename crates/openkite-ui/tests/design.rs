@@ -133,9 +133,6 @@ const REQUIRED_CLASSES: &[&str] = &[
     ".pager button.active",
     ".tag",
     ".tag-row",
-    // The namespace bar (OKT-171): the scrollable chip strip, the search
-    // circle that opens the chip-list filter, its inline field, the × reset
-    // and the check on a selected chip.
     ".ns-bar",
     ".ns-search",
     ".ns-filter",
@@ -806,7 +803,7 @@ fn rsx_class_walker_finds_known_tokens() {
 }
 
 /// The declaration body of the first rule whose selector head is exactly
-/// `selector`. Used by the namespace-strip treatment test.
+/// `selector`.
 fn rule_body(css: &str, selector: &str) -> Option<String> {
     let mut search_from = 0usize;
     while let Some(offset) = css[search_from..].find(selector) {
@@ -831,11 +828,8 @@ fn rule_body(css: &str, selector: &str) -> Option<String> {
     None
 }
 
-/// OKT-171: the namespace strip is one line at every width — `nowrap` with
-/// horizontal overflow, a hidden scrollbar and scroll-snap — and a chip is at
-/// least the 44px touch target. A CSS assertion is the strongest headless
-/// proof available: the layout is decided by these declarations, and the
-/// pinned mount tests prove they are attached to the rendered markup.
+/// The namespace strip stays one line at every width: `nowrap` with horizontal
+/// overflow, a hidden scrollbar and scroll-snap, and a chip at the 44px floor.
 #[test]
 fn namespace_strip_is_one_hidden_scrollbar_line_with_scroll_snap() {
     let row = rule_body(STYLESHEET, ".chip-row").expect("`.chip-row` rule");

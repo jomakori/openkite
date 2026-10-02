@@ -4,7 +4,7 @@
 //! `visible_range`, `matches_query`, `Cell`, `ResourceRow::search_text`)
 //! from the public API and pins the `StatusKind::pill_class` mapping
 //! The `namespace_filter` tests pin the console-wide namespace selection
-//! semantics (OKT-171): empty = all namespaces, cluster-scoped rows survive.
+//! semantics: empty = all namespaces, cluster-scoped rows survive.
 
 use openkite_ui::components::resource_table::{
     compare_sort_keys, matches_query, namespace_filter, sort_by_key, visible_range, Cell,

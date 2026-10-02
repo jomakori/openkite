@@ -4,7 +4,7 @@
 //! action) and read by the shared UI. Dioxus global signals are backed by the
 //! runtime, so a host must write them inside the VirtualDom's runtime.
 
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock, RwLock};
 
 use dioxus::prelude::*;
 use openkite_api::capability::{Capabilities, GatewayKind};
@@ -73,21 +73,29 @@ pub fn context_name() -> Option<String> {
     CONTEXT.read().clone()
 }
 
-/// The namespace names the console's bar offers, published by the host from
-/// the cluster's namespace inventory (OKT-171).
-///
-/// Options and selection are separate on purpose: the bar's search circle
-/// narrows `NAMESPACE_OPTIONS` for display, never `NAMESPACE_SELECTION`.
+/// The namespace names the console's bar offers.
 pub static NAMESPACE_OPTIONS: GlobalSignal<Vec<String>> = Signal::global(Vec::new);
 
-/// The selected namespaces. **Empty means "all namespaces"** — there is no
-/// sentinel row a real namespace could collide with, and an empty selection is
-/// what the reset chip restores.
-///
-/// One selection for the whole console (OKT-171 §5.1): every data surface
-/// reads this, so the pod inventory, the config tables and the log surface can
-/// never disagree about which namespaces are in scope.
+/// The selected namespaces; empty means "all namespaces".
 pub static NAMESPACE_SELECTION: GlobalSignal<Vec<String>> = Signal::global(Vec::new);
+
+/// Runtime-free mirror of [`NAMESPACE_SELECTION`].
+static SELECTION_SCOPE: OnceLock<RwLock<Vec<String>>> = OnceLock::new();
+
+fn selection_scope_store() -> &'static RwLock<Vec<String>> {
+    SELECTION_SCOPE.get_or_init(|| RwLock::new(Vec::new()))
+}
+
+/// The selected namespaces, readable without a Dioxus runtime.
+///
+/// The host's snapshot and push paths run on plain tokio tasks, so they cannot
+/// read [`NAMESPACE_SELECTION`]; they scope by this instead.
+pub fn namespace_selection_scope() -> Vec<String> {
+    selection_scope_store()
+        .read()
+        .map(|scope| scope.clone())
+        .unwrap_or_default()
+}
 
 /// Publish the namespace list the bar offers.
 pub fn set_namespace_options(namespaces: Vec<String>) {
@@ -101,6 +109,9 @@ pub fn namespace_options() -> Vec<String> {
 
 /// Publish the selected namespace set (`[]` = all namespaces).
 pub fn set_namespace_selection(namespaces: Vec<String>) {
+    if let Ok(mut scope) = selection_scope_store().write() {
+        *scope = namespaces.clone();
+    }
     *NAMESPACE_SELECTION.write() = namespaces;
 }
 
@@ -111,30 +122,16 @@ pub fn selected_namespaces() -> Vec<String> {
 
 /// Toggle one namespace in the selection, preserving insertion order.
 pub fn toggle_namespace(namespace: String) {
-    let mut selected = NAMESPACE_SELECTION.write();
-    if let Some(position) = selected
-        .iter()
-        .position(|candidate| candidate == &namespace)
-    {
-        selected.remove(position);
-    } else {
-        selected.push(namespace);
-    }
+    let next = crate::components::namespace_bar::toggle_selection(
+        &namespace_selection_scope(),
+        &namespace,
+    );
+    set_namespace_selection(next);
 }
 
-/// Clear every selection back to "all namespaces" — what the × reset does.
+/// Clear every selection back to "all namespaces".
 pub fn clear_namespace_selection() {
-    NAMESPACE_SELECTION.write().clear();
-}
-
-/// Whether `namespace` is in scope for the current selection.
-///
-/// The one predicate every data surface uses: an empty selection matches
-/// everything, a cluster-scoped object (`None`) is never excluded by a
-/// namespace selection, and a namespaced object matches when its namespace is
-/// selected.
-pub fn namespace_in_scope(namespace: Option<&str>) -> bool {
-    crate::components::namespace_bar::selection_matches(&selected_namespaces(), namespace)
+    set_namespace_selection(Vec::new());
 }
 
 /// Whether the viewer is in follow-tail mode. Same rationale as

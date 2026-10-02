@@ -193,17 +193,22 @@ pub fn is_installed() -> bool {
     PUSH_TX.get().is_some()
 }
 
-/// Narrow a publish's rows to one subscription's namespace.
+/// Narrow a publish's rows to one subscription's namespace and the console's
+/// namespace selection.
 ///
 /// A global publish carries every namespace, so a namespaced subscription must
-/// filter. A namespaced publish is already scoped by the publisher. Cluster-
-/// scoped objects (no `metadata.namespace`) survive either way, so a
-/// namespace-scoped view of nodes never blanks out.
-fn deliver_rows(rows: Vec<Value>, publish_ns: Option<&str>, sub_ns: Option<&str>) -> Vec<Value> {
-    match (publish_ns, sub_ns) {
+/// filter; cluster-scoped objects (no `metadata.namespace`) survive either way.
+fn deliver_rows(
+    rows: Vec<Value>,
+    publish_ns: Option<&str>,
+    sub_ns: Option<&str>,
+    selection: &[String],
+) -> Vec<Value> {
+    let rows = match (publish_ns, sub_ns) {
         (None, Some(ns)) if !ns.is_empty() => crate::state::live::filter_ns(rows, Some(ns)),
         _ => rows,
-    }
+    };
+    crate::state::live::filter_ns_multi(rows, selection)
 }
 
 /// Publish rows for `kind`/`ns` to every matching subscription.
@@ -212,6 +217,7 @@ fn deliver_rows(rows: Vec<Value>, publish_ns: Option<&str>, sub_ns: Option<&str>
 /// which is normal and not an error. Safe to call from any thread: it only
 /// touches the registry lock and the channel.
 pub fn publish(kind: &str, ns: Option<&str>, rows: Vec<Value>) -> usize {
+    let selection = openkite_ui::runtime::namespace_selection_scope();
     let messages = {
         let mut reg = match registry().lock() {
             Ok(reg) => reg,
@@ -221,7 +227,7 @@ pub fn publish(kind: &str, ns: Option<&str>, rows: Vec<Value>) -> usize {
         matched
             .into_iter()
             .map(|(sub, sub_ns)| {
-                let delivered = deliver_rows(rows.clone(), ns, sub_ns.as_deref());
+                let delivered = deliver_rows(rows.clone(), ns, sub_ns.as_deref(), &selection);
                 PushMessage {
                     sub,
                     kind: kind.to_string(),
@@ -295,7 +301,7 @@ mod tests {
             serde_json::json!({"metadata": {"namespace": "kube-system", "name": "b"}}),
             serde_json::json!({"metadata": {"name": "node-1"}}),
         ];
-        let namespaced = deliver_rows(rows.clone(), None, Some("default"));
+        let namespaced = deliver_rows(rows.clone(), None, Some("default"), &[]);
         assert_eq!(namespaced.len(), 2, "default row + cluster-scoped node");
         assert!(namespaced
             .iter()
@@ -305,14 +311,34 @@ mod tests {
             .any(|row| row.pointer("/metadata/name").and_then(|v| v.as_str()) == Some("node-1")));
 
         assert_eq!(
-            deliver_rows(rows.clone(), None, None).len(),
+            deliver_rows(rows.clone(), None, None, &[]).len(),
             3,
             "wildcard keeps all"
         );
         assert_eq!(
-            deliver_rows(rows, Some("default"), Some("default")).len(),
+            deliver_rows(rows, Some("default"), Some("default"), &[]).len(),
             3,
             "an already-scoped publish passes through"
+        );
+    }
+
+    #[test]
+    fn deliver_rows_applies_the_console_namespace_selection() {
+        let rows = vec![
+            serde_json::json!({"metadata": {"namespace": "default", "name": "a"}}),
+            serde_json::json!({"metadata": {"namespace": "kube-system", "name": "b"}}),
+            serde_json::json!({"metadata": {"name": "node-1"}}),
+        ];
+        let selection = vec!["kube-system".to_string()];
+        let scoped = deliver_rows(rows.clone(), None, None, &selection);
+        let names: Vec<&str> = scoped
+            .iter()
+            .filter_map(|row| row.pointer("/metadata/name").and_then(|v| v.as_str()))
+            .collect();
+        assert_eq!(
+            names,
+            vec!["b", "node-1"],
+            "the console's selection narrows a wildcard publish too"
         );
     }
 

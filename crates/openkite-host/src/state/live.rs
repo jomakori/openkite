@@ -396,13 +396,7 @@ pub fn filter_ns(rows: Vec<Value>, ns: Option<&str>) -> Vec<Value> {
 }
 
 /// Keep only objects whose namespace is in `selected`; every namespace when the
-/// selection is empty (the console's "all namespaces" state).
-///
-/// The multi-select twin of [`filter_ns`], matching the console's namespace bar
-/// (OKT-171): the snapshot path and `openkite_ui::components::namespace_bar`
-/// share one rule — an empty selection keeps everything, and cluster-scoped
-/// objects (no `metadata.namespace`) survive any selection because they belong
-/// to no namespace rather than a different one.
+/// selection is empty, and cluster-scoped objects under any selection.
 pub fn filter_ns_multi(rows: Vec<Value>, selected: &[String]) -> Vec<Value> {
     if selected.is_empty() {
         return rows;
@@ -415,6 +409,12 @@ pub fn filter_ns_multi(rows: Vec<Value>, selected: &[String]) -> Vec<Value> {
             },
         )
         .collect()
+}
+
+/// Narrow serialised snapshot rows to a subscription namespace and the console's
+/// namespace selection — the filter the bridge's `watch` op applies.
+pub fn scope_snapshot(rows: Vec<Value>, ns: Option<&str>, selection: &[String]) -> Vec<Value> {
+    filter_ns_multi(filter_ns(rows, ns), selection)
 }
 
 #[cfg(test)]
@@ -490,5 +490,40 @@ mod tests {
             1,
             "an unknown namespace still leaves the cluster-scoped node"
         );
+    }
+
+    #[test]
+    fn scope_snapshot_composes_the_watch_filter_with_the_console_selection() {
+        let rows = vec![
+            serde_json::json!({"metadata": {"namespace": "default", "name": "a"}}),
+            serde_json::json!({"metadata": {"namespace": "kube-system", "name": "b"}}),
+            serde_json::json!({"metadata": {"name": "node-1"}}),
+        ];
+        let names = |rows: Vec<Value>| -> Vec<String> {
+            rows.iter()
+                .filter_map(|row| row.pointer("/metadata/name").and_then(|v| v.as_str()))
+                .map(str::to_string)
+                .collect()
+        };
+        assert_eq!(
+            names(scope_snapshot(rows.clone(), None, &["default".to_string()])),
+            vec!["a", "node-1"],
+            "the console selection narrows a wildcard watch"
+        );
+        assert_eq!(
+            names(scope_snapshot(rows.clone(), Some("kube-system"), &[])),
+            vec!["b", "node-1"],
+            "with no selection the watch's own namespace still applies"
+        );
+        assert_eq!(
+            names(scope_snapshot(
+                rows.clone(),
+                Some("kube-system"),
+                &["default".to_string()]
+            )),
+            vec!["node-1"],
+            "the two filters intersect; cluster-scoped rows survive"
+        );
+        assert_eq!(scope_snapshot(rows, None, &[]).len(), 3, "all namespaces");
     }
 }

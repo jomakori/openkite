@@ -187,8 +187,6 @@ fn populated_table_renders_headers_rows_and_actions() {
     assert!(html.contains("redis"), "got: {html}");
     assert!(html.contains("Running"), "got: {html}");
     assert!(html.contains("Pending"), "got: {html}");
-    // Namespaces are the console bar's job (OKT-171): the table scopes its
-    // rows by the shared selection and owns no chips of its own.
     assert!(
         !html.contains("class=\"chip"),
         "the table must not paint its own namespace chips: {html}"

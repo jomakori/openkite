@@ -95,7 +95,7 @@ The faces reach each host differently, because only one of them has an origin:
 | `.tag` + `.tag-row`          | Monospace fact chips (the route's capability declaration)    |
 | `.spinner`                   | In-flight affordance (route chrome and pull-to-refresh)      |
 
-## Namespace bar (OKT-171, spec §5.1)
+## Namespace bar
 
 One narrow line, never a section. The route toolbar's namespace selector is a
 single `.ns-bar` row whose middle is the `.chip-row`:

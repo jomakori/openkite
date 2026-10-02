@@ -547,9 +547,6 @@ fn route_view(route: &'static str) -> Element {
         RouteView {
             route: route.to_string(),
             sections: shell_sections(),
-            // The bar's chip options — the crate's global, published by
-            // `refresh_cluster_meta`. Reading it here subscribes this route to
-            // a namespace-list refresh.
             namespaces: crate::runtime::NAMESPACES.read().clone(),
             on_action: Some(on_action),
         }
