@@ -17,6 +17,7 @@
 use dioxus::prelude::*;
 
 use openkite_api::capability::{Capabilities, GatewayKind};
+use openkite_ui::components::route_views::RouteView;
 use openkite_ui::components::shell::{AppShell, ClusterInfo, ShellIcon, TopBarAction};
 use openkite_ui::components::status_badge::{StatusKind, StatusPill};
 use openkite_ui::plugin_api::RegistrationStore;
@@ -55,11 +56,15 @@ pub fn App(props: AppProps) -> Element {
     let mut state = use_signal(|| props.snapshot.clone());
     let mut round = use_signal(|| 0u32);
     let mut last_error = use_signal(|| Option::<String>::None);
+    // The route chrome's spinner: true only while a refetch is in flight, so
+    // the SSR markup and the client's first render agree (both start false).
+    let mut pending = use_signal(|| false);
 
     // One refetch, two callers: the top bar's refresh action and the panel's
     // button. The closure only captures signals, so both may hold a copy.
     let refetch = move || {
         spawn(async move {
+            pending.set(true);
             match crate::client::fetch_snapshot().await {
                 Ok(Some(next)) => {
                     state.set(next);
@@ -73,6 +78,7 @@ pub fn App(props: AppProps) -> Element {
                     last_error.set(Some(err));
                 }
             }
+            pending.set(false);
         });
     };
     let on_refresh = move |_: ()| refetch();
@@ -117,7 +123,7 @@ pub fn App(props: AppProps) -> Element {
 
     rsx! {
         AppShell {
-            sections,
+            sections: sections.clone(),
             // The page has no client router: entries are plain links, and
             // nothing is marked current until a route resolves.
             current_route: String::new(),
@@ -125,56 +131,67 @@ pub fn App(props: AppProps) -> Element {
             status: status_entries,
             actions,
             "data-surface": "app",
-            section { class: "panel", "data-surface": "overview",
-                h2 { "Cluster" }
-                dl { class: "kv-list",
-                    div { class: "kv-row", dt { "Gateway" } dd { "{gateway_label}" } }
-                    div { class: "kv-row",
-                        dt { "Connection" }
-                        dd { StatusPill { status: connection } }
-                    }
-                    div { class: "kv-row",
-                        dt { "Context" }
-                        dd { "{shell.cluster_label()}" }
-                    }
-                }
-                button {
-                    class: "btn btn-primary",
-                    r#type: "button",
-                    onclick: on_refresh_click,
-                    "data-action": "refresh",
-                    "Refresh"
-                }
-                if let Some(err) = last_error() {
-                    p { class: "field-error", "data-error": "1", "gateway error: {err}" }
-                }
-            }
-            section { class: "panel", "data-surface": "capabilities",
-                h2 { "Capabilities" }
-                dl { class: "kv-list",
-                    for (label, enabled) in capability_rows(&capabilities) {
-                        div { class: "kv-row",
-                            dt { "{label}" }
-                            dd { if enabled { "on" } else { "off" } }
+            // The route chrome the desktop mounts too (OKT-155). This host
+            // serves one route — `GET /` and every path the bundle has no file
+            // for both render this document — and the snapshot panels below are
+            // that route's body: the chrome around them is the crate's.
+            RouteView {
+                route: "/".to_string(),
+                sections,
+                busy: pending(),
+                content: rsx! {
+                    section { class: "panel", "data-surface": "overview",
+                        h2 { "Cluster" }
+                        dl { class: "kv-list",
+                            div { class: "kv-row", dt { "Gateway" } dd { "{gateway_label}" } }
+                            div { class: "kv-row",
+                                dt { "Connection" }
+                                dd { StatusPill { status: connection } }
+                            }
+                            div { class: "kv-row",
+                                dt { "Context" }
+                                dd { "{shell.cluster_label()}" }
+                            }
+                        }
+                        button {
+                            class: "btn btn-primary",
+                            r#type: "button",
+                            onclick: on_refresh_click,
+                            "data-action": "refresh",
+                            "Refresh"
+                        }
+                        if let Some(err) = last_error() {
+                            p { class: "field-error", "data-error": "1", "gateway error: {err}" }
                         }
                     }
-                }
-                p { class: "message", "data-round": "{round()}", "round {round()}" }
-            }
-            section { class: "panel", "data-surface": "secrets",
-                h2 { "Secrets" }
-                if snapshot.secrets.is_empty() {
-                    p { class: "message", "data-empty": "secrets", "No secrets in the gateway's scope" }
-                } else {
-                    dl { class: "kv-list",
-                        for secret in snapshot.secrets.iter() {
-                            div { class: "kv-row",
-                                dt { class: "resource-name", "{secret.name}" }
-                                dd { class: "namespace", "{secret.namespace}" }
+                    section { class: "panel", "data-surface": "capabilities",
+                        h2 { "Capabilities" }
+                        dl { class: "kv-list",
+                            for (label, enabled) in capability_rows(&capabilities) {
+                                div { class: "kv-row",
+                                    dt { "{label}" }
+                                    dd { if enabled { "on" } else { "off" } }
+                                }
+                            }
+                        }
+                        p { class: "message", "data-round": "{round()}", "round {round()}" }
+                    }
+                    section { class: "panel", "data-surface": "secrets",
+                        h2 { "Secrets" }
+                        if snapshot.secrets.is_empty() {
+                            p { class: "message", "data-empty": "secrets", "No secrets in the gateway's scope" }
+                        } else {
+                            dl { class: "kv-list",
+                                for secret in snapshot.secrets.iter() {
+                                    div { class: "kv-row",
+                                        dt { class: "resource-name", "{secret.name}" }
+                                        dd { class: "namespace", "{secret.namespace}" }
+                                    }
+                                }
                             }
                         }
                     }
-                }
+                },
             }
         }
     }

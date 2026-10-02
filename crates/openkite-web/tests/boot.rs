@@ -8,8 +8,6 @@ use openkite_web::serve;
 use serde_json::json;
 use support::{fake_api_client, raw_http, wait_until_serving, POD_NAME, POD_NAMESPACE};
 
-const SHELL: &str = "<!doctype html><title>placeholder</title>";
-
 fn list_pods_body() -> String {
     json!({
         "id": 1,
@@ -22,7 +20,6 @@ fn list_pods_body() -> String {
 #[tokio::test]
 async fn booted_host_answers_the_console_over_http() {
     let dir = tempfile::tempdir().expect("tempdir");
-    std::fs::write(dir.path().join("index.html"), SHELL).expect("write shell");
 
     let client = fake_api_client().await;
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -42,8 +39,8 @@ async fn booted_host_answers_the_console_over_http() {
     let deep_link = raw_http(addr, "GET", "/cluster", None).await;
     assert!(deep_link.contains("200 OK"), "deep link: {deep_link}");
     assert!(
-        deep_link.contains("placeholder"),
-        "deep link fell back to bundle: {deep_link}"
+        deep_link.contains("data-surface=\"app\""),
+        "deep link did not render the console: {deep_link}"
     );
 
     let response = raw_http(addr, "POST", "/openkite", Some(&list_pods_body())).await;

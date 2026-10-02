@@ -24,16 +24,22 @@
 //!   The exec transport is deferred (Phase 1); the view renders the typed
 //!   input and surfaces the bridge-pending hint. No crate-rendered
 //!   replacement exists.
-//! - [`Route::Plugin`] wildcard → [`Plugin`] dispatcher — Rust SDK
-//!   plugin routes (`ROUTE_TABLE`) plus JS plugin renderers (the
-//!   `JsRouteSlot` mount). The console does not own plugin routing;
-//!   declaring the wildcard native is what keeps the SDK contract
-//!   and the JS bundle eval surface where their owners (the desktop
-//!   host) can evolve them independently.
+//! - [`Route::Plugin`] wildcard → `openkite_ui::components::route_views::
+//!   PluginRouteView` around [`JsRouteEvaluator`] — the crate renders the
+//!   route's chrome, its mount node and its capability declaration (OKT-156);
+//!   what stays here is the one thing only a webview host can do, the
+//!   `document::eval` that mounts a JS bundle, plus this host's own plugin
+//!   tables. An SDK route (`ROUTE_TABLE`) still mounts the plugin's own view:
+//!   that view is the plugin's chrome, not the console's.
 //!
-//! After OKT-137 the console lives only in `crates/openkite-web` (SSR +
-//! wasm hydration in the browser image); the desktop keeps these native
-//! surfaces, and the routes the browser console serves render a placeholder.
+//! After OKT-137 the rich console lives only in `crates/openkite-web` (SSR +
+//! wasm hydration in the browser image). The four primary routes
+//! ([`Route::Home`], [`Route::Cluster`], [`Route::Workloads`],
+//! [`Route::Config`]) render the crate's route chrome (OKT-155) —
+//! `openkite_ui::components::route_views` — so both hosts paint the design's
+//! head, toolbar and declared empty/unsupported states from one crate, and
+//! this host supplies only the route it resolved and the handlers for the
+//! actions it can honour.
 
 #![allow(non_snake_case)]
 
@@ -54,6 +60,7 @@ use std::sync::{Arc, OnceLock};
 
 use crate::palette::{CommandPalette, PaletteKeybind};
 use crate::switcher::{ClusterSwitcher, SwitcherKeybind};
+use openkite_ui::components::route_views::RouteView;
 use openkite_ui::components::shell::{
     AppShell as ShellFrame, ClusterInfo, ShellIcon, TopBarAction,
 };
@@ -133,11 +140,10 @@ fn full_path(path: &[String]) -> String {
     format!("/{}", path.join("/"))
 }
 
-/// Placeholder routes the desktop binary keeps on its surface so the
-/// navigation entries stay live: the rich console moved to the SSR/wasm
-/// crate and lives in the browser preview image. Removing the routes
-/// entirely would shrink the navigation; surfacing the same stub instead
-/// keeps every NavItem clickable.
+/// The core routes. Every primary route mounts the crate's route chrome, so
+/// the navigation entries the sidebar renders resolve to a real surface; the
+/// route contract is the URL path, which is what the shell's breadcrumbs, the
+/// sidebar's active entry and the route chrome all read.
 #[derive(Routable, Clone, Debug, PartialEq, Eq)]
 pub enum Route {
     #[layout(AppShell)]
@@ -457,19 +463,51 @@ pub(crate) fn json_response(resp: ApiResponse) -> AssetHttpResponse<Vec<u8>> {
         .expect("static response parts")
 }
 
+/// The four primary routes mount the crate's route chrome (OKT-155). The
+/// desktop keeps only the wiring: the route contract its router resolved, the
+/// sidebar model the shell renders, and the handlers for the actions this host
+/// can honour. What the crate chrome needs from the descriptor
+/// (`terminal_can_render`, `mutations_can_render`, `cluster_switch_can_render`)
+/// it reads itself, so a host that cannot do something declares it instead of
+/// painting a control that does nothing.
+fn route_view(route: &'static str) -> Element {
+    let nav = use_navigator();
+    let on_action = EventHandler::new(move |action: String| {
+        match action.as_str() {
+            // The terminal route is this host's own native surface.
+            "terminal" => {
+                nav.push(Route::Terminal {});
+            }
+            // Create flows open the crate's CRUD editor, which applies through
+            // the in-process gateway.
+            "new-pod" => openkite_ui::runtime::open_new_for("Pod".into()),
+            "new-config-map" => openkite_ui::runtime::open_new_for("ConfigMap".into()),
+            "switch-context" => *crate::switcher::SWITCHER_OPEN.write() = true,
+            other => tracing::warn!(action = other, "route chrome action not wired"),
+        }
+    });
+    rsx! {
+        RouteView {
+            route: route.to_string(),
+            sections: shell_sections(),
+            on_action: Some(on_action),
+        }
+    }
+}
+
 #[component]
 fn Home() -> Element {
-    rsx! { BrowserOnlySurface {} }
+    route_view("/")
 }
 
 #[component]
 fn Cluster() -> Element {
-    rsx! { BrowserOnlySurface {} }
+    route_view("/cluster")
 }
 
 #[component]
 fn Workloads() -> Element {
-    rsx! { BrowserOnlySurface {} }
+    route_view("/workloads")
 }
 
 #[component]
@@ -575,40 +613,29 @@ fn Terminal() -> Element {
 
 #[component]
 fn Config() -> Element {
-    rsx! { BrowserOnlySurface {} }
+    route_view("/config")
 }
 
-/// Placeholder every browse route renders after the React console was
-/// decommissioned (OKT-137): the rich console now lives in the browser
-/// preview image, where `crates/openkite-web` server-renders it from the
-/// shared UI crate. The routes stay in the [`Route`] enum so the
-/// navigation entries the sidebar renders still resolve to a real surface
-/// rather than 404, and the native chrome (Logs, Terminal, the plugin
-/// wildcard) stays available where it always has been.
-#[component]
-fn BrowserOnlySurface() -> Element {
-    rsx! {
-        div { class: "not-found",
-            h2 { "OpenKite" }
-            p { "The console is served from the browser preview image (openkite-web)." }
-        }
-    }
-}
-
-/// Wildcard dispatcher: reconstruct the path, look it up in the static
-/// Rust SDK route table, then fall back to the JS-registered renderer
-/// paths. A JS match renders a `JsRouteSlot`; otherwise the 404 fallback.
+/// Wildcard dispatcher: reconstruct the path, resolve it against this host's
+/// plugin tables, and hand the result to the crate's plugin route chrome.
+///
+/// The tables are host state and stay here: a Rust SDK route's view (which is
+/// the plugin's own chrome, so it mounts as-is), and whether a JS renderer is
+/// registered for the path. Everything the route *paints* comes from
+/// `openkite_ui::components::route_views::PluginRouteView` (OKT-156) — the
+/// chrome, the mount node and the declaration of the capability this route
+/// needs — and only the evaluator for a JS-owned route is supplied from here,
+/// because only this host has a webview to eval into.
 #[component]
 fn Plugin(path: Vec<String>) -> Element {
     let full = full_path(&path);
 
     *crate::runtime::CURRENT_ROUTE.write() = full.clone();
 
-    let table = ROUTE_TABLE.read();
-    if let Some(render) = table.get(&full) {
+    let sdk_render = ROUTE_TABLE.read().get(&full).copied();
+    if let Some(render) = sdk_render {
         return (render)();
     }
-    drop(table);
 
     let registrations = REGISTRATIONS.read();
     let is_js_route = registrations
@@ -616,29 +643,31 @@ fn Plugin(path: Vec<String>) -> Element {
         .iter()
         .any(|(_, p)| *p == full);
     drop(registrations);
-    if is_js_route {
-        return rsx! { JsRouteSlot { path: full } };
-    }
 
+    let evaluator = is_js_route.then(|| rsx! { JsRouteEvaluator { path: full.clone() } });
     rsx! {
-        div { class: "not-found",
-            h2 { "404" }
-            p { "No view for /{full}" }
-            Link { to: Route::Home {}, "Back home" }
+        openkite_ui::components::route_views::PluginRouteView {
+            route: full.clone(),
+            sections: shell_sections(),
+            js_route: is_js_route.then(|| full.clone()),
+            evaluator,
         }
     }
 }
 
-/// Mount node for a JS-owned route. Renders a `<div
-/// data-js-route-mount={path}>` inside the host main outlet (NOT a
-/// `position: fixed` overlay), then dispatches
-/// `window.openkite._renderRoute(path, container)` via `document::eval`
-/// in a `use_effect` that re-runs on every path change. The plugin's
-/// render fn is responsible for idempotency (call the previous unmount
-/// before mounting new UI; storing the unmount on the container keeps
-/// re-runs cheap).
+/// The host-only half of a JS-owned plugin route: the `document::eval` that
+/// hands the path and the crate-rendered mount node to the bundle's
+/// `_renderRoute`, in a `use_effect` that re-runs on every path change. The
+/// plugin's render fn is responsible for idempotency (call the previous unmount
+/// before mounting new UI; storing the unmount on the container keeps re-runs
+/// cheap).
+///
+/// The node itself is the crate's (`route_views::JsRouteMount`), and this
+/// component is mounted by the crate's capability-gated `PluginRouteView`, so a
+/// host that serves no plugin bundles never reaches the eval. This component
+/// paints nothing: it is the eval, not the slot.
 #[component]
-fn JsRouteSlot(path: String) -> Element {
+fn JsRouteEvaluator(path: String) -> Element {
     let source = format!(
         r#"(function() {{
           var el = document.querySelector('[data-js-route-mount="{}"]');
@@ -655,9 +684,7 @@ fn JsRouteSlot(path: String) -> Element {
         document::eval(&source);
     });
 
-    rsx! {
-        div { class: "js-route-slot", "data-js-route-mount": "{path}" }
-    }
+    rsx! {}
 }
 
 #[cfg(test)]

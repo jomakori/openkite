@@ -65,7 +65,10 @@ against the committed baselines with `compare.sh` (ImageMagick).
 
 A change that alters what a user sees refreshes `visual/baselines/` in the same
 PR: a moved
-baseline is a decision, not an accident.
+baseline is a decision, not an accident. The comparison counts only perceptible
+differences (`-fuzz 3%`): the same screen captured in two environments rasterises
+text slightly differently, so a raw pixel count would fail a correct refresh —
+refresh the baselines when the UI changes, not when the capture host does.
 
 Stills are captured at the app's default window size (800x600), which is inside
 the design's `≤1024px` branch: the sidebar paints as the design's closed drawer

@@ -36,8 +36,38 @@ async fn root_route_renders_the_shared_console_shell() {
         "class=\"kv-list\"",
         "class=\"sidebar-footer\"",
         "class=\"status-line\"",
+        // The route chrome (OKT-155): the page this host serves is a route
+        // like any other, so it carries the same head, toolbar and declaration
+        // row the desktop's routes mount.
+        "class=\"page-head\"",
+        "class=\"page-sub\"",
+        "class=\"page-actions\"",
+        "class=\"toolbar\"",
+        "class=\"chip-row\"",
+        "class=\"tag-row\"",
+        "data-route=\"/\"",
     ] {
         assert!(body.contains(chrome), "root route missing {chrome}: {body}");
+    }
+    // The page head is the route's: the home route's title is the cluster's.
+    // (The SSR pass writes hydration markers inside the text nodes, so the
+    //  assertion reads the head's own marker, not `<h1>Cluster</h1>`.)
+    assert!(
+        body.contains("data-page=\"Cluster\""),
+        "root route page head: {body}"
+    );
+    assert!(
+        !body.contains("data-state=\"empty\""),
+        "the snapshot fills the route, so it has no empty state: {body}"
+    );
+    for declared in [
+        "data-unsupported=\"cluster-switch\"",
+        "context switching: off",
+    ] {
+        assert!(
+            body.contains(declared),
+            "a server-side host declares {declared}: {body}"
+        );
     }
     for surface in ["app", "overview", "capabilities", "secrets"] {
         assert!(
@@ -243,19 +273,41 @@ async fn spike_route_answers_an_unparsable_request() {
 }
 
 #[tokio::test]
-async fn static_assets_are_served_with_an_spa_fallback() {
+async fn every_console_route_renders_the_shell_from_an_empty_web_root() {
     let dir = temp_root();
-    std::fs::write(dir.path().join("index.html"), "<!doctype html>SHELL").expect("write index");
-    std::fs::write(dir.path().join("app.js"), "console.log('console')").expect("write asset");
     let app = app(Arc::new(Bridge::new()), dir.path());
 
-    let (status, body) = get_body(app.clone(), "/app.js").await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(body, "console.log('console')");
+    for route in ["/cluster", "/workloads", "/config", "/logs", "/terminal"] {
+        let (status, body) = get_body(app.clone(), route).await;
+        assert_eq!(status, StatusCode::OK, "{route} did not render the console");
+        assert!(!body.is_empty(), "{route} answered an empty body");
+        for chrome in [
+            "class=\"app\"",
+            "class=\"sidebar\"",
+            "id=\"openkite-snapshot\"",
+        ] {
+            assert!(body.contains(chrome), "{route} missing {chrome}: {body}");
+        }
+    }
+}
 
-    let (status, body) = get_body(app, "/cluster").await;
+#[tokio::test]
+async fn hydration_assets_in_the_web_root_are_served_directly() {
+    let dir = temp_root();
+    let client = "export default () => {};";
+    std::fs::write(dir.path().join("openkite-web-client.js"), client).expect("write client");
+    let app = app(Arc::new(Bridge::new()), dir.path());
+
+    let (status, body) = get_body(app.clone(), "/openkite-web-client.js").await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(body, "<!doctype html>SHELL");
+    assert_eq!(body, client);
+
+    let (status, body) = get_body(app, "/terminal").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        body.contains("id=\"openkite-snapshot\""),
+        "/terminal missing the console shell: {body}"
+    );
 }
 
 #[tokio::test]

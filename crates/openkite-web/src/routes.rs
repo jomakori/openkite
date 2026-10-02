@@ -3,10 +3,10 @@
 //! Each route mirrors a transport the desktop already has: `POST /openkite` is
 //! the bridge envelope (there it is the wry asset handler's job), `POST
 //! /openkite-spike` carries the console's context and settings ops, and every
-//! other path is the bundle itself with an SPA fallback. `GET /` is the one
-//! route the crate renders itself, `POST /api/gateway` is the same-origin
-//! round-trip the hydrating client refreshes through, and
-//! `GET /assets/fonts/{file}` is where the stylesheet's `@font-face` URLs land.
+//! other path serves the hydration bundle, falling back to the same document
+//! `GET /` renders. `POST /api/gateway` is the same-origin round-trip the
+//! hydrating client refreshes through, and `GET /assets/fonts/{file}` is where
+//! the stylesheet's `@font-face` URLs land.
 
 use std::path::Path;
 use std::sync::Arc;
@@ -19,7 +19,7 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use openkite_api::bridge::ApiResponse;
 use openkite_host::bridge::Bridge;
-use tower_http::services::{ServeDir, ServeFile};
+use tower_http::services::ServeDir;
 
 use crate::spike;
 use crate::ssr;
@@ -28,9 +28,15 @@ use crate::ssr;
 pub type SharedBridge = Arc<Bridge>;
 
 /// Build the host router: the crate-rendered root, the console's endpoints,
-/// the vendored typefaces, then the bundle.
+/// the vendored typefaces, then the hydration bundle.
+///
+/// The runtime image ships no static document, so a path the bundle has no file
+/// for is answered by the console itself rather than a file that is not there.
 pub fn router(bridge: SharedBridge, web_root: &Path) -> Router {
-    let assets = ServeDir::new(web_root).fallback(ServeFile::new(web_root.join("index.html")));
+    let shell: Router = Router::new()
+        .route("/{*path}", get(ssr_root))
+        .with_state(bridge.clone());
+    let assets = ServeDir::new(web_root).fallback(shell);
     Router::new()
         .route("/", get(ssr_root))
         .route("/assets/fonts/{file}", get(font_get))

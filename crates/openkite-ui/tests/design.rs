@@ -114,6 +114,18 @@ const REQUIRED_CLASSES: &[&str] = &[
     ".pull-indicator",
     ".eyebrow",
     ".status-line",
+    // The route chrome (OKT-155): the heading row, the filter toolbar, the
+    // panel footer and the declaration chips every primary route carries.
+    ".page-head",
+    ".page-sub",
+    ".page-actions",
+    ".toolbar",
+    ".chip-row",
+    ".panel-footer",
+    ".pager",
+    ".pager button.active",
+    ".tag",
+    ".tag-row",
 ];
 
 /// Properties the opaline theme contract already provides — must not be
@@ -234,12 +246,17 @@ const RESOURCE_TABLE_RSX: &str = include_str!("../src/components/resource_table.
 const CODE_EDITOR_RSX: &str = include_str!("../src/components/code_editor.rs");
 const CRUD_MODAL_RSX: &str = include_str!("../src/components/crud_modal.rs");
 const SHELL_RSX: &str = include_str!("../src/components/shell.rs");
+const ROUTE_VIEWS_RSX: &str = include_str!("../src/components/route_views.rs");
 
 /// Every rsx source file the crate renders. Order is for stable error
 /// messages — does not affect semantics.
 const RSX_SOURCES: &[(&str, &str)] = &[
     ("crates/openkite-web/src/app.rs", APP_RSX),
     ("crates/openkite-ui/src/components/shell.rs", SHELL_RSX),
+    (
+        "crates/openkite-ui/src/components/route_views.rs",
+        ROUTE_VIEWS_RSX,
+    ),
     (
         "crates/openkite-ui/src/components/status_badge.rs",
         STATUS_BADGE_RSX,
