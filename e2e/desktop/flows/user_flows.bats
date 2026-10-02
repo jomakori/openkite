@@ -138,7 +138,14 @@ teardown() {
   sleep 1
   shot "02-workloads.png"
   assert_rendered "$ART/02-workloads.png" "workloads-route"
-  assert_pixels_changed "$ART/01-home.png" "$ART/02-workloads.png" "home-to-workloads-nav" 1000
+  # The design signals the route in the top bar's breadcrumbs and marks the
+  # active entry with a frosted fill, not the desktop shell's old solid accent
+  # block, and the route bodies are still the same browser-only placeholder
+  # until the crate owns them — so the whole-frame delta between two routes is
+  # smaller than it was. Measured 2026-09-30: 556 px, all of them in rows
+  # 53-90 (the breadcrumb line). The threshold stays far above the noise floor
+  # (a palette that never navigated diffs 0 px) and below the measurement.
+  assert_pixels_changed "$ART/01-home.png" "$ART/02-workloads.png" "home-to-workloads-nav" 300
 }
 
 @test "flow 08: disconnected-state banner renders without kubeconfig" {

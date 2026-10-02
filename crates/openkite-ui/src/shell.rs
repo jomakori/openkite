@@ -16,12 +16,22 @@ pub struct ShellNavItem {
     pub route: String,
     /// Plugin that contributed this item (`None` = core).
     pub plugin: Option<String>,
+    /// Count the design's nav badge shows next to the entry. Hosts publish
+    /// one when they have a count to show; `None` renders no badge.
+    pub badge: Option<String>,
 }
 
 /// A sidebar section: core (built-in) or one per plugin.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ShellSection {
+    /// Section header. Empty renders no header at all, which is how the
+    /// desktop shows its core navigation: one unlabelled block above the
+    /// plugin sections.
     pub label: String,
+    /// Inline accent for the header and its entries (`None` = the stylesheet's
+    /// own colour, no inline style). Plugin sections carry their contributor's
+    /// accent; the built-in ones do not.
+    pub accent: Option<String>,
     pub items: Vec<ShellNavItem>,
 }
 
@@ -29,24 +39,73 @@ pub struct ShellSection {
 pub fn core_sections() -> Vec<ShellSection> {
     vec![ShellSection {
         label: "Overview".into(),
+        accent: None,
         items: vec![
             ShellNavItem {
                 label: "Cluster".into(),
                 route: "/cluster".into(),
                 plugin: None,
+                badge: None,
             },
             ShellNavItem {
                 label: "Workloads".into(),
                 route: "/workloads".into(),
                 plugin: None,
+                badge: None,
             },
             ShellNavItem {
                 label: "Config".into(),
                 route: "/config".into(),
                 plugin: None,
+                badge: None,
             },
         ],
     }]
+}
+
+/// The desktop's core navigation: the flat entry list it shows above the
+/// plugin sections, in order, with the terminal entry gated on the host
+/// capability.
+///
+/// The terminal surface is host-only (OKT-126), so a host that cannot run one
+/// never advertises the entry — passing the gate in keeps the decision with
+/// the host and the vocabulary with the crate.
+pub fn core_nav(terminal: bool) -> Vec<ShellNavItem> {
+    let mut items = vec![
+        ShellNavItem {
+            label: "Cluster".into(),
+            route: "/cluster".into(),
+            plugin: None,
+            badge: None,
+        },
+        ShellNavItem {
+            label: "Workloads".into(),
+            route: "/workloads".into(),
+            plugin: None,
+            badge: None,
+        },
+        ShellNavItem {
+            label: "Logs".into(),
+            route: "/logs".into(),
+            plugin: None,
+            badge: None,
+        },
+    ];
+    if terminal {
+        items.push(ShellNavItem {
+            label: "Terminal".into(),
+            route: "/terminal".into(),
+            plugin: None,
+            badge: None,
+        });
+    }
+    items.push(ShellNavItem {
+        label: "Config".into(),
+        route: "/config".into(),
+        plugin: None,
+        badge: None,
+    });
+    items
 }
 
 /// The ordered sidebar model: core sections, then one section per plugin
@@ -74,6 +133,7 @@ pub fn plugin_sections(store: &RegistrationStore) -> Vec<ShellSection> {
                         label: item.label.clone(),
                         route: item.route.clone(),
                         plugin: Some(plugin.clone()),
+                        badge: None,
                     })
                     .collect()
             })
@@ -81,11 +141,75 @@ pub fn plugin_sections(store: &RegistrationStore) -> Vec<ShellSection> {
         if !items.is_empty() {
             sections.push(ShellSection {
                 label: plugin,
+                accent: None,
                 items,
             });
         }
     }
     sections
+}
+
+/// One breadcrumb in the top bar (OKT-154): a step between the cluster and
+/// the route the console is on.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Crumb {
+    pub label: String,
+    /// The step the user is on — the design's `.breadcrumbs .current`.
+    pub current: bool,
+}
+
+/// The top bar's breadcrumbs: the cluster, the section the route belongs to,
+/// then the route itself. Sections come from the same sidebar model the
+/// sidebar renders, so the two never disagree.
+///
+/// A route the model does not know (a plugin route before its registration
+/// arrives) renders as the cluster plus the path, rather than an empty trail.
+pub fn breadcrumbs(route: &str, cluster: Option<&str>, sections: &[ShellSection]) -> Vec<Crumb> {
+    let mut crumbs = Vec::new();
+    if let Some(cluster) = cluster {
+        crumbs.push(Crumb {
+            label: cluster.to_string(),
+            current: false,
+        });
+    }
+    let found = sections.iter().find_map(|section| {
+        section
+            .items
+            .iter()
+            .find(|item| item.route == route)
+            .map(|item| (section, item))
+    });
+    match found {
+        Some((section, item)) => {
+            if !section.label.is_empty() {
+                crumbs.push(Crumb {
+                    label: section.label.clone(),
+                    current: false,
+                });
+            }
+            crumbs.push(Crumb {
+                label: item.label.clone(),
+                current: true,
+            });
+        }
+        None if !route.trim_matches('/').is_empty() => crumbs.push(Crumb {
+            label: route.trim_matches('/').to_string(),
+            current: true,
+        }),
+        None => {}
+    }
+    crumbs
+}
+
+/// The avatar's initials: the first letter of the first two words of the
+/// host's identity, uppercased. Empty when the host names nobody.
+pub fn initials(identity: &str) -> String {
+    identity
+        .split_whitespace()
+        .take(2)
+        .filter_map(|word| word.chars().next())
+        .flat_map(|c| c.to_uppercase())
+        .collect()
 }
 
 /// Cluster/namespace selection + connection state (top bar + status bar).
@@ -202,6 +326,7 @@ pub fn nav_item_from_plugin(plugin: &str, item: &SidebarItem) -> ShellNavItem {
         label: item.label.clone(),
         route: item.route.clone(),
         plugin: Some(plugin.into()),
+        badge: None,
     }
 }
 
@@ -223,13 +348,29 @@ pub fn status_dot_color(color: &str) -> String {
     let trimmed = color.trim();
     let lower = trimmed.to_ascii_lowercase();
     match lower.as_str() {
-        "green" | "ok" | "healthy" => "var(--green)".into(),
-        "yellow" | "warn" | "progressing" => "var(--yellow)".into(),
-        "red" | "error" | "critical" => "var(--red)".into(),
+        "green" | "ok" | "healthy" => "var(--success)".into(),
+        "yellow" | "warn" | "progressing" => "var(--warn)".into(),
+        "red" | "error" | "critical" => "var(--danger)".into(),
         "blue" | "info" => "var(--accent)".into(),
         other if is_css_color(other) => other.to_string(),
-        _ => "var(--fg-2)".into(),
+        _ => "var(--subtle)".into(),
     }
+}
+
+/// One status-bar slot as render data: the label, and the inline
+/// `background` for its dot (`display: none` when the entry carries no dot).
+/// The status footer renders these; both hosts build them from the same model.
+pub fn status_rows(entries: &[StatusBarEntry]) -> Vec<(String, String)> {
+    entries
+        .iter()
+        .map(|entry| {
+            let dot = match entry.color.as_deref() {
+                Some(color) => format!("background: {}", status_dot_color(color)),
+                None => "display: none".into(),
+            };
+            (entry.label.clone(), dot)
+        })
+        .collect()
 }
 
 /// A conservative CSS color check: short hex or one of a few color
@@ -387,10 +528,49 @@ mod tests {
     }
 
     #[test]
+    fn status_rows_map_colors_and_hide_undotted_entries() {
+        let entries = vec![
+            StatusBarEntry {
+                label: "prod · Connected".into(),
+                color: Some("green".into()),
+                plugin: None,
+            },
+            StatusBarEntry {
+                label: "v0.0.0".into(),
+                color: None,
+                plugin: None,
+            },
+        ];
+        let rows = status_rows(&entries);
+        assert_eq!(rows[0].0, "prod · Connected");
+        assert_eq!(rows[0].1, "background: var(--success)");
+        assert_eq!(rows[1].0, "v0.0.0");
+        assert_eq!(rows[1].1, "display: none");
+    }
+
+    #[test]
+    fn core_nav_gates_the_terminal_entry_on_the_capability() {
+        let routes = |terminal| {
+            core_nav(terminal)
+                .into_iter()
+                .map(|item| item.route)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            routes(true),
+            vec!["/cluster", "/workloads", "/logs", "/terminal", "/config"]
+        );
+        assert_eq!(
+            routes(false),
+            vec!["/cluster", "/workloads", "/logs", "/config"]
+        );
+    }
+
+    #[test]
     fn status_dot_color_maps_keywords_and_plain_colors() {
-        assert_eq!(status_dot_color("green"), "var(--green)");
-        assert_eq!(status_dot_color(" Healthy "), "var(--green)");
-        assert_eq!(status_dot_color("error"), "var(--red)");
+        assert_eq!(status_dot_color("green"), "var(--success)");
+        assert_eq!(status_dot_color(" Healthy "), "var(--success)");
+        assert_eq!(status_dot_color("error"), "var(--danger)");
         assert_eq!(status_dot_color("BLUE"), "var(--accent)");
         assert_eq!(status_dot_color("#0d9488"), "#0d9488");
         assert_eq!(status_dot_color("rgb(13,148,136)"), "rgb(13,148,136)");
@@ -399,13 +579,51 @@ mod tests {
 
     #[test]
     fn status_dot_color_rejects_non_color_strings() {
-        assert_eq!(status_dot_color(""), "var(--fg-2)");
-        assert_eq!(status_dot_color("orange"), "var(--fg-2)");
-        assert_eq!(status_dot_color("red;} *{display:none"), "var(--fg-2)");
-        assert_eq!(status_dot_color("url(https://evil.test/x)"), "var(--fg-2)");
+        assert_eq!(status_dot_color(""), "var(--subtle)");
+        assert_eq!(status_dot_color("orange"), "var(--subtle)");
+        assert_eq!(status_dot_color("red;} *{display:none"), "var(--subtle)");
         assert_eq!(
-            status_dot_color("var(--green)\",background:url(a)"),
-            "var(--fg-2)"
+            status_dot_color("url(https://evil.test/x)"),
+            "var(--subtle)"
         );
+        assert_eq!(
+            status_dot_color("var(--success)\",background:url(a)"),
+            "var(--subtle)"
+        );
+    }
+
+    #[test]
+    fn breadcrumbs_name_the_cluster_the_section_and_the_route() {
+        let sections = core_sections();
+        let crumbs = breadcrumbs("/workloads", Some("prod"), &sections);
+        let labels: Vec<&str> = crumbs.iter().map(|crumb| crumb.label.as_str()).collect();
+        assert_eq!(labels, vec!["prod", "Overview", "Workloads"]);
+        assert_eq!(
+            crumbs.iter().filter(|crumb| crumb.current).count(),
+            1,
+            "exactly the route is current"
+        );
+        assert!(crumbs.last().expect("a route crumb").current);
+    }
+
+    #[test]
+    fn breadcrumbs_fall_back_to_the_path_and_skip_what_they_cannot_name() {
+        let sections = core_sections();
+        // A plugin route the model has not registered yet still reads honestly.
+        let crumbs = breadcrumbs("/argocd/apps", None, &sections);
+        assert_eq!(crumbs.len(), 1);
+        assert_eq!(crumbs[0].label, "argocd/apps");
+        assert!(crumbs[0].current);
+
+        // No route, no cluster: nothing to say, so nothing renders.
+        assert!(breadcrumbs("", None, &sections).is_empty());
+    }
+
+    #[test]
+    fn initials_are_the_first_letters_of_the_first_two_words() {
+        assert_eq!(initials("Eda Kite"), "EK");
+        assert_eq!(initials("eda kite operator"), "EK");
+        assert_eq!(initials("hermes"), "H");
+        assert_eq!(initials("   "), "");
     }
 }

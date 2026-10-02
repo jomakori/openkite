@@ -14,19 +14,22 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-/// The OpenKite CSS variable contract, in declaration order.
+/// The OpenKite CSS variable contract, in declaration order. The names are the
+/// reference console's; the ANSI `--term-*` set is the terminal sidecar's own
+/// vocabulary (its vendored sheet names them).
 pub const CSS_VARS: &[&str] = &[
-    "--bg-0",
-    "--bg-1",
-    "--bg-2",
+    "--bg",
+    "--surface",
+    "--surface-solid",
     "--border",
-    "--fg-0",
-    "--fg-1",
-    "--fg-2",
+    "--fg",
+    "--muted",
+    "--subtle",
     "--accent",
-    "--green",
-    "--yellow",
-    "--red",
+    "--progress",
+    "--success",
+    "--warn",
+    "--danger",
     "--violet",
     "--term-black",
     "--term-red",

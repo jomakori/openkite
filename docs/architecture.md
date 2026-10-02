@@ -128,20 +128,19 @@ through `crates/openkite-web` (SSR + wasm hydration in the preview image — see
 | Logs viewer (`Route::Logs`) | `components::logs::LogsView` | the desktop host streams the pod's kube log into `runtime::LOGS_BUFFER` |
 | Terminal (`Route::Terminal`) | `components::terminal::TerminalView` | the vendored xterm.js bundle in `crates/openkite-ui/assets/vendored/xterm/`; exec transport deferred to Phase 1 |
 | Pod detail inspector (mounted in `AppShell`) | `components::pod_detail::PodDetail` | driven by `runtime::SELECTED_POD` |
-| Plugin wildcard (`Route::Plugin`) | — | Rust SDK routes (`ROUTE_TABLE`) plus JS plugin renderers (`JsRouteSlot`); plugin routing is a host concern, not a console concern. |
+| Plugin wildcard (`Route::Plugin`) | `components::route_views::PluginRouteView` | The route chrome, the JS mount node and the declaration of the plugin-route capability render from `openkite_ui` (OKT-156); what stays native is the `document::eval` that mounts a JS bundle into the webview, plus the host's own plugin tables (an SDK route's view is the plugin's chrome and mounts as-is). |
 
 A surface renders only when the host reports it through the capability
 descriptor (`openkite_api::capability::Capabilities`). `TerminalView` renders
 `TerminalUnsupported` when `runtime::terminal_can_render()` is false — the
 verdict the browser host reports (`Capabilities::server_side`, `terminal:
 false`); the desktop publishes `Capabilities::in_process()` at boot
-(`crates/openkite-desktop/src/lib.rs::run`) and renders all three. The
+(`crates/openkite-desktop/src/lib.rs::run`) and renders all four. The
 desktop-side declaration of the wildcard route lives in the module doc at
 `crates/openkite-desktop/src/router.rs`.
 
 `crates/openkite-desktop/src/views/` no longer exists — the terminal view was
 its last module.
-
 - **Webview RAM floor** — the WebKitGTK webview carries a ~200 MB baseline per
   window; this is a Dioxus-desktop cost, not app state.
 - **Eval-bridge throughput** — the Dioxus↔JS eval bridge used for the terminal

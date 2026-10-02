@@ -1,7 +1,17 @@
-//! Router + navigation shell: core routes plus a root
-//! wildcard that dispatches unknown paths through the plugin route table;
-//! the app shell chrome (sidebar + status footer); the `/openkite` bridge
-//! asset handler; and one-time JS plugin bundle evaluation.
+//! Router + host adapter: core routes plus a root wildcard that dispatches
+//! unknown paths through the plugin route table; the `/openkite` bridge asset
+//! handler; one-time JS plugin bundle evaluation; and the desktop half of the
+//! app shell.
+//!
+//! The shell chrome itself — the frame, sidebar, top bar, status footer and the
+//! overlays the frame mounts — is rendered by
+//! [`openkite_ui::components::shell`], the same code the browser console
+//! mounts. What stays here is what only a desktop host can do: the host hooks
+//! (registration mirror, settings apply, push channel, live watch), the plugin
+//! registration, and the `document::eval` surfaces — the plugin bundles, the
+//! key listeners, and the overlays those listeners drive. Those are handed to
+//! the crate frame as its chrome slot, so a host that cannot provide them
+//! renders the crate's explicit stand-in instead.
 //!
 //! Surfaces the desktop mounts:
 //!
@@ -19,18 +29,24 @@
 //!   5-tab inspector (Overview / Logs / Events / YAML / Containers) from
 //!   `openkite_ui::components::pod_detail`, driven by the owned
 //!   `SELECTED_POD` contract.
-//! - [`Route::Plugin`] wildcard → [`Plugin`] dispatcher — Rust SDK
-//!   plugin routes (`ROUTE_TABLE`) plus JS plugin renderers (the
-//!   `JsRouteSlot` mount). The console does not own plugin routing;
-//!   declaring the wildcard native is what keeps the SDK contract
-//!   and the JS bundle eval surface where their owners (the desktop
-//!   host) can evolve them independently.
+//! - [`Route::Plugin`] wildcard → `openkite_ui::components::route_views::
+//!   PluginRouteView` around [`JsRouteEvaluator`] — the crate renders the
+//!   route's chrome, its mount node and its capability declaration (OKT-156);
+//!   what stays here is the one thing only a webview host can do, the
+//!   `document::eval` that mounts a JS bundle, plus this host's own plugin
+//!   tables. An SDK route (`ROUTE_TABLE`) still mounts the plugin's own view:
+//!   that view is the plugin's chrome, not the console's.
 //!
 //! After OKT-137 the console lives only in `crates/openkite-web` (SSR +
 //! wasm hydration in the browser image); the desktop mounts the crate
 //! surfaces above and keeps the host-side plumbing (the kube log stream, the
 //! exec bridge), while the routes the browser console serves render a
-//! placeholder.
+//! placeholder. The four primary routes ([`Route::Home`], [`Route::Cluster`],
+//! [`Route::Workloads`], [`Route::Config`]) render the crate's route chrome
+//! (OKT-155) — `openkite_ui::components::route_views` — so both hosts paint
+//! the design's head, toolbar and declared empty/unsupported states from one
+//! crate, and this host supplies only the route it resolved and the handlers
+//! for the actions it can honour.
 
 #![allow(non_snake_case)]
 
@@ -45,13 +61,16 @@ use dioxus::desktop::wry::http::Response as AssetHttpResponse;
 #[cfg(feature = "desktop")]
 use dioxus::desktop::{use_asset_handler, AssetRequest, RequestAsyncResponder};
 use dioxus::prelude::*;
-use openkite_plugin_sdk::{SidebarEntry, SidebarSection};
+use openkite_plugin_sdk::SidebarSection;
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
 use crate::palette::{CommandPalette, PaletteKeybind};
 use crate::switcher::{ClusterSwitcher, SwitcherKeybind};
-use openkite_ui::components::pod_detail::PodDetail;
+use openkite_ui::components::route_views::RouteView;
+use openkite_ui::components::shell::{
+    AppShell as ShellFrame, ClusterInfo, ShellIcon, TopBarAction,
+};
 
 /// Plugin sidebar sections (static Rust SDK plugins), populated at startup.
 static PLUGIN_SECTIONS: GlobalSignal<Vec<SidebarSection>> = Signal::global(Vec::new);
@@ -128,11 +147,10 @@ fn full_path(path: &[String]) -> String {
     format!("/{}", path.join("/"))
 }
 
-/// Placeholder routes the desktop binary keeps on its surface so the
-/// navigation entries stay live: the rich console moved to the SSR/wasm
-/// crate and lives in the browser preview image. Removing the routes
-/// entirely would shrink the navigation; surfacing the same stub instead
-/// keeps every NavItem clickable.
+/// The core routes. Every primary route mounts the crate's route chrome, so
+/// the navigation entries the sidebar renders resolve to a real surface; the
+/// route contract is the URL path, which is what the shell's breadcrumbs, the
+/// sidebar's active entry and the route chrome all read.
 #[derive(Routable, Clone, Debug, PartialEq, Eq)]
 pub enum Route {
     #[layout(AppShell)]
@@ -194,8 +212,8 @@ fn AppShell() -> Element {
         }
     });
 
+    let nav = use_navigator();
     {
-        let nav = use_navigator();
         let mut routed = use_signal(|| false);
         use_effect(move || {
             if !*routed.read() {
@@ -240,54 +258,132 @@ fn AppShell() -> Element {
         }
     });
 
+    // The route the sidebar marks active; `Routable`'s `Display` writes the
+    // URL path, which is the same vocabulary the entries carry.
+    let current_route = use_route::<Route>().to_string();
+
+    // The top bar's action row: what this host can actually honour — the
+    // command palette it binds to Ctrl+P and the settings route it serves.
+    let actions = vec![
+        TopBarAction {
+            icon: ShellIcon::Search,
+            label: "Command palette".into(),
+            on_click: EventHandler::new(|_| {
+                *crate::palette::PALETTE_OPEN.write() = true;
+            }),
+        },
+        TopBarAction {
+            icon: ShellIcon::Settings,
+            label: "Settings".into(),
+            on_click: EventHandler::new(move |_| {
+                nav.push(Route::Config {});
+            }),
+        },
+    ];
+
     rsx! {
-        div { class: "app-shell",
-            SwitcherKeybind {}
-            PaletteKeybind {}
-            ClusterSwitcher {}
-            PodDetail {}
-            crate::components::secret_detail::SecretDetail {}
-            crate::components::crud_modal::CrudOverlay {}
-            CommandPalette {}
-            Sidebar {}
-            div { class: "main-col",
-                TopBar {}
-                main { class: "content",
-                    Outlet::<Route> {}
-                }
-                StatusFooter {}
-            }
+        ShellFrame {
+            sections: shell_sections(),
+            current_route,
+            cluster: cluster_button(),
+            status: status_entries(),
+            actions,
+            on_navigate: Some(EventHandler::new(move |route: String| {
+                nav.push(route_from_path(&route));
+            })),
+            on_switch_cluster: Some(EventHandler::new(|_| {
+                *crate::switcher::SWITCHER_OPEN.write() = true;
+            })),
+            // Host-only chrome: the key listeners and the overlays they drive.
+            // The crate frame renders it when the host advertises native
+            // window chrome (this host always does) and states what is missing
+            // when it does not.
+            chrome: rsx! {
+                SwitcherKeybind {}
+                PaletteKeybind {}
+                ClusterSwitcher {}
+                CommandPalette {}
+            },
+            Outlet::<Route> {}
         }
     }
 }
 
-/// Top bar: namespace multi-select chips.
+/// The sidebar the crate shell renders: the desktop's core navigation (the
+/// terminal entry gated on the host capability), then the static Rust-SDK
+/// plugin sections, then the JS-plugin sections mirrored from the bridge.
 ///
-/// The cluster switcher lives in the ctrl-tab overlay (OKT-51), so the top
-/// bar only shows namespace chips for scoping resource queries.
-#[component]
-fn TopBar() -> Element {
-    let namespaces = crate::runtime::NAMESPACES.read();
-    let selected = crate::runtime::SELECTED_NAMESPACES.read();
-    let ns_list: Vec<String> = namespaces.clone();
-    let chips: Vec<(String, bool)> = ns_list
-        .iter()
-        .map(|ns| (ns.clone(), selected.iter().any(|s| s == ns)))
-        .collect();
+/// Every block is a `.nav-section` with its own `.nav-title`, which is how the
+/// design separates them; the core block carries the same title the shared
+/// model gives it, so the sidebar and the breadcrumbs name it alike.
+fn shell_sections() -> Vec<crate::shell::ShellSection> {
+    use crate::shell::{core_nav, plugin_sections, ShellNavItem, ShellSection};
 
-    rsx! {
-        header { class: "topbar",
-            div { class: "ns-chips",
-                for (ns, is_active) in chips {
-                    button {
-                        class: if is_active { "ns-chip active" } else { "ns-chip" },
-                        onclick: move |_| crate::runtime::toggle_namespace(ns.clone()),
-                        "{ns}"
-                    }
-                }
-            }
-        }
+    let mut sections = vec![ShellSection {
+        label: "Overview".into(),
+        accent: None,
+        items: core_nav(openkite_ui::runtime::terminal_can_render()),
+    }];
+
+    let sdk_sections = PLUGIN_SECTIONS.read();
+    for section in sdk_sections.iter() {
+        sections.push(ShellSection {
+            label: section.label.clone(),
+            accent: Some(
+                section
+                    .accent_color
+                    .clone()
+                    .unwrap_or_else(|| "var(--accent)".into()),
+            ),
+            items: section
+                .entries
+                .iter()
+                .map(|entry| ShellNavItem {
+                    label: entry.label.clone(),
+                    route: entry.route.clone(),
+                    plugin: Some(section.label.clone()),
+                    // The SDK's count badge is the design's `.nav-badge`.
+                    badge: entry.badge.clone(),
+                })
+                .collect(),
+        });
     }
+
+    let registrations = REGISTRATIONS.read();
+    sections.extend(plugin_sections(&registrations));
+
+    sections
+}
+
+/// The sidebar's cluster button: the active context, its connection state and
+/// the build the host reports. The button itself is the design's; whether it
+/// opens the context list is the host's to answer (see
+/// `openkite_ui::runtime::cluster_switch_can_render`).
+fn cluster_button() -> Option<ClusterInfo> {
+    Some(ClusterInfo {
+        label: crate::runtime::CONTEXT
+            .read()
+            .clone()
+            .unwrap_or_else(|| "no cluster".into()),
+        detail: crate::version::reported().map(|version| format!("v{version}")),
+        connected: crate::runtime::CLIENT.read().is_some(),
+    })
+}
+
+/// The status footer's entries for the current connection state.
+fn status_entries() -> Vec<crate::shell::StatusBarEntry> {
+    let state = crate::shell::ShellState {
+        cluster: crate::runtime::CONTEXT.read().clone(),
+        namespace: "default".into(),
+        connected: crate::runtime::CLIENT.read().is_some(),
+        prometheus: crate::runtime::PROMETHEUS.read().clone(),
+    };
+    let version = crate::version::reported();
+    crate::shell::status_bar_model(
+        &state,
+        &REGISTRATIONS.read(),
+        version.as_deref().unwrap_or_default(),
+    )
 }
 
 /// Dispatch one bridge POST from the webview.
@@ -374,178 +470,51 @@ pub(crate) fn json_response(resp: ApiResponse) -> AssetHttpResponse<Vec<u8>> {
         .expect("static response parts")
 }
 
-/// One status-bar slot: precomputed label + dot style (pure render data).
-fn status_rows(entries: &[crate::shell::StatusBarEntry]) -> Vec<(String, String)> {
-    entries
-        .iter()
-        .map(|entry| {
-            let dot = match entry.color.as_deref() {
-                Some(color) => format!("background: {}", crate::shell::status_dot_color(color)),
-                None => "display: none".into(),
-            };
-            (entry.label.clone(), dot)
-        })
-        .collect()
-}
-
-#[component]
-fn Sidebar() -> Element {
-    let sections = PLUGIN_SECTIONS.read();
-    let registrations = REGISTRATIONS.read();
-    let js_sections = crate::shell::plugin_sections(&registrations);
-    rsx! {
-        aside { class: "sidebar",
-            h1 { class: "brand", "OpenKite" }
-            span { class: "tagline", "Kubernetes from above." }
-            nav { class: "nav",
-                NavItem { label: "Cluster", to: Route::Cluster {} }
-                NavItem { label: "Workloads", to: Route::Workloads {} }
-                NavItem { label: "Logs", to: Route::Logs {} }
-                if openkite_ui::runtime::terminal_can_render() {
-                    NavItem { label: "Terminal", to: Route::Terminal {} }
-                }
-                NavItem { label: "Config", to: Route::Config {} }
-                if !sections.is_empty() {
-                    div { class: "nav-divider" }
-                    for section in sections.iter() {
-                        SectionView { section: section.clone() }
-                    }
-                }
-                if !js_sections.is_empty() {
-                    div { class: "nav-divider" }
-                    for section in js_sections.iter() {
-                        ShellSectionView { section: section.clone() }
-                    }
-                }
+/// The four primary routes mount the crate's route chrome (OKT-155). The
+/// desktop keeps only the wiring: the route contract its router resolved, the
+/// sidebar model the shell renders, and the handlers for the actions this host
+/// can honour. What the crate chrome needs from the descriptor
+/// (`terminal_can_render`, `mutations_can_render`, `cluster_switch_can_render`)
+/// it reads itself, so a host that cannot do something declares it instead of
+/// painting a control that does nothing.
+fn route_view(route: &'static str) -> Element {
+    let nav = use_navigator();
+    let on_action = EventHandler::new(move |action: String| {
+        match action.as_str() {
+            // The terminal route is this host's own native surface.
+            "terminal" => {
+                nav.push(Route::Terminal {});
             }
+            // Create flows open the crate's CRUD editor, which applies through
+            // the in-process gateway.
+            "new-pod" => openkite_ui::runtime::open_new_for("Pod".into()),
+            "new-config-map" => openkite_ui::runtime::open_new_for("ConfigMap".into()),
+            "switch-context" => *crate::switcher::SWITCHER_OPEN.write() = true,
+            other => tracing::warn!(action = other, "route chrome action not wired"),
         }
-    }
-}
-
-#[component]
-fn NavItem(label: String, to: Route) -> Element {
-    let current = use_route::<Route>();
-    let active = current == to;
+    });
     rsx! {
-        Link {
-            to: to,
-            class: if active { "nav-item active" } else { "nav-item" },
-            "{label}"
-        }
-    }
-}
-
-#[component]
-fn SectionView(section: SidebarSection) -> Element {
-    let accent = section
-        .accent_color
-        .clone()
-        .unwrap_or_else(|| "var(--accent)".into());
-    rsx! {
-        div { class: "nav-section",
-            div { class: "nav-section-label", style: "color: {accent}", "{section.label}" }
-            for entry in section.entries.iter() {
-                PluginNavItem { entry: entry.clone(), accent: accent.clone() }
-            }
-        }
-    }
-}
-
-#[component]
-fn PluginNavItem(entry: SidebarEntry, accent: String) -> Element {
-    let current = use_route::<Route>();
-    let target = plugin_route(&entry.route);
-    let active = match &current {
-        Route::Plugin { path } => full_path(path) == entry.route,
-        _ => false,
-    };
-    rsx! {
-        Link {
-            to: target,
-            class: if active { "nav-item plugin active" } else { "nav-item plugin" },
-            style: "color: {accent}",
-            "{entry.label}"
-        }
-    }
-}
-
-/// A sidebar section contributed by a JS plugin at runtime (rendered from the
-/// `REGISTRATIONS` mirror, not the static SDK registry).
-#[component]
-fn ShellSectionView(section: crate::shell::ShellSection) -> Element {
-    rsx! {
-        div { class: "nav-section",
-            div { class: "nav-section-label", "{section.label}" }
-            for item in section.items.iter() {
-                ShellNavItemView { item: item.clone() }
-            }
-        }
-    }
-}
-
-#[component]
-fn ShellNavItemView(item: crate::shell::ShellNavItem) -> Element {
-    let current = use_route::<Route>();
-    let target = plugin_route(&item.route);
-    let active = match &current {
-        Route::Plugin { path } => full_path(path) == item.route,
-        _ => false,
-    };
-    rsx! {
-        Link {
-            to: target,
-            class: if active { "nav-item plugin active" } else { "nav-item plugin" },
-            "{item.label}"
-        }
-    }
-}
-
-/// Status footer: cluster · connection dot + app version + plugin
-/// status items — the mockup's bottom bar. Renders from the same model the
-/// pure shell module exposes.
-#[component]
-fn StatusFooter() -> Element {
-    let context = crate::runtime::CONTEXT.read();
-    let connected = crate::runtime::CLIENT.read().is_some();
-    let registrations = REGISTRATIONS.read();
-    let state = crate::shell::ShellState {
-        cluster: context.clone(),
-        namespace: "default".into(),
-        connected,
-        prometheus: crate::runtime::PROMETHEUS.read().clone(),
-    };
-    let version = crate::version::reported();
-    let entries = crate::shell::status_bar_model(
-        &state,
-        &registrations,
-        version.as_deref().unwrap_or_default(),
-    );
-    let rows = status_rows(&entries);
-    rsx! {
-        footer { class: "status",
-            for (label, dot) in rows {
-                span { class: "status-entry",
-                    span { class: "status-dot", style: "{dot}" }
-                    "{label}"
-                }
-            }
+        RouteView {
+            route: route.to_string(),
+            sections: shell_sections(),
+            on_action: Some(on_action),
         }
     }
 }
 
 #[component]
 fn Home() -> Element {
-    rsx! { BrowserOnlySurface {} }
+    route_view("/")
 }
 
 #[component]
 fn Cluster() -> Element {
-    rsx! { BrowserOnlySurface {} }
+    route_view("/cluster")
 }
 
 #[component]
 fn Workloads() -> Element {
-    rsx! { BrowserOnlySurface {} }
+    route_view("/workloads")
 }
 
 #[component]
@@ -648,40 +617,29 @@ fn Terminal() -> Element {
 
 #[component]
 fn Config() -> Element {
-    rsx! { BrowserOnlySurface {} }
+    route_view("/config")
 }
 
-/// Placeholder every browse route renders after the React console was
-/// decommissioned (OKT-137): the rich console now lives in the browser
-/// preview image, where `crates/openkite-web` server-renders it from the
-/// shared UI crate. The routes stay in the [`Route`] enum so the
-/// navigation entries the sidebar renders still resolve to a real surface
-/// rather than 404, and the native chrome (Logs, Terminal, the plugin
-/// wildcard) stays available where it always has been.
-#[component]
-fn BrowserOnlySurface() -> Element {
-    rsx! {
-        div { class: "not-found",
-            h2 { "OpenKite" }
-            p { "The console is served from the browser preview image (openkite-web)." }
-        }
-    }
-}
-
-/// Wildcard dispatcher: reconstruct the path, look it up in the static
-/// Rust SDK route table, then fall back to the JS-registered renderer
-/// paths. A JS match renders a `JsRouteSlot`; otherwise the 404 fallback.
+/// Wildcard dispatcher: reconstruct the path, resolve it against this host's
+/// plugin tables, and hand the result to the crate's plugin route chrome.
+///
+/// The tables are host state and stay here: a Rust SDK route's view (which is
+/// the plugin's own chrome, so it mounts as-is), and whether a JS renderer is
+/// registered for the path. Everything the route *paints* comes from
+/// `openkite_ui::components::route_views::PluginRouteView` (OKT-156) — the
+/// chrome, the mount node and the declaration of the capability this route
+/// needs — and only the evaluator for a JS-owned route is supplied from here,
+/// because only this host has a webview to eval into.
 #[component]
 fn Plugin(path: Vec<String>) -> Element {
     let full = full_path(&path);
 
     *crate::runtime::CURRENT_ROUTE.write() = full.clone();
 
-    let table = ROUTE_TABLE.read();
-    if let Some(render) = table.get(&full) {
+    let sdk_render = ROUTE_TABLE.read().get(&full).copied();
+    if let Some(render) = sdk_render {
         return (render)();
     }
-    drop(table);
 
     let registrations = REGISTRATIONS.read();
     let is_js_route = registrations
@@ -689,29 +647,31 @@ fn Plugin(path: Vec<String>) -> Element {
         .iter()
         .any(|(_, p)| *p == full);
     drop(registrations);
-    if is_js_route {
-        return rsx! { JsRouteSlot { path: full } };
-    }
 
+    let evaluator = is_js_route.then(|| rsx! { JsRouteEvaluator { path: full.clone() } });
     rsx! {
-        div { class: "not-found",
-            h2 { "404" }
-            p { "No view for /{full}" }
-            Link { to: Route::Home {}, "Back home" }
+        openkite_ui::components::route_views::PluginRouteView {
+            route: full.clone(),
+            sections: shell_sections(),
+            js_route: is_js_route.then(|| full.clone()),
+            evaluator,
         }
     }
 }
 
-/// Mount node for a JS-owned route. Renders a `<div
-/// data-js-route-mount={path}>` inside the host main outlet (NOT a
-/// `position: fixed` overlay), then dispatches
-/// `window.openkite._renderRoute(path, container)` via `document::eval`
-/// in a `use_effect` that re-runs on every path change. The plugin's
-/// render fn is responsible for idempotency (call the previous unmount
-/// before mounting new UI; storing the unmount on the container keeps
-/// re-runs cheap).
+/// The host-only half of a JS-owned plugin route: the `document::eval` that
+/// hands the path and the crate-rendered mount node to the bundle's
+/// `_renderRoute`, in a `use_effect` that re-runs on every path change. The
+/// plugin's render fn is responsible for idempotency (call the previous unmount
+/// before mounting new UI; storing the unmount on the container keeps re-runs
+/// cheap).
+///
+/// The node itself is the crate's (`route_views::JsRouteMount`), and this
+/// component is mounted by the crate's capability-gated `PluginRouteView`, so a
+/// host that serves no plugin bundles never reaches the eval. This component
+/// paints nothing: it is the eval, not the slot.
 #[component]
-fn JsRouteSlot(path: String) -> Element {
+fn JsRouteEvaluator(path: String) -> Element {
     let source = format!(
         r#"(function() {{
           var el = document.querySelector('[data-js-route-mount="{}"]');
@@ -728,9 +688,7 @@ fn JsRouteSlot(path: String) -> Element {
         document::eval(&source);
     });
 
-    rsx! {
-        div { class: "js-route-slot", "data-js-route-mount": "{path}" }
-    }
+    rsx! {}
 }
 
 #[cfg(test)]
@@ -759,27 +717,6 @@ mod tests {
             panic!("expected Plugin variant");
         };
         assert_eq!(full_path(&path), "/argocd/apps");
-    }
-
-    #[test]
-    fn status_rows_maps_colors_and_hides_undotted_entries() {
-        let entries = vec![
-            crate::shell::StatusBarEntry {
-                label: "prod · Connected".into(),
-                color: Some("green".into()),
-                plugin: None,
-            },
-            crate::shell::StatusBarEntry {
-                label: "v0.0.0".into(),
-                color: None,
-                plugin: None,
-            },
-        ];
-        let rows = status_rows(&entries);
-        assert_eq!(rows[0].0, "prod · Connected");
-        assert_eq!(rows[0].1, "background: var(--green)");
-        assert_eq!(rows[1].0, "v0.0.0");
-        assert_eq!(rows[1].1, "display: none");
     }
 
     #[test]

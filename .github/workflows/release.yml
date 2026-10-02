@@ -174,13 +174,22 @@ jobs:
   publish:
     name: Publish release
     runs-on: ubuntu-latest
-    needs: [analyze, locate, packages]
+    # LAST, and gated on BOTH artifacts: the desktop installers (packages) and the
+    # container image the cluster actually pulls. Publishing before the image
+    # existed is what let v0.39.1-v0.43.0 ship tag + installers with no image, so
+    # every `image.tag` pin resolved to nothing. A release now cannot exist
+    # without the thing the deployment pulls.
+    needs: [analyze, locate, packages, image, image-rebuild]
     if: >-
       always() &&
       (inputs.dry_run == 'true' ||
        (needs.analyze.outputs.new_release_published == 'true' &&
         needs.locate.result == 'success' &&
-        (needs.packages.result == 'success' || needs.packages.result == 'skipped')))
+        (needs.packages.result == 'success' || needs.packages.result == 'skipped') &&
+        needs.image.result == 'success' &&
+        (needs.image.outputs.promoted == 'true' ||
+         (needs.image-rebuild.result == 'success' &&
+          needs.image-rebuild.outputs.image_digest != ''))))
     timeout-minutes: 30
     permissions:
       contents: write
@@ -231,12 +240,53 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  prune:
+    name: Prune the preview and release images
+    # Previews outlive their PR on purpose: the preview image is what the release
+    # transports, and pruning on close stranded the release on a cold rebuild.
+    # Cleanup lives here instead — after the release has consumed the preview and
+    # published the tag that supersedes it.
+    runs-on: ubuntu-latest
+    needs: [analyze, locate, image, image-rebuild, publish]
+    if: >-
+      always() &&
+      needs.analyze.outputs.new_release_published == 'true' &&
+      inputs.dry_run != 'true' &&
+      needs.publish.result == 'success'
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+      pull-requests: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Delete the preview image this release transported
+        if: needs.image.outputs.promoted == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREVIEW_TAG: ${{ needs.locate.outputs.preview_tag }}
+        run: |
+          set -euo pipefail
+          case "$PREVIEW_TAG" in
+            pr-[0-9]*) ./.github/scripts/prune-pr-image.sh --transported "${PREVIEW_TAG#pr-}" ;;
+            *) echo "no preview image was transported; nothing to delete" ;;
+          esac
+      - name: Sweep preview images whose PR closed without a release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./.github/scripts/prune-pr-image.sh --sweep
+
   image:
     name: Promote the preview image to the release tag
     runs-on: ubuntu-latest
-    needs: [analyze, locate, publish]
+    # Runs BEFORE publish: the release must not exist until the image the cluster
+    # will pull does. Only analyze (the version) and locate (the PR's tag) are
+    # inputs, so this needs no release to exist.
+    needs: [analyze, locate]
     if: needs.analyze.outputs.new_release_published == 'true' && inputs.dry_run != 'true'
-    timeout-minutes: 15
+    # A registry-side retag, not a build: seconds when it works at all.
+    timeout-minutes: 10
     permissions:
       contents: read
       packages: write
@@ -278,15 +328,22 @@ jobs:
 
   image-rebuild:
     name: Rebuild the release image (fallback)
-    runs-on: ubuntu-latest
-    needs: [analyze, locate, publish, image]
+    # Native arm64: the image is linux/arm64 only, and emulating that on an
+    # amd64 runner costs 4-5x on the compile. The arm64 runner label is the
+    # same one the aarch64 release packages already build on.
+    runs-on: ubuntu-24.04-arm
+    # Also before publish: this is the path that actually produces the image the
+    # cluster pulls, so the release waits on it too.
+    needs: [analyze, locate, image]
     if: >-
       always() &&
       needs.analyze.outputs.new_release_published == 'true' &&
       inputs.dry_run != 'true' &&
-      needs.publish.result == 'success' &&
       needs.image.outputs.promoted != 'true'
-    timeout-minutes: 45
+    # Native arm64 with the manifests-keyed dependency layer: the compile that
+    # needed 34+ minutes under QEMU on amd64 finishes in single digits here, so a
+    # build that overruns this is hung, not slow.
+    timeout-minutes: 15
     permissions:
       contents: read
       packages: write
@@ -299,7 +356,10 @@ jobs:
         id: build
         uses: ./.github/actions/build-image
         with:
-          ref: v${{ needs.analyze.outputs.new_release_version }}
+          # No ref. The version tag is created by publish, which now runs after
+          # this job, so fetching it fails; the action falls back to github.sha,
+          # which is that same commit. The tag is applied to the image below, it
+          # is not read from git.
           tag: v${{ needs.analyze.outputs.new_release_version }}
           host: openkite.maklab.net
 

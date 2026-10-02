@@ -16,7 +16,7 @@ fn default_theme_covers_the_full_contract() {
 #[test]
 fn resolve_named_opaline_theme() {
     let theme = resolve(Some("catppuccin-mocha"));
-    assert_eq!(theme.get("--bg-0"), Some("#11111b"));
+    assert_eq!(theme.get("--bg"), Some("#11111b"));
     assert_eq!(theme.get("--accent"), Some("#cba6f7"));
 }
 
@@ -37,11 +37,11 @@ fn resolve_none_uses_the_default_alias() {
 #[test]
 fn to_css_vars_serializes_declarations() {
     let theme = Theme::new()
-        .with_var("--bg-0", "#000000")
-        .with_var("--fg-0", "#ffffff");
+        .with_var("--bg", "#000000")
+        .with_var("--fg", "#ffffff");
     let css = theme.to_css_vars();
-    assert!(css.contains("--bg-0: #000000;"));
-    assert!(css.contains("--fg-0: #ffffff;"));
+    assert!(css.contains("--bg: #000000;"));
+    assert!(css.contains("--fg: #ffffff;"));
 }
 
 #[test]
@@ -78,7 +78,7 @@ fn theme_save_to_a_directory_is_an_io_error() {
     let dir = std::env::temp_dir().join(format!("openkite-theme-dir-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let err = Theme::new()
-        .with_var("--bg-0", "#000000")
+        .with_var("--bg", "#000000")
         .save(&dir)
         .unwrap_err();
     assert!(err.to_string().contains("theme I/O error"));

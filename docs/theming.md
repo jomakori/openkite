@@ -9,11 +9,14 @@ Declared in `src/theme.rs` (`CSS_VARS`), defaulted in `crates/openkite-ui/assets
 
 | Group | Variables |
 |---|---|
-| Background | `--bg-0` `--bg-1` `--bg-2` |
+| Background | `--bg` `--surface` `--surface-solid` |
 | Border | `--border` |
-| Foreground | `--fg-0` `--fg-1` `--fg-2` |
-| Accent | `--accent` |
-| Status | `--green` `--yellow` `--red` `--violet` |
+| Foreground | `--fg` `--muted` `--subtle` |
+| Accent | `--accent` `--progress` |
+| Status | `--success` `--warn` `--danger` `--violet` |
+| Brand | `--brand` `--argo` `--on-accent` (design-system additions) |
+| Terminal | `--terminal-bg` `--terminal-fg` |
+| Log levels | `--log-info` `--log-method` `--log-error` |
 | Terminal (xterm-256 base 16) | `--term-black` … `--term-white`, `--term-bright-black` … `--term-bright-white` |
 
 ## Theme source: opaline (OKT-30)
@@ -26,7 +29,7 @@ Dark/Light). The hand-rolled 5 defaults and the Zed importer were replaced by
 opaline (it ships those families natively).
 
 - `src/theme_opaline.rs` maps opaline's semantic tokens onto the contract:
-  `--bg-0 ← bg.base`, `--accent ← accent.primary`, `--green/--yellow/--red ←
+  `--bg ← bg.base`, `--accent ← accent.primary`, `--success/--warn/--danger ←
   success/warning/error`, with palette fallbacks; `--term-bright-*` are derived
   by lightening (opaline themes carry no ANSI brights).
 - `theme::resolve(name)` loads an opaline theme by kebab id
@@ -38,7 +41,7 @@ opaline (it ships those families natively).
 
 Opaline supplies **colors**; the glass/frost **chrome** lives in the design
 system (`crates/openkite-ui/assets/main.css`, OKT-29) on top of the variables: frost cards are
-`var(--bg-1)` at ~85% opacity + `backdrop-filter: blur(40px)`, elevation via
+`var(--surface)` at ~85% opacity + `backdrop-filter: blur(40px)`, elevation via
 the shadow system. Tokens are the single source of truth — the chrome never
 hardcodes colors.
 
@@ -52,7 +55,7 @@ hardcodes colors.
 ## Serialization
 
 ```rust
-theme.to_css_vars()   // "--bg-0: #1e1e2e;\n--bg-1: #181825;\n…"
+theme.to_css_vars()   // "--bg: #1e1e2e;\n--surface: #181825;\n…"
 theme.save(path)      // pretty JSON to ~/.openkite/theme.json
 Theme::load(path)     // read back
 ```

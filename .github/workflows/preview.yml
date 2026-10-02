@@ -36,10 +36,20 @@ jobs:
         with:
           repository: jomakori/gke_GitOps
           path: gke_GitOps
+      - name: Restore the Tilt binary
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/bin/tilt
+          key: tilt-${{ runner.os }}-${{ env.TILT_VERSION }}
       - name: Install Tilt
         run: |
-          curl -fsSL "https://github.com/tilt-dev/tilt/releases/download/${TILT_VERSION}/tilt.${TILT_VERSION#v}.linux.x86_64.tar.gz" \
-            | tar -xz -C /usr/local/bin tilt
+          # TILT_VERSION pins the release, so a restored binary is the exact one
+          # this job would download; only a cache miss pays for the tarball.
+          if ! command -v tilt >/dev/null 2>&1; then
+            tarball="https://github.com/tilt-dev/tilt/releases/download/${TILT_VERSION}"
+            curl -fsSL "${tarball}/tilt.${TILT_VERSION#v}.linux.x86_64.tar.gz" \
+              | tar -xz -C /usr/local/bin tilt
+          fi
           tilt version
       - name: Join the tailnet
         uses: tailscale/github-action@v4
@@ -120,8 +130,10 @@ jobs:
     if: >-
       contains(github.event.pull_request.labels.*.name, 'staging') &&
       github.event.action != 'closed'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    runs-on: ubuntu-24.04-arm
+    # Native arm64 build: see the release image job. A preview image is smaller
+    # than a release one, so 40 minutes only ever bought a hung runner time.
+    timeout-minutes: 15
     permissions:
       contents: read
       packages: write
@@ -164,29 +176,3 @@ jobs:
             } catch (error) {
               if (error.status !== 404) throw error;
             }
-
-  prune:
-    name: Delete the images this PR published
-    if: github.event.action == 'closed'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
-      packages: write
-      pull-requests: read
-    concurrency:
-      group: preview-prune-${{ github.event.pull_request.number }}
-      cancel-in-progress: false
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-      - name: Prune the image versions this PR published
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          if [ "${{ github.event.pull_request.merged }}" = "true" ]; then
-            ./.github/scripts/prune-pr-image.sh --merged "${{ github.event.pull_request.number }}"
-          else
-            ./.github/scripts/prune-pr-image.sh "${{ github.event.pull_request.number }}"
-          fi

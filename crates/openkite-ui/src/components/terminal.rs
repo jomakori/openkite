@@ -392,9 +392,9 @@ pub fn TerminalView() -> Element {
     rsx! {
         div { style: "display: flex; flex-direction: column; gap: 8px; height: 100%; box-sizing: border-box; padding: 12px 16px;",
             div { style: "display: flex; gap: 8px; align-items: center; flex-wrap: wrap;",
-                span { style: "font-size: 12px; color: var(--fg-2);", "pod: {pod_label}" }
+                span { style: "font-size: 12px; color: var(--subtle);", "pod: {pod_label}" }
                 select {
-                    style: "font: inherit; font-size: 12px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-2); color: var(--fg-0);",
+                    style: "font: inherit; font-size: 12px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-solid); color: var(--fg);",
                     value: "{container}",
                     oninput: move |e| container.set(e.value()),
                     for c in containers.iter() {
@@ -415,9 +415,9 @@ pub fn TerminalView() -> Element {
                 }
                 span { class: "term-status", "{phase_label(&phase_now)}" }
             }
-            div { style: "flex: 1; min-height: 0; position: relative; overflow: hidden; background: var(--term-bg); border-radius: var(--r-md);",
+            div { style: "flex: 1; min-height: 0; position: relative; overflow: hidden; background: var(--terminal-bg); border-radius: var(--r-md);",
                 if show_empty_state {
-                    span { style: "color: var(--fg-2); position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;",
+                    span { style: "color: var(--subtle); position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;",
                         "Pick a pod to start a terminal session (use the workload list or the inspector)."
                     }
                 }

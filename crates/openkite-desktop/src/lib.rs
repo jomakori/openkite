@@ -181,7 +181,7 @@ mod tests {
     #[test]
     fn bootstrap_head_carries_shell_css_and_openkite_global() {
         let head = bootstrap_head();
-        assert!(head.contains(".app-shell"));
+        assert!(head.contains(".app {"));
         assert!(head.contains("var(--font-sans)"));
         assert!(head.contains("window.openkite"));
         assert!(head.contains(&format!(

@@ -1,19 +1,20 @@
 /* OpenKite theme tokens — "Liquid frost glass" (Zed/GPUI precision, Apple depth). */
 :root {
-  --bg-0: #f5f7fa;
-  --bg-1: rgba(255, 255, 255, 0.85);
-  --bg-2: #f3f4f6;
+  --bg: #f5f7fa;
+  --surface: rgba(255, 255, 255, 0.85);
+  --surface-solid: rgba(255, 255, 255, 0.97);
   --border: #e2e4e9;
-  --fg-0: #1e2024;
-  --fg-1: #383a42;
-  --fg-2: #6b7280;
+  --fg: #262c34;
+  --muted: #6e7581;
+  --subtle: #999fa8;
   --accent: #4d8ce8;
-  --green: #4d9a5e;
-  --yellow: #c4841d;
-  --red: #e05252;
+  --progress: #4d8ce8;
+  --success: #4d9a5e;
+  --warn: #c4841d;
+  --danger: #e05252;
   --violet: #8b5cf6;
-  --term-bg: #1e2024;
-  --term-fg: #abb2bf;
+  --terminal-bg: #1e2024;
+  --terminal-fg: #abb2bf;
   --term-black: #282c34;
   --term-red: #e06c75;
   --term-green: #98c379;
@@ -36,7 +37,10 @@
      tokens that the theme engine does not carry. */
   --brand: #0d9488;            /* kite mark teal */
   --argo: #ef7b4d;             /* Argo CD orange (per-plugin accent zone) */
-  --on-accent: #1c2530;        /* text on bright fills */
+  --on-accent: #070e16;        /* text on bright fills */
+  --log-info: #98c379;         /* log level + method tags on the terminal anchor */
+  --log-method: #61afef;
+  --log-error: #e06c75;
   --font-sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --shadow-rest: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.06);
@@ -111,73 +115,180 @@ html, body { margin: 0; height: 100%; }
 body {
   font-family: var(--font-sans);
   font-size: 14px;
-  background: var(--bg-0);
-  color: var(--fg-0);
+  background: var(--bg);
+  color: var(--fg);
 }
 
-.app-shell { display: flex; height: 100vh; }
+/* ========================================================================
+   Console frame (OKT-154) — the design's shell vocabulary.
+
+   `.app` frame, `.sidebar` (brand, cluster button, nav, footer), `.main`
+   (top bar, pull indicator, routed view). Every surface here is token-driven:
+   no new :root properties, no second token system.
+   ======================================================================== */
+
+/* The frame: sidebar + main column, one viewport tall. */
+.app { display: flex; height: 100vh; overflow: hidden; }
 
 .surface {
-  background: var(--bg-1);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   padding: 16px;
 }
-.kv dt { color: var(--fg-2); font-size: 12px; }
-.kv dd { color: var(--fg-0); font-size: 13px; margin: 0; }
-.status-ok { color: var(--green); }
-.status-warn { color: var(--yellow); }
+.kv dt { color: var(--subtle); font-size: 12px; }
+.kv dd { color: var(--fg); font-size: 13px; margin: 0; }
+.status-ok { color: var(--success); }
+.status-warn { color: var(--warn); }
 
+/* Sidebar: frosted column, fixed 252px like the design. */
 .sidebar {
-  width: 224px;
-  background: var(--bg-2);
+  width: 252px;
+  flex: 0 0 252px;
+  display: flex;
+  flex-direction: column;
+  background: color-mix(in srgb, var(--surface) 76%, transparent);
   border-right: 1px solid var(--border);
-  padding: 12px;
+  backdrop-filter: blur(24px) saturate(1.25);
+  -webkit-backdrop-filter: blur(24px) saturate(1.25);
   box-sizing: border-box;
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  z-index: 40;
 }
 
-.brand { font-size: 18px; font-weight: 600; margin: 0 0 4px; }
-.tagline { font-size: 12px; color: var(--fg-2); margin: 0 0 12px; }
+/* Brand: the kite mark + the wordmark. */
+.brand { display: flex; align-items: center; gap: 10px; padding: 18px 16px 14px; }
+.brand-mark { width: 30px; height: 30px; flex: 0 0 auto; color: var(--brand); }
+.brand-word {
+  font-size: 16px;
+  line-height: 1;
+  letter-spacing: -0.015em;
+  font-weight: 400;
+  color: var(--fg);
+}
+.brand-word strong { font-weight: 700; }
 
-.content { flex: 1; padding: 16px; overflow: auto; }
-
-.nav { display: flex; flex-direction: column; gap: 2px; }
-
-.nav-item {
-  display: block;
+/* Cluster button: the context the console is pointed at. A host that cannot
+   list contexts renders the same button marked `data-unsupported`. */
+.cluster-btn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: calc(100% - 24px);
+  margin: 0 12px 12px;
   min-height: 44px;
-  padding: 0 12px;
-  line-height: 44px;
-  border-radius: 8px;
-  color: var(--fg-1);
-  text-decoration: none;
-  font-weight: 500;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--fg);
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-rest);
+  cursor: pointer;
   box-sizing: border-box;
 }
+.cluster-btn:hover { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); }
+.cluster-btn .cluster-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.cluster-btn small { font-size: 10px; color: var(--subtle); font-family: var(--font-mono); }
+.cluster-btn .icon:last-child { margin-left: auto; color: var(--subtle); }
+.cluster-btn[data-unsupported] { cursor: not-allowed; opacity: 0.62; }
 
-.nav-item:hover { background: var(--border); }
-.nav-item.active { background: var(--accent); color: #fff; }
-.nav-item.plugin { font-weight: 400; }
-
-.nav-divider { height: 1px; background: var(--border); margin: 8px 0; }
-
-.nav-section { display: flex; flex-direction: column; gap: 2px; margin: 6px 0; }
-.nav-section-label {
-  font-size: 11px;
+/* Navigation: one titled section per block, 44px entries, the current entry
+   frosted. */
+.nav { flex: 1; overflow-y: auto; padding: 4px 12px 16px; }
+.nav-section { display: flex; flex-direction: column; gap: 2px; margin-top: 14px; }
+.nav-title {
+  font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 4px 12px;
-  font-weight: 600;
-  color: var(--fg-2);
+  letter-spacing: 0.085em;
+  color: var(--subtle);
+  padding: 0 10px 6px;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  margin: 1px 0;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--fg);
+  text-decoration: none;
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  box-sizing: border-box;
+}
+.nav-item .icon { color: var(--subtle); }
+/* An entry a plugin contributed: same shape, lighter weight than the core
+   navigation. */
+.nav-item.plugin { font-weight: 400; }
+.nav-item:hover { background: color-mix(in srgb, var(--surface) 62%, transparent); }
+.nav-item.active { background: var(--surface); box-shadow: var(--shadow-rest); }
+.nav-item.active .icon { color: var(--accent); }
+.nav-item[data-disabled] { opacity: 0.62; cursor: default; }
+.nav-item .nav-badge {
+  margin-left: auto;
+  padding: 2px 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--subtle);
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
 }
 
-.not-found { text-align: center; padding: 48px; color: var(--fg-2); }
+/* Sidebar footer: the host's build + one line per live status slot. */
+.sidebar-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 14px;
+  border-top: 1px solid var(--border);
+}
+.sidebar-footer .version { font-family: var(--font-mono); font-size: 10.5px; color: var(--subtle); }
+.status-line { display: inline-flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--subtle); }
+.status-line .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--subtle);
+  flex: 0 0 auto;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--subtle) 15%, transparent);
+}
 
-/* Host-rendered mount node for JS plugin routes. `display: contents`
-   keeps the plugin's children in the host main outlet without an extra
-   box; the plugin's CSS handles its own layout. */
+/* The drawer's scrim: shown with the open sidebar below 1024px. */
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  padding: 0;
+  border: 0;
+  background: color-mix(in srgb, var(--fg) 32%, transparent);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  cursor: pointer;
+}
+.sidebar-backdrop.show { display: block; }
+
+.not-found { text-align: center; padding: 48px; color: var(--subtle); }
+
+/* The crate-rendered mount node a JS plugin route renders into. `display:
+   contents` keeps the plugin's children in the host main outlet without an
+   extra box; the plugin's CSS handles its own layout. The host's evaluator
+   (desktop) fills it via `[data-js-route-mount]`. */
 .js-route-slot { display: contents; }
 
 /* CodeMirror 6 host surface (OKT-37). The vendored IIFE bundle injects
@@ -186,69 +297,253 @@ body {
 .code-editor {
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: var(--bg-1);
+  background: var(--surface);
   overflow: hidden;
 }
 .diagnostics { padding: 8px 12px; font-family: var(--font-mono); font-size: 11.5px; }
-.diagnostic-line { color: var(--red); padding: 2px 0; }
-.diagnostic-line .line-col { color: var(--fg-2); margin-right: 6px; }
+.diagnostic-line { color: var(--danger); padding: 2px 0; }
+.diagnostic-line .line-col { color: var(--subtle); margin-right: 6px; }
 
 /* Theme selector (OKT-42): omarchy-style picker. Frost card, token-driven. */
 .theme-selector { display: flex; flex-direction: column; gap: 4px; }
-.theme-group { color: var(--fg-2); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; margin: 12px 0 4px; }
+.theme-group { color: var(--subtle); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; margin: 12px 0 4px; }
 .theme-row {
   display: flex; align-items: center; gap: 10px; padding: 6px 10px;
-  background: color-mix(in srgb, var(--bg-1) 85%, transparent);
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
   border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
   backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px);
-  color: var(--fg-0); font: inherit; text-align: left; transition: border-color 0.15s, background 0.15s;
+  color: var(--fg); font: inherit; text-align: left; transition: border-color 0.15s, background 0.15s;
 }
 .theme-row:hover { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); }
 .theme-row-active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .theme-swatch { display: flex; gap: 3px; }
 .swatch-chip { width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--border); }
 .theme-name { flex: 1; font-size: 13px; }
-.theme-variant { font-size: 11px; color: var(--fg-2); }
+.theme-variant { font-size: 11px; color: var(--subtle); }
 
-/* App shell chrome (OKT-31): main column + status footer. */
-.main-col { flex: 1; min-width: 0; display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; }
-.main-col .content { flex: 1; min-height: 0; }
-
-.status {
-  display: flex; align-items: center; gap: 16px;
-  padding: 6px 16px; min-height: 32px; box-sizing: border-box;
-  border-top: 1px solid var(--border);
-  background: color-mix(in srgb, var(--bg-1) 85%, transparent);
-  backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px);
-  font-size: 12px; color: var(--fg-2);
+/* Main column: top bar, pull indicator, routed view. */
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  position: relative;
 }
 
-.status-entry { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
-.status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--fg-2); display: inline-block; }
-
-/* Top bar: cluster selector + namespace chips. */
+/* Top bar: menu toggle, breadcrumbs, action row. */
 .topbar {
-  display: flex; align-items: center; gap: 10px;
-  padding: 8px 16px; box-sizing: border-box;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 10px 20px;
+  box-sizing: border-box;
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
   border-bottom: 1px solid var(--border);
-  background: color-mix(in srgb, var(--bg-1) 85%, transparent);
-  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
-.cluster-select {
-  font: inherit; font-size: 13px; color: var(--fg-0);
-  background: var(--bg-2); border: 1px solid var(--border);
-  border-radius: 8px; padding: 4px 8px; outline: none;
+
+/* The drawer toggle: the design hides it while the sidebar is part of the
+   frame (>= 1025px) and shows it with the drawer below that. */
+.menu-toggle { display: none; }
+
+.breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--subtle);
+  white-space: nowrap;
 }
-.cluster-select:focus { border-color: var(--accent); }
-.ns-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.ns-chip {
-  font: inherit; font-size: 12px; color: var(--fg-1);
-  background: var(--bg-2); border: 1px solid var(--border);
-  border-radius: 999px; padding: 3px 10px; cursor: pointer;
-  transition: border-color 0.15s, background 0.15s, color 0.15s;
+.breadcrumbs .icon { width: 13px; height: 13px; color: var(--subtle); }
+/* A step in the trail; the design marks only the current one. */
+.breadcrumbs .crumb { color: var(--subtle); }
+.breadcrumbs .current { color: var(--fg); font-weight: 500; }
+
+.topbar-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  padding: 0;
+  font: inherit;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-rest);
+  cursor: pointer;
 }
-.ns-chip:hover { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); }
-.ns-chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.icon-btn:hover { box-shadow: var(--shadow-hover); }
+.icon-btn:active { transform: translateY(1px); }
+.icon-btn[data-unsupported] { opacity: 0.62; cursor: not-allowed; }
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  padding: 0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: var(--brand);
+  color: var(--on-accent);
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+/* Pull-to-refresh affordance: out of the viewport until a host shows it. */
+.pull-indicator {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%) translateY(-100%);
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  box-shadow: var(--shadow-hover);
+  pointer-events: none;
+  transition: transform 0.2s ease;
+}
+.pull-indicator.show { transform: translateX(-50%) translateY(12px); }
+.spinner {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  border: 2px solid color-mix(in srgb, var(--accent) 24%, transparent);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* The routed view: the host's outlet renders here. */
+.view { display: none; padding: 20px; }
+.view.active { display: block; }
+
+/* Route chrome (OKT-155): the heading row, the filter toolbar and the panel
+   footer every primary route carries inside the shell's `.view`. Ported from
+   the design so a route's head, toolbars and pager read the same as the
+   mockup's. */
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 16px;
+}
+.page-head h1 {
+  font-size: clamp(24px, 2vw, 32px);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  margin: 3px 0 6px;
+  font-weight: 600;
+}
+.page-sub {
+  color: var(--subtle);
+  font-size: 13px;
+  max-width: 65ch;
+  margin: 0;
+}
+.page-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.chip-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+.panel-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  color: var(--subtle);
+  font-size: 11px;
+}
+.pager { display: flex; gap: 6px; }
+.pager button {
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--subtle);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.pager button.active {
+  background: var(--fg);
+  border-color: var(--fg);
+  color: #fff;
+}
+.tag-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.tag {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  padding: 4px 7px;
+  border-radius: 4px;
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  color: var(--subtle);
+  white-space: nowrap;
+}
+.tag[data-unsupported] { opacity: 0.72; }
+
+/* The design's glyph: 16px stroke icon, coloured by the surrounding text. */
+.icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The design's micro-label. */
+.eyebrow {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--subtle);
+}
 
 /* ========================================================================
    Liquid Frost Glass design system — primitive classes.
@@ -260,7 +555,7 @@ body {
 
 /* --- Frost surfaces --- */
 .panel {
-  background: var(--bg-1);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   box-shadow: var(--shadow-rest);
@@ -278,8 +573,8 @@ body {
   font: inherit; font-size: 13px;
   border-radius: var(--r-sm);
   border: 1px solid var(--border);
-  background: var(--bg-1);
-  color: var(--fg-0);
+  background: var(--surface);
+  color: var(--fg);
   cursor: pointer;
   text-decoration: none;
   box-sizing: border-box;
@@ -296,12 +591,12 @@ body {
   border-color: var(--accent);
 }
 .btn-primary:hover {
-  background: color-mix(in srgb, var(--accent) 90%, var(--fg-0));
-  border-color: color-mix(in srgb, var(--accent) 90%, var(--fg-0));
+  background: color-mix(in srgb, var(--accent) 90%, var(--fg));
+  border-color: color-mix(in srgb, var(--accent) 90%, var(--fg));
 }
 
 .btn-secondary {
-  background: var(--bg-1);
+  background: var(--surface);
   border: 1px solid var(--border);
 }
 
@@ -311,8 +606,8 @@ body {
   min-height: 44px;
   padding: 0 14px;
   font: inherit; font-size: 12px;
-  background: var(--bg-2);
-  color: var(--fg-1);
+  background: var(--surface-solid);
+  color: var(--muted);
   border: 1px solid var(--border);
   border-radius: var(--r-pill);
   cursor: pointer;
@@ -321,9 +616,9 @@ body {
 }
 .chip:hover { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); }
 .chip.active {
-  background: var(--fg-0);
+  background: var(--fg);
   color: #fff;
-  border-color: var(--fg-0);
+  border-color: var(--fg);
 }
 
 /* --- Search field --- */
@@ -331,7 +626,7 @@ body {
   position: relative;
   display: flex; align-items: center;
   min-height: 44px;
-  background: var(--bg-1);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
   padding: 0 12px;
@@ -340,18 +635,18 @@ body {
 .search-field input {
   flex: 1; min-width: 0;
   font: inherit; font-size: 13px;
-  color: var(--fg-0);
+  color: var(--fg);
   background: transparent;
   border: 0; outline: 0;
   padding: 0 0 0 8px;
 }
-.search-field input::placeholder { color: var(--fg-2); }
+.search-field input::placeholder { color: var(--subtle); }
 .search-field:focus-within { border-color: var(--accent); }
 
 .field-input {
   font: inherit; font-size: 13px;
-  color: var(--fg-0);
-  background: var(--bg-1);
+  color: var(--fg);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
   padding: 8px 12px;
@@ -367,8 +662,8 @@ body {
   padding: 2px 10px;
   border-radius: var(--r-pill);
   border: 1px solid var(--border);
-  background: var(--bg-2);
-  color: var(--fg-1);
+  background: var(--surface-solid);
+  color: var(--muted);
   white-space: nowrap;
   box-sizing: border-box;
 }
@@ -377,32 +672,32 @@ body {
   background: currentColor; flex-shrink: 0;
 }
 .pill.success {
-  background: color-mix(in srgb, var(--green) 11%, white);
-  border-color: color-mix(in srgb, var(--green) 24%, var(--border));
-  color: color-mix(in srgb, var(--green) 62%, var(--fg-0));
+  background: color-mix(in srgb, var(--success) 11%, white);
+  border-color: color-mix(in srgb, var(--success) 24%, var(--border));
+  color: color-mix(in srgb, var(--success) 62%, var(--fg));
 }
 .pill.warn {
-  background: color-mix(in srgb, var(--yellow) 11%, white);
-  border-color: color-mix(in srgb, var(--yellow) 24%, var(--border));
-  color: color-mix(in srgb, var(--yellow) 62%, var(--fg-0));
+  background: color-mix(in srgb, var(--warn) 11%, white);
+  border-color: color-mix(in srgb, var(--warn) 24%, var(--border));
+  color: color-mix(in srgb, var(--warn) 62%, var(--fg));
 }
 .pill.danger {
-  background: color-mix(in srgb, var(--red) 11%, white);
-  border-color: color-mix(in srgb, var(--red) 24%, var(--border));
-  color: color-mix(in srgb, var(--red) 62%, var(--fg-0));
+  background: color-mix(in srgb, var(--danger) 11%, white);
+  border-color: color-mix(in srgb, var(--danger) 24%, var(--border));
+  color: color-mix(in srgb, var(--danger) 62%, var(--fg));
 }
 .pill.muted {
-  background: var(--bg-2);
+  background: var(--surface-solid);
   border-color: var(--border);
-  color: var(--fg-2);
+  color: var(--subtle);
 }
 
 /* --- Health dots (inline cell) --- */
 .health-dots { display: inline-flex; gap: 3px; align-items: center; }
-.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--fg-2); display: inline-block; }
-.dot.ok { background: var(--green); }
-.dot.warn { background: var(--yellow); }
-.dot.err { background: var(--red); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--subtle); display: inline-block; }
+.dot.ok { background: var(--success); }
+.dot.warn { background: var(--warn); }
+.dot.err { background: var(--danger); }
 
 /* --- Resource table (grid-row primitives) --- */
 .resource-table {
@@ -417,7 +712,7 @@ body {
   border-bottom: 1px solid var(--border);
 }
 .table-filter { flex: 1; min-width: 0; }
-.table-header { color: var(--fg-2); }
+.table-header { color: var(--subtle); }
 .table-header .table-cell {
   text-transform: uppercase;
   letter-spacing: 0.075em;
@@ -436,22 +731,22 @@ body {
 .table-state, .table-empty {
   padding: 24px 16px;
   font-family: var(--font-sans);
-  color: var(--fg-2);
+  color: var(--subtle);
   text-align: center;
 }
-.table-error { color: var(--red); }
+.table-error { color: var(--danger); }
 .table-actions { display: flex; justify-content: flex-end; gap: 4px; }
 
 /* --- Table primitives --- */
 .table-wrap {
   overflow-x: auto;
-  background: var(--bg-1);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
 }
 .sort-indicator {
   font-size: 10px;
-  color: var(--fg-2);
+  color: var(--subtle);
   margin-left: 4px;
   user-select: none;
 }
@@ -459,23 +754,23 @@ body {
   display: inline-flex; align-items: center; gap: 8px;
   font-family: var(--font-mono);
   font-size: 12.5px;
-  color: var(--fg-0);
+  color: var(--fg);
 }
-.resource-name .icon { width: 14px; height: 14px; flex-shrink: 0; color: var(--fg-2); }
+.resource-name .icon { width: 14px; height: 14px; flex-shrink: 0; color: var(--subtle); }
 .namespace {
   font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--fg-2);
+  color: var(--subtle);
 }
-.restarts { font-variant-numeric: tabular-nums; color: var(--fg-1); }
-.restarts.warn { color: var(--yellow); font-weight: 600; }
-.controller { font-size: 12.5px; color: var(--fg-1); }
-.qos { font-size: 11px; color: var(--fg-2); text-transform: uppercase; letter-spacing: 0.04em; }
+.restarts { font-variant-numeric: tabular-nums; color: var(--muted); }
+.restarts.warn { color: var(--warn); font-weight: 600; }
+.controller { font-size: 12.5px; color: var(--muted); }
+.qos { font-size: 11px; color: var(--subtle); text-transform: uppercase; letter-spacing: 0.04em; }
 
 /* --- Log panel (the opaque terminal anchor) --- */
 .log-panel {
-  background: var(--term-bg);
-  color: var(--term-fg);
+  background: var(--terminal-bg);
+  color: var(--terminal-fg);
   font-family: var(--font-mono);
   font-size: 12px;
   line-height: 1.5;
@@ -488,7 +783,7 @@ body {
 .log-header {
   display: flex; align-items: center; gap: 8px;
   padding: 6px 12px;
-  border-bottom: 1px solid color-mix(in srgb, var(--term-fg) 12%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--terminal-fg) 12%, transparent);
   font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
   color: var(--term-bright-white);
 }
@@ -496,11 +791,11 @@ body {
 .log-body { flex: 1; overflow: auto; padding: 6px 12px; }
 .log-line { display: flex; gap: 8px; align-items: baseline; }
 .log-time { color: var(--term-bright-black); flex-shrink: 0; }
-.log-level { font-weight: 600; flex-shrink: 0; }
-.log-level.warn { color: var(--term-yellow); }
-.log-level.error { color: var(--term-red); }
-.log-method { color: var(--term-cyan); flex-shrink: 0; }
-.log-msg { color: var(--term-fg); word-break: break-word; }
+.log-level { color: var(--log-info); font-weight: 600; flex-shrink: 0; }
+.log-level.warn { color: var(--warn); }
+.log-level.error { color: var(--log-error); }
+.log-method { color: var(--log-method); flex-shrink: 0; }
+.log-msg { color: var(--terminal-fg); word-break: break-word; }
 .log-paused { font-size: 10.5px; color: var(--term-yellow); padding: 0 12px 4px; }
 
 /* --- Terminal view --- */
@@ -508,9 +803,9 @@ body {
   font-size: 11px;
   padding: 2px 8px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--term-fg) 10%, transparent);
-  color: var(--term-fg);
-  border: 1px solid color-mix(in srgb, var(--term-fg) 18%, transparent);
+  background: color-mix(in srgb, var(--terminal-fg) 10%, transparent);
+  color: var(--terminal-fg);
+  border: 1px solid color-mix(in srgb, var(--terminal-fg) 18%, transparent);
   font-family: var(--font-mono);
 }
 
@@ -518,7 +813,7 @@ body {
 .inspector {
   position: fixed; right: 0; top: 0; bottom: 0;
   width: min(420px, 100%);
-  background: var(--bg-1);
+  background: var(--surface);
   border-left: 1px solid var(--border);
   box-shadow: var(--shadow-hover);
   backdrop-filter: blur(24px);
@@ -539,32 +834,32 @@ body {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
 }
 .inspector-title h2 {
-  margin: 0; font-size: 15px; font-weight: 600; color: var(--fg-0);
+  margin: 0; font-size: 15px; font-weight: 600; color: var(--fg);
 }
 .resource-kind {
   font-size: 10px; text-transform: uppercase; letter-spacing: 0.09em;
-  color: var(--fg-2);
+  color: var(--subtle);
 }
 .inspector-meta {
   display: flex; gap: 12px;
   font-size: 11.5px; font-family: var(--font-mono);
-  color: var(--fg-2);
+  color: var(--subtle);
 }
 .inspector-eyebrow {
   font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
-  color: var(--fg-2);
+  color: var(--subtle);
 }
 .inspector-body { flex: 1; overflow: auto; padding: 16px; }
 .kv-list { display: flex; flex-direction: column; gap: 8px; }
 .kv-row { display: grid; grid-template-columns: 130px 1fr; gap: 8px; align-items: baseline; }
-.kv-row dt { color: var(--fg-2); font-size: 12px; margin: 0; }
-.kv-row dd { color: var(--fg-0); font-size: 13px; margin: 0; word-break: break-word; }
+.kv-row dt { color: var(--subtle); font-size: 12px; margin: 0; }
+.kv-row dd { color: var(--fg); font-size: 13px; margin: 0; word-break: break-word; }
 
 /* Secret value masking: the masked placeholder is visually inert, a
    revealed value gets a distinct foreground so the state change reads. */
 .value-mask { font-family: var(--font-mono); font-size: 12px; }
-.value-masked { color: var(--fg-2); }
-.value-revealed { color: var(--fg-0); }
+.value-masked { color: var(--subtle); }
+.value-revealed { color: var(--fg); }
 .value-actions { display: inline-flex; gap: 6px; margin-left: 12px; }
 .reveal-btn,
 .hide-btn,
@@ -581,7 +876,7 @@ body {
   transform: translateX(-50%);
   min-width: 220px; max-width: 340px;
   padding: 10px 16px;
-  background: var(--fg-0);
+  background: var(--fg);
   color: #fff;
   border-radius: var(--r-md);
   box-shadow: var(--shadow-hover);
@@ -595,22 +890,57 @@ body {
 .toast.show { opacity: 1; }
 
 /* --- Responsive (tablet + mobile) --- */
+
+/* Tablet: the sidebar becomes a drawer the menu toggle opens. */
 @media (max-width: 1024px) and (min-width: 768px) {
-  .content { padding: 16px; }
+  .sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    transform: translateX(-100%);
+    transition: transform 0.24s ease;
+  }
+  .sidebar.open { transform: translateX(0); }
+  .sidebar-backdrop.show { display: block; }
+  .menu-toggle { display: inline-flex; }
+  .topbar { padding-left: 12px; padding-right: 16px; }
+  .view { padding: 16px; }
   .inspector { width: min(360px, 100%); }
 }
 
+/* Mobile: the same drawer, narrower, with the crumbs trimmed. */
 @media (max-width: 767px) {
-  .app-shell { flex-direction: column; }
   .sidebar {
-    width: 100%; height: auto;
-    border-right: 0; border-bottom: 1px solid var(--border);
-    padding: 10px 12px;
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: min(290px, 86vw);
+    flex: 0 0 auto;
+    transform: translateX(-100%);
+    transition: transform 0.24s ease;
   }
-  .content { padding: 12px; }
+  .sidebar.open { transform: translateX(0); }
+  .sidebar-backdrop.show { display: block; }
+  .menu-toggle { display: inline-flex; }
+  .topbar { min-height: 54px; padding: 8px 12px; }
+  .breadcrumbs { font-size: 11px; }
+  .breadcrumbs .crumb-hide { display: none; }
+  .view { padding: 14px 12px 12px; }
+  .page-head { flex-direction: column; align-items: stretch; gap: 12px; }
+  .page-actions { width: 100%; }
+  .page-actions .btn { flex: 1; }
+  .toolbar { flex-direction: column; align-items: stretch; }
+  .chip-row { padding-bottom: 4px; }
   .inspector { width: 100%; }
   .panel { padding: 12px; }
   .toast { bottom: 16px; max-width: calc(100% - 32px); }
+}
+
+/* Desktop: the sidebar never leaves the frame, so the toggle never shows. */
+@media (min-width: 1025px) {
+  .menu-toggle { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -655,15 +985,15 @@ body {
 }
 
 .switcher-input::placeholder {
-  color: var(--fg-2);
+  color: var(--subtle);
 }
 
 .switcher-error {
   padding: 8px 16px;
   font-size: 12px;
-  color: var(--red);
+  color: var(--danger);
   border-top: 1px solid var(--border);
-  background: var(--bg-2);
+  background: var(--surface-solid);
 }
 
 .switcher-list {
@@ -684,13 +1014,13 @@ body {
 }
 
 .switcher-row.selected {
-  background: var(--bg-2);
+  background: var(--surface-solid);
 }
 
 .switcher-row.selected::after {
   content: "↵";
   margin-left: auto;
-  color: var(--fg-2);
+  color: var(--subtle);
   font-size: 11px;
 }
 
@@ -698,14 +1028,14 @@ body {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--green);
+  background: var(--success);
   flex-shrink: 0;
 }
 
 .switcher-empty {
   padding: 12px 16px;
   font-size: 13px;
-  color: var(--fg-2);
+  color: var(--subtle);
 }
 
 /* Ctrl+P command palette. The React console is a fixed layer covering the
@@ -725,7 +1055,7 @@ body {
 .palette {
   width: 520px;
   max-width: calc(100vw - 48px);
-  background: var(--bg-1);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   box-shadow: var(--shadow-hover);
@@ -740,12 +1070,12 @@ body {
   font-size: 15px;
   font-family: var(--font-mono);
   background: transparent;
-  color: var(--fg-0);
+  color: var(--fg);
   box-sizing: border-box;
 }
 
 .palette-input::placeholder {
-  color: var(--fg-2);
+  color: var(--subtle);
 }
 
 .palette-list {
@@ -759,32 +1089,32 @@ body {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--fg-2);
+  color: var(--subtle);
 }
 
 .palette-row {
   padding: 10px 16px;
   font-size: 13px;
   font-family: var(--font-mono);
-  color: var(--fg-0);
+  color: var(--fg);
   cursor: pointer;
 }
 
 .palette-row.selected {
-  background: var(--bg-2);
+  background: var(--surface-solid);
 }
 
 .palette-empty {
   padding: 12px 16px;
   font-size: 13px;
-  color: var(--fg-2);
+  color: var(--subtle);
 }
 
 /* CRUD modal + confirm dialogs (OKT-43). The destructive confirm is the
    trust boundary: the red Delete button is disabled until the typed name
    matches exactly, the body stop_propagation's so clicks inside never
    dismiss, and the backdrop click cancels. All surface classes are
-   token-driven (--bg-1, --bg, --border, --r-md, --shadow-hover, --red);
+   token-driven (--surface, --bg, --border, --r-md, --shadow-hover, --danger);
    no new :root properties. */
 .modal-backdrop {
   position: fixed;
@@ -822,13 +1152,13 @@ body {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--fg-2);
+  color: var(--subtle);
 }
 
 .modal-title {
   font-size: 15px;
   font-weight: 600;
-  color: var(--fg-0);
+  color: var(--fg);
 }
 
 .modal-body {
@@ -857,8 +1187,8 @@ body {
   font-size: 12.5px;
   line-height: 1.5;
   padding: 10px;
-  color: var(--fg-0);
-  background: var(--bg-1);
+  color: var(--fg);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
   outline: none;
@@ -871,37 +1201,37 @@ body {
 .field-label {
   font-size: 12px;
   font-weight: 500;
-  color: var(--fg-1);
+  color: var(--muted);
 }
 .field-helper {
   font-size: 11.5px;
-  color: var(--fg-2);
+  color: var(--subtle);
 }
 .field-error {
   font-size: 12px;
-  color: var(--red);
+  color: var(--danger);
 }
 
 /* Diagnostics + status-badge status colors. */
-.message { color: var(--fg-1); }
+.message { color: var(--muted); }
 .status-badge { font-weight: 600; }
-.status-badge.status-ok { color: var(--green); }
-.status-badge.status-warn { color: var(--yellow); }
-.status-badge.status-err { color: var(--red); }
-.status-badge.status-muted { color: var(--fg-2); }
+.status-badge.status-ok { color: var(--success); }
+.status-badge.status-warn { color: var(--warn); }
+.status-badge.status-err { color: var(--danger); }
+.status-badge.status-muted { color: var(--subtle); }
 
 /* Destructive confirm copy. */
 .confirm-warning {
   font-size: 13px;
-  color: var(--fg-1);
+  color: var(--muted);
   margin: 0;
 }
 
-/* Danger button — same shape as .btn-primary but with --red. */
+/* Danger button — same shape as .btn-primary but with --danger. */
 .btn-danger {
-  background: var(--red);
+  background: var(--danger);
   color: #fff;
-  border-color: var(--red);
+  border-color: var(--danger);
 }
 .btn-danger:hover:not(:disabled) {
   filter: brightness(1.05);
