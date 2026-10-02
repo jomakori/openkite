@@ -379,55 +379,55 @@ fn count_in_scope<T>(
     )
 }
 
-/// The sidebar's live counts: one number per core nav entry, read from the same
-/// reflector signals the views render from and scoped to the namespaces the
-/// console is looking at.
+/// The sidebar's live counts, scoped to the namespaces the console is looking
+/// at: one number per entry the reference badges, read from the same reflector
+/// signals the views render from.
 ///
 /// A kind that is not being watched yields `None` and a watched kind with no
 /// rows in scope yields zero; both draw no badge, because the design shows a
-/// count only when there is one to show.
-fn nav_counts() -> openkite_ui::shell::NavCounts {
+/// count only when there is one to show. The reference badges five rows
+/// (Nodes, Pods, Deployments, Services, ConfigMaps) and draws Storage and
+/// Network without a count, so only those five are read.
+///
+/// The scope comes in as a parameter so the mapping is testable without a
+/// Dioxus runtime; [`nav_counts`] supplies the selected namespaces.
+fn nav_counts_in_scope(scope: &[String]) -> openkite_ui::shell::NavCounts {
     use crate::state::live;
     use openkite_ui::shell::NavCounts;
 
-    let scope = crate::runtime::SELECTED_NAMESPACES.read().clone();
     NavCounts {
         nodes: count_in_scope(
             live::nodes_signal().map(|signal| signal.cloned()),
-            &scope,
+            scope,
             |node| node.metadata.namespace.clone(),
         ),
         pods: count_in_scope(
             live::pods_signal().map(|signal| signal.cloned()),
-            &scope,
+            scope,
             |pod| pod.metadata.namespace.clone(),
         ),
         deployments: count_in_scope(
             live::deployments_signal().map(|signal| signal.cloned()),
-            &scope,
+            scope,
             |deployment| deployment.metadata.namespace.clone(),
         ),
         services: count_in_scope(
             live::services_signal().map(|signal| signal.cloned()),
-            &scope,
+            scope,
             |service| service.metadata.namespace.clone(),
         ),
         config_maps: count_in_scope(
             live::config_maps_signal().map(|signal| signal.cloned()),
-            &scope,
+            scope,
             |config_map| config_map.metadata.namespace.clone(),
         ),
-        storage: count_in_scope(
-            live::persistent_volume_claims_signal().map(|signal| signal.cloned()),
-            &scope,
-            |claim| claim.metadata.namespace.clone(),
-        ),
-        network: count_in_scope(
-            live::ingresses_signal().map(|signal| signal.cloned()),
-            &scope,
-            |ingress| ingress.metadata.namespace.clone(),
-        ),
     }
+}
+
+/// The sidebar's live counts under the console's current namespace selection.
+fn nav_counts() -> openkite_ui::shell::NavCounts {
+    let scope = crate::runtime::SELECTED_NAMESPACES.read().clone();
+    nav_counts_in_scope(&scope)
 }
 
 /// The sidebar the crate shell renders: the reference's three core sections
@@ -890,6 +890,8 @@ mod tests {
         assert_eq!(full_path(&path), "/");
     }
 
+    // `json_response` is the desktop asset handler's; the test rides its gate.
+    #[cfg(feature = "desktop")]
     #[test]
     fn json_response_serializes_ok_and_error_envelopes() {
         let ok = json_response(ApiResponse::Ok {
@@ -917,5 +919,70 @@ mod tests {
                 error: "bridge not installed".into()
             }
         );
+    }
+
+    /// A row shaped like the kube objects the counts read: a metadata
+    /// namespace, absent for a cluster-scoped kind.
+    struct Row {
+        namespace: Option<String>,
+    }
+
+    fn rows(namespaces: &[Option<&str>]) -> Option<Vec<Arc<Row>>> {
+        Some(
+            namespaces
+                .iter()
+                .map(|namespace| {
+                    Arc::new(Row {
+                        namespace: namespace.map(str::to_string),
+                    })
+                })
+                .collect(),
+        )
+    }
+
+    fn count(rows: Option<Vec<Arc<Row>>>, scope: &[&str]) -> Option<u64> {
+        let scope: Vec<String> = scope.iter().map(|ns| ns.to_string()).collect();
+        count_in_scope(rows, &scope, |row| row.namespace.clone())
+    }
+
+    #[test]
+    fn count_in_scope_separates_an_unwatched_kind_from_an_empty_scope() {
+        // An unwatched kind has no signal at all: no count, so no badge.
+        assert_eq!(count(None, &[]), None);
+        // A watched kind with nothing in scope is a real zero.
+        assert_eq!(count(rows(&[]), &[]), Some(0));
+    }
+
+    #[test]
+    fn count_in_scope_keeps_cluster_scoped_rows_in_every_namespace_scope() {
+        // A node is cluster-scoped: a namespace scope never excludes it.
+        assert_eq!(count(rows(&[None, None]), &["prod"]), Some(2));
+        assert_eq!(count(rows(&[None, None]), &["missing"]), Some(2));
+        // A namespaced row beside it still obeys the scope.
+        assert_eq!(count(rows(&[None, Some("other")]), &["prod"]), Some(1));
+    }
+
+    #[test]
+    fn count_in_scope_keeps_only_the_selected_namespaces() {
+        let all = || rows(&[Some("prod"), Some("prod"), Some("kube-system")]);
+        // An empty selection means every namespace.
+        assert_eq!(count(all(), &[]), Some(3));
+        assert_eq!(count(all(), &["prod"]), Some(2));
+        assert_eq!(count(all(), &["prod", "kube-system"]), Some(3));
+        assert_eq!(count(all(), &["missing"]), Some(0));
+    }
+
+    #[test]
+    fn the_desktop_counts_read_the_watched_signals_per_scope() {
+        // No client is published in a unit test, so no reflector signal is
+        // present: every count is `None` for any scope — no kind is watched —
+        // so the core rows draw no badge, never a zero.
+        let none = openkite_ui::shell::NavCounts::default();
+        assert_eq!(nav_counts_in_scope(&[]), none);
+        assert_eq!(nav_counts_in_scope(&["prod".to_string()]), none);
+        // The mapping is the desktop's real one: each row reads its own kind.
+        // A watched-but-empty kind is exercised at the `count_in_scope` seam
+        // (a `None` signal is "unwatched", an empty one is a real zero), and
+        // the read of `SELECTED_NAMESPACES` needs a Dioxus runtime to execute.
     }
 }

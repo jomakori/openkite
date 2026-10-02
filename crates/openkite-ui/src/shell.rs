@@ -71,11 +71,13 @@ pub fn section_variant(section: &ShellSection) -> Option<&'static str> {
     section.plugin().and_then(plugin_section_variant)
 }
 
-/// Live counts for the core navigation, one per resource the reference badges.
+/// Live counts for the core navigation: one per entry the reference badges.
 ///
-/// A field is `None` while the host has no live count for that kind — an
-/// unwatched kind, or a scope with no objects — so an absent count and an
-/// empty scope both render no badge instead of a zero.
+/// The reference badges five rows — Nodes, Pods, Deployments, Services,
+/// ConfigMaps — and draws Storage and Network without a count, so neither is
+/// modelled here. A field is `None` while the host has no live count for that
+/// kind — an unwatched kind, or a scope with no objects — so an absent count
+/// and an empty scope both render no badge instead of a zero.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct NavCounts {
     pub nodes: Option<u64>,
@@ -83,8 +85,6 @@ pub struct NavCounts {
     pub deployments: Option<u64>,
     pub services: Option<u64>,
     pub config_maps: Option<u64>,
-    pub storage: Option<u64>,
-    pub network: Option<u64>,
 }
 
 /// The `.nav-badge` text for a live count: `None` while loading and for an
@@ -107,6 +107,10 @@ pub fn core_sections() -> Vec<ShellSection> {
 /// Config & Storage (ConfigMaps, Storage, Network). Entries carry the console's
 /// own routes; it has no per-kind route yet, so a family shares its section's
 /// route and the first entry on a route is the current one.
+///
+/// Badges land on exactly the rows the reference badges (Nodes, Pods,
+/// Deployments, Services, ConfigMaps); Storage and Network are count-less
+/// there and stay count-less here.
 pub fn core_sections_with_counts(counts: &NavCounts) -> Vec<ShellSection> {
     let item = |label: &str, route: &str, badge: Option<String>| ShellNavItem {
         label: label.into(),
@@ -137,8 +141,9 @@ pub fn core_sections_with_counts(counts: &NavCounts) -> Vec<ShellSection> {
             accent: None,
             items: vec![
                 item("ConfigMaps", "/config", nav_badge(counts.config_maps)),
-                item("Storage", "/config", nav_badge(counts.storage)),
-                item("Network", "/config", nav_badge(counts.network)),
+                // The reference draws these two rows without a count.
+                item("Storage", "/config", None),
+                item("Network", "/config", None),
             ],
         },
     ]
@@ -649,11 +654,8 @@ mod tests {
             pods: Some(124),
             deployments: Some(37),
             services: Some(29),
-            config_maps: Some(46),
             // A known-but-empty scope is absent, not zero.
-            storage: Some(0),
-            // An unwatched kind has no count at all.
-            network: None,
+            config_maps: Some(0),
         };
         let sections = core_sections_with_counts(&counts);
         let badge = |label: &str| {
@@ -667,7 +669,9 @@ mod tests {
         assert_eq!(badge("Pods").as_deref(), Some("124"));
         assert_eq!(badge("Deployments").as_deref(), Some("37"));
         assert_eq!(badge("Services").as_deref(), Some("29"));
-        assert_eq!(badge("ConfigMaps").as_deref(), Some("46"));
+        // Zero and unwatched rows render nothing.
+        assert_eq!(badge("ConfigMaps"), None);
+        // The reference draws no count for these two rows either.
         assert_eq!(badge("Storage"), None);
         assert_eq!(badge("Network"), None);
         assert_eq!(badge("Overview"), None);

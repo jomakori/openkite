@@ -71,8 +71,6 @@ fn counted_sections() -> Vec<ShellSection> {
         deployments: Some(37),
         services: Some(29),
         config_maps: Some(46),
-        storage: Some(46),
-        network: None,
     })
 }
 
@@ -313,10 +311,11 @@ fn live_counts_reach_their_own_rows() {
     for badge in [">8<", ">124<", ">37<", ">29<", ">46<"] {
         assert!(html.contains(badge), "count badge {badge}: {html}");
     }
-    // `Storage` is 46 too: two badges carry it, and `Network` carries none.
+    // One badge per row the reference badges: Nodes, Pods, Deployments,
+    // Services and ConfigMaps. Storage and Network draw none.
     assert_eq!(
         html.matches("class=\"nav-badge\"").count(),
-        6,
+        5,
         "one badge per positive count: {html}"
     );
 }
