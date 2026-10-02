@@ -359,21 +359,79 @@ fn cycle_theme() {
     let _ = config.save();
 }
 
-/// The sidebar the crate shell renders: the desktop's core navigation (the
-/// terminal entry gated on the host capability), then the static Rust-SDK
+/// Count the objects one watched kind contributes in scope, or `None` when the
+/// kind is not being watched at all.
+///
+/// The scope is the console's namespace selection; a cluster-scoped object (a
+/// node) is in no namespace, so a namespace scope never excludes it. An empty
+/// selection means every namespace.
+fn watched_count<T: 'static>(
+    signal: Option<Signal<Vec<Arc<T>>, SyncStorage>>,
+    scope: &[String],
+    namespace_of: impl Fn(&T) -> Option<String>,
+) -> Option<u64> {
+    let rows = signal?;
+    let rows = rows.read();
+    Some(
+        rows.iter()
+            .filter(|row| match namespace_of(row) {
+                None => true,
+                Some(namespace) => scope.is_empty() || scope.contains(&namespace),
+            })
+            .count() as u64,
+    )
+}
+
+/// The sidebar's live counts: one number per core nav entry, read from the same
+/// reflector signals the views render from and scoped to the namespaces the
+/// console is looking at.
+///
+/// A kind that is not being watched yields `None` and a watched kind with no
+/// rows in scope yields zero; both draw no badge, because the design shows a
+/// count only when there is one to show.
+fn nav_counts() -> openkite_ui::shell::NavCounts {
+    use crate::state::live;
+    use openkite_ui::shell::NavCounts;
+
+    let scope = crate::runtime::SELECTED_NAMESPACES.read().clone();
+    NavCounts {
+        nodes: watched_count(live::nodes_signal(), &scope, |node| {
+            node.metadata.namespace.clone()
+        }),
+        pods: watched_count(live::pods_signal(), &scope, |pod| {
+            pod.metadata.namespace.clone()
+        }),
+        deployments: watched_count(live::deployments_signal(), &scope, |deploy| {
+            deploy.metadata.namespace.clone()
+        }),
+        services: watched_count(live::services_signal(), &scope, |service| {
+            service.metadata.namespace.clone()
+        }),
+        config_maps: watched_count(live::config_maps_signal(), &scope, |config_map| {
+            config_map.metadata.namespace.clone()
+        }),
+        storage: watched_count(live::persistent_volume_claims_signal(), &scope, |claim| {
+            claim.metadata.namespace.clone()
+        }),
+        network: watched_count(live::ingresses_signal(), &scope, |ingress| {
+            ingress.metadata.namespace.clone()
+        }),
+    }
+}
+
+/// The sidebar the crate shell renders: the reference's three core sections
+/// (with the live counts the reflectors publish), then the static Rust-SDK
 /// plugin sections, then the JS-plugin sections mirrored from the bridge.
 ///
 /// Every block is a `.nav-section` with its own `.nav-title`, which is how the
-/// design separates them; the core block carries the same title the shared
-/// model gives it, so the sidebar and the breadcrumbs name it alike.
+/// design separates them; the core blocks carry the same titles the shared
+/// model gives them, so the sidebar and the breadcrumbs name them alike. The
+/// plugin blocks are the plugin slot's contents — the crate renders and styles
+/// them, a plugin only registers entries.
 fn shell_sections() -> Vec<crate::shell::ShellSection> {
-    use crate::shell::{core_nav, plugin_sections, ShellNavItem, ShellSection};
+    use crate::shell::{core_sections_with_counts, plugin_sections, ShellNavItem, ShellSection};
 
-    let mut sections = vec![ShellSection {
-        label: "Overview".into(),
-        accent: None,
-        items: core_nav(openkite_ui::runtime::terminal_can_render()),
-    }];
+    let mut sections = core_sections_with_counts(&nav_counts());
 
     let sdk_sections = PLUGIN_SECTIONS.read();
     for section in sdk_sections.iter() {

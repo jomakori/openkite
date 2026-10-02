@@ -70,9 +70,9 @@ fn render_body_renders_the_shared_shell_chrome() {
 fn render_body_renders_the_shared_sidebar_model() {
     let body = render_body(&snapshot());
     for (label, route) in [
-        ("Cluster", "/cluster"),
-        ("Workloads", "/workloads"),
-        ("Config", "/config"),
+        ("Nodes", "/cluster"),
+        ("Pods", "/workloads"),
+        ("ConfigMaps", "/config"),
     ] {
         assert!(
             body.contains(&format!(">{label}<")),
@@ -83,6 +83,12 @@ fn render_body_renders_the_shared_sidebar_model() {
             "nav route {route}: {body}"
         );
     }
+    // The browser console has no live cluster in this snapshot: every count is
+    // absent, and the disconnected shape renders no badge at all.
+    assert!(
+        !body.contains("class=\"nav-badge\""),
+        "a disconnected console draws no counts: {body}"
+    );
 }
 
 #[test]

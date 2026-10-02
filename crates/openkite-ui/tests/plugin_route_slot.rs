@@ -25,7 +25,7 @@ use openkite_ui::components::route_views::{
 };
 use openkite_ui::plugin_api::RegistrationStore;
 use openkite_ui::runtime::set_published_capabilities;
-use openkite_ui::shell::{core_nav, sidebar_model, ShellSection};
+use openkite_ui::shell::{core_sections, sidebar_model, ShellSection};
 
 // The host descriptor is process-global, exactly like tests/route_views.rs:
 // hold this guard in every test that publishes a profile so parallel test
@@ -50,13 +50,9 @@ fn browser_host() -> std::sync::MutexGuard<'static, ()> {
     guard
 }
 
-/// The desktop's sidebar model: the core navigation block (terminal included).
+/// The desktop's sidebar model: the reference's core sections.
 fn desktop_sections() -> Vec<ShellSection> {
-    vec![ShellSection {
-        label: "Overview".into(),
-        accent: None,
-        items: core_nav(true),
-    }]
+    core_sections()
 }
 
 /// Stands in for the desktop's `JsRouteEvaluator`: the host-only component that

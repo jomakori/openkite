@@ -107,6 +107,8 @@ const REQUIRED_CLASSES: &[&str] = &[
     ".nav-item",
     ".nav-item.active",
     ".nav-badge",
+    // The reference's per-plugin section variant the shell styles.
+    ".nav-section.argo",
     ".main",
     ".topbar",
     ".menu-toggle",
