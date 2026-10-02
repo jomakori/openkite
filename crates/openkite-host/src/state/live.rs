@@ -395,6 +395,28 @@ pub fn filter_ns(rows: Vec<Value>, ns: Option<&str>) -> Vec<Value> {
     }
 }
 
+/// Keep only objects whose namespace is in `selected`; every namespace when the
+/// selection is empty (the console's "all namespaces" state).
+///
+/// The multi-select twin of [`filter_ns`], matching the console's namespace bar
+/// (OKT-171): the snapshot path and `openkite_ui::components::namespace_bar`
+/// share one rule — an empty selection keeps everything, and cluster-scoped
+/// objects (no `metadata.namespace`) survive any selection because they belong
+/// to no namespace rather than a different one.
+pub fn filter_ns_multi(rows: Vec<Value>, selected: &[String]) -> Vec<Value> {
+    if selected.is_empty() {
+        return rows;
+    }
+    rows.into_iter()
+        .filter(
+            |obj| match obj.pointer("/metadata/namespace").and_then(|v| v.as_str()) {
+                Some(found) => selected.iter().any(|ns| ns == found),
+                None => true,
+            },
+        )
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -437,5 +459,36 @@ mod tests {
             "no ns filter keeps all"
         );
         assert_eq!(filter_ns(rows, Some("")).len(), 3, "empty ns means all");
+    }
+
+    #[test]
+    fn filter_ns_multi_unions_the_selection_and_keeps_cluster_scoped() {
+        let rows = vec![
+            serde_json::json!({"metadata": {"namespace": "default", "name": "a"}}),
+            serde_json::json!({"metadata": {"namespace": "kube-system", "name": "b"}}),
+            serde_json::json!({"metadata": {"namespace": "argocd", "name": "c"}}),
+            serde_json::json!({"metadata": {"name": "node-1"}}),
+        ];
+        let selected = vec!["default".to_string(), "kube-system".to_string()];
+        let filtered = filter_ns_multi(rows.clone(), &selected);
+        let names: Vec<&str> = filtered
+            .iter()
+            .filter_map(|row| row.pointer("/metadata/name").and_then(|v| v.as_str()))
+            .collect();
+        assert_eq!(
+            names,
+            vec!["a", "b", "node-1"],
+            "the union of the two namespaces plus the cluster-scoped node"
+        );
+        assert_eq!(
+            filter_ns_multi(rows.clone(), &[]).len(),
+            4,
+            "empty selection = all namespaces"
+        );
+        assert_eq!(
+            filter_ns_multi(rows, &["ghost".to_string()]).len(),
+            1,
+            "an unknown namespace still leaves the cluster-scoped node"
+        );
     }
 }

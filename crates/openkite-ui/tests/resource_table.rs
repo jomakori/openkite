@@ -3,10 +3,8 @@
 //! Re-asserts the pure-logic helpers (`sort_by_key`, `compare_sort_keys`,
 //! `visible_range`, `matches_query`, `Cell`, `ResourceRow::search_text`)
 //! from the public API and pins the `StatusKind::pill_class` mapping
-//! added by the design-system re-skin. The `namespace_filter` tests pin
-//! the multi-select namespace chip semantics.
-
-use std::collections::HashSet;
+//! The `namespace_filter` tests pin the console-wide namespace selection
+//! semantics (OKT-171): empty = all namespaces, cluster-scoped rows survive.
 
 use openkite_ui::components::resource_table::{
     compare_sort_keys, matches_query, namespace_filter, sort_by_key, visible_range, Cell,
@@ -30,7 +28,7 @@ fn ns_row(id: &str, namespace: Option<&str>) -> ResourceRow {
     }
 }
 
-fn ns_set(names: &[&str]) -> HashSet<String> {
+fn ns_set(names: &[&str]) -> Vec<String> {
     names.iter().map(|n| n.to_string()).collect()
 }
 
@@ -229,7 +227,7 @@ fn namespace_filter_empty_selection_keeps_every_row() {
         ns_row("b", Some("kube-system")),
         ns_row("c", None),
     ];
-    let filtered = namespace_filter(&rows, &HashSet::new());
+    let filtered = namespace_filter(&rows, &Vec::new());
     assert_eq!(filtered.len(), 3);
 }
 
@@ -268,12 +266,17 @@ fn namespace_filter_unknown_selection_returns_no_rows() {
 }
 
 #[test]
-fn namespace_filter_keeps_cluster_scoped_rows_only_without_selection() {
+fn namespace_filter_keeps_cluster_scoped_rows_under_any_selection() {
     let rows = vec![ns_row("cluster-a", None), ns_row("pod-a", Some("default"))];
-    assert_eq!(namespace_filter(&rows, &HashSet::new()).len(), 2);
+    assert_eq!(namespace_filter(&rows, &Vec::new()).len(), 2);
     let filtered = namespace_filter(&rows, &ns_set(&["default"]));
-    assert_eq!(filtered.len(), 1);
-    assert_eq!(filtered[0].id, "pod-a");
+    assert_eq!(
+        filtered.len(),
+        2,
+        "the cluster-scoped row is in no namespace, so it survives: {filtered:?}"
+    );
+    assert_eq!(filtered[0].id, "cluster-a");
+    assert_eq!(filtered[1].id, "pod-a");
 }
 
 #[test]

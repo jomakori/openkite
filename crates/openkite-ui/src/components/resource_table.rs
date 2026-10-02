@@ -8,11 +8,11 @@
 #![allow(non_snake_case)]
 
 use std::cmp::Ordering;
-use std::collections::HashSet;
 use std::ops::Range;
 
 use dioxus::prelude::*;
 
+use crate::components::namespace_bar::selection_matches;
 use crate::components::status_badge::{StatusKind, StatusPill};
 
 /// Fixed row height for virtualization, in pixels.
@@ -76,18 +76,16 @@ pub fn matches_query(text: &str, query: &str) -> bool {
     needle.is_empty() || text.to_lowercase().contains(&needle)
 }
 
-/// Multi-select namespace filter. An empty selection shows every row,
-/// cluster-scoped rows (no namespace) pass unless a filter is active.
-pub fn namespace_filter(rows: &[ResourceRow], selected: &HashSet<String>) -> Vec<ResourceRow> {
-    if selected.is_empty() {
-        return rows.to_vec();
-    }
+/// Scope rows to a namespace selection (openkite-ui `NAMESPACE_SELECTION`).
+///
+/// The selection is the console's single namespace filter (OKT-171), so this
+/// table owns no namespace chips of its own. An empty selection shows every
+/// row, and — matching the host's snapshot filter — cluster-scoped rows (no
+/// namespace, e.g. nodes) stay visible under any selection: they are in no
+/// namespace, not in a different one.
+pub fn namespace_filter(rows: &[ResourceRow], selected: &[String]) -> Vec<ResourceRow> {
     rows.iter()
-        .filter(|row| {
-            row.namespace
-                .as_deref()
-                .is_some_and(|ns| selected.contains(ns))
-        })
+        .filter(|row| selection_matches(selected, row.namespace.as_deref()))
         .cloned()
         .collect()
 }
@@ -260,7 +258,6 @@ pub fn ResourceTable(
 ) -> Element {
     let sort = use_signal(|| None::<(usize, SortDirection)>);
     let mut query = use_signal(String::new);
-    let namespace = use_signal(HashSet::<String>::new);
 
     match status {
         TableStatus::Loading => rsx! { div { class: "table-state", "Loading…" } },
@@ -268,7 +265,7 @@ pub fn ResourceTable(
             rsx! { div { class: "table-state table-error", "{message}" } }
         }
         TableStatus::Ready => {
-            let selected: HashSet<String> = namespace.read().clone();
+            let selected: Vec<String> = crate::runtime::NAMESPACE_SELECTION.read().clone();
             let mut view: Vec<ResourceRow> = namespace_filter(&rows, &selected)
                 .into_iter()
                 .filter(|row| matches_query(&row.search_text(), &query()))
@@ -282,18 +279,6 @@ pub fn ResourceTable(
                 return rsx! { div { class: "table-state table-empty", "{message}" } };
             }
 
-            let mut namespaces: Vec<String> = rows
-                .iter()
-                .filter_map(|row| row.namespace.clone())
-                .collect();
-            namespaces.sort();
-            namespaces.dedup();
-            let mut chips: Vec<(String, bool)> = vec![("All".to_string(), selected.is_empty())];
-            chips.extend(namespaces.into_iter().map(|ns| {
-                let active = selected.contains(&ns);
-                (ns, active)
-            }));
-
             rsx! {
                 div { class: "panel",
                     div { class: "table-wrap",
@@ -306,9 +291,6 @@ pub fn ResourceTable(
                                         value: "{query}",
                                         oninput: move |event| query.set(event.value()),
                                     }
-                                }
-                                for (label, active) in chips.into_iter() {
-                                    { namespace_chip(label, active, namespace) }
                                 }
                             }
                             div { class: "table-header table-row",
@@ -359,29 +341,6 @@ fn header_cell(
                     if dir == SortDirection::Ascending { "▲" } else { "▼" }
                 }
             }
-        }
-    }
-}
-
-/// Render a multi-select namespace chip. The synthetic "All" chip clears the
-/// selection so cluster-scoped rows (no namespace) reappear.
-fn namespace_chip(label: String, active: bool, mut namespace: Signal<HashSet<String>>) -> Element {
-    let is_all = label == "All";
-    let label_for_click = label.clone();
-    rsx! {
-        button {
-            key: "{label}",
-            class: if active { "chip active" } else { "chip" },
-            onclick: move |_| {
-                if is_all {
-                    namespace.write().clear();
-                } else if namespace.read().contains(&label_for_click) {
-                    namespace.write().remove(&label_for_click);
-                } else {
-                    namespace.write().insert(label_for_click.clone());
-                }
-            },
-            "{label}"
         }
     }
 }

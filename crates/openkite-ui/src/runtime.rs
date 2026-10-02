@@ -73,6 +73,70 @@ pub fn context_name() -> Option<String> {
     CONTEXT.read().clone()
 }
 
+/// The namespace names the console's bar offers, published by the host from
+/// the cluster's namespace inventory (OKT-171).
+///
+/// Options and selection are separate on purpose: the bar's search circle
+/// narrows `NAMESPACE_OPTIONS` for display, never `NAMESPACE_SELECTION`.
+pub static NAMESPACE_OPTIONS: GlobalSignal<Vec<String>> = Signal::global(Vec::new);
+
+/// The selected namespaces. **Empty means "all namespaces"** — there is no
+/// sentinel row a real namespace could collide with, and an empty selection is
+/// what the reset chip restores.
+///
+/// One selection for the whole console (OKT-171 §5.1): every data surface
+/// reads this, so the pod inventory, the config tables and the log surface can
+/// never disagree about which namespaces are in scope.
+pub static NAMESPACE_SELECTION: GlobalSignal<Vec<String>> = Signal::global(Vec::new);
+
+/// Publish the namespace list the bar offers.
+pub fn set_namespace_options(namespaces: Vec<String>) {
+    *NAMESPACE_OPTIONS.write() = namespaces;
+}
+
+/// The namespace names the bar offers (empty before the host publishes them).
+pub fn namespace_options() -> Vec<String> {
+    NAMESPACE_OPTIONS.read().clone()
+}
+
+/// Publish the selected namespace set (`[]` = all namespaces).
+pub fn set_namespace_selection(namespaces: Vec<String>) {
+    *NAMESPACE_SELECTION.write() = namespaces;
+}
+
+/// The selected namespace set (`[]` = all namespaces).
+pub fn selected_namespaces() -> Vec<String> {
+    NAMESPACE_SELECTION.read().clone()
+}
+
+/// Toggle one namespace in the selection, preserving insertion order.
+pub fn toggle_namespace(namespace: String) {
+    let mut selected = NAMESPACE_SELECTION.write();
+    if let Some(position) = selected
+        .iter()
+        .position(|candidate| candidate == &namespace)
+    {
+        selected.remove(position);
+    } else {
+        selected.push(namespace);
+    }
+}
+
+/// Clear every selection back to "all namespaces" — what the × reset does.
+pub fn clear_namespace_selection() {
+    NAMESPACE_SELECTION.write().clear();
+}
+
+/// Whether `namespace` is in scope for the current selection.
+///
+/// The one predicate every data surface uses: an empty selection matches
+/// everything, a cluster-scoped object (`None`) is never excluded by a
+/// namespace selection, and a namespaced object matches when its namespace is
+/// selected.
+pub fn namespace_in_scope(namespace: Option<&str>) -> bool {
+    crate::components::namespace_bar::selection_matches(&selected_namespaces(), namespace)
+}
+
 /// Whether the viewer is in follow-tail mode. Same rationale as
 /// [`LOGS_CONTAINER`]: a global so the host-side stream controller can
 /// pause/resume without owning the Dioxus component tree.

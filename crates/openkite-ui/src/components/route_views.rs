@@ -23,6 +23,7 @@
 
 use dioxus::prelude::*;
 
+use crate::components::namespace_bar::NamespaceBar;
 use crate::runtime::{
     cluster_switch_can_render, mutations_can_render, plugin_route_can_render, terminal_can_render,
 };
@@ -356,27 +357,7 @@ pub fn RouteView(
                 }
             }
             div { class: "toolbar", "data-toolbar": "{page.route}",
-                div {
-                    class: "chip-row",
-                    role: "group",
-                    aria_label: "Namespace filter",
-                    "data-empty": if filter_unsupported { Some("namespaces") } else { None },
-                    if filter_unsupported {
-                        button {
-                            class: "chip",
-                            r#type: "button",
-                            disabled: true,
-                            "data-unsupported": "namespace-filter",
-                            title: "This host has no namespace inventory to filter by.",
-                            "No namespaces"
-                        }
-                    } else {
-                        button { class: "chip active", r#type: "button", "data-ns": "all", "All" }
-                        for namespace in namespaces.iter().cloned() {
-                            button { class: "chip", r#type: "button", "data-ns": "{namespace}", "{namespace}" }
-                        }
-                    }
-                }
+                NamespaceBar { options: namespaces.clone() }
                 if busy {
                     span { class: "spinner", "data-state": "loading", title: "Loading {page.title}…" }
                 }
