@@ -27,6 +27,7 @@ use dioxus::prelude::*;
 
 use crate::components::crud_modal::CrudOverlay;
 use crate::components::pod_detail::PodDetail;
+use crate::components::resource_pane::ResourcePane;
 use crate::components::secret_detail::SecretDetail;
 use crate::runtime::{cluster_switch_can_render, native_chrome_can_render};
 use crate::shell::{
@@ -116,6 +117,7 @@ pub fn AppShell(
                 {chrome}
             }
             PodDetail {}
+            ResourcePane {}
             SecretDetail {}
             CrudOverlay {}
             Sidebar {

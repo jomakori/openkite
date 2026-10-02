@@ -19,6 +19,7 @@ use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use openkite_api::capability::Capabilities;
+use openkite_ui::components::resource_pane::ResourceRef;
 use openkite_web::ssr::{render_body, SecretRef, Snapshot};
 
 /// Candidate locations, relative to this crate's manifest, in lookup order.
@@ -105,7 +106,8 @@ fn rendered_classes(html: &str) -> BTreeSet<String> {
 }
 
 /// The snapshot shapes the root route has to paint: disconnected, connected
-/// with a secret in scope, and connected with nothing in scope.
+/// with a secret in scope, connected with nothing in scope, and connected with
+/// the detail pane's selection restored from the address (OKT-175).
 fn snapshots() -> Vec<Snapshot> {
     vec![
         Snapshot::default(),
@@ -117,14 +119,29 @@ fn snapshots() -> Vec<Snapshot> {
                 namespace: "default".into(),
                 name: "regcred".into(),
             }],
+            selection: None,
         },
         Snapshot {
             capabilities: Capabilities::server_side(),
             connected: true,
             context: Some("kubeconfig".into()),
             secrets: Vec::new(),
+            selection: None,
         },
+        selection_snapshot(),
     ]
+}
+
+/// The snapshot a deep link produces: the pane's selection came out of the
+/// query string, so the root route paints the pane open.
+fn selection_snapshot() -> Snapshot {
+    Snapshot {
+        capabilities: Capabilities::server_side(),
+        connected: true,
+        context: Some("kubeconfig".into()),
+        secrets: Vec::new(),
+        selection: Some(ResourceRef::new("Pod", Some("default".into()), "web-1")),
+    }
 }
 
 #[test]
@@ -185,4 +202,37 @@ fn the_old_bespoke_classes_render_nowhere() {
         assert!(!rendered.contains("surface"), "route renders .surface");
         assert!(!rendered.contains("status-ok"), "route renders .status-ok");
     }
+}
+
+/// A deep-linked selection must paint the pane: the same chrome for the
+/// selected resource, and nothing of it when nothing is selected.
+#[test]
+fn the_selection_paints_the_resource_detail_pane() {
+    let body = render_body(&selection_snapshot());
+    for class in [
+        "inspector",
+        "inspector-scrim",
+        "inspector-resize",
+        "inspector-body",
+        "inspector-actions",
+        "resource-kind",
+    ] {
+        assert!(
+            rendered_classes(&body).contains(class),
+            "the selected route must render .{class}: {body}"
+        );
+    }
+    assert!(body.contains("web-1"), "pane identity: {body}");
+    assert!(body.contains("data-pane=\"resource\""), "pane node: {body}");
+
+    let plain = render_body(&unselected_snapshot());
+    assert!(
+        !plain.contains("data-pane=\"resource\""),
+        "no selection, no pane: {plain}"
+    );
+}
+
+/// The root route's own snapshot: no resource is selected.
+fn unselected_snapshot() -> Snapshot {
+    Snapshot::default()
 }

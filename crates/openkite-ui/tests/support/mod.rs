@@ -14,7 +14,20 @@
 //! The mounted tree is snapshotted with `dioxus_ssr::Renderer` so tests can
 //! assert on the emitted text/DOM, not just "didn't panic".
 
+use std::sync::Mutex;
+
 use dioxus::prelude::*;
+
+/// One render at a time.
+///
+/// The crate's panes read process-wide globals (`SELECTED_POD`,
+/// `SELECTED_SECRET`, `RESOURCE_SELECTION`, …), and `cargo test` runs a test
+/// binary's tests on threads. A test that seeds a selection in `setup` would
+/// otherwise be able to paint inside another test's render, and a test that
+/// asserts a pane is absent could see a neighbour's pane. Serializing the
+/// mount (the seeding AND the render, so the snapshot handed back is the one
+/// this test asked for) makes the harness deterministic again.
+static RENDER_TURN: Mutex<()> = Mutex::new(());
 
 /// Mount `app` headless and return its rendered HTML.
 ///
@@ -22,6 +35,9 @@ use dioxus::prelude::*;
 /// assertion). `setup` publishes global-signal state inside the vdom's
 /// runtime before the rebuild runs.
 pub fn mount_html(app: fn() -> Element, setup: impl FnOnce()) -> String {
+    let _turn = RENDER_TURN
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let mut vdom = VirtualDom::new(app);
     vdom.in_runtime(setup);
     vdom.rebuild_in_place();

@@ -254,6 +254,10 @@ pub fn ResourceTable(
     rows: Vec<ResourceRow>,
     #[props(default)] status: TableStatus,
     #[props(default)] empty_message: Option<String>,
+    /// The row id the detail pane is showing, so the list keeps a visible
+    /// selection while the pane is open (the row-selection path sets it).
+    #[props(default)]
+    selected_row: Option<String>,
     #[props(default)] row_actions: Option<RowActions>,
     #[props(default)] on_row_click: Option<EventHandler<ResourceRow>>,
     #[props(default = 600.0)] height: f64,
@@ -321,6 +325,7 @@ pub fn ResourceTable(
                                 columns: columns.clone(),
                                 row_actions: row_actions.clone(),
                                 on_row_click,
+                                selected_row: selected_row.clone(),
                                 height,
                             }
                         }
@@ -394,6 +399,7 @@ fn TableBody(
     columns: Vec<ColumnDef>,
     row_actions: Option<RowActions>,
     on_row_click: Option<EventHandler<ResourceRow>>,
+    selected_row: Option<String>,
     height: f64,
 ) -> Element {
     let mut scroll_top = use_signal(|| 0.0f64);
@@ -420,6 +426,7 @@ fn TableBody(
                             &widths,
                             row_actions.clone(),
                             on_row_click,
+                            selected_row.clone(),
                         )
                     }
                 }
@@ -436,15 +443,25 @@ fn render_table_row(
     widths: &[Option<u32>],
     row_actions: Option<RowActions>,
     on_row_click: Option<EventHandler<ResourceRow>>,
+    selected_row: Option<String>,
 ) -> Element {
     let top = (start + offset) as f64 * ROW_HEIGHT;
     let row_id = row.id.clone();
     let row_for_click = row.clone();
     let handler = on_row_click;
+    // The list keeps its selection: the row the pane is showing stays marked
+    // while the pane is open, and the table itself is never remounted.
+    let is_selected = selected_row.as_deref() == Some(row.id.as_str());
+    let class = if is_selected {
+        "table-row selected"
+    } else {
+        "table-row"
+    };
     rsx! {
         div {
             key: "{row_id}",
-            class: "table-row",
+            class: "{class}",
+            "aria-selected": "{is_selected}",
             style: "position: absolute; top: {top}px; height: {ROW_HEIGHT}px; left: 0; right: 0;",
             onclick: move |_| {
                 if let Some(h) = handler {

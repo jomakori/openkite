@@ -67,6 +67,21 @@ const REQUIRED_CLASSES: &[&str] = &[
     ".value-actions",
     ".reveal-btn",
     ".inspector",
+    // The resource detail pane (OKT-175): one stop for every kind, its own
+    // drag handle, and the touch scrim the reference draws for the ≤767px
+    // bottom sheet.
+    ".inspector-scrim",
+    ".inspector-scrim.show",
+    ".inspector-resize",
+    ".inspector-close",
+    ".inspector-header",
+    ".inspector-title",
+    ".inspector-body",
+    ".inspector-actions",
+    ".inspector-eyebrow",
+    ".resource-kind",
+    ".kv-row",
+    ".table-row.selected",
     ".kv-list",
     ".toast",
     ".nav-section",

@@ -5,6 +5,7 @@ pub mod crud_modal;
 pub mod logs;
 pub mod palette;
 pub mod pod_detail;
+pub mod resource_pane;
 pub mod resource_table;
 pub mod route_views;
 pub mod secret_detail;
