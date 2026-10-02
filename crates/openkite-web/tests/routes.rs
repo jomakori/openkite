@@ -49,11 +49,12 @@ async fn root_route_renders_the_shared_console_shell() {
     ] {
         assert!(body.contains(chrome), "root route missing {chrome}: {body}");
     }
-    // The page head is the route's: the home route's title is the cluster's.
+    // The page head is the route's: the landing route is the Cluster section's
+    // Overview entry, so the head is "Cluster › Overview".
     // (The SSR pass writes hydration markers inside the text nodes, so the
-    //  assertion reads the head's own marker, not `<h1>Cluster</h1>`.)
+    //  assertion reads the head's own marker, not `<h1>Overview</h1>`.)
     assert!(
-        body.contains("data-page=\"Cluster\""),
+        body.contains("data-page=\"Overview\""),
         "root route page head: {body}"
     );
     assert!(
