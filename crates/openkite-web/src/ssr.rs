@@ -15,6 +15,7 @@
 use std::sync::Arc;
 
 use openkite_api::gateway::Gateway;
+use openkite_ui::components::resource_pane::ResourceRef;
 
 #[cfg(all(feature = "ssr", not(target_arch = "wasm32")))]
 use base64::Engine as _;
@@ -42,6 +43,12 @@ pub struct Snapshot {
     /// surface shows them and the client doesn't have to round-trip just to
     /// paint.
     pub secrets: Vec<SecretRef>,
+    /// The resource detail pane's selection, restored from the query string of
+    /// the address this host served (`/workloads?kind=Pod&ns=default&name=…`).
+    /// It rides the snapshot so the SSR pass and the hydrating client both
+    /// paint the pane open — a reload or a shared link reopens the same pane.
+    #[serde(default)]
+    pub selection: Option<ResourceRef>,
 }
 
 impl Default for Snapshot {
@@ -51,6 +58,7 @@ impl Default for Snapshot {
             connected: false,
             context: None,
             secrets: Vec::new(),
+            selection: None,
         }
     }
 }
@@ -69,7 +77,15 @@ impl Snapshot {
             connected,
             context,
             secrets,
+            selection: None,
         }
+    }
+
+    /// The same snapshot, with the detail pane's selection taken from the
+    /// address the request carried.
+    pub fn with_selection(mut self, selection: Option<ResourceRef>) -> Self {
+        self.selection = selection;
+        self
     }
 }
 

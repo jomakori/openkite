@@ -105,6 +105,47 @@ async fn bridge_route_answers_the_no_cluster_envelope() {
     assert_eq!(body["error"], "no cluster connected");
 }
 
+/// The address carries the resource detail pane's selection (OKT-175): the
+/// resource named in the query string is on the page the server renders, so a
+/// reload or a shared link reopens the same pane — no client needed.
+#[tokio::test]
+async fn the_address_carries_the_detail_pane_selection() {
+    let dir = temp_root();
+    let (status, body) = get_body(
+        app(Arc::new(Bridge::new()), dir.path()),
+        "/workloads?kind=Pod&ns=default&name=checkout-api-7d9f",
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    for rendered in [
+        "class=\"inspector open\"",
+        "data-pane=\"resource\"",
+        "data-kind=\"Pod\"",
+        "checkout-api-7d9f",
+        "namespace: default",
+        "class=\"inspector-actions\"",
+    ] {
+        assert!(
+            body.contains(rendered),
+            "the deep link must paint the pane with {rendered}: {body}"
+        );
+    }
+}
+
+/// Without a selection the pane is not on the page at all — the same document
+/// the root route always served.
+#[tokio::test]
+async fn a_plain_address_renders_no_detail_pane() {
+    let dir = temp_root();
+    let (status, body) = get_body(app(Arc::new(Bridge::new()), dir.path()), "/workloads").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        !body.contains("data-pane=\"resource\""),
+        "no selection means no pane: {body}"
+    );
+    assert!(!body.contains("class=\"inspector-scrim"), "got: {body}");
+}
+
 #[tokio::test]
 async fn bridge_route_merges_register_posts() {
     let dir = temp_root();

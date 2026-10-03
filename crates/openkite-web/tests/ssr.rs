@@ -26,6 +26,7 @@ fn connected() -> Snapshot {
             namespace: "default".into(),
             name: "regcred".into(),
         }],
+        selection: None,
     }
 }
 
@@ -105,6 +106,7 @@ fn render_body_paints_a_connected_snapshot() {
         connected: true,
         context: Some("kubeconfig".into()),
         secrets: Vec::new(),
+        selection: None,
     });
     assert!(
         server_side.contains(">server-side<"),

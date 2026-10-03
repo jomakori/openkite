@@ -19,6 +19,7 @@ use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use openkite_api::capability::Capabilities;
+use openkite_ui::components::resource_pane::ResourceRef;
 use openkite_web::ssr::{render_body, SecretRef, Snapshot};
 
 /// Candidate locations, relative to this crate's manifest, in lookup order.
@@ -105,7 +106,8 @@ fn rendered_classes(html: &str) -> BTreeSet<String> {
 }
 
 /// The snapshot shapes the root route has to paint: disconnected, connected
-/// with a secret in scope, and connected with nothing in scope.
+/// with a secret in scope, connected with nothing in scope, and connected with
+/// the detail pane's selection restored from the address (OKT-175).
 fn snapshots() -> Vec<Snapshot> {
     vec![
         Snapshot::default(),
@@ -117,14 +119,29 @@ fn snapshots() -> Vec<Snapshot> {
                 namespace: "default".into(),
                 name: "regcred".into(),
             }],
+            selection: None,
         },
         Snapshot {
             capabilities: Capabilities::server_side(),
             connected: true,
             context: Some("kubeconfig".into()),
             secrets: Vec::new(),
+            selection: None,
         },
+        selection_snapshot(),
     ]
+}
+
+/// The snapshot a deep link produces: the pane's selection came out of the
+/// query string, so the root route paints the pane open.
+fn selection_snapshot() -> Snapshot {
+    Snapshot {
+        capabilities: Capabilities::server_side(),
+        connected: true,
+        context: Some("kubeconfig".into()),
+        secrets: Vec::new(),
+        selection: Some(ResourceRef::new("Pod", Some("default".into()), "web-1")),
+    }
 }
 
 #[test]
@@ -184,5 +201,114 @@ fn the_old_bespoke_classes_render_nowhere() {
         let rendered = rendered_classes(&render_body(&snapshot));
         assert!(!rendered.contains("surface"), "route renders .surface");
         assert!(!rendered.contains("status-ok"), "route renders .status-ok");
+    }
+}
+
+/// A deep-linked selection must paint the pane: the same chrome for the
+/// selected resource, and nothing of it when nothing is selected.
+#[test]
+fn the_selection_paints_the_resource_detail_pane() {
+    let body = render_body(&selection_snapshot());
+    for class in [
+        "inspector",
+        "inspector-scrim",
+        "inspector-resize",
+        "inspector-body",
+        "inspector-actions",
+        "resource-kind",
+    ] {
+        assert!(
+            rendered_classes(&body).contains(class),
+            "the selected route must render .{class}: {body}"
+        );
+    }
+    assert!(body.contains("web-1"), "pane identity: {body}");
+    assert!(body.contains("data-pane=\"resource\""), "pane node: {body}");
+
+    let plain = render_body(&unselected_snapshot());
+    assert!(
+        !plain.contains("data-pane=\"resource\""),
+        "no selection, no pane: {plain}"
+    );
+}
+
+/// The root route's own snapshot: no resource is selected.
+fn unselected_snapshot() -> Snapshot {
+    Snapshot::default()
+}
+
+/// The stylesheet with `/* … */` comments removed, so a rule block can be read
+/// without a preceding comment's prose matching first.
+fn uncommented(css: &str) -> String {
+    let mut out = String::with_capacity(css.len());
+    let mut rest = css;
+    while let Some(start) = rest.find("/*") {
+        out.push_str(&rest[..start]);
+        match rest[start + 2..].find("*/") {
+            Some(end) => rest = &rest[start + 2 + end + 2..],
+            None => return out,
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+/// The value of one declaration inside a selector's rule block.
+fn declaration(css: &str, selector: &str, property: &str) -> Option<String> {
+    let needle = format!("{selector} {{");
+    let start = css.find(&needle)?;
+    let open = start + needle.len();
+    let end = css[open..].find('}')? + open;
+    let block = &css[open..end];
+    let at = block.find(property)? + property.len();
+    let value: String = block[at..]
+        .trim_start_matches(|c: char| c.is_whitespace() || c == ':')
+        .chars()
+        .take_while(|c| !c.is_whitespace() && *c != ';')
+        .collect();
+    Some(value)
+}
+
+/// The ≤767px sheet is dismissed by tapping its scrim, so the pane has to sit
+/// **above** the scrim. The reference's ladder is 65 scrim / 70 pane; this
+/// contract fails if the pane is ever given a lower stop, which would cover
+/// the bottom sheet with its own backdrop and leave the × unreachable.
+#[test]
+fn the_scrim_sits_under_the_pane_it_dismisses() {
+    let css = uncommented(&stylesheet());
+    let scrim: i64 = declaration(&css, ".inspector-scrim", "z-index")
+        .expect(".inspector-scrim must declare a z-index")
+        .parse()
+        .expect("scrim z-index is a number");
+    let pane: i64 = declaration(&css, ".inspector", "z-index")
+        .expect(".inspector must declare a z-index")
+        .parse()
+        .expect("pane z-index is a number");
+    assert!(
+        scrim < pane,
+        "the scrim (z-index {scrim}) must sit under the pane (z-index {pane}), \
+         or the ≤767px sheet is covered by its own backdrop and cannot close"
+    );
+}
+
+/// The ≤767px sheet keeps the reference's own rules: the scrim comes alive,
+/// the drag handle is hidden, and the kv label column narrows so the value
+/// keeps room on a full-width sheet.
+#[test]
+fn the_mobile_sheet_keeps_the_reference_rules() {
+    let css = uncommented(&stylesheet());
+    let at = css
+        .find("@media (max-width: 767px)")
+        .expect("the ≤767px block");
+    let mobile = &css[at..];
+    for rule in [
+        ".inspector-scrim.show { display: block; }",
+        ".inspector-resize { display: none; }",
+        ".kv-row { grid-template-columns: 110px 1fr; }",
+    ] {
+        assert!(
+            mobile.contains(rule),
+            "the ≤767px sheet is missing `{rule}`"
+        );
     }
 }

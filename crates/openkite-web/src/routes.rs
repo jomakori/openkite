@@ -11,7 +11,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use axum::extract::{Path as UrlPath, State};
+use axum::extract::{Path as UrlPath, RawQuery, State};
 use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
@@ -85,8 +85,16 @@ async fn spike_post(State(bridge): State<SharedBridge>, body: String) -> Json<Ap
 /// so a deep link paints before any JavaScript runs, and the client bundle in
 /// `OPENKITE_WEB_ROOT` then attaches to the same tree, which is what makes a
 /// route reached by URL interactive in the browser host.
-async fn ssr_root(State(bridge): State<SharedBridge>) -> Response {
-    let snapshot = ssr_snapshot(&bridge).await;
+///
+/// The address is part of the render: the resource detail pane's selection
+/// travels in the query string (`/workloads?kind=Pod&ns=default&name=web-1`),
+/// so the pane is painted open by the server on a reload or a shared link
+/// rather than waiting for a client to restore it.
+async fn ssr_root(State(bridge): State<SharedBridge>, RawQuery(query): RawQuery) -> Response {
+    let selection = query
+        .as_deref()
+        .and_then(openkite_ui::components::resource_pane::ResourceRef::from_query);
+    let snapshot = ssr_snapshot(&bridge).await.with_selection(selection);
     let page = ssr::render_page(&snapshot, &ssr::RenderOptions::hydrating());
     ([(CONTENT_TYPE, "text/html; charset=utf-8")], page).into_response()
 }
