@@ -22,6 +22,7 @@ pub mod shell;
 pub mod theme;
 pub mod theme_catalog;
 pub mod theme_opaline;
+pub mod touch;
 
 /// The shell stylesheet, so a host renders the console with the design the
 /// tokens in [`design`] describe.
