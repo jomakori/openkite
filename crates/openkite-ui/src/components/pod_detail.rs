@@ -3,8 +3,9 @@
 //! hosts render it without importing a kube type.
 
 use dioxus::prelude::*;
-use openkite_api::pod::pick_default_container;
+use openkite_api::pod::{parse_log_line, pick_default_container};
 
+use crate::components::logs::LogLineRow;
 use crate::runtime::{clear_selected_pod, LOGS_BUFFER, LOGS_CONTAINER, SELECTED_POD};
 
 /// The inspector's tab bar, local to the open slide-over.
@@ -174,7 +175,7 @@ fn LogsTab() -> Element {
             }
             div { class: "log-body", style: "height: 320px; overflow-y: auto; font-family: var(--font-mono); font-size: 12px;",
                 for line in lines {
-                    div { class: "log-line", "{line}" }
+                    LogLineRow { line: parse_log_line(&line) }
                 }
             }
         }

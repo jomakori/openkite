@@ -232,6 +232,11 @@ pub fn App(props: AppProps) -> Element {
                     }
                 },
             }
+            // The log stream panel is the design's opaque terminal anchor: the
+            // same `LogsView` the desktop's `/logs` route mounts. This host
+            // serves one document and has no pod stream, so the panel paints
+            // the crate's own empty state until a selection exists.
+            openkite_ui::components::logs::LogsView {}
         }
     }
 }

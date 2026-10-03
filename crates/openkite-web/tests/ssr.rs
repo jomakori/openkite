@@ -39,6 +39,28 @@ fn render_body_includes_the_data_surface_markers() {
 }
 
 #[test]
+fn render_body_mounts_the_shared_log_panel() {
+    let body = render_body(&snapshot());
+    for chrome in [
+        "class=\"log-panel\"",
+        "class=\"log-handle\"",
+        "class=\"log-header\"",
+        "class=\"log-body\"",
+        "role=\"status\"",
+        "data-surface=\"logs\"",
+    ] {
+        assert!(
+            body.contains(chrome),
+            "ssr body missing the log panel chrome {chrome}: {body}"
+        );
+    }
+    assert!(
+        body.contains("Select a pod to view its logs"),
+        "the panel paints its own empty state until a pod is selected: {body}"
+    );
+}
+
+#[test]
 fn render_body_renders_the_shared_shell_chrome() {
     let body = render_body(&connected());
     for chrome in [
