@@ -187,8 +187,14 @@ fn populated_table_renders_headers_rows_and_actions() {
     assert!(html.contains("redis"), "got: {html}");
     assert!(html.contains("Running"), "got: {html}");
     assert!(html.contains("Pending"), "got: {html}");
-    assert!(html.contains("All"), "got: {html}");
-    assert!(html.contains("chip active"), "got: {html}");
+    assert!(
+        !html.contains("class=\"chip"),
+        "the table must not paint its own namespace chips: {html}"
+    );
+    assert!(
+        html.contains("table-filter"),
+        "the text filter stays: {html}"
+    );
     assert!(html.contains("Delete"), "got: {html}");
     assert!(html.contains("Edit"), "got: {html}");
     assert!(html.contains("Scale"), "got: {html}");

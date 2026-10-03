@@ -547,6 +547,7 @@ fn route_view(route: &'static str) -> Element {
         RouteView {
             route: route.to_string(),
             sections: shell_sections(),
+            namespaces: crate::runtime::NAMESPACES.read().clone(),
             on_action: Some(on_action),
         }
     }

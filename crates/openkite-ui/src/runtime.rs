@@ -4,7 +4,7 @@
 //! action) and read by the shared UI. Dioxus global signals are backed by the
 //! runtime, so a host must write them inside the VirtualDom's runtime.
 
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock, RwLock};
 
 use dioxus::prelude::*;
 use openkite_api::capability::{Capabilities, GatewayKind};
@@ -71,6 +71,67 @@ pub fn set_contexts(names: Vec<String>) {
 /// The current context name, if a kubeconfig is loaded.
 pub fn context_name() -> Option<String> {
     CONTEXT.read().clone()
+}
+
+/// The namespace names the console's bar offers.
+pub static NAMESPACE_OPTIONS: GlobalSignal<Vec<String>> = Signal::global(Vec::new);
+
+/// The selected namespaces; empty means "all namespaces".
+pub static NAMESPACE_SELECTION: GlobalSignal<Vec<String>> = Signal::global(Vec::new);
+
+/// Runtime-free mirror of [`NAMESPACE_SELECTION`].
+static SELECTION_SCOPE: OnceLock<RwLock<Vec<String>>> = OnceLock::new();
+
+fn selection_scope_store() -> &'static RwLock<Vec<String>> {
+    SELECTION_SCOPE.get_or_init(|| RwLock::new(Vec::new()))
+}
+
+/// The selected namespaces, readable without a Dioxus runtime.
+///
+/// The host's snapshot and push paths run on plain tokio tasks, so they cannot
+/// read [`NAMESPACE_SELECTION`]; they scope by this instead.
+pub fn namespace_selection_scope() -> Vec<String> {
+    selection_scope_store()
+        .read()
+        .map(|scope| scope.clone())
+        .unwrap_or_default()
+}
+
+/// Publish the namespace list the bar offers.
+pub fn set_namespace_options(namespaces: Vec<String>) {
+    *NAMESPACE_OPTIONS.write() = namespaces;
+}
+
+/// The namespace names the bar offers (empty before the host publishes them).
+pub fn namespace_options() -> Vec<String> {
+    NAMESPACE_OPTIONS.read().clone()
+}
+
+/// Publish the selected namespace set (`[]` = all namespaces).
+pub fn set_namespace_selection(namespaces: Vec<String>) {
+    if let Ok(mut scope) = selection_scope_store().write() {
+        *scope = namespaces.clone();
+    }
+    *NAMESPACE_SELECTION.write() = namespaces;
+}
+
+/// The selected namespace set (`[]` = all namespaces).
+pub fn selected_namespaces() -> Vec<String> {
+    NAMESPACE_SELECTION.read().clone()
+}
+
+/// Toggle one namespace in the selection, preserving insertion order.
+pub fn toggle_namespace(namespace: String) {
+    let next = crate::components::namespace_bar::toggle_selection(
+        &namespace_selection_scope(),
+        &namespace,
+    );
+    set_namespace_selection(next);
+}
+
+/// Clear every selection back to "all namespaces".
+pub fn clear_namespace_selection() {
+    set_namespace_selection(Vec::new());
 }
 
 /// Whether the viewer is in follow-tail mode. Same rationale as

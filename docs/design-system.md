@@ -95,6 +95,28 @@ The faces reach each host differently, because only one of them has an origin:
 | `.tag` + `.tag-row`          | Monospace fact chips (the route's capability declaration)    |
 | `.spinner`                   | In-flight affordance (route chrome and pull-to-refresh)      |
 
+## Namespace bar
+
+One narrow line, never a section. The route toolbar's namespace selector is a
+single `.ns-bar` row whose middle is the `.chip-row`:
+
+| Class                | Purpose                                                              |
+|----------------------|----------------------------------------------------------------------|
+| `.ns-bar`            | The one-line row: search circle, scrolling strip, × reset            |
+| `.chip-row`          | The strip — `flex-wrap: nowrap`, `overflow-x: auto`, `scroll-snap-type: x proximity`, scrollbar hidden (`scrollbar-width: none` plus `.chip-row::-webkit-scrollbar{display:none}`), each chip a `scroll-snap-align: start` target |
+| `.chip` + `.chip.active` | A namespace chip (44px min height) and its selected state        |
+| `.chip-mark`         | The check on a selected chip                                         |
+| `.ns-search`         | The 44px search circle; opens the inline chip-list filter            |
+| `.ns-filter`         | The inline field the circle opens — narrows the *list* only          |
+| `.ns-reset`          | The 44px × circle; rendered only while a selection exists, after the strip so it is reachable without scrolling |
+
+The selection is **one** selection for the whole console, held in
+`openkite_ui::runtime::NAMESPACE_SELECTION` (empty = "all namespaces"). Every
+data surface reads it through `namespace_bar::selection_matches`; `ResourceTable`
+scopes its rows with it and owns no namespace chips of its own. The search field
+narrows the *chip list* (`visible_namespaces(options, query)`) and never the
+selection.
+
 ## Deferred to dependent tickets
 
 - **Dioxus `#[component]` wrappers** (`<Panel>`, `<Button>`, `<Toast>`,

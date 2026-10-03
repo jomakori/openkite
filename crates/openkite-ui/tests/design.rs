@@ -133,6 +133,12 @@ const REQUIRED_CLASSES: &[&str] = &[
     ".pager button.active",
     ".tag",
     ".tag-row",
+    ".ns-bar",
+    ".ns-search",
+    ".ns-filter",
+    ".ns-reset",
+    ".chip-row .chip",
+    ".chip-mark",
 ];
 
 /// Properties the opaline theme contract already provides — must not be
@@ -305,6 +311,7 @@ const CODE_EDITOR_RSX: &str = include_str!("../src/components/code_editor.rs");
 const CRUD_MODAL_RSX: &str = include_str!("../src/components/crud_modal.rs");
 const SHELL_RSX: &str = include_str!("../src/components/shell.rs");
 const ROUTE_VIEWS_RSX: &str = include_str!("../src/components/route_views.rs");
+const NAMESPACE_BAR_RSX: &str = include_str!("../src/components/namespace_bar.rs");
 
 /// Every rsx source file the crate renders. Order is for stable error
 /// messages — does not affect semantics.
@@ -338,6 +345,10 @@ const RSX_SOURCES: &[(&str, &str)] = &[
     (
         "crates/openkite-ui/src/components/crud_modal.rs",
         CRUD_MODAL_RSX,
+    ),
+    (
+        "crates/openkite-ui/src/components/namespace_bar.rs",
+        NAMESPACE_BAR_RSX,
     ),
 ];
 
@@ -789,4 +800,88 @@ fn rsx_class_walker_finds_known_tokens() {
             "walker regression: rsx must surface `{must_find}` as a class token"
         );
     }
+}
+
+/// The declaration body of the first rule whose selector head is exactly
+/// `selector`.
+fn rule_body(css: &str, selector: &str) -> Option<String> {
+    let mut search_from = 0usize;
+    while let Some(offset) = css[search_from..].find(selector) {
+        let start = search_from + offset;
+        let after = start + selector.len();
+        // The head must end here — the next byte is `{`, `,` (a grouped
+        // selector head) or whitespace. This rejects `selector` appearing as
+        // a prefix of a longer token (`.chip` vs `.chip-row`).
+        let boundary = css[after..].chars().next();
+        let is_head = match boundary {
+            Some('{') | Some(',') | None => true,
+            Some(c) => c.is_whitespace(),
+        };
+        if !is_head {
+            search_from = after;
+            continue;
+        }
+        let open = css[start..].find('{').map(|i| start + i)?;
+        let close = css[open..].find('}').map(|i| open + i)?;
+        return Some(css[open + 1..close].to_string());
+    }
+    None
+}
+
+/// The namespace strip stays one line at every width: `nowrap` with horizontal
+/// overflow, a hidden scrollbar and scroll-snap, and a chip at the 44px floor.
+#[test]
+fn namespace_strip_is_one_hidden_scrollbar_line_with_scroll_snap() {
+    let row = rule_body(STYLESHEET, ".chip-row").expect("`.chip-row` rule");
+    assert!(
+        row.contains("flex-wrap: nowrap"),
+        "the strip must never wrap: {row}"
+    );
+    assert!(
+        row.contains("overflow-x: auto"),
+        "the strip scrolls horizontally: {row}"
+    );
+    assert!(
+        row.contains("scroll-snap-type: x proximity"),
+        "chips snap so none rests half-visible: {row}"
+    );
+    assert!(
+        row.contains("scrollbar-width: none"),
+        "the scrollbar is hidden (Firefox): {row}"
+    );
+    assert!(
+        STYLESHEET.contains(".chip-row::-webkit-scrollbar"),
+        "the scrollbar is hidden (WebKit/Blink)"
+    );
+    assert!(
+        STYLESHEET.contains("display: none")
+            && STYLESHEET.contains(".chip-row::-webkit-scrollbar { display: none; }"),
+        "the WebKit scrollbar rule must actually hide it"
+    );
+
+    let chip = rule_body(STYLESHEET, ".chip-row .chip").expect("`.chip-row .chip` rule");
+    assert!(
+        chip.contains("scroll-snap-align: start"),
+        "each chip is a snap target: {chip}"
+    );
+    assert!(
+        chip.contains("flex: 0 0 auto"),
+        "chips keep their natural width instead of squashing: {chip}"
+    );
+
+    let base_chip = rule_body(STYLESHEET, ".chip").expect("`.chip` rule");
+    assert!(
+        base_chip.contains("min-height: 44px"),
+        "every chip is a >=44px touch target: {base_chip}"
+    );
+
+    let circles = rule_body(STYLESHEET, ".ns-search").expect("`.ns-search` rule");
+    assert!(
+        circles.contains("width: 44px") && circles.contains("height: 44px"),
+        "the search circle and its reset twin are 44px: {circles}"
+    );
+    assert!(
+        circles.contains("border-radius: var(--r-pill)"),
+        "…and circular: {circles}"
+    );
 }

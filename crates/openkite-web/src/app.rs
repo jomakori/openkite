@@ -17,12 +17,14 @@
 use dioxus::prelude::*;
 
 use openkite_api::capability::{Capabilities, GatewayKind};
+use openkite_ui::components::namespace_bar::selection_matches;
 use openkite_ui::components::palette::{CommandPalette, PaletteHost, PaletteKeybind};
 use openkite_ui::components::route_views::RouteView;
 use openkite_ui::components::shell::{AppShell, ClusterInfo, ShellIcon, TopBarAction};
 use openkite_ui::components::status_badge::{StatusKind, StatusPill};
 use openkite_ui::components::switcher::{ClusterSwitcher, SwitcherKeybind};
 use openkite_ui::plugin_api::RegistrationStore;
+use openkite_ui::runtime::NAMESPACE_SELECTION;
 use openkite_ui::shell::{sidebar_model, status_bar_model, ShellState};
 
 use crate::ssr::Snapshot;
@@ -88,6 +90,24 @@ pub fn App(props: AppProps) -> Element {
 
     let snapshot = state();
     let capabilities = snapshot.capabilities;
+
+    // No namespace inventory here, so the bar offers what the secrets know.
+    let namespaces: Vec<String> = {
+        let mut names: Vec<String> = snapshot
+            .secrets
+            .iter()
+            .map(|secret| secret.namespace.clone())
+            .collect();
+        names.sort();
+        names.dedup();
+        names
+    };
+    let selection = NAMESPACE_SELECTION.read().clone();
+    let secrets: Vec<_> = snapshot
+        .secrets
+        .iter()
+        .filter(|secret| selection_matches(&selection, Some(secret.namespace.as_str())))
+        .collect();
 
     let shell = ShellState {
         cluster: snapshot.context.clone(),
@@ -156,6 +176,7 @@ pub fn App(props: AppProps) -> Element {
             RouteView {
                 route: "/".to_string(),
                 sections,
+                namespaces,
                 busy: pending(),
                 content: rsx! {
                     section { class: "panel", "data-surface": "overview",
@@ -196,11 +217,11 @@ pub fn App(props: AppProps) -> Element {
                     }
                     section { class: "panel", "data-surface": "secrets",
                         h2 { "Secrets" }
-                        if snapshot.secrets.is_empty() {
+                        if secrets.is_empty() {
                             p { class: "message", "data-empty": "secrets", "No secrets in the gateway's scope" }
                         } else {
                             dl { class: "kv-list",
-                                for secret in snapshot.secrets.iter() {
+                                for secret in secrets.iter() {
                                     div { class: "kv-row",
                                         dt { class: "resource-name", "{secret.name}" }
                                         dd { class: "namespace", "{secret.namespace}" }

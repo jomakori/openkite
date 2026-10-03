@@ -480,13 +480,55 @@ body {
   margin-bottom: 14px;
   flex-wrap: wrap;
 }
+/* The one-line namespace bar: search circle, chip strip, × reset. */
+.ns-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+/* The chip strip: one scrolling line with snap points and a hidden scrollbar. */
 .chip-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
-  flex: 1;
+  flex-wrap: nowrap;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: 8px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
 }
+.chip-row::-webkit-scrollbar { display: none; }
+/* The 44px search circle and its × reset twin. */
+.ns-search,
+.ns-reset {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  background: var(--surface-solid);
+  color: var(--muted);
+  cursor: pointer;
+}
+.ns-search:hover,
+.ns-reset:hover { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); }
+.ns-search[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
+.ns-reset { color: var(--fg); }
+/* The inline chip-list filter the search circle opens. */
+.ns-filter { flex: 0 0 auto; width: min(220px, 45vw); }
 .panel-footer {
   display: flex;
   align-items: center;
@@ -619,6 +661,22 @@ body {
   background: var(--fg);
   color: #fff;
   border-color: var(--fg);
+}
+/* A chip in the strip keeps its natural width and snaps to the leading edge. */
+.chip-row .chip {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+/* The check on a selected chip. */
+.chip-mark {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 /* --- Search field --- */
