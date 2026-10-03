@@ -60,6 +60,7 @@ const REQUIRED_CLASSES: &[&str] = &[
     ".resource-name",
     ".log-panel",
     ".log-panel.paused",
+    ".log-panel.open",
     ".log-handle",
     ".log-header",
     ".log-title",

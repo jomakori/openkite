@@ -184,6 +184,31 @@ pub fn toggle_logs_paused() {
     }
 }
 
+/// Whether the `≤767px` bottom sheet is showing. The handle toggles it, Escape
+/// clears it; a global so the dock's logs tab (T15) can drive the same panel.
+pub static LOGS_SHEET_OPEN: GlobalSignal<bool> = Signal::global(|| false);
+
+/// Dismiss the bottom sheet.
+pub fn close_log_sheet() {
+    *LOGS_SHEET_OPEN.write() = false;
+}
+
+/// Open the sheet when closed, dismiss it when open.
+pub fn toggle_log_sheet() {
+    let open = !LOGS_SHEET_OPEN.cloned();
+    *LOGS_SHEET_OPEN.write() = open;
+}
+
+/// Dismiss the sheet unless the selection is unchanged; a new pod must not
+/// stay behind the previous pod's sheet.
+pub fn dismiss_log_sheet_on_selection(previous: Option<&str>, current: Option<&str>) -> bool {
+    if previous == current {
+        return false;
+    }
+    close_log_sheet();
+    true
+}
+
 /// The resource the CRUD overlay is currently showing, or `None` when the
 /// overlay is closed. Dispatched on by
 /// [`crate::components::crud_modal::CrudOverlay`].

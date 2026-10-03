@@ -1045,6 +1045,26 @@ body {
   .inspector { width: 100%; }
   .panel { padding: 12px; }
   .toast { bottom: 16px; max-width: calc(100% - 32px); }
+  /* Mobile: the log panel is the bottom sheet the handle opens over content. */
+  .log-panel {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: 78px;
+    height: min(58vh, 430px);
+    max-height: none;
+    z-index: 60;
+    margin-top: 0;
+    transform: translateY(calc(100% + 78px));
+    transition: transform 0.28s ease;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .log-panel.open { transform: translateY(0); }
+  .log-handle { display: flex; }
+  .log-header { padding: 8px 12px; }
+  .log-body { flex: 1; max-height: none; overflow-y: auto; overscroll-behavior: contain; }
 }
 
 /* Desktop: the sidebar never leaves the frame, so the toggle never shows. */

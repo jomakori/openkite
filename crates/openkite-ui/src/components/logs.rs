@@ -12,8 +12,27 @@ use dioxus::prelude::*;
 use openkite_api::pod::{parse_log_line, pick_default_container, LogLine, PodObject};
 
 use crate::runtime::{
-    toggle_logs_paused, LOGS_BUFFER, LOGS_CONTAINER, LOGS_HELD, LOGS_PAUSED, SELECTED_POD,
+    close_log_sheet, dismiss_log_sheet_on_selection, toggle_log_sheet, toggle_logs_paused,
+    LOGS_BUFFER, LOGS_CONTAINER, LOGS_HELD, LOGS_PAUSED, LOGS_SHEET_OPEN, SELECTED_POD,
 };
+
+/// Escape dismisses the sheet from anywhere; the listener installs once per webview.
+pub const LOG_SHEET_KEYBIND_JS: &str = r#"
+if (!window.__openkite_log_sheet_keys) {
+  window.__openkite_log_sheet_keys = true;
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      dioxus.send('close');
+    }
+  });
+}
+"#;
+
+/// The page behind the open sheet does not scroll.
+pub const LOG_SHEET_SCROLL_LOCK_JS: &str = "document.body.style.overflow = 'hidden';";
+
+/// Dismissing the sheet hands the page its scroll back.
+pub const LOG_SHEET_SCROLL_RELEASE_JS: &str = "document.body.style.overflow = '';";
 
 #[component]
 pub fn LogsView() -> Element {
@@ -45,6 +64,27 @@ pub fn LogsView() -> Element {
     });
 
     let paused = LOGS_PAUSED.cloned();
+    let sheet_open = LOGS_SHEET_OPEN.cloned();
+
+    // Escape is the sheet's dismiss key on every width; the handle covers pointer.
+    use_effect(move || {
+        let mut eval = document::eval(LOG_SHEET_KEYBIND_JS);
+        spawn(async move {
+            while let Ok(action) = eval.recv::<String>().await {
+                if action == "close" {
+                    close_log_sheet();
+                }
+            }
+        });
+    });
+
+    // The reference composes both states on one class list: paused and sheet-open.
+    let panel_class = match (paused, sheet_open) {
+        (true, true) => "log-panel paused open",
+        (true, false) => "log-panel paused",
+        (false, true) => "log-panel open",
+        (false, false) => "log-panel",
+    };
 
     // Following keeps the newest line in view; a paused panel holds its window,
     // so there is nothing to scroll to.
@@ -57,6 +97,30 @@ pub fn LogsView() -> Element {
             r#"var el = document.querySelector('.log-body');
                if (el) { el.scrollTop = el.scrollHeight; }"#,
         );
+    });
+
+    // The page behind the open sheet must not scroll; dismissal releases it.
+    use_effect(move || {
+        let js = if LOGS_SHEET_OPEN.cloned() {
+            LOG_SHEET_SCROLL_LOCK_JS
+        } else {
+            LOG_SHEET_SCROLL_RELEASE_JS
+        };
+        let _ = document::eval(js);
+    });
+
+    // A new selection dismisses the sheet, so it never covers the next pod.
+    let shown_pod_name = pod.as_ref().map(|pod| pod.name.clone());
+    let mut shown_pod = use_signal({
+        let initial = shown_pod_name.clone();
+        move || initial.clone()
+    });
+    use_effect(move || {
+        let current = SELECTED_POD.read().as_ref().map(|pod| pod.name.clone());
+        let previous = (*shown_pod.peek()).clone();
+        if dismiss_log_sheet_on_selection(previous.as_deref(), current.as_deref()) {
+            shown_pod.set(current);
+        }
     });
 
     let lines: Vec<LogLine> = if paused {
@@ -78,10 +142,16 @@ pub fn LogsView() -> Element {
 
     rsx! {
         section {
-            class: if paused { "log-panel paused" } else { "log-panel" },
+            class: "{panel_class}",
             "data-surface": "logs",
             aria_label: "Pod logs",
-            button { class: "log-handle", r#type: "button", "Logs" }
+            button {
+                class: "log-handle",
+                r#type: "button",
+                aria_expanded: if sheet_open { "true" } else { "false" },
+                onclick: move |_| toggle_log_sheet(),
+                "Logs"
+            }
             div { class: "log-header",
                 div { class: "log-title",
                     svg { class: "icon", "viewBox": "0 0 24 24",
