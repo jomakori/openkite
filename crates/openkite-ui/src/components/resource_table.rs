@@ -404,6 +404,7 @@ fn TableBody(
     let slice = &view[range];
     let total_height = total as f64 * ROW_HEIGHT;
     let widths: Vec<Option<u32>> = columns.iter().map(|column| column.width).collect();
+    let labels: Vec<&'static str> = columns.iter().map(|column| column.label).collect();
 
     rsx! {
         div {
@@ -418,6 +419,7 @@ fn TableBody(
                             offset,
                             start,
                             &widths,
+                            &labels,
                             row_actions.clone(),
                             on_row_click,
                         )
@@ -434,6 +436,7 @@ fn render_table_row(
     offset: usize,
     start: usize,
     widths: &[Option<u32>],
+    labels: &[&'static str],
     row_actions: Option<RowActions>,
     on_row_click: Option<EventHandler<ResourceRow>>,
 ) -> Element {
@@ -452,7 +455,14 @@ fn render_table_row(
                 }
             },
             for (i, cell) in row.cells.iter().enumerate() {
-                { render_table_cell(cell, i, widths.get(i).copied().flatten()) }
+                {
+                    render_table_cell(
+                        cell,
+                        i,
+                        widths.get(i).copied().flatten(),
+                        labels.get(i).copied(),
+                    )
+                }
             }
             if let Some(actions) = row_actions {
                 { render_row_actions(&row_id, &actions) }
@@ -462,8 +472,14 @@ fn render_table_row(
 }
 
 /// Render a single table cell (plain text, status pill, or rich extra).
-fn render_table_cell(cell: &Cell, index: usize, width: Option<u32>) -> Element {
+fn render_table_cell(
+    cell: &Cell,
+    index: usize,
+    width: Option<u32>,
+    label: Option<&'static str>,
+) -> Element {
     let style = width.map(|w| format!("width: {w}px")).unwrap_or_default();
+    let label = label.unwrap_or_default();
     let dot_classes: Vec<&'static str> = match &cell.extras {
         CellExtras::HealthDots(dots) => dots
             .iter()
@@ -479,6 +495,7 @@ fn render_table_cell(cell: &Cell, index: usize, width: Option<u32>) -> Element {
             div {
                 key: "{index}",
                 class: "table-cell health-dots",
+                "data-label": "{label}",
                 style: "{style}",
                 if dot_classes.is_empty() {
                     span { "—" }
@@ -494,6 +511,7 @@ fn render_table_cell(cell: &Cell, index: usize, width: Option<u32>) -> Element {
                 div {
                     key: "{index}",
                     class: "table-cell",
+                    "data-label": "{label}",
                     style: "{style}",
                     StatusPill { status: kind }
                 }
@@ -502,6 +520,7 @@ fn render_table_cell(cell: &Cell, index: usize, width: Option<u32>) -> Element {
                 div {
                     key: "{index}",
                     class: "table-cell",
+                    "data-label": "{label}",
                     style: "{style}",
                     span { "{cell.text}" }
                 }

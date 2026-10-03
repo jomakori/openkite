@@ -8,11 +8,47 @@
 
 use std::collections::HashSet;
 
+use dioxus::prelude::*;
+
+mod support;
+
 use openkite_ui::components::resource_table::{
     compare_sort_keys, matches_query, namespace_filter, sort_by_key, visible_range, Cell,
-    ResourceRow, SortDirection, SortKey, OVERSCAN, ROW_HEIGHT,
+    ColumnDef, ResourceRow, ResourceTable, SortDirection, SortKey, OVERSCAN, ROW_HEIGHT,
 };
 use openkite_ui::components::status_badge::StatusKind;
+
+/// A one-row table with the two columns the label assertion inspects.
+fn labelled_table() -> Element {
+    rsx! {
+        ResourceTable {
+            columns: vec![
+                ColumnDef { key: "name", label: "Name", width: Some(180), sortable: true },
+                ColumnDef { key: "status", label: "Status", width: None, sortable: false },
+            ],
+            rows: vec![ResourceRow {
+                id: "nginx-1".into(),
+                namespace: Some("default".into()),
+                cells: vec![
+                    Cell::text("nginx"),
+                    Cell::status("Running", StatusKind::Running),
+                ],
+            }],
+        }
+    }
+}
+
+#[test]
+fn every_cell_carries_its_column_data_label() {
+    let html = support::mount_html(labelled_table, || {});
+    assert!(html.contains("data-label=\"Name\""), "got: {html}");
+    assert!(html.contains("data-label=\"Status\""), "got: {html}");
+    assert_eq!(
+        html.matches("data-label=").count(),
+        2,
+        "every data cell carries its column's label: {html}"
+    );
+}
 
 fn row_with_namespace(namespace: Option<&str>, cells: Vec<Cell>) -> ResourceRow {
     ResourceRow {
