@@ -55,6 +55,9 @@ axum = "0.8"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "time", "io-util"] }
 tower-http = { version = "0.6", features = ["fs"] }
 kube = "4"
+# The client this host builds against the cluster picks its TLS provider from
+# the process, so the provider has to be one this crate can name.
+rustls = { version = "0.23", features = ["ring"] }
 tracing-subscriber = "0.3"
 anyhow = "1"
 
@@ -71,5 +74,4 @@ required-features = ["hydrate"]
 [dev-dependencies]
 http = "1"
 tower = { version = "0.5", features = ["util"] }
-rustls = { version = "0.23", features = ["ring"] }
 tempfile = "3"

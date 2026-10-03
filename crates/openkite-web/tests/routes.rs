@@ -292,6 +292,35 @@ async fn every_console_route_renders_the_shell_from_an_empty_web_root() {
 }
 
 #[tokio::test]
+async fn every_console_route_boots_the_client_the_image_stages() {
+    let dir = temp_root();
+    let app = app(Arc::new(Bridge::new()), dir.path());
+
+    for route in [
+        "/",
+        "/cluster",
+        "/workloads",
+        "/config",
+        "/logs",
+        "/terminal",
+        "/workloads/pods/probe-pod",
+    ] {
+        let (status, body) = get_body(app.clone(), route).await;
+        assert_eq!(status, StatusCode::OK, "{route} did not render the console");
+        for boot in [
+            "id=\"openkite-snapshot\"",
+            "window.initial_dioxus_hydration_data=",
+            r#"import init from "/openkite-web-client.js";"#,
+        ] {
+            assert!(
+                body.contains(boot),
+                "{route} does not boot the client ({boot}): {body}"
+            );
+        }
+    }
+}
+
+#[tokio::test]
 async fn hydration_assets_in_the_web_root_are_served_directly() {
     let dir = temp_root();
     let client = "export default () => {};";
