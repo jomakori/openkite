@@ -26,6 +26,7 @@
 use dioxus::prelude::*;
 
 use crate::components::crud_modal::CrudOverlay;
+use crate::components::dock::DockView;
 use crate::components::pod_detail::PodDetail;
 use crate::components::secret_detail::SecretDetail;
 use crate::runtime::{cluster_switch_can_render, native_chrome_can_render};
@@ -145,6 +146,7 @@ pub fn AppShell(
                 }
                 PullIndicator {}
                 section { class: "view active", {children} }
+                DockView {}
             }
         }
     }
