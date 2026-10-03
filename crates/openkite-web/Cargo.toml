@@ -55,9 +55,16 @@ axum = "0.8"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "time", "io-util"] }
 tower-http = { version = "0.6", features = ["fs"] }
 kube = "4"
-# The client this host builds against the cluster picks its TLS provider from
-# the process, so the provider has to be one this crate can name.
-rustls = { version = "0.23", features = ["ring"] }
+# The host picks kube's TLS provider from the process, so the provider has to
+# be one this crate can name. `default-features = false` keeps aws-lc-rs out of
+# the image build: rustls panics when a build enables both providers, and this
+# crate uses what kube's own TLS stack is built with.
+rustls = { version = "0.23", default-features = false, features = [
+    "logging",
+    "ring",
+    "std",
+    "tls12",
+] }
 tracing-subscriber = "0.3"
 anyhow = "1"
 
