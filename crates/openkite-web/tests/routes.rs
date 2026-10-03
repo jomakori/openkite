@@ -20,6 +20,15 @@ fn temp_root() -> tempfile::TempDir {
     tempfile::tempdir().expect("tempdir")
 }
 
+/// A `subscribe` request in the envelope the console's JS posts.
+fn subscribe_envelope() -> Value {
+    json!({
+        "id": 2,
+        "plugin": "console",
+        "request": {"op": "subscribe", "kind": "pods", "ns": null},
+    })
+}
+
 #[tokio::test]
 async fn root_route_renders_the_shared_console_shell() {
     let (status, body) = get_body(app(Arc::new(Bridge::new()), temp_root().path()), "/").await;
@@ -396,4 +405,71 @@ async fn list_pods_envelope_matches_the_console_body_shape() {
     assert_eq!(body["request"]["op"], "list");
     assert_eq!(body["request"]["kind"], "pods");
     assert!(body["request"]["ns"].is_null());
+}
+
+#[tokio::test]
+async fn subscribe_op_answers_with_a_sub_id_and_initial_snapshot() {
+    let dir = temp_root();
+    let (status, body) = post_json(
+        app(Arc::new(Bridge::new()), dir.path()),
+        "/openkite",
+        subscribe_envelope(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["status"], "ok");
+    let sub = body["result"]["sub"].as_u64().expect("subscription id");
+    assert!(sub > 0, "subscription ids start at 1: {body}");
+    assert_eq!(
+        body["result"]["initial"],
+        json!([]),
+        "a host with no cluster has no initial rows: {body}"
+    );
+}
+
+#[tokio::test]
+async fn unsubscribe_op_removes_it() {
+    let dir = temp_root();
+    let bridge = Arc::new(Bridge::new());
+    let (_, body) = post_json(
+        app(bridge.clone(), dir.path()),
+        "/openkite",
+        subscribe_envelope(),
+    )
+    .await;
+    let sub = body["result"]["sub"].as_u64().expect("subscription id");
+
+    let unsubscribe = json!({
+        "id": 3,
+        "plugin": "console",
+        "request": {"op": "unsubscribe", "sub": sub},
+    });
+    let (status, body) = post_json(
+        app(bridge.clone(), dir.path()),
+        "/openkite",
+        unsubscribe.clone(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["result"]["unsubscribed"], true, "{body}");
+
+    let (_, body) = post_json(app(bridge, dir.path()), "/openkite", unsubscribe).await;
+    assert_eq!(
+        body["result"]["unsubscribed"], false,
+        "a second cancel is a no-op: {body}"
+    );
+}
+
+#[tokio::test]
+async fn publish_on_the_web_host_delivers_nothing() {
+    let dir = temp_root();
+    let bridge = Arc::new(Bridge::new());
+    let (_, body) = post_json(app(bridge, dir.path()), "/openkite", subscribe_envelope()).await;
+    assert!(body["result"]["sub"].as_u64().is_some(), "{body}");
+
+    // Nothing here calls `push::install()`, so a publish has no pump to reach
+    // and answers zero. That zero is the browser's degradation signal.
+    let sent =
+        openkite_host::push::publish("pods", None, vec![json!({"metadata": {"name": "api-0"}})]);
+    assert_eq!(sent, 0, "the web host installs no pump");
 }

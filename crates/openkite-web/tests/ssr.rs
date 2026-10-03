@@ -248,3 +248,18 @@ fn every_page_carries_the_shell_stylesheet() {
         );
     }
 }
+
+#[test]
+fn rendered_page_defines_the_openkite_bridge() {
+    for options in [RenderOptions::ssr_only(), RenderOptions::hydrating()] {
+        let page = render_page(&snapshot(), &options);
+        assert!(
+            page.contains("window.openkite"),
+            "the page must define the bridge the console's JS calls: {page}"
+        );
+        assert!(
+            page.contains("_pushState"),
+            "the page must route pushed updates: {page}"
+        );
+    }
+}

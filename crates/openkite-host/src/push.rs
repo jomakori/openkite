@@ -32,6 +32,14 @@
 //! Coalescing: [`publish`] sends one message per matching subscription per
 //! call. Callers that receive a burst of reflector events should coalesce
 //! before publishing rather than emitting one push per event.
+//!
+//! Cost: every [`PushMessage`] carries the full row set and [`publish`] clones
+//! it once per matching subscription, so a burst costs the snapshot size times
+//! the subscriber count.
+//!
+//! A `0` from [`publish`] is the degradation signal, not an error: a host that
+//! never installed the pump — the browser host, which polls instead — has
+//! nowhere to deliver, and the view that subscribed is what must fall back.
 
 use std::collections::BTreeMap;
 use std::sync::{Mutex, OnceLock};
@@ -208,8 +216,9 @@ fn deliver_rows(rows: Vec<Value>, publish_ns: Option<&str>, sub_ns: Option<&str>
 
 /// Publish rows for `kind`/`ns` to every matching subscription.
 ///
-/// Returns how many messages were queued. Zero means nobody was listening —
-/// which is normal and not an error. Safe to call from any thread: it only
+/// Returns how many messages were queued. Zero means nobody was listening, or
+/// this host has no pump installed (the browser host, which polls instead) —
+/// the degradation signal, not an error. Safe to call from any thread: it only
 /// touches the registry lock and the channel.
 pub fn publish(kind: &str, ns: Option<&str>, rows: Vec<Value>) -> usize {
     let messages = {
