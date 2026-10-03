@@ -13,7 +13,7 @@ use std::sync::Mutex;
 
 use dioxus::prelude::*;
 use openkite_api::capability::Capabilities;
-use openkite_ui::components::shell::{AppShell, ClusterInfo, ShellIcon, TopBarAction};
+use openkite_ui::components::shell::{AppShell, ClusterInfo, ShellIcon, Sidebar, TopBarAction};
 use openkite_ui::plugin_api::RegistrationStore;
 use openkite_ui::runtime::{set_published_capabilities, PushMode};
 use openkite_ui::shell::{
@@ -608,5 +608,158 @@ fn a_browser_profile_host_keeps_the_attributes_its_host_marks_it_with() {
     assert!(
         html.contains("data-outlet=\"overview\""),
         "the browser host's own page still mounts: {html}"
+    );
+}
+
+/// The sidebar on its own, standing open the way the drawer's toggle leaves
+/// it below 1025px.
+fn open_drawer() -> Element {
+    rsx! {
+        Sidebar {
+            sections: desktop_sections(),
+            current_route: "/workloads",
+            cluster: Some(ClusterInfo {
+                label: "prod-us-east-1".into(),
+                detail: None,
+                connected: true,
+            }),
+            status: connected_entries(),
+            open: true,
+        }
+    }
+}
+
+/// The same sidebar in the desktop frame, where it is part of the layout.
+fn closed_drawer() -> Element {
+    rsx! {
+        Sidebar {
+            sections: desktop_sections(),
+            current_route: "/workloads",
+            status: connected_entries(),
+        }
+    }
+}
+
+#[test]
+fn the_bottom_bar_lists_the_sidebar_models_leading_destinations() {
+    let _host = desktop_host();
+    let html = support::mount_html(desktop_shell, || {});
+    let bar = bottom_nav_region(&html);
+
+    assert!(html.contains("class=\"bottom-nav\""), "bar: {html}");
+    assert!(bar.contains("class=\"bottom-tabs\""), "grid: {bar}");
+    assert!(
+        bar.contains("aria-label=\"Mobile navigation\""),
+        "the bar is the design's own landmark: {bar}"
+    );
+    // The model's own leading routes, in order — not a second route list.
+    assert!(
+        bar.contains("<a class=\"bottom-tab\" href=\"/cluster\">"),
+        "first destination tab: {bar}"
+    );
+    assert!(
+        bar.contains("<a class=\"bottom-tab active\" href=\"/workloads\">"),
+        "the current route's tab is the active one: {bar}"
+    );
+    assert!(
+        bar.contains("<a class=\"bottom-tab\" href=\"/logs\">"),
+        "third destination tab: {bar}"
+    );
+    assert!(
+        !bar.contains("href=\"/terminal\"") && !bar.contains("href=\"/config\""),
+        "destinations past the grid stay in the drawer: {bar}"
+    );
+}
+
+/// The rendered bottom bar on its own, so assertions do not match the
+/// drawer's copy of the same destinations.
+fn bottom_nav_region(html: &str) -> &str {
+    let start = html
+        .find("class=\"bottom-nav\"")
+        .expect("the bar is rendered");
+    let rest = &html[start..];
+    let end = rest.find("</nav>").map(|i| i + 6).unwrap_or(rest.len());
+    &rest[..end]
+}
+
+#[test]
+fn the_bottom_bar_carries_the_drawers_own_menu_tab() {
+    let _host = desktop_host();
+    let html = support::mount_html(desktop_shell, || {});
+
+    assert!(
+        html.contains("aria-label=\"Open navigation\""),
+        "the Menu tab opens the drawer: {html}"
+    );
+    assert!(
+        html.contains(">Menu<"),
+        "the Menu tab is labelled like the design's: {html}"
+    );
+    assert!(
+        html.contains("<button class=\"bottom-tab\""),
+        "the Menu tab is a button, not a destination link: {html}"
+    );
+    assert!(
+        html.contains("aria-expanded=\"false\""),
+        "a closed drawer is reported closed: {html}"
+    );
+}
+
+#[test]
+fn a_browser_profile_host_gets_the_bar_from_its_own_sidebar_model() {
+    let _host = browser_host();
+    let html = support::mount_html(browser_shell, || {});
+
+    assert!(html.contains("class=\"bottom-nav\""), "bar: {html}");
+    assert!(
+        html.contains("<a class=\"bottom-tab\" href=\"/cluster\">"),
+        "the browser host's one destination: {html}"
+    );
+    assert!(
+        !html.contains("href=\"/workloads\""),
+        "tabs come from this host's model, not a fixed list: {html}"
+    );
+}
+
+#[test]
+fn the_open_drawer_is_a_modal_dialog() {
+    let _host = desktop_host();
+    let html = support::mount_html(open_drawer, || {});
+
+    assert!(html.contains("class=\"sidebar open\""), "open: {html}");
+    assert!(
+        html.contains("role=\"dialog\""),
+        "the open drawer is a dialog: {html}"
+    );
+    assert!(
+        html.contains("aria-modal=\"true\""),
+        "the open drawer is modal: {html}"
+    );
+    assert!(
+        html.contains("aria-label=\"Navigation\""),
+        "the dialog is named: {html}"
+    );
+}
+
+#[test]
+fn the_closed_sidebar_is_not_a_dialog() {
+    let _host = desktop_host();
+    let html = support::mount_html(closed_drawer, || {});
+
+    assert!(
+        html.contains("class=\"sidebar\""),
+        "the frame's sidebar: {html}"
+    );
+    assert!(
+        html.contains("role=\"complementary\""),
+        "in the frame it stays the plain landmark: {html}"
+    );
+    assert!(
+        html.contains("aria-modal=\"false\""),
+        "not modal when it is part of the layout: {html}"
+    );
+    assert!(
+        !html.contains("role=\"dialog\""),
+        "no dialog role leaks into the desktop frame: {html}"
     );
 }

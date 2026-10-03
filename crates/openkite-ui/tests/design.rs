@@ -127,6 +127,12 @@ const REQUIRED_CLASSES: &[&str] = &[
     ".main",
     ".topbar",
     ".menu-toggle",
+    // The ≤767px bottom bar (OKT-166): the destination tabs and the drawer's
+    // Menu tab share the bar's grid.
+    ".bottom-nav",
+    ".bottom-tabs",
+    ".bottom-tab",
+    ".bottom-tab.active",
     ".breadcrumbs",
     ".breadcrumbs .crumb",
     ".breadcrumbs .current",
@@ -932,5 +938,21 @@ fn namespace_strip_is_one_hidden_scrollbar_line_with_scroll_snap() {
     assert!(
         circles.contains("border-radius: var(--r-pill)"),
         "…and circular: {circles}"
+
+/// The ≤767px half of the shell (OKT-166): the bar is a below-768px
+/// affordance and the view scrolls clear of it.
+#[test]
+fn the_bottom_bar_lives_below_the_768px_breakpoint() {
+    assert!(
+        STYLESHEET.contains(".main { padding-bottom: 74px; }"),
+        "the view must clear the fixed bar"
+    );
+    assert!(
+        STYLESHEET.contains(".bottom-nav { display: block; }"),
+        "the bar is shown below 768px"
+    );
+    assert!(
+        STYLESHEET.contains("@media (min-width: 768px) {\n  .bottom-nav { display: none; }\n}"),
+        "and reset from 768px up"
     );
 }
