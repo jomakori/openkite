@@ -149,6 +149,30 @@ pub fn plugin_sections(store: &RegistrationStore) -> Vec<ShellSection> {
     sections
 }
 
+/// How many destination tabs the ≤767px bar shows. The design's bar is a
+/// four-cell grid and the drawer's Menu tab takes the last cell.
+pub const BOTTOM_TAB_SLOTS: usize = 3;
+
+/// The ≤767px bottom bar's destinations: the sidebar model's own entries, in
+/// section order, one tab per route, capped at [`BOTTOM_TAB_SLOTS`].
+///
+/// The bar is a second view of the same destinations, not a second route
+/// list — it disappears from the model whenever the sidebar stops carrying
+/// the route, and the rest of the navigation stays in the drawer.
+pub fn bottom_tabs(sections: &[ShellSection]) -> Vec<ShellNavItem> {
+    let mut tabs: Vec<ShellNavItem> = Vec::new();
+    for item in sections.iter().flat_map(|section| section.items.iter()) {
+        if tabs.iter().any(|tab| tab.route == item.route) {
+            continue;
+        }
+        tabs.push(item.clone());
+        if tabs.len() == BOTTOM_TAB_SLOTS {
+            break;
+        }
+    }
+    tabs
+}
+
 /// One breadcrumb in the top bar (OKT-154): a step between the cluster and
 /// the route the console is on.
 #[derive(Debug, Clone, PartialEq, Eq)]

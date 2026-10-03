@@ -5,8 +5,8 @@ use openkite_ui::plugin_api::{
     PluginRegistration, RegistrationStore, RouteSpec, SidebarItem, StatusItem,
 };
 use openkite_ui::shell::{
-    nav_item_from_plugin, plugin_sections, sidebar_model, status_bar_model, status_dot_color,
-    status_items_of, ShellState,
+    bottom_tabs, core_nav, nav_item_from_plugin, plugin_sections, sidebar_model, status_bar_model,
+    status_dot_color, status_items_of, ShellNavItem, ShellSection, ShellState, BOTTOM_TAB_SLOTS,
 };
 
 fn argocd_registration() -> PluginRegistration {
@@ -168,4 +168,75 @@ fn dot_color_rejects_non_function_shapes_and_keeps_hex_lowercase() {
     assert_eq!(status_dot_color("red)"), "var(--subtle)");
     assert_eq!(status_dot_color("#0123456789"), "var(--subtle)");
     assert_eq!(status_dot_color("hsla(0,0%,0%)\",x:1)"), "var(--subtle)");
+}
+
+/// The bottom bar is a second view of this model, never a second route list.
+#[test]
+fn bottom_tabs_take_the_models_leading_routes_up_to_the_grid() {
+    let sections = vec![ShellSection {
+        label: "Overview".into(),
+        accent: None,
+        items: core_nav(true),
+    }];
+
+    let tabs = bottom_tabs(&sections);
+    assert_eq!(BOTTOM_TAB_SLOTS, 3);
+    assert_eq!(
+        tabs.iter()
+            .map(|tab| tab.route.as_str())
+            .collect::<Vec<_>>(),
+        vec!["/cluster", "/workloads", "/logs"]
+    );
+    // Each tab is the model's own entry — label, route and plugin intact.
+    assert_eq!(tabs, core_nav(true)[..BOTTOM_TAB_SLOTS].to_vec());
+}
+
+#[test]
+fn bottom_tabs_never_repeat_a_destination() {
+    let mut store = RegistrationStore::new();
+    store.upsert("argocd", argocd_registration());
+    let mut model = sidebar_model(&store);
+    // A plugin contributing a route the core navigation already carries.
+    model.push(ShellSection {
+        label: "dup".into(),
+        accent: None,
+        items: vec![ShellNavItem {
+            label: "Pods Again".into(),
+            route: "/workloads".into(),
+            plugin: Some("dup".into()),
+            badge: None,
+        }],
+    });
+
+    let tabs = bottom_tabs(&model);
+    let routes: Vec<&str> = tabs.iter().map(|tab| tab.route.as_str()).collect();
+    let unique: std::collections::HashSet<&str> = routes.iter().copied().collect();
+    assert_eq!(
+        routes.len(),
+        unique.len(),
+        "a tab repeats a destination: {routes:?}"
+    );
+    assert!(
+        tabs.iter().all(|tab| model
+            .iter()
+            .flat_map(|section| section.items.iter())
+            .any(|item| item == tab)),
+        "every tab is an entry of the model: {tabs:?}"
+    );
+}
+
+#[test]
+fn bottom_tabs_take_the_destinations_a_shorter_model_has() {
+    let one = vec![ShellSection {
+        label: "Overview".into(),
+        accent: None,
+        items: vec![ShellNavItem {
+            label: "Cluster".into(),
+            route: "/cluster".into(),
+            plugin: None,
+            badge: None,
+        }],
+    }];
+    assert_eq!(bottom_tabs(&one).len(), 1);
+    assert!(bottom_tabs(&[]).is_empty());
 }
