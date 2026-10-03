@@ -14,8 +14,8 @@ use dioxus::prelude::*;
 use openkite_api::pod::{parse_log_line, ContainerInfo, PodObject, PodSummary};
 use openkite_ui::components::logs::{LogLineRow, LogsView};
 use openkite_ui::runtime::{
-    pause_logs, resume_logs, toggle_logs_paused, LOGS_BUFFER, LOGS_CONTAINER, LOGS_HELD,
-    LOGS_PAUSED, SELECTED_POD,
+    close_log_sheet, pause_logs, resume_logs, toggle_log_sheet, toggle_logs_paused, LOGS_BUFFER,
+    LOGS_CONTAINER, LOGS_HELD, LOGS_PAUSED, LOGS_SHEET_OPEN, SELECTED_POD,
 };
 
 /// A two-container pod, so the picker and the default are both observable.
@@ -293,6 +293,10 @@ fn every_class_the_panel_renders_is_declared() {
             seed_streamed_panel();
             pause_logs();
         }),
+        support::mount_html(empty_app, || {
+            seed_streamed_panel();
+            *LOGS_SHEET_OPEN.write() = true;
+        }),
     ];
     for html in states {
         for class in rendered_classes(&html) {
@@ -319,4 +323,137 @@ fn level_colours_come_from_the_log_tokens() {
             "the reference colours a log level through its own token; missing: {selector}"
         );
     }
+}
+
+// --- OKT-168: the ≤767px bottom sheet, its handle and Escape ---
+
+#[test]
+fn sheet_is_closed_by_default_so_it_does_not_cover_content() {
+    let html = support::mount_html(empty_app, || {});
+    assert!(html.contains("class=\"log-panel\""), "got: {html}");
+    assert!(
+        !html.contains("log-panel open"),
+        "the sheet starts off-frame: {html}"
+    );
+    assert!(
+        html.contains("class=\"log-handle\"") && html.contains("aria-expanded=\"false\""),
+        "the handle is the collapsed affordance: {html}"
+    );
+}
+
+#[test]
+fn an_open_sheet_carries_the_open_class_and_an_expanded_handle() {
+    let html = support::mount_html(empty_app, || {
+        *LOGS_SHEET_OPEN.write() = true;
+    });
+    assert!(html.contains("class=\"log-panel open\""), "got: {html}");
+    assert!(
+        html.contains("aria-expanded=\"true\""),
+        "the handle reports the open sheet: {html}"
+    );
+}
+
+#[test]
+fn an_open_paused_sheet_keeps_both_state_classes() {
+    let html = support::mount_html(empty_app, || {
+        seed_streamed_panel();
+        pause_logs();
+        *LOGS_SHEET_OPEN.write() = true;
+    });
+    assert!(
+        html.contains("class=\"log-panel paused open\""),
+        "paused and open are independent: {html}"
+    );
+}
+
+#[test]
+fn toggle_and_close_drive_the_sheet_state() {
+    with_runtime(|| {
+        *LOGS_SHEET_OPEN.write() = false;
+        toggle_log_sheet();
+        assert!(*LOGS_SHEET_OPEN.read(), "the handle opens a closed sheet");
+        toggle_log_sheet();
+        assert!(
+            !*LOGS_SHEET_OPEN.read(),
+            "the handle dismisses an open sheet"
+        );
+        *LOGS_SHEET_OPEN.write() = true;
+        close_log_sheet();
+        assert!(
+            !*LOGS_SHEET_OPEN.read(),
+            "Escape's close clears the open state"
+        );
+    });
+}
+
+#[test]
+fn escape_is_wired_through_the_keybind_source() {
+    let js = openkite_ui::components::logs::LOG_SHEET_KEYBIND_JS;
+    assert!(js.contains("keydown"), "must be a key handler: {js}");
+    assert!(js.contains("'Escape'"), "Escape is the dismiss key: {js}");
+    assert!(
+        js.contains("dioxus.send('close')"),
+        "Escape must reach the Rust close path: {js}"
+    );
+}
+
+/// The brace-balanced body of the first `@media` block whose header matches.
+fn media_block(css: &str, header: &str) -> String {
+    let start = css.find(header).expect("media header present");
+    let open = css[start..].find('{').expect("media block opens") + start;
+    let mut depth = 0usize;
+    for (i, c) in css[open..].char_indices() {
+        match c {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return css[open + 1..open + i].to_string();
+                }
+            }
+            _ => {}
+        }
+    }
+    panic!("unbalanced media block: {header}");
+}
+
+/// The sheet is a `≤767px` surface only — the `≥768px` blocks are
+/// baseline-captured and must stay byte-identical.
+#[test]
+fn the_mobile_sheet_rules_live_only_below_the_breakpoint() {
+    let css = openkite_ui::MAIN_CSS;
+    let mobile = media_block(css, "@media (max-width: 767px)");
+    assert!(
+        mobile.contains(".log-panel {\n    position: fixed;"),
+        "the fixed sheet lives in the mobile block: {mobile}"
+    );
+    assert!(
+        mobile.contains(".log-panel.open { transform: translateY(0); }"),
+        "the open state lives in the mobile block: {mobile}"
+    );
+    assert!(
+        mobile.contains(".log-handle { display: flex; }"),
+        "the handle only shows on mobile: {mobile}"
+    );
+
+    for header in [
+        "@media (max-width: 1024px) and (min-width: 768px)",
+        "@media (min-width: 1025px)",
+    ] {
+        let block = media_block(css, header);
+        assert!(
+            !block.contains(".log-panel"),
+            "the sheet must not leak into {header}: {block}"
+        );
+    }
+
+    let base = css
+        .split(".log-panel {")
+        .nth(1)
+        .expect(".log-panel rule present");
+    let base = base.split('}').next().expect(".log-panel block closes");
+    assert!(
+        !base.contains("position: fixed"),
+        "the panel stays in-flow above the breakpoint: {base}"
+    );
 }

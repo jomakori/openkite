@@ -12,8 +12,21 @@ use dioxus::prelude::*;
 use openkite_api::pod::{parse_log_line, pick_default_container, LogLine, PodObject};
 
 use crate::runtime::{
-    toggle_logs_paused, LOGS_BUFFER, LOGS_CONTAINER, LOGS_HELD, LOGS_PAUSED, SELECTED_POD,
+    close_log_sheet, toggle_log_sheet, toggle_logs_paused, LOGS_BUFFER, LOGS_CONTAINER, LOGS_HELD,
+    LOGS_PAUSED, LOGS_SHEET_OPEN, SELECTED_POD,
 };
+
+/// Escape dismisses the sheet from anywhere; the listener installs once per webview.
+pub const LOG_SHEET_KEYBIND_JS: &str = r#"
+if (!window.__openkite_log_sheet_keys) {
+  window.__openkite_log_sheet_keys = true;
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      dioxus.send('close');
+    }
+  });
+}
+"#;
 
 #[component]
 pub fn LogsView() -> Element {
@@ -45,6 +58,27 @@ pub fn LogsView() -> Element {
     });
 
     let paused = LOGS_PAUSED.cloned();
+    let sheet_open = LOGS_SHEET_OPEN.cloned();
+
+    // Escape is the sheet's dismiss key on every width; the handle covers pointer.
+    use_effect(move || {
+        let mut eval = document::eval(LOG_SHEET_KEYBIND_JS);
+        spawn(async move {
+            while let Ok(action) = eval.recv::<String>().await {
+                if action == "close" {
+                    close_log_sheet();
+                }
+            }
+        });
+    });
+
+    // The reference composes both states on one class list: paused and sheet-open.
+    let panel_class = match (paused, sheet_open) {
+        (true, true) => "log-panel paused open",
+        (true, false) => "log-panel paused",
+        (false, true) => "log-panel open",
+        (false, false) => "log-panel",
+    };
 
     // Following keeps the newest line in view; a paused panel holds its window,
     // so there is nothing to scroll to.
@@ -78,10 +112,16 @@ pub fn LogsView() -> Element {
 
     rsx! {
         section {
-            class: if paused { "log-panel paused" } else { "log-panel" },
+            class: "{panel_class}",
             "data-surface": "logs",
             aria_label: "Pod logs",
-            button { class: "log-handle", r#type: "button", "Logs" }
+            button {
+                class: "log-handle",
+                r#type: "button",
+                aria_expanded: if sheet_open { "true" } else { "false" },
+                onclick: move |_| toggle_log_sheet(),
+                "Logs"
+            }
             div { class: "log-header",
                 div { class: "log-title",
                     svg { class: "icon", "viewBox": "0 0 24 24",
