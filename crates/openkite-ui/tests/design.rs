@@ -857,7 +857,7 @@ fn namespace_strip_is_one_hidden_scrollbar_line_with_scroll_snap() {
         "the strip scrolls horizontally: {row}"
     );
     assert!(
-        row.contains("scroll-snap-type: x proximity"),
+        row.contains("scroll-snap-type: x mandatory"),
         "chips snap so none rests half-visible: {row}"
     );
     assert!(
@@ -878,6 +878,10 @@ fn namespace_strip_is_one_hidden_scrollbar_line_with_scroll_snap() {
     assert!(
         chip.contains("scroll-snap-align: start"),
         "each chip is a snap target: {chip}"
+    );
+    assert!(
+        chip.contains("scroll-snap-stop: always"),
+        "a flick cannot carry past a chip's snap point: {chip}"
     );
     assert!(
         chip.contains("flex: 0 0 auto"),

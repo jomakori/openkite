@@ -82,11 +82,11 @@ single `.ns-bar` row whose middle is the `.chip-row`:
 | Class                | Purpose                                                              |
 |----------------------|----------------------------------------------------------------------|
 | `.ns-bar`            | The one-line row: search circle, scrolling strip, × reset            |
-| `.chip-row`          | The strip — `flex-wrap: nowrap`, `overflow-x: auto`, `scroll-snap-type: x proximity`, scrollbar hidden (`scrollbar-width: none` plus `.chip-row::-webkit-scrollbar{display:none}`), each chip a `scroll-snap-align: start` target |
+| `.chip-row`          | The strip — `flex-wrap: nowrap`, `overflow-x: auto`, `scroll-snap-type: x mandatory`, scrollbar hidden (`scrollbar-width: none` plus `.chip-row::-webkit-scrollbar{display:none}`), each chip a `scroll-snap-align: start` target that `scroll-snap-stop: always` holds so a flick never rests between two chips |
 | `.chip` + `.chip.active` | A namespace chip (44px min height) and its selected state        |
 | `.chip-mark`         | The check on a selected chip                                         |
-| `.ns-search`         | The 44px search circle; opens the inline chip-list filter            |
-| `.ns-filter`         | The inline field the circle opens — narrows the *list* only          |
+| `.ns-search`         | The 44px search circle; opens the chip-list filter                   |
+| `.ns-filter`         | The inline field the circle shows — narrows the *list* only; on a coarse pointer it takes the full width **above** the strip |
 | `.ns-reset`          | The 44px × circle; rendered only while a selection exists, after the strip so it is reachable without scrolling |
 
 The selection is **one** selection for the whole console, held in
@@ -95,6 +95,33 @@ data surface reads it through `namespace_bar::selection_matches`; `ResourceTable
 scopes its rows with it and owns no namespace chips of its own. The search field
 narrows the *chip list* (`visible_namespaces(options, query)`) and never the
 selection.
+
+## Touch paths
+
+Touch has no hover and no double-click, so every desktop-only affordance names
+its substitute. Layout adapts under `@media (pointer: coarse)`; the hover
+reward is opt-in under `@media (hover: hover) and (pointer: fine)`. No state is
+reachable only by hover, and a hover rule may never hide something a touch
+screen needs.
+
+| Affordance | Pointer path | Touch path |
+|------------|--------------|------------|
+| Hover reward (lift, border, shadow) | `:hover` | not applied — the gate leaves the resting state visible |
+| `title=` tooltip | the native tooltip | the same state is already in a label or attribute; nothing depends on the tooltip |
+| Temporary dock tab (`.dock-tab[data-temporary]`) | double-click promotes it | long-press → **Keep tab** + a confirming toast (`openkite_ui::touch::resolve_press`, `keep_tab_toast`) |
+| Dock tab manager (`.dock-menu`) | dropdown above the bar | bottom sheet (`position: fixed; bottom: 0`) whose rows meet the 44px floor |
+| Namespace search (`.ns-search`) | tap opens the inline field | the same tap; the field spans the full width **above** the strip |
+| Chip strip (`.chip-row`) | scroll, snapped | `scroll-snap-type: x mandatory` + `scroll-snap-stop: always` — a chip never rests half-visible |
+| Dock resize (`.dock-resize`) | `pointerdown`/`move`/`up` drag | the same pointer drag, on a 22px grab strip (`touch-action: none`) |
+| Side pane drawer toggle (`.menu-toggle` → `.sidebar.open`) | click opens the drawer | the same tap; `.sidebar-backdrop.show` is the tap-to-dismiss scrim |
+| Side pane (`.inspector`) | a second click replaces the pane in place | the same tap; ≤767px the pane is a full-width sheet dismissed by the scrim |
+| Side pane resize (`.inspector-resize`) | `pointerdown` drag on the pane's left edge | the same pointer drag (`touch-action: none`); ≤767px the handle is not rendered |
+
+The long-press rule is one pure function: movement past
+`PRESS_MOVE_TOLERANCE_PX` latches a scroll, so a finger that drifts and settles
+back can still never fire the long-press. The dock's adoption of it (and of the
+`.dock-*` sheet rules) rides OKT-172's `DockView`; this ticket ships the rule,
+the sheet stylesheet and the documented path.
 
 ## Deferred to dependent tickets
 
