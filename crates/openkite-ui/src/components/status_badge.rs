@@ -70,10 +70,14 @@ pub fn StatusBadge(status: StatusKind) -> Element {
 }
 
 /// A design-system status pill (`.pill` + semantic variant) denoting `status`.
+///
+/// `label` overrides the pill's text when the caller has the resource's own
+/// status string (e.g. `CrashLoopBackOff`), which the reference prints verbatim.
 #[component]
-pub fn StatusPill(status: StatusKind) -> Element {
+pub fn StatusPill(status: StatusKind, #[props(default)] label: Option<String>) -> Element {
+    let text = label.unwrap_or_else(|| status.label().to_string());
     rsx! {
-        span { class: "pill {status.pill_class()}", "{status.label()}" }
+        span { class: "pill {status.pill_class()}", "{text}" }
     }
 }
 

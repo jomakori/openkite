@@ -258,7 +258,7 @@ pub fn page_count(total: usize, per_page: usize) -> usize {
     if per_page == 0 {
         return 1;
     }
-    total.div_ceil(per_page)
+    total.div_ceil(per_page).max(1)
 }
 
 /// The count line the panel footer carries.
@@ -547,7 +547,7 @@ fn render_table_cell(cell: &Cell, index: usize, width: Option<u32>) -> Element {
                     class: "table-cell",
                     style: "{style}",
                     span { class: "cell-value {cell_class}",
-                        StatusPill { status: kind }
+                        StatusPill { status: kind, label: cell.text.clone() }
                     }
                 }
             },
