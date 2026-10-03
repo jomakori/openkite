@@ -139,6 +139,25 @@ const REQUIRED_CLASSES: &[&str] = &[
     ".ns-reset",
     ".chip-row .chip",
     ".chip-mark",
+    // The bottom dock (OKT-172): the strip, the dropdown tab manager and the
+    // surface the active tab renders into.
+    ".dock",
+    ".dock-resize",
+    ".dock-bar",
+    ".dock-tabs",
+    ".dock-tab",
+    ".dock-tab.active",
+    ".dock-tab-label",
+    ".dock-tab-close",
+    ".dock-manager",
+    ".dock-manager-btn",
+    ".dock-menu",
+    ".dock-menu-row",
+    ".dock-menu-switch",
+    ".dock-menu-close",
+    ".dock-menu-actions",
+    ".dock-menu-action",
+    ".dock-body",
 ];
 
 /// Properties the opaline theme contract already provides — must not be
@@ -312,6 +331,7 @@ const CRUD_MODAL_RSX: &str = include_str!("../src/components/crud_modal.rs");
 const SHELL_RSX: &str = include_str!("../src/components/shell.rs");
 const ROUTE_VIEWS_RSX: &str = include_str!("../src/components/route_views.rs");
 const NAMESPACE_BAR_RSX: &str = include_str!("../src/components/namespace_bar.rs");
+const DOCK_RSX: &str = include_str!("../src/components/dock.rs");
 
 /// Every rsx source file the crate renders. Order is for stable error
 /// messages — does not affect semantics.
@@ -350,6 +370,7 @@ const RSX_SOURCES: &[(&str, &str)] = &[
         "crates/openkite-ui/src/components/namespace_bar.rs",
         NAMESPACE_BAR_RSX,
     ),
+    ("crates/openkite-ui/src/components/dock.rs", DOCK_RSX),
 ];
 
 /// Extract every distinct CSS token used in a `class:` or `class=` rsx
