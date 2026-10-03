@@ -81,11 +81,13 @@ async fn spike_post(State(bridge): State<SharedBridge>, body: String) -> Json<Ap
 
 /// Render the console root server-side from the snapshot the host holds.
 ///
-/// The page is SSR-only: it carries the snapshot and the markup, and the
-/// hydrating client is what attaches to it once the image serves the crate.
+/// The page is SSR + hydrate: the snapshot and the markup are in the document
+/// so a deep link paints before any JavaScript runs, and the client bundle in
+/// `OPENKITE_WEB_ROOT` then attaches to the same tree, which is what makes a
+/// route reached by URL interactive in the browser host.
 async fn ssr_root(State(bridge): State<SharedBridge>) -> Response {
     let snapshot = ssr_snapshot(&bridge).await;
-    let page = ssr::render_page(&snapshot, &ssr::RenderOptions::ssr_only());
+    let page = ssr::render_page(&snapshot, &ssr::RenderOptions::hydrating());
     ([(CONTENT_TYPE, "text/html; charset=utf-8")], page).into_response()
 }
 

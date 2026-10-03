@@ -42,7 +42,13 @@ pub fn in_cluster() -> bool {
 
 /// Connect to the cluster: the in-cluster ServiceAccount token when running as a
 /// pod, else the active `KUBECONFIG` context.
+///
+/// The crypto provider is installed before the client builds its TLS
+/// configuration. A build that also builds dev-dependencies resolves both of
+/// rustls' providers — kube's `ring` next to rustls' default `aws-lc-rs` — and
+/// rustls refuses to choose between two, so the host picks one itself.
 pub async fn connect() -> anyhow::Result<Client> {
+    let _ = rustls::crypto::ring::default_provider().install_default();
     Client::try_default()
         .await
         .context("connect to the cluster")

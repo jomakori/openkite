@@ -180,6 +180,17 @@ async fn pod_list() -> Json<Value> {
 /// A raw socket keeps the tests free of an HTTP client dependency, and the
 /// assertions only need substrings of the response.
 pub async fn raw_http(addr: SocketAddr, method: &str, path: &str, body: Option<&str>) -> String {
+    String::from_utf8_lossy(&raw_http_bytes(addr, method, path, body).await).into_owned()
+}
+
+/// The same request, answered as bytes: a binary response (the wasm client, the
+/// vendored typefaces) is not valid UTF-8 and would be corrupted as text.
+pub async fn raw_http_bytes(
+    addr: SocketAddr,
+    method: &str,
+    path: &str,
+    body: Option<&str>,
+) -> Vec<u8> {
     let mut stream = tokio::net::TcpStream::connect(addr)
         .await
         .expect("connect to host");
@@ -191,9 +202,9 @@ pub async fn raw_http(addr: SocketAddr, method: &str, path: &str, body: Option<&
     );
     stream.write_all(head.as_bytes()).await.expect("write head");
     stream.write_all(body.as_bytes()).await.expect("write body");
-    let mut response = String::new();
+    let mut response = Vec::new();
     stream
-        .read_to_string(&mut response)
+        .read_to_end(&mut response)
         .await
         .expect("read response");
     response

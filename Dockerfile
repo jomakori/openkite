@@ -121,6 +121,19 @@ COPY --from=builder /src/target/release/openkite-web /usr/local/bin/openkite-web
 COPY --from=builder /bundle /bundle
 ENV OPENKITE_ADDR=0.0.0.0:8080
 ENV OPENKITE_WEB_ROOT=/bundle
+# The console document boots the hydration client from $OPENKITE_WEB_ROOT and
+# names the two wasm-bindgen outputs below as it does. A stage that writes them
+# anywhere else, or under another name, ships an image whose page loads no
+# client and reports nothing. Assert the coupling here, so the build fails
+# instead of the browser.
+RUN test -f "${OPENKITE_WEB_ROOT}/openkite-web-client.js" \
+ && test -f "${OPENKITE_WEB_ROOT}/openkite-web-client_bg.wasm" \
+ || { \
+      echo "ERROR: ${OPENKITE_WEB_ROOT} carries no hydration client to serve."; \
+      echo "Expected openkite-web-client.js and openkite-web-client_bg.wasm there."; \
+      echo "Refusing to build a console image that boots no client."; \
+      exit 1; \
+    }
 EXPOSE 8080
 USER nobody
 ENTRYPOINT ["/usr/local/bin/openkite-web"]
