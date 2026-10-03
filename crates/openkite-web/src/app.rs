@@ -89,9 +89,15 @@ pub fn App(props: AppProps) -> Element {
     let snapshot = state();
     let capabilities = snapshot.capabilities;
 
+    // The namespace bar and the selected namespace both derive from the secrets the snapshot could list.
+    let namespaces = crate::ssr::namespaces_of(&snapshot.secrets);
+    let namespace = namespaces
+        .first()
+        .cloned()
+        .unwrap_or_else(|| "default".into());
     let shell = ShellState {
         cluster: snapshot.context.clone(),
-        namespace: "default".into(),
+        namespace,
         connected: snapshot.connected,
         prometheus: None,
     };
@@ -156,6 +162,7 @@ pub fn App(props: AppProps) -> Element {
             RouteView {
                 route: "/".to_string(),
                 sections,
+                namespaces,
                 busy: pending(),
                 content: rsx! {
                     section { class: "panel", "data-surface": "overview",

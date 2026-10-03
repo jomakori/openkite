@@ -12,7 +12,7 @@ use openkite_api::crud::{
 use openkite_api::gateway::{Gateway, GatewayError, GatewayFuture};
 use openkite_api::secret::{
     bulk_reveal_predicate, decoded_value_for_key, row_id_for_secret, secret_keys,
-    secret_kind_label, SecretObject,
+    secret_kind_label, SecretObject, SecretRef,
 };
 
 fn secret() -> SecretObject {
@@ -172,6 +172,15 @@ impl Gateway for StubGateway {
             })
         })
     }
+
+    fn secret_refs(&self) -> GatewayFuture<'_, Result<Vec<SecretRef>, GatewayError>> {
+        Box::pin(async {
+            Ok(vec![SecretRef {
+                namespace: "default".into(),
+                name: "db".into(),
+            }])
+        })
+    }
 }
 
 #[tokio::test]
@@ -192,4 +201,9 @@ async fn gateway_is_object_safe_and_awaitable() {
     let fetched = gateway.secret("default".into(), "db".into()).await.unwrap();
     assert_eq!(fetched.name, "db");
     assert_eq!(fetched.namespace.as_deref(), Some("default"));
+
+    let refs = gateway.secret_refs().await.unwrap();
+    assert_eq!(refs.len(), 1);
+    assert_eq!(refs[0].namespace, "default");
+    assert_eq!(refs[0].name, "db");
 }

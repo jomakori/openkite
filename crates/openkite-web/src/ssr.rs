@@ -75,10 +75,16 @@ impl Snapshot {
 
 /// A secret reference safe to ship to the browser: name + namespace, never
 /// values. The slide-over calls `gateway.secret(ns, name)` on demand.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct SecretRef {
-    pub namespace: String,
-    pub name: String,
+pub use openkite_api::secret::SecretRef;
+
+/// The distinct namespaces the refs live in, sorted — the namespace bar's rows.
+pub fn namespaces_of(secrets: &[SecretRef]) -> Vec<String> {
+    secrets
+        .iter()
+        .map(|secret| secret.namespace.clone())
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect()
 }
 
 /// Render the SSR body for the snapshot.
@@ -180,8 +186,7 @@ pub fn render_page(snapshot: &Snapshot, options: &RenderOptions) -> String {
     )
 }
 
-/// Best-effort list of secrets the gateway can hand out.
+/// The secret refs the gateway can hand out, or `Err` when it cannot list.
 async fn list_secret_refs(gateway: &Arc<dyn Gateway>) -> Result<Vec<SecretRef>, ()> {
-    let _ = gateway.capabilities();
-    Ok(Vec::new())
+    gateway.secret_refs().await.map_err(|_| ())
 }
