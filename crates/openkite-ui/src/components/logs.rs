@@ -12,8 +12,8 @@ use dioxus::prelude::*;
 use openkite_api::pod::{parse_log_line, pick_default_container, LogLine, PodObject};
 
 use crate::runtime::{
-    close_log_sheet, toggle_log_sheet, toggle_logs_paused, LOGS_BUFFER, LOGS_CONTAINER, LOGS_HELD,
-    LOGS_PAUSED, LOGS_SHEET_OPEN, SELECTED_POD,
+    close_log_sheet, dismiss_log_sheet_on_selection, toggle_log_sheet, toggle_logs_paused,
+    LOGS_BUFFER, LOGS_CONTAINER, LOGS_HELD, LOGS_PAUSED, LOGS_SHEET_OPEN, SELECTED_POD,
 };
 
 /// Escape dismisses the sheet from anywhere; the listener installs once per webview.
@@ -27,6 +27,12 @@ if (!window.__openkite_log_sheet_keys) {
   });
 }
 "#;
+
+/// The page behind the open sheet does not scroll.
+pub const LOG_SHEET_SCROLL_LOCK_JS: &str = "document.body.style.overflow = 'hidden';";
+
+/// Dismissing the sheet hands the page its scroll back.
+pub const LOG_SHEET_SCROLL_RELEASE_JS: &str = "document.body.style.overflow = '';";
 
 #[component]
 pub fn LogsView() -> Element {
@@ -91,6 +97,30 @@ pub fn LogsView() -> Element {
             r#"var el = document.querySelector('.log-body');
                if (el) { el.scrollTop = el.scrollHeight; }"#,
         );
+    });
+
+    // The page behind the open sheet must not scroll; dismissal releases it.
+    use_effect(move || {
+        let js = if LOGS_SHEET_OPEN.cloned() {
+            LOG_SHEET_SCROLL_LOCK_JS
+        } else {
+            LOG_SHEET_SCROLL_RELEASE_JS
+        };
+        let _ = document::eval(js);
+    });
+
+    // A new selection dismisses the sheet, so it never covers the next pod.
+    let shown_pod_name = pod.as_ref().map(|pod| pod.name.clone());
+    let mut shown_pod = use_signal({
+        let initial = shown_pod_name.clone();
+        move || initial.clone()
+    });
+    use_effect(move || {
+        let current = SELECTED_POD.read().as_ref().map(|pod| pod.name.clone());
+        let previous = (*shown_pod.peek()).clone();
+        if dismiss_log_sheet_on_selection(previous.as_deref(), current.as_deref()) {
+            shown_pod.set(current);
+        }
     });
 
     let lines: Vec<LogLine> = if paused {

@@ -199,6 +199,16 @@ pub fn toggle_log_sheet() {
     *LOGS_SHEET_OPEN.write() = open;
 }
 
+/// Dismiss the sheet unless the selection is unchanged; a new pod must not
+/// stay behind the previous pod's sheet.
+pub fn dismiss_log_sheet_on_selection(previous: Option<&str>, current: Option<&str>) -> bool {
+    if previous == current {
+        return false;
+    }
+    close_log_sheet();
+    true
+}
+
 /// The resource the CRUD overlay is currently showing, or `None` when the
 /// overlay is closed. Dispatched on by
 /// [`crate::components::crud_modal::CrudOverlay`].
