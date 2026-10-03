@@ -106,6 +106,9 @@ pub struct Cell {
     /// Per-cell rich render payload, e.g. the pod health-dot row. Empty means
     /// plain text — `render_table_cell` falls back to text/status rendering.
     pub extras: CellExtras,
+    /// Design-system classes the rendered value carries (`.namespace`,
+    /// `.restarts warn`). Empty renders the bare `.cell-value`.
+    pub class: String,
 }
 
 /// Rich per-cell render payload. The health-dot row is the only shape so far;
@@ -136,6 +139,7 @@ impl Cell {
             sort,
             status: None,
             extras: CellExtras::Plain,
+            class: String::new(),
         }
     }
 
@@ -148,6 +152,7 @@ impl Cell {
             sort,
             status: Some(kind),
             extras: CellExtras::Plain,
+            class: String::new(),
         }
     }
 
@@ -158,6 +163,7 @@ impl Cell {
             sort: SortKey::Number(value),
             status: None,
             extras: CellExtras::Plain,
+            class: String::new(),
         }
     }
 
@@ -175,7 +181,14 @@ impl Cell {
             sort: SortKey::Number(ready as f64),
             status: None,
             extras: CellExtras::HealthDots(dots),
+            class: String::new(),
         }
+    }
+
+    /// Carry the design-system classes the rendered value paints with.
+    pub fn with_class(mut self, class: impl Into<String>) -> Self {
+        self.class = class.into();
+        self
     }
 }
 
@@ -240,6 +253,37 @@ fn toggle_sort(mut sort: Signal<Option<(usize, SortDirection)>>, column: usize) 
     sort.set(Some(next));
 }
 
+/// Number of pages `total` rows occupy at `per_page` rows each (at least one).
+pub fn page_count(total: usize, per_page: usize) -> usize {
+    if per_page == 0 {
+        return 1;
+    }
+    total.div_ceil(per_page)
+}
+
+/// The count line the panel footer carries.
+pub fn showing_label(shown: usize, total: usize, noun: &str) -> String {
+    format!("Showing {shown} of {total} {noun}")
+}
+
+/// The page numbers the pager paints: a bounded window around `current` that
+/// keeps `1` and `pages` reachable.
+pub fn pager_slots(current: usize, pages: usize) -> Vec<usize> {
+    const WINDOW: usize = 5;
+    if pages <= WINDOW {
+        return (1..=pages).collect();
+    }
+    let current = current.clamp(1, pages);
+    let half = WINDOW / 2;
+    let mut start = current.saturating_sub(half).max(1);
+    let mut end = start + WINDOW - 1;
+    if end > pages {
+        end = pages;
+        start = end + 1 - WINDOW;
+    }
+    (start..=end).collect()
+}
+
 /// Virtualized, sortable, filterable resource table.
 #[component]
 pub fn ResourceTable(
@@ -250,9 +294,12 @@ pub fn ResourceTable(
     #[props(default)] row_actions: Option<RowActions>,
     #[props(default)] on_row_click: Option<EventHandler<ResourceRow>>,
     #[props(default = 600.0)] height: f64,
+    #[props(default)] per_page: Option<usize>,
+    #[props(default)] page_label: Option<String>,
 ) -> Element {
     let sort = use_signal(|| None::<(usize, SortDirection)>);
     let mut query = use_signal(String::new);
+    let mut page = use_signal(|| 1usize);
 
     match status {
         TableStatus::Loading => rsx! { div { class: "table-state", "Loading…" } },
@@ -274,6 +321,50 @@ pub fn ResourceTable(
                 return rsx! { div { class: "table-state table-empty", "{message}" } };
             }
 
+            let total = view.len();
+            let label = page_label.unwrap_or_else(|| "resources".to_string());
+            let (page_rows, footer) = match per_page.filter(|size| *size > 0) {
+                Some(size) => {
+                    let pages = page_count(total, size);
+                    let current = page().clamp(1, pages);
+                    let start = (current - 1) * size;
+                    let end = (start + size).min(total);
+                    let rows = view[start..end].to_vec();
+                    let footer = rsx! {
+                        div { class: "panel-footer",
+                            span { "data-count": "{total}", "{showing_label(end - start, total, &label)}" }
+                            div { class: "pager", aria_label: "Pagination",
+                                if current > 1 {
+                                    button {
+                                        r#type: "button",
+                                        onclick: move |_| page.set(current - 1),
+                                        "‹"
+                                    }
+                                }
+                                for number in pager_slots(current, pages) {
+                                    button {
+                                        key: "{number}",
+                                        class: if number == current { "active" } else { "" },
+                                        r#type: "button",
+                                        onclick: move |_| page.set(number),
+                                        "{number}"
+                                    }
+                                }
+                                if current < pages {
+                                    button {
+                                        r#type: "button",
+                                        onclick: move |_| page.set(current + 1),
+                                        "›"
+                                    }
+                                }
+                            }
+                        }
+                    };
+                    (rows, Some(footer))
+                }
+                None => (view, None),
+            };
+
             rsx! {
                 div { class: "panel",
                     div { class: "table-wrap",
@@ -294,13 +385,16 @@ pub fn ResourceTable(
                                 }
                             }
                             TableBody {
-                                view,
+                                view: page_rows,
                                 columns: columns.clone(),
                                 row_actions: row_actions.clone(),
                                 on_row_click,
                                 height,
                             }
                         }
+                    }
+                    if let Some(footer) = footer {
+                        { footer }
                     }
                 }
             }
@@ -418,6 +512,7 @@ fn render_table_row(
 /// Render a single table cell (plain text, status pill, or rich extra).
 fn render_table_cell(cell: &Cell, index: usize, width: Option<u32>) -> Element {
     let style = width.map(|w| format!("width: {w}px")).unwrap_or_default();
+    let cell_class = cell.class.clone();
     let dot_classes: Vec<&'static str> = match &cell.extras {
         CellExtras::HealthDots(dots) => dots
             .iter()
@@ -432,13 +527,15 @@ fn render_table_cell(cell: &Cell, index: usize, width: Option<u32>) -> Element {
         CellExtras::HealthDots(_) => rsx! {
             div {
                 key: "{index}",
-                class: "table-cell health-dots",
+                class: "table-cell",
                 style: "{style}",
-                if dot_classes.is_empty() {
-                    span { "—" }
-                } else {
-                    for class in dot_classes {
-                        span { class: "{class}" }
+                span { class: "cell-value health-dots {cell_class}",
+                    if dot_classes.is_empty() {
+                        span { "—" }
+                    } else {
+                        for class in dot_classes {
+                            span { class: "{class}" }
+                        }
                     }
                 }
             }
@@ -449,7 +546,9 @@ fn render_table_cell(cell: &Cell, index: usize, width: Option<u32>) -> Element {
                     key: "{index}",
                     class: "table-cell",
                     style: "{style}",
-                    StatusPill { status: kind }
+                    span { class: "cell-value {cell_class}",
+                        StatusPill { status: kind }
+                    }
                 }
             },
             None => rsx! {
@@ -457,7 +556,7 @@ fn render_table_cell(cell: &Cell, index: usize, width: Option<u32>) -> Element {
                     key: "{index}",
                     class: "table-cell",
                     style: "{style}",
-                    span { "{cell.text}" }
+                    span { class: "cell-value {cell_class}", "{cell.text}" }
                 }
             },
         },
