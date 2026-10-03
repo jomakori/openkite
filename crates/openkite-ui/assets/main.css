@@ -1043,6 +1043,46 @@ body {
   .kv-row { grid-template-columns: 110px 1fr; }
   .panel { padding: 12px; }
   .toast { bottom: 16px; max-width: calc(100% - 32px); }
+  /* OKT-167: mobile rows stack into label/value blocks (inline row positioning overridden). */
+  .resource-table .table-header { display: none; }
+  .table-body { height: auto !important; overflow: visible !important; }
+  .table-body > div { height: auto !important; position: static !important; }
+  .table-row {
+    position: static !important;
+    height: auto !important;
+    display: block;
+    width: 100%;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .table-row:last-child { border-bottom: 0; }
+  .table-cell {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    width: 100% !important;
+    box-sizing: border-box;
+    padding: 11px 14px;
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: anywhere;
+    text-align: right;
+    border-bottom: 1px solid color-mix(in oklab, var(--border) 55%, transparent);
+  }
+  .table-row .table-cell:last-child { border-bottom: 0; }
+  .table-cell::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    font-family: var(--font-sans);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.075em;
+    color: var(--muted);
+    text-align: left;
+  }
+  .table-cell[data-label="Name"] { padding-top: 14px; }
+  .resource-name { justify-content: flex-end; }
 }
 
 /* Desktop: the sidebar never leaves the frame, so the toggle never shows. */
