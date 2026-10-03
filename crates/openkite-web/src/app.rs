@@ -146,7 +146,10 @@ pub fn App(props: AppProps) -> Element {
 
     let shell = ShellState {
         cluster: snapshot.context.clone(),
-        namespace: "default".into(),
+        namespace: namespaces
+            .first()
+            .cloned()
+            .unwrap_or_else(|| "default".into()),
         connected: snapshot.connected,
         prometheus: None,
     };

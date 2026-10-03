@@ -7,7 +7,7 @@ use std::pin::Pin;
 
 use crate::capability::Capabilities;
 use crate::crud::Mutation;
-use crate::secret::SecretObject;
+use crate::secret::{SecretObject, SecretRef};
 
 /// A boxed future, so [`Gateway`] stays object-safe behind `Arc<dyn Gateway>`.
 pub type GatewayFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
@@ -59,4 +59,7 @@ pub trait Gateway: Send + Sync + 'static {
         namespace: String,
         name: String,
     ) -> GatewayFuture<'_, Result<SecretObject, GatewayError>>;
+
+    /// Every secret the host can reach, as identity-only refs (the list companion to `secret()`).
+    fn secret_refs(&self) -> GatewayFuture<'_, Result<Vec<SecretRef>, GatewayError>>;
 }
