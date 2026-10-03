@@ -66,26 +66,26 @@ fn detail(kind: &str, namespace: Option<&str>, name: &str) -> ResourceDetail {
 fn columns() -> Vec<ColumnDef> {
     vec![
         ColumnDef {
-            key: "name",
-            label: "Name",
+            key: "name".into(),
+            label: "Name".into(),
             width: Some(180),
             sortable: true,
         },
         ColumnDef {
-            key: "status",
-            label: "Status",
+            key: "status".into(),
+            label: "Status".into(),
             width: None,
             sortable: false,
         },
         ColumnDef {
-            key: "controller",
-            label: "Controller",
+            key: "controller".into(),
+            label: "Controller".into(),
             width: None,
             sortable: false,
         },
         ColumnDef {
-            key: "qos",
-            label: "QoS",
+            key: "qos".into(),
+            label: "QoS".into(),
             width: None,
             sortable: false,
         },

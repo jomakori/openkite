@@ -21,7 +21,7 @@ fn two_namespaces() -> Snapshot {
                 name: "bootstrap-token".into(),
             },
         ],
-        selection: None,
+        ..Snapshot::default()
     }
 }
 

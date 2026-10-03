@@ -6,9 +6,11 @@
 //! in `tests/css_contract.rs`.
 
 use base64::Engine as _;
+use k8s_openapi::api::core::v1::Pod;
 use openkite_api::capability::Capabilities;
+use openkite_ui::components::resource_table::ResourceRow;
 use openkite_web::ssr::{
-    hydration_data, render_body, render_page, RenderOptions, SecretRef, Snapshot,
+    hydration_data, render_body, render_page, RenderOptions, SecretRef, Snapshot, WorkloadsTable,
 };
 
 fn snapshot() -> Snapshot {
@@ -26,7 +28,7 @@ fn connected() -> Snapshot {
             namespace: "default".into(),
             name: "regcred".into(),
         }],
-        selection: None,
+        ..Snapshot::default()
     }
 }
 
@@ -105,8 +107,7 @@ fn render_body_paints_a_connected_snapshot() {
         capabilities: Capabilities::server_side(),
         connected: true,
         context: Some("kubeconfig".into()),
-        secrets: Vec::new(),
-        selection: None,
+        ..Snapshot::default()
     });
     assert!(
         server_side.contains(">server-side<"),
@@ -237,6 +238,173 @@ fn every_page_declares_the_vendored_typefaces() {
             );
         }
     }
+}
+
+// --- The route the host resolved (OKT-180) ---------------------------------
+
+/// A snapshot addressed at a route, with no cluster data of its own.
+fn route_snapshot(route: &str) -> Snapshot {
+    Snapshot {
+        route: route.to_string(),
+        ..Snapshot::default()
+    }
+}
+
+/// The snapshot JSON the page embeds for the client to boot from.
+fn embedded_snapshot(page: &str) -> &str {
+    let (_, rest) = page
+        .split_once("id=\"openkite-snapshot\"")
+        .expect("the page embeds the snapshot");
+    let (_, json) = rest
+        .split_once('>')
+        .expect("the snapshot script tag closes");
+    json.split_once("</script>")
+        .expect("the snapshot script closes")
+        .0
+}
+
+/// One pod as the API returns it, in the console's own row mapping.
+fn web_pod_row() -> ResourceRow {
+    let pod: Pod = serde_json::from_value(serde_json::json!({
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {"name": "web-1", "namespace": "default", "resourceVersion": "1"},
+        "spec": {"containers": [{"name": "app", "image": "nginx"}]},
+        "status": {"phase": "Running"},
+    }))
+    .expect("a pod");
+    openkite::workloads::pod_row(&pod)
+}
+
+/// The workloads route's snapshot: the console's columns over one pod row.
+fn workloads_snapshot() -> Snapshot {
+    Snapshot {
+        connected: true,
+        context: Some("in-cluster".into()),
+        route: "/workloads".into(),
+        workloads: WorkloadsTable {
+            columns: openkite::workloads::pod_columns(),
+            rows: vec![web_pod_row()],
+            error: None,
+        },
+        ..Snapshot::default()
+    }
+}
+
+#[test]
+fn the_route_the_host_served_reaches_the_rendered_page() {
+    for (route, page) in [
+        ("/", "Cluster"),
+        ("/cluster", "Cluster"),
+        ("/workloads", "Workloads"),
+        ("/config", "Config"),
+    ] {
+        let body = render_body(&route_snapshot(route));
+        assert!(
+            body.contains(&format!("data-route=\"{route}\"")),
+            "{route} must reach the route chrome: {body}"
+        );
+        assert!(
+            body.contains(&format!("data-page=\"{page}\"")),
+            "{route} must be titled {page}: {body}"
+        );
+    }
+}
+
+#[test]
+fn the_current_route_marks_its_own_sidebar_entry() {
+    let body = render_body(&route_snapshot("/workloads"));
+    assert_eq!(
+        body.matches("class=\"nav-item active\"").count(),
+        1,
+        "exactly one entry is current: {body}"
+    );
+    let active = body
+        .find("class=\"nav-item active\"")
+        .expect("an active entry");
+    assert!(
+        body[active..].contains(">Workloads<"),
+        "the current route's own entry is the active one: {body}"
+    );
+    // The crate's core navigation has no entry for `/`, so it marks nothing.
+    assert!(
+        !render_body(&route_snapshot("/")).contains("nav-item active"),
+        "the home route is not a sidebar entry"
+    );
+}
+
+#[test]
+fn the_workloads_route_paints_the_consoles_own_table() {
+    let body = render_body(&workloads_snapshot());
+    for marker in [
+        "data-surface=\"workloads\"",
+        "class=\"resource-table\"",
+        "class=\"table-header table-row\"",
+        "data-label=\"Name\"",
+        ">web-1<",
+    ] {
+        assert!(
+            body.contains(marker),
+            "the workloads route must render {marker}: {body}"
+        );
+    }
+    for label in ["Name", "Health", "Ready", "Restarts", "Age", "Status"] {
+        assert!(
+            body.contains(&format!(">{label}<")),
+            "the table's own columns include {label}: {body}"
+        );
+    }
+}
+
+#[test]
+fn a_refused_gateway_is_stated_not_left_blank() {
+    let snapshot = Snapshot {
+        connected: true,
+        route: "/workloads".into(),
+        workloads: WorkloadsTable {
+            columns: openkite::workloads::pod_columns(),
+            rows: Vec::new(),
+            error: Some("no cluster connected".into()),
+        },
+        ..Snapshot::default()
+    };
+    let body = render_body(&snapshot);
+    assert!(
+        body.contains("class=\"table-state table-error\""),
+        "the route declares the refusal: {body}"
+    );
+    assert!(
+        body.contains("no cluster connected"),
+        "the gateway's own words: {body}"
+    );
+    assert!(
+        !body.contains("class=\"resource-table\""),
+        "a refused gateway paints no blank table: {body}"
+    );
+}
+
+#[test]
+fn the_workloads_route_is_byte_identical_across_runs() {
+    assert_eq!(
+        render_body(&workloads_snapshot()),
+        render_body(&workloads_snapshot()),
+        "the workloads route should be deterministic"
+    );
+}
+
+#[test]
+fn the_workloads_snapshot_still_hydrates() {
+    let snapshot = workloads_snapshot();
+    let json = serde_json::to_string(&snapshot).expect("serialize the snapshot");
+    let parsed: Snapshot = serde_json::from_str(&json).expect("the client boots from this JSON");
+    assert_eq!(parsed, snapshot, "the snapshot must round-trip");
+
+    let page = render_page(&snapshot, &RenderOptions::hydrating());
+    let client: Snapshot =
+        serde_json::from_str(embedded_snapshot(&page)).expect("the embedded JSON parses");
+    assert_eq!(client.route, "/workloads");
+    assert_eq!(client.workloads.rows.len(), 1);
+    assert_eq!(client.workloads.rows[0].id, "default/web-1");
 }
 
 #[test]

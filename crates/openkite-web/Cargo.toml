@@ -55,6 +55,9 @@ axum = "0.8"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "time", "io-util"] }
 tower-http = { version = "0.6", features = ["fs"] }
 kube = "4"
+# The host parses the bridge's `list pods` answer into the typed pods the
+# shared console maps into table rows.
+k8s-openapi = { version = "0.28", features = ["latest"] }
 # The host picks kube's TLS provider from the process, so the provider has to
 # be one this crate can name. `default-features = false` keeps aws-lc-rs out of
 # the image build: rustls panics when a build enables both providers, and this

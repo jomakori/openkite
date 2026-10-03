@@ -4,21 +4,24 @@
 //! the bridge envelope (there it is the wry asset handler's job), `POST
 //! /openkite-spike` carries the console's context and settings ops, and every
 //! other path serves the hydration bundle, falling back to the same document
-//! `GET /` renders. `POST /api/gateway` is the same-origin round-trip the
-//! hydrating client refreshes through, and `GET /assets/fonts/{file}` is where
-//! the stylesheet's `@font-face` URLs land.
+//! `GET /` renders — with the path resolved to the console's route contract, so
+//! `GET /workloads` paints the workloads route. `POST /api/gateway` is the
+//! same-origin round-trip the hydrating client refreshes through, and `GET
+//! /assets/fonts/{file}` is where the stylesheet's `@font-face` URLs land.
 
 use std::path::Path;
 use std::sync::Arc;
 
-use axum::extract::{Path as UrlPath, RawQuery, State};
+use axum::extract::{OriginalUri, Path as UrlPath, RawQuery, State};
 use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use openkite_api::bridge::ApiResponse;
+use k8s_openapi::api::core::v1::Pod;
+use openkite_api::bridge::{ApiRequest, ApiResponse};
 use openkite_host::bridge::Bridge;
+use openkite_ui::components::route_views::resolve_route;
 use tower_http::services::ServeDir;
 
 use crate::spike;
@@ -86,34 +89,43 @@ async fn spike_post(State(bridge): State<SharedBridge>, body: String) -> Json<Ap
 /// `OPENKITE_WEB_ROOT` then attaches to the same tree, which is what makes a
 /// route reached by URL interactive in the browser host.
 ///
-/// The address is part of the render: the resource detail pane's selection
-/// travels in the query string (`/workloads?kind=Pod&ns=default&name=web-1`),
-/// so the pane is painted open by the server on a reload or a shared link
-/// rather than waiting for a client to restore it.
-async fn ssr_root(State(bridge): State<SharedBridge>, RawQuery(query): RawQuery) -> Response {
+/// The address is part of the render: the route the path resolved to and the
+/// resource detail pane's selection both ride the snapshot, so the server
+/// paints the page a reload or a shared link asked for rather than waiting for
+/// a client to restore it.
+async fn ssr_root(
+    State(bridge): State<SharedBridge>,
+    OriginalUri(uri): OriginalUri,
+    RawQuery(query): RawQuery,
+) -> Response {
+    let route = resolve_route(uri.path(), &sidebar_sections());
     let selection = query
         .as_deref()
         .and_then(openkite_ui::components::resource_pane::ResourceRef::from_query);
-    let snapshot = ssr_snapshot(&bridge).await.with_selection(selection);
+    let snapshot = ssr_snapshot(&bridge, &route)
+        .await
+        .with_selection(selection);
     let page = ssr::render_page(&snapshot, &ssr::RenderOptions::hydrating());
     ([(CONTENT_TYPE, "text/html; charset=utf-8")], page).into_response()
 }
 
 /// Answer the hydrating client's refresh: a fresh snapshot in the envelope
-/// `GatewayResponse` defines.
+/// `GatewayResponse` defines, carrying the table the workloads route paints.
 async fn gateway_post(State(bridge): State<SharedBridge>, body: String) -> Response {
     let request: Result<crate::app::GatewayRequest, _> = serde_json::from_str(&body);
     let snapshot = match request {
-        Ok(_) => ssr_snapshot(&bridge).await,
+        Ok(_) => ssr_snapshot(&bridge, "/")
+            .await
+            .with_workloads(workload_table(&bridge).await),
         Err(_) => ssr::Snapshot::default(),
     };
     let response = crate::app::GatewayResponse { snapshot };
     Json(response).into_response()
 }
 
-/// Build the snapshot the SSR pass renders against: the host's capabilities
-/// and identity when a cluster is connected, the disconnected default when not.
-async fn ssr_snapshot(bridge: &Bridge) -> ssr::Snapshot {
+/// Build the snapshot the SSR pass renders against: the host's capabilities,
+/// identity and route, plus the workloads the route paints.
+async fn ssr_snapshot(bridge: &Bridge, route: &str) -> ssr::Snapshot {
     let client = bridge.client();
     let connected = client.is_some();
     let context = if crate::in_cluster() {
@@ -124,11 +136,63 @@ async fn ssr_snapshot(bridge: &Bridge) -> ssr::Snapshot {
             .ok()
             .map(|_| "kubeconfig".to_string())
     };
-    if let Some(client) = client {
+    let snapshot = if let Some(client) = client {
         let gateway: Arc<dyn openkite_api::gateway::Gateway> =
             Arc::new(openkite_host::gateway::KubeGateway::server_side(client));
         ssr::Snapshot::from_gateway(&gateway, connected, context).await
     } else {
         ssr::Snapshot::default()
+    };
+    let snapshot = snapshot.with_route(route);
+    if route == "/workloads" {
+        snapshot.with_workloads(workload_table(bridge).await)
+    } else {
+        snapshot
     }
+}
+
+/// The sidebar model the shell renders, so a path resolves against it.
+fn sidebar_sections() -> Vec<openkite_ui::shell::ShellSection> {
+    openkite_ui::shell::sidebar_model(&openkite_ui::plugin_api::RegistrationStore::default())
+}
+
+/// The `/workloads` table: the cluster's pods, or the gateway's refusal.
+async fn workload_table(bridge: &Bridge) -> ssr::WorkloadsTable {
+    let columns = openkite::workloads::pod_columns();
+    let request = ApiRequest::List {
+        kind: "pods".to_string(),
+        ns: None,
+    };
+    match bridge.execute("console", request).await {
+        ApiResponse::Ok { result } => match pods(&result) {
+            Ok(pods) => ssr::WorkloadsTable {
+                columns,
+                rows: pods.iter().map(openkite::workloads::pod_row).collect(),
+                error: None,
+            },
+            Err(error) => ssr::WorkloadsTable {
+                columns,
+                rows: Vec::new(),
+                error: Some(error),
+            },
+        },
+        ApiResponse::Error { error } => ssr::WorkloadsTable {
+            columns,
+            rows: Vec::new(),
+            error: Some(error),
+        },
+    }
+}
+
+/// The pods a `list pods` answer carries.
+fn pods(result: &serde_json::Value) -> Result<Vec<Pod>, String> {
+    let items = result
+        .get("items")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| "the pod list carried no items".to_string())?;
+    items
+        .iter()
+        .map(|item| serde_json::from_value::<Pod>(item.clone()))
+        .collect::<Result<Vec<Pod>, _>>()
+        .map_err(|err| format!("a pod did not parse: {err}"))
 }
