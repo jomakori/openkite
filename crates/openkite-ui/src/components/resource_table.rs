@@ -376,8 +376,7 @@ fn TableBody(
                     {
                         render_table_row(
                             row,
-                            offset,
-                            start,
+                            (start + offset) as f64 * ROW_HEIGHT,
                             &widths,
                             &labels,
                             row_actions.clone(),
@@ -394,15 +393,13 @@ fn TableBody(
 /// Render a single virtualized table row (absolute-positioned).
 fn render_table_row(
     row: &ResourceRow,
-    offset: usize,
-    start: usize,
+    top: f64,
     widths: &[Option<u32>],
     labels: &[&'static str],
     row_actions: Option<RowActions>,
     on_row_click: Option<EventHandler<ResourceRow>>,
     selected_row: Option<String>,
 ) -> Element {
-    let top = (start + offset) as f64 * ROW_HEIGHT;
     let row_id = row.id.clone();
     let row_for_click = row.clone();
     let handler = on_row_click;
