@@ -210,6 +210,10 @@ body {
   color: var(--subtle);
   padding: 0 10px 6px;
 }
+/* The reference's per-plugin section variant: Argo CD's zone is orange, and
+   the shell draws it — a plugin contributes entries, not styling. */
+.nav-section.argo .nav-title { color: var(--argo); }
+.nav-section.argo .nav-item.active .icon { color: var(--argo); }
 .nav-item {
   display: flex;
   align-items: center;

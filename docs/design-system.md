@@ -80,6 +80,7 @@ The faces reach each host differently, because only one of them has an origin:
 | `.toast` + `.toast.show`     | Bottom-anchored notification (340px max-width)              |
 | `.health-dots` + `.dot`      | Inline-cell semantic dots (`.ok`, `.warn`, `.err`)          |
 | `.nav-section` + `.nav-title`| Sidebar section wrapper and its micro-label                  |
+| `.nav-section.argo`          | Per-plugin section variant (Argo CD's orange zone) — the shell styles it, the plugin does not |
 | `.app` + `.sidebar` + `.main`| Console frame: sidebar, top bar and the routed `.view`       |
 | `.cluster-btn`               | Sidebar cluster button (context + connection dot)            |
 | `.nav-item` (+ `.active`, `.nav-badge`) | Sidebar entry, current entry, count badge          |

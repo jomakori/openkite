@@ -16,7 +16,7 @@ use openkite_api::capability::Capabilities;
 use openkite_ui::components::route_views::{route_page, RouteCapability, RouteView};
 use openkite_ui::plugin_api::RegistrationStore;
 use openkite_ui::runtime::set_published_capabilities;
-use openkite_ui::shell::{core_nav, sidebar_model, ShellSection};
+use openkite_ui::shell::{core_sections, sidebar_model, ShellSection};
 
 // The host descriptor is process-global, exactly like tests/shell_chrome.rs:
 // hold this guard in every test that publishes a profile so parallel test
@@ -41,13 +41,9 @@ fn browser_host() -> std::sync::MutexGuard<'static, ()> {
     guard
 }
 
-/// The desktop's sidebar model: the core navigation block (terminal included).
+/// The desktop's sidebar model: the reference's core sections.
 fn desktop_sections() -> Vec<ShellSection> {
-    vec![ShellSection {
-        label: "Overview".into(),
-        accent: None,
-        items: core_nav(true),
-    }]
+    core_sections()
 }
 
 /// The browser's sidebar model: the core sections, terminal excluded.
@@ -67,14 +63,13 @@ fn the_page_head_reads_the_navigation_words() {
     let sections = desktop_sections();
     let workloads = route_page("workloads", &sections);
     assert_eq!(workloads.route, "/workloads");
-    assert_eq!(workloads.title, "Workloads");
-    assert_eq!(workloads.eyebrow.as_deref(), Some("Overview"));
+    assert_eq!(workloads.title, "Pods");
+    assert_eq!(workloads.eyebrow.as_deref(), Some("Workloads"));
 
-    // The home route is not a nav entry: the head borrows the section's word
-    // and the route copy's title.
+    // The home route is the Cluster section's Overview entry.
     let home = route_page("/", &sections);
-    assert_eq!(home.title, "Cluster");
-    assert_eq!(home.eyebrow.as_deref(), Some("Overview"));
+    assert_eq!(home.title, "Overview");
+    assert_eq!(home.eyebrow.as_deref(), Some("Cluster"));
 
     // Same page for every spelling of the same contract.
     for spelling in ["", "/"] {
@@ -135,7 +130,7 @@ fn the_desktop_profile_renders_the_designs_route_chrome() {
     assert!(html.contains("data-route=\"/workloads\""), "route: {html}");
     assert!(html.contains("class=\"page-head\""), "page head: {html}");
     assert!(html.contains("class=\"eyebrow\""), "eyebrow: {html}");
-    assert!(html.contains("<h1>Workloads</h1>"), "title: {html}");
+    assert!(html.contains("<h1>Pods</h1>"), "title: {html}");
     assert!(html.contains("class=\"page-sub\""), "sub line: {html}");
     assert!(
         html.contains("class=\"page-actions\""),
@@ -209,7 +204,7 @@ fn the_browser_profile_declares_what_it_cannot_do() {
 
     // The route's own chrome renders on the browser profile too.
     assert!(html.contains("class=\"page-head\""), "page head: {html}");
-    assert!(html.contains("<h1>Workloads</h1>"), "title: {html}");
+    assert!(html.contains("<h1>Pods</h1>"), "title: {html}");
     assert!(
         html.contains("class=\"tag-row\""),
         "declaration row: {html}"
