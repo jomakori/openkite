@@ -312,6 +312,7 @@ const CRUD_MODAL_RSX: &str = include_str!("../src/components/crud_modal.rs");
 const SHELL_RSX: &str = include_str!("../src/components/shell.rs");
 const ROUTE_VIEWS_RSX: &str = include_str!("../src/components/route_views.rs");
 const NAMESPACE_BAR_RSX: &str = include_str!("../src/components/namespace_bar.rs");
+const POD_INVENTORY_RSX: &str = include_str!("../src/components/pod_inventory.rs");
 
 /// Every rsx source file the crate renders. Order is for stable error
 /// messages — does not affect semantics.
@@ -349,6 +350,10 @@ const RSX_SOURCES: &[(&str, &str)] = &[
     (
         "crates/openkite-ui/src/components/namespace_bar.rs",
         NAMESPACE_BAR_RSX,
+    ),
+    (
+        "crates/openkite-ui/src/components/pod_inventory.rs",
+        POD_INVENTORY_RSX,
     ),
 ];
 

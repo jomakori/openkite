@@ -9,6 +9,7 @@ use k8s_openapi::api::batch::v1::{CronJob, Job};
 use k8s_openapi::api::core::v1::{Pod, Secret};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{OwnerReference, Time};
 
+use crate::components::pod_inventory::PodRow;
 use crate::components::resource_table::{Cell, ColumnDef, HealthDot, ResourceRow};
 use crate::components::status_badge::StatusKind;
 
@@ -291,6 +292,56 @@ pub fn pod_row(pod: &Pod) -> ResourceRow {
             age_cell(&pod.metadata.creation_timestamp),
             Cell::status(&label, kind),
         ],
+    }
+}
+
+/// Map a pod onto the inventory surface's row shape.
+pub fn pod_inventory_row(pod: &Pod) -> PodRow {
+    let health = pod
+        .status
+        .as_ref()
+        .and_then(|status| status.container_statuses.as_ref())
+        .map(|list| {
+            list.iter()
+                .map(|container| {
+                    if container.ready {
+                        HealthDot::Ok
+                    } else {
+                        HealthDot::Err
+                    }
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    PodRow {
+        name: pod.metadata.name.clone().unwrap_or_default(),
+        namespace: pod.metadata.namespace.clone().unwrap_or_default(),
+        health,
+        restarts: pod_restarts(pod),
+        controller: controller_for_pod(pod),
+        node: pod
+            .spec
+            .as_ref()
+            .and_then(|spec| spec.node_name.clone())
+            .unwrap_or_else(|| "-".to_string()),
+        qos: pod
+            .status
+            .as_ref()
+            .and_then(|status| status.qos_class.clone())
+            .unwrap_or_else(|| "-".to_string()),
+        age: age_label(&pod.metadata.creation_timestamp),
+        phase: pod_status(pod).0,
+    }
+}
+
+/// Relative-age label for a timestamp, `"-"` when it is absent.
+fn age_label(ts: &Option<Time>) -> String {
+    match ts {
+        Some(ts) => {
+            let now = k8s_openapi::jiff::Timestamp::now();
+            humanize_duration(now.as_second() - ts.0.as_second())
+        }
+        None => "-".to_string(),
     }
 }
 

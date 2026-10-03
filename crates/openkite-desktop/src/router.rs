@@ -528,6 +528,11 @@ pub(crate) fn json_response(resp: ApiResponse) -> AssetHttpResponse<Vec<u8>> {
 /// it reads itself, so a host that cannot do something declares it instead of
 /// painting a control that does nothing.
 fn route_view(route: &'static str) -> Element {
+    route_view_with(route, None, false)
+}
+
+/// The same chrome with the host's own surface bound into the `content` slot.
+fn route_view_with(route: &'static str, content: Option<Element>, busy: bool) -> Element {
     let nav = use_navigator();
     let on_action = EventHandler::new(move |action: String| {
         match action.as_str() {
@@ -548,6 +553,8 @@ fn route_view(route: &'static str) -> Element {
             route: route.to_string(),
             sections: shell_sections(),
             namespaces: crate::runtime::NAMESPACES.read().clone(),
+            busy,
+            content,
             on_action: Some(on_action),
         }
     }
@@ -563,9 +570,51 @@ fn Cluster() -> Element {
     route_view("/cluster")
 }
 
+/// The workloads route: list the cluster's pods into the crate's inventory
+/// surface. The list runs once on mount; the crate scopes and pages it.
 #[component]
 fn Workloads() -> Element {
-    route_view("/workloads")
+    use k8s_openapi::api::core::v1::Pod;
+    use kube::{api::ListParams, Api};
+    use openkite_ui::components::pod_inventory::{PodInventory, PodRow};
+    use openkite_ui::components::resource_table::TableStatus;
+    use openkite_ui::runtime::{POD_ROWS, POD_ROWS_STATUS};
+
+    use_effect(move || {
+        let Some(client) = crate::runtime::client() else {
+            *POD_ROWS_STATUS.write() = TableStatus::Error("No cluster connection.".to_string());
+            return;
+        };
+        tokio::spawn(async move {
+            let api: Api<Pod> = Api::all(client);
+            match api.list(&ListParams::default()).await {
+                Ok(list) => {
+                    let rows: Vec<PodRow> = list
+                        .items
+                        .iter()
+                        .map(crate::workloads::pod_inventory_row)
+                        .collect();
+                    *POD_ROWS.write() = rows;
+                    *POD_ROWS_STATUS.write() = TableStatus::Ready;
+                }
+                Err(err) => {
+                    *POD_ROWS_STATUS.write() = TableStatus::Error(format!("List pods: {err}"));
+                }
+            }
+        });
+    });
+
+    let busy = POD_ROWS_STATUS.read().clone() == TableStatus::Loading;
+    route_view_with(
+        "/workloads",
+        Some(rsx! {
+            PodInventory {
+                rows: POD_ROWS.read().clone(),
+                status: POD_ROWS_STATUS.read().clone(),
+            }
+        }),
+        busy,
+    )
 }
 
 #[component]

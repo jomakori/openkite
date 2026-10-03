@@ -33,6 +33,23 @@ pub fn clear_selected_pod() {
     set_selected_pod(None);
 }
 
+/// The pod rows the host published for the inventory surface.
+pub static POD_ROWS: GlobalSignal<Vec<crate::components::pod_inventory::PodRow>> =
+    Signal::global(Vec::new);
+
+/// Readiness of [`POD_ROWS`]: loading, ready, or the host's error.
+pub static POD_ROWS_STATUS: GlobalSignal<crate::components::resource_table::TableStatus> =
+    Signal::global(|| crate::components::resource_table::TableStatus::Ready);
+
+/// Publish the pod inventory rows and their readiness in one step.
+pub fn set_pod_rows(
+    rows: Vec<crate::components::pod_inventory::PodRow>,
+    status: crate::components::resource_table::TableStatus,
+) {
+    *POD_ROWS.write() = rows;
+    *POD_ROWS_STATUS.write() = status;
+}
+
 /// Streaming log buffer the log viewer renders. The host populates this when
 /// `SELECTED_POD`, the chosen container, or the follow flag changes; the
 /// viewer's `use_effect` only reads. Keeping the buffer global means the
