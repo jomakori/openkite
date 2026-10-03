@@ -44,7 +44,7 @@ fn table_with_rows() -> Element {
     rsx! {
         ResourceTable {
             columns: vec![
-                ColumnDef { key: "name", label: "Name", width: None, sortable: false },
+                ColumnDef { key: "name".into(), label: "Name".into(), width: None, sortable: false },
             ],
             rows: vec![
                 ResourceRow { id: "a".into(), namespace: Some("default".into()), cells: vec![Cell::text("row-alpha")] },

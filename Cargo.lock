@@ -4233,6 +4233,7 @@ dependencies = [
  "dioxus-web",
  "http",
  "js-sys",
+ "k8s-openapi",
  "kube",
  "openkite",
  "openkite-api",

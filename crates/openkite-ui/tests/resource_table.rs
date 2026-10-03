@@ -21,8 +21,8 @@ fn labelled_table() -> Element {
     rsx! {
         ResourceTable {
             columns: vec![
-                ColumnDef { key: "name", label: "Name", width: Some(180), sortable: true },
-                ColumnDef { key: "status", label: "Status", width: None, sortable: false },
+                ColumnDef { key: "name".into(), label: "Name".into(), width: Some(180), sortable: true },
+                ColumnDef { key: "status".into(), label: "Status".into(), width: None, sortable: false },
             ],
             rows: vec![ResourceRow {
                 id: "nginx-1".into(),

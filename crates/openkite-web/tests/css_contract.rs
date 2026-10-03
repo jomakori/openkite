@@ -119,14 +119,13 @@ fn snapshots() -> Vec<Snapshot> {
                 namespace: "default".into(),
                 name: "regcred".into(),
             }],
-            selection: None,
+            ..Snapshot::default()
         },
         Snapshot {
             capabilities: Capabilities::server_side(),
             connected: true,
             context: Some("kubeconfig".into()),
-            secrets: Vec::new(),
-            selection: None,
+            ..Snapshot::default()
         },
         selection_snapshot(),
     ]
@@ -139,8 +138,8 @@ fn selection_snapshot() -> Snapshot {
         capabilities: Capabilities::server_side(),
         connected: true,
         context: Some("kubeconfig".into()),
-        secrets: Vec::new(),
         selection: Some(ResourceRef::new("Pod", Some("default".into()), "web-1")),
+        ..Snapshot::default()
     }
 }
 

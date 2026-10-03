@@ -20,6 +20,7 @@ use openkite_api::capability::{Capabilities, GatewayKind};
 use openkite_ui::components::namespace_bar::selection_matches;
 use openkite_ui::components::palette::{CommandPalette, PaletteHost, PaletteKeybind};
 use openkite_ui::components::resource_pane::ResourceDetail;
+use openkite_ui::components::resource_table::{ResourceTable, TableStatus};
 use openkite_ui::components::route_views::RouteView;
 use openkite_ui::components::shell::{AppShell, ClusterInfo, ShellIcon, TopBarAction};
 use openkite_ui::components::status_badge::{StatusKind, StatusPill};
@@ -65,6 +66,9 @@ pub fn App(props: AppProps) -> Element {
     // the SSR markup and the client's first render agree (both start false).
     let mut pending = use_signal(|| false);
 
+    // The route the host resolved, read once so a refresh cannot move the page.
+    let route = props.snapshot.route.clone();
+
     // The selection is the address (OKT-175): the host read it out of the query
     // string it served, and it rides the snapshot so both this SSR pass and the
     // hydrating client open the resource detail pane at the same stop for the
@@ -104,12 +108,19 @@ pub fn App(props: AppProps) -> Element {
     let snapshot = state();
     let capabilities = snapshot.capabilities;
 
-    // No namespace inventory here, so the bar offers what the secrets know.
+    // No namespace inventory here: the secrets' namespaces and the pods'.
     let namespaces: Vec<String> = {
         let mut names: Vec<String> = snapshot
             .secrets
             .iter()
             .map(|secret| secret.namespace.clone())
+            .chain(
+                snapshot
+                    .workloads
+                    .rows
+                    .iter()
+                    .filter_map(|row| row.namespace.clone()),
+            )
             .collect();
         names.sort();
         names.dedup();
@@ -168,9 +179,8 @@ pub fn App(props: AppProps) -> Element {
     rsx! {
         AppShell {
             sections: sections.clone(),
-            // The page has no client router: entries are plain links, and
-            // nothing is marked current until a route resolves.
-            current_route: String::new(),
+            // The sidebar marks the route the host resolved.
+            current_route: route.clone(),
             cluster: Some(cluster),
             status: status_entries,
             actions,
@@ -182,16 +192,18 @@ pub fn App(props: AppProps) -> Element {
             SwitcherKeybind {}
             ClusterSwitcher {}
             CommandPalette { host: palette_host }
-            // The route chrome the desktop mounts too (OKT-155). This host
-            // serves one route — `GET /` and every path the bundle has no file
-            // for both render this document — and the snapshot panels below are
-            // that route's body: the chrome around them is the crate's.
+            // The route chrome the desktop mounts too: each surface below is
+            // that route's body.
             RouteView {
-                route: "/".to_string(),
+                route: route.clone(),
                 sections,
                 namespaces,
                 busy: pending(),
-                content: rsx! {
+                content: match route.as_str() {
+                    "/workloads" => Some(workload_surface(&snapshot)),
+                    // Declared, not invented: this host has not wired them.
+                    "/cluster" | "/config" => None,
+                    _ => Some(rsx! {
                     section { class: "panel", "data-surface": "overview",
                         h2 { "Cluster" }
                         dl { class: "kv-list",
@@ -243,7 +255,27 @@ pub fn App(props: AppProps) -> Element {
                             }
                         }
                     }
+                    }),
                 },
+            }
+        }
+    }
+}
+
+/// The `/workloads` body: the console's table, or its declared error state.
+fn workload_surface(snapshot: &Snapshot) -> Element {
+    let workloads = &snapshot.workloads;
+    let status = match &workloads.error {
+        Some(error) => TableStatus::Error(format!("The gateway could not list pods: {error}")),
+        None => TableStatus::Ready,
+    };
+    rsx! {
+        div { "data-surface": "workloads",
+            ResourceTable {
+                columns: workloads.columns.clone(),
+                rows: workloads.rows.clone(),
+                status,
+                empty_message: Some("No pods in the gateway's scope".to_string()),
             }
         }
     }

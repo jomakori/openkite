@@ -7,7 +7,7 @@ use dioxus::prelude::*;
 /// Semantic statuses a resource can be in. The badge maps each to a CSS class
 /// (`status-ok` / `status-warn` / `status-err` / `status-muted`) whose palette
 /// lives in the theme CSS.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum StatusKind {
     Running,
     Ready,

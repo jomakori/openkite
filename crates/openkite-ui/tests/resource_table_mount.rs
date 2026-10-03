@@ -14,14 +14,14 @@ use openkite_ui::components::status_badge::StatusKind;
 fn columns() -> Vec<ColumnDef> {
     vec![
         ColumnDef {
-            key: "name",
-            label: "Name",
+            key: "name".into(),
+            label: "Name".into(),
             width: Some(180),
             sortable: true,
         },
         ColumnDef {
-            key: "namespace",
-            label: "Namespace",
+            key: "namespace".into(),
+            label: "Namespace".into(),
             width: None,
             sortable: true,
         },
