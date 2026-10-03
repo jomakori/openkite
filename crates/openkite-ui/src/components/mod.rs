@@ -1,5 +1,6 @@
 //! Reusable UI primitives shared across core views.
 
+pub mod app_card;
 pub mod code_editor;
 pub mod crud_modal;
 pub mod logs;

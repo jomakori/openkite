@@ -73,6 +73,12 @@ list is `REQUIRED_CLASSES` in `crates/openkite-ui/tests/design.rs`.
 | `.nav-section` + `.nav-item` (+ `.nav-badge`) | Sidebar navigation |
 | `.modal-backdrop`/`.modal` (+ 7 children), `.field-input`/`.field-label`/`.field-helper`/`.field-error`, `.editor-textarea` | CRUD/edit surfaces |
 | `.value-mask`/`.value-masked`/`.value-revealed`/`.value-actions`/`.reveal-btn` | Secret value masking |
+| `.app-grid` + `.app-card` | Application card grid and frosted card shell |
+| `.card-swipe-actions` + `.card-action` | Card action column, revealed by the kebab or a swipe (44px buttons) |
+| `.card-main` + `.card-status` | Card face (`translateX(-112px)` when `.swiped`) and its edge tone |
+| `.card-menu-btn` | Card kebab (44px, always rendered — never hover-only) |
+| `.card-body` + `.card-title-row` + `.app-name` + `.app-sub` | Card content block |
+| `.source-icon` + `.card-footer` + `.badges` + `.card-meta` | Card source glyph, footer, status pills and age |
 
 ## Namespace bar
 
@@ -116,6 +122,8 @@ screen needs.
 | Side pane drawer toggle (`.menu-toggle` → `.sidebar.open`) | click opens the drawer | the same tap; `.sidebar-backdrop.show` is the tap-to-dismiss scrim |
 | Side pane (`.inspector`) | a second click replaces the pane in place | the same tap; ≤767px the pane is a full-width sheet dismissed by the scrim |
 | Side pane resize (`.inspector-resize`) | `pointerdown` drag on the pane's left edge | the same pointer drag (`touch-action: none`); ≤767px the handle is not rendered |
+| Card actions (`.card-menu-btn` kebab) | click opens `.card-swipe-actions` | the same tap; the column is always rendered, never hover-revealed |
+| Card swipe (`.card-main`) | n/a — a pointer drag scrolls the grid | a horizontal drag past `SWIPE_THRESHOLD_PX` (44px) reveals the column; `resolve_swipe` counts only a horizontal drag, and `resolve_tap` swallows the click that trails it, so a swipe never navigates |
 
 The long-press rule is one pure function: movement past
 `PRESS_MOVE_TOLERANCE_PX` latches a scroll, so a finger that drifts and settles
@@ -126,12 +134,13 @@ the sheet stylesheet and the documented path.
 ## Deferred to dependent tickets
 
 - **ArgoCD-specific primitives** (`.app-grid`, `.app-card`, `.card-status`,
-  `.source-icon`, `.tag`, `.card-meta`, `.card-swipe-actions`) — OKT-47
-  (ArgoCD plugin), the first consumer.
-- **Mobile bottom-nav** (`.bottom-nav`, `.bottom-tab`), pull-to-refresh
+  `.source-icon`, `.card-meta`, `.card-swipe-actions`) — OKT-47 (ArgoCD plugin)
+  *consumes* the card primitives core ships with OKT-169; it adds none of its
+  own.
+- **Mobile bottom-nav** (`.bottom-nav`, `.bottom-tab`) and pull-to-refresh
   (`.pull-indicator` is wired in `crates/openkite-ui/src/components/shell.rs:384`
-  with a `data-pull` state; the touch gesture tickets own its behaviour),
-  and card swipe — the mobile surface tickets (T9/T11/T12/T16).
+  with a `data-pull` state; the touch gesture tickets own its behaviour) —
+  the mobile surface tickets (T9/T11/T16).
 - **Icon sprite** (32 inline `<symbol>` SVGs from the reference mockup) — OKT-47
   alongside the first consumer.
 
@@ -148,6 +157,12 @@ through `openkite_ui::MAIN_CSS` and asserts:
 - every class in `REQUIRED_CLASSES` is present;
 - no `PRE_EXISTING_PROPERTIES` entry (the opaline-mapped colors) is re-declared
   by the design-system block.
+
+`crates/openkite-ui/tests/card_actions.rs` mounts `AppCard` headlessly and pins
+the card's touch contract: the swipe column offers exactly the actions the
+kebab's `aria-controls` names, `resolve_swipe`/`resolve_tap` make a swipe unable
+to navigate, both the kebab and the action buttons clear the 44px floor in the
+stylesheet, and every card `:hover` rule sits behind a `(hover: hover)` guard.
 
 The test runs on every CI push with no kube/JS dependencies. Token **values**
 are pinned separately by `DESIGN.md` and graded against this stylesheet — see
