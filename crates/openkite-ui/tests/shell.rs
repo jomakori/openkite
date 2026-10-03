@@ -159,10 +159,11 @@ fn status_bar_includes_prometheus_entry_when_detected() {
     let bar = status_bar_model(&state, &store, "1.2.3", PushMode::Push);
     assert_eq!(bar.len(), 4);
     assert_eq!(
-        bar[3].label,
+        bar[2].label,
         "Prometheus · kube-prometheus-stack-prometheus"
     );
-    assert_eq!(bar[3].color.as_deref(), Some("green"));
+    assert_eq!(bar[2].color.as_deref(), Some("green"));
+    assert_eq!(bar[3].label, "Push");
 }
 
 #[test]
