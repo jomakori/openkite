@@ -59,7 +59,23 @@ const REQUIRED_CLASSES: &[&str] = &[
     ".table-wrap",
     ".resource-name",
     ".log-panel",
+    ".log-panel.paused",
+    ".log-handle",
+    ".log-header",
+    ".log-title",
+    ".log-pod",
+    ".log-actions",
+    ".log-container",
+    ".log-body",
     ".log-line",
+    ".log-time",
+    ".log-level",
+    ".log-level.warn",
+    ".log-level.error",
+    ".log-method",
+    ".log-msg",
+    ".log-msg.error",
+    ".log-paused",
     ".term-status",
     ".value-mask",
     ".value-masked",
@@ -313,6 +329,7 @@ const SHELL_RSX: &str = include_str!("../src/components/shell.rs");
 const ROUTE_VIEWS_RSX: &str = include_str!("../src/components/route_views.rs");
 const NAMESPACE_BAR_RSX: &str = include_str!("../src/components/namespace_bar.rs");
 const POD_INVENTORY_RSX: &str = include_str!("../src/components/pod_inventory.rs");
+const LOGS_RSX: &str = include_str!("../src/components/logs.rs");
 
 /// Every rsx source file the crate renders. Order is for stable error
 /// messages — does not affect semantics.
@@ -355,6 +372,7 @@ const RSX_SOURCES: &[(&str, &str)] = &[
         "crates/openkite-ui/src/components/pod_inventory.rs",
         POD_INVENTORY_RSX,
     ),
+    ("crates/openkite-ui/src/components/logs.rs", LOGS_RSX),
 ];
 
 /// Extract every distinct CSS token used in a `class:` or `class=` rsx

@@ -51,8 +51,8 @@ pub fn set_pod_rows(
 }
 
 /// Streaming log buffer the log viewer renders. The host populates this when
-/// `SELECTED_POD`, the chosen container, or the follow flag changes; the
-/// viewer's `use_effect` only reads. Keeping the buffer global means the
+/// `SELECTED_POD` or the chosen container changes and keeps draining while the
+/// viewer is paused; the viewer only reads. Keeping the buffer global means the
 /// viewer's mount/unmount is a no-op while logs stream.
 pub static LOGS_BUFFER: GlobalSignal<LineBuffer> = Signal::global(LineBuffer::default);
 
@@ -151,10 +151,38 @@ pub fn clear_namespace_selection() {
     set_namespace_selection(Vec::new());
 }
 
-/// Whether the viewer is in follow-tail mode. Same rationale as
-/// [`LOGS_CONTAINER`]: a global so the host-side stream controller can
-/// pause/resume without owning the Dioxus component tree.
-pub static LOGS_FOLLOW: GlobalSignal<bool> = Signal::global(|| true);
+/// Whether the log viewer holds its window. Pausing freezes the lines the user
+/// is reading ([`LOGS_HELD`]) while the host keeps draining [`LOGS_BUFFER`], so
+/// resuming shows every line instead of the pause dropping the stretch.
+pub static LOGS_PAUSED: GlobalSignal<bool> = Signal::global(|| false);
+
+/// The window the viewer paints while [`LOGS_PAUSED`]: the buffer as it stood
+/// when the pause started. Empty while following.
+pub static LOGS_HELD: GlobalSignal<LineBuffer> = Signal::global(LineBuffer::default);
+
+/// Freeze the viewer's window at the current line. Same rationale as
+/// [`LOGS_CONTAINER`]: a global so a host-side controller and the panel agree
+/// on the pause without sharing the component tree.
+pub fn pause_logs() {
+    let held = LOGS_BUFFER.read().clone();
+    *LOGS_HELD.write() = held;
+    *LOGS_PAUSED.write() = true;
+}
+
+/// Release the held window and paint the live buffer again.
+pub fn resume_logs() {
+    LOGS_HELD.write().clear();
+    *LOGS_PAUSED.write() = false;
+}
+
+/// Hold the window when following, release it when paused.
+pub fn toggle_logs_paused() {
+    if LOGS_PAUSED.cloned() {
+        resume_logs();
+    } else {
+        pause_logs();
+    }
+}
 
 /// The resource the CRUD overlay is currently showing, or `None` when the
 /// overlay is closed. Dispatched on by

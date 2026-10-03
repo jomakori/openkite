@@ -840,6 +840,16 @@ body {
   display: flex; flex-direction: column;
   overflow: hidden;
 }
+/* The ≤767px bottom sheet's drag tab; the desktop panel never shows it. */
+.log-handle {
+  display: none;
+  align-items: center; justify-content: center;
+  height: 44px;
+  color: color-mix(in srgb, var(--terminal-fg) 72%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--terminal-fg) 12%, transparent);
+  font-family: var(--font-sans);
+  font-size: 11px; letter-spacing: 0.04em;
+}
 .log-header {
   display: flex; align-items: center; gap: 8px;
   padding: 6px 12px;
@@ -847,16 +857,55 @@ body {
   font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
   color: var(--term-bright-white);
 }
-.log-handle { padding: 4px 12px; cursor: pointer; user-select: none; }
+.log-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.log-title .icon { color: var(--log-method); }
+.log-pod {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: color-mix(in srgb, var(--terminal-fg) 62%, transparent);
+  text-transform: none; letter-spacing: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.log-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.log-actions .icon-btn {
+  width: 44px; height: 44px;
+  min-width: 44px; min-height: 44px;
+  background: transparent;
+  border-color: color-mix(in srgb, var(--terminal-fg) 18%, transparent);
+  color: var(--terminal-fg);
+  box-shadow: none;
+}
+/* Pausing is a state, not just a label: the control carries the severity colour. */
+.log-actions .icon-btn[aria-pressed="true"] {
+  border-color: var(--log-error);
+  color: var(--log-error);
+}
+.log-container {
+  font: inherit; font-size: 11px;
+  min-height: 32px; padding: 4px 8px;
+  border-radius: var(--r-sm);
+  border: 1px solid color-mix(in srgb, var(--terminal-fg) 18%, transparent);
+  background: var(--terminal-bg);
+  color: var(--terminal-fg);
+}
 .log-body { flex: 1; overflow: auto; padding: 6px 12px; }
 .log-line { display: flex; gap: 8px; align-items: baseline; }
-.log-time { color: var(--term-bright-black); flex-shrink: 0; }
-.log-level { color: var(--log-info); font-weight: 600; flex-shrink: 0; }
+.log-time { color: var(--term-bright-black); flex: 0 0 auto; }
+.log-level { color: var(--log-info); font-weight: 600; flex: 0 0 48px; }
 .log-level.warn { color: var(--warn); }
 .log-level.error { color: var(--log-error); }
-.log-method { color: var(--log-method); flex-shrink: 0; }
+.log-method { color: var(--log-method); flex: 0 0 auto; }
 .log-msg { color: var(--terminal-fg); word-break: break-word; }
-.log-paused { font-size: 10.5px; color: var(--term-yellow); padding: 0 12px 4px; }
+.log-msg.error { color: var(--log-error); }
+.log-paused {
+  display: none;
+  align-items: center; justify-content: center; gap: 8px;
+  padding: 8px 12px;
+  color: var(--term-yellow);
+  font-family: var(--font-sans); font-size: 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--terminal-fg) 12%, transparent);
+}
+.log-panel.paused .log-paused { display: flex; }
 
 /* --- Terminal view --- */
 .term-status {

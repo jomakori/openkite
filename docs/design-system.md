@@ -75,7 +75,7 @@ The faces reach each host differently, because only one of them has an origin:
 | `.pill` + semantic variants  | `.success`, `.warn`, `.danger`, `.muted` status badges      |
 | `.table-wrap`                | Horizontal-scroll wrapper for tabular content               |
 | `.resource-name` (+ `.icon`) | Icon + mono-font name cell                                  |
-| `.log-panel` (+ 7 children)  | Opaque terminal anchor (`var(--terminal-bg)`)               |
+| `.log-panel` (+ 13 children) | Opaque terminal anchor: handle, header, level/method columns, paused banner |
 | `.inspector` (+ 5 children)  | Slide-over panel (420px, right-anchored)                    |
 | `.toast` + `.toast.show`     | Bottom-anchored notification (340px max-width)              |
 | `.health-dots` + `.dot`      | Inline-cell semantic dots (`.ok`, `.warn`, `.err`)          |

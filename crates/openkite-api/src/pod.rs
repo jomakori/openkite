@@ -105,21 +105,171 @@ pub fn pick_default_container(containers: &[String]) -> Option<String> {
     containers.iter().find(|c| !c.is_empty()).cloned()
 }
 
-/// Whether the `.log-paused` hint should be rendered: true when follow is
-/// off OR the user has scrolled up.
-pub fn should_show_paused_hint(following: bool, at_bottom: bool) -> bool {
-    !following || !at_bottom
+/// One log record split the way the reference's `.log-line` is: the clock, the
+/// severity tag, an optional HTTP method and the message body.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct LogLine {
+    /// Clock the line carries: a kube RFC 3339 stamp reduced to `HH:MM:SS.mmm`,
+    /// or the `HH:MM:SS` a writer printed itself. Empty when absent.
+    pub time: String,
+    /// Severity word, upper-cased (`INFO`, `WARN`, `ERROR`, …). Empty when the
+    /// line names no level.
+    pub level: String,
+    /// HTTP method (`GET`, `POST`, …). Empty when the line carries none.
+    pub method: String,
+    /// Everything after the recognised prefixes, verbatim.
+    pub message: String,
 }
 
-/// Map a log line's first whitespace-delimited token to a CSS class. Empty
-/// when no recognised level is found (the viewer wraps the line as info).
+impl LogLine {
+    /// The severity's `.log-level` modifier: `warn` / `error`, empty for the
+    /// info default the reference paints with `--log-info`.
+    pub fn level_class(&self) -> &'static str {
+        level_class(&self.level)
+    }
+
+    /// Whether the message body takes the severity's colour too — the
+    /// reference marks an `ERROR` line's `.log-msg` with `.error` as well.
+    pub fn message_is_error(&self) -> bool {
+        self.level_class() == "error"
+    }
+}
+
+/// Words [`parse_log_line`] accepts as a severity tag.
+const LEVEL_WORDS: [&str; 8] = [
+    "info", "warn", "warning", "error", "err", "debug", "trace", "fatal",
+];
+
+/// Methods the reference's `.log-method` column tags. Matched case-sensitively:
+/// a message that merely starts with `Delete` is prose, not an access log.
+const HTTP_METHODS: [&str; 7] = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
+
+/// Split one raw stream line into the reference's four columns.
+///
+/// The host streams with `timestamps: true`, so a kube line opens with an RFC
+/// 3339 stamp; a writer that prints its own clock (`10:42:07.114 INFO …`) is
+/// understood too. Anything unrecognised stays in `message` verbatim.
+pub fn parse_log_line(raw: &str) -> LogLine {
+    let (time, rest) = split_leading_timestamp(raw);
+    let mut cursor = rest.trim_start();
+
+    let mut level = String::new();
+    if let Some((token, after)) = take_token(cursor) {
+        if let Some(word) = level_word(token) {
+            level = word;
+            cursor = after;
+        }
+    }
+
+    let mut method = String::new();
+    if let Some((token, after)) = take_token(cursor) {
+        if HTTP_METHODS.contains(&token) {
+            method = token.to_string();
+            cursor = after;
+        }
+    }
+
+    LogLine {
+        time,
+        level,
+        method,
+        message: cursor.trim_start().to_string(),
+    }
+}
+
+/// Map a severity (a whole line, or the bare word from [`LogLine`]) to the
+/// `.log-level` modifier. Empty when no level is recognised — the info default
+/// carries no modifier.
 pub fn level_class(line: &str) -> &'static str {
-    let head = line.split_ascii_whitespace().next().unwrap_or("");
-    match head {
-        "WARN" | "warn" => "warn",
-        "ERROR" | "ERR" | "error" | "err" => "error",
+    match level_word(line.split_ascii_whitespace().next().unwrap_or("")).as_deref() {
+        Some("WARN") => "warn",
+        Some("ERROR") | Some("FATAL") => "error",
         _ => "",
     }
+}
+
+/// The leading timestamp of a line, as `(clock, remainder)`.
+fn split_leading_timestamp(raw: &str) -> (String, &str) {
+    let text = raw.trim_start();
+    let Some((token, rest)) = take_token(text) else {
+        return (String::new(), text);
+    };
+    if let Some(clock) = rfc3339_clock(token) {
+        return (clock, rest);
+    }
+    if is_clock(token) {
+        return (token.to_string(), rest);
+    }
+    (String::new(), text)
+}
+
+/// Split the leading whitespace-delimited token off `text`.
+fn take_token(text: &str) -> Option<(&str, &str)> {
+    let text = text.trim_start();
+    if text.is_empty() {
+        return None;
+    }
+    match text.find(char::is_whitespace) {
+        Some(at) => Some((&text[..at], &text[at..])),
+        None => Some((text, "")),
+    }
+}
+
+/// `2026-10-03T10:42:07.114Z` (or `…+00:00`) reduced to `10:42:07.114`.
+fn rfc3339_clock(token: &str) -> Option<String> {
+    let (date, rest) = token.split_once('T')?;
+    let valid_date = date.len() == 10
+        && date.chars().enumerate().all(|(index, c)| {
+            if index == 4 || index == 7 {
+                c == '-'
+            } else {
+                c.is_ascii_digit()
+            }
+        });
+    if !valid_date {
+        return None;
+    }
+    let rest = rest.trim_end_matches('Z');
+    let time = rest.split(['+', '-']).next().unwrap_or(rest);
+    if !is_clock(time) {
+        return None;
+    }
+    Some(time.to_string())
+}
+
+/// `HH:MM:SS`, with an optional `.fff` fraction.
+fn is_clock(token: &str) -> bool {
+    let (hms, fraction) = match token.split_once('.') {
+        Some((hms, fraction)) => (hms, Some(fraction)),
+        None => (token, None),
+    };
+    let fields: Vec<&str> = hms.split(':').collect();
+    if fields.len() != 3
+        || !fields
+            .iter()
+            .all(|field| field.len() == 2 && field.chars().all(|c| c.is_ascii_digit()))
+    {
+        return false;
+    }
+    match fraction {
+        Some(fraction) => !fraction.is_empty() && fraction.chars().all(|c| c.is_ascii_digit()),
+        None => true,
+    }
+}
+
+/// Normalise a severity token (`INFO`, `[warn]`, `error:`) to its display form.
+fn level_word(token: &str) -> Option<String> {
+    let trimmed =
+        token.trim_matches(|c: char| matches!(c, '[' | ']' | '(' | ')' | ':' | ',' | ';'));
+    let lower = trimmed.to_ascii_lowercase();
+    if !LEVEL_WORDS.contains(&lower.as_str()) {
+        return None;
+    }
+    Some(match lower.as_str() {
+        "warn" | "warning" => "WARN".to_string(),
+        "err" | "error" => "ERROR".to_string(),
+        _ => trimmed.to_ascii_uppercase(),
+    })
 }
 
 /// A bounded line buffer the log viewer drains the stream into. The cap keeps
@@ -248,21 +398,69 @@ mod tests {
     }
 
     #[test]
-    fn should_show_paused_hint_logic() {
-        assert!(should_show_paused_hint(false, true));
-        assert!(should_show_paused_hint(true, false));
-        assert!(!should_show_paused_hint(true, true));
-        assert!(should_show_paused_hint(false, false));
-    }
-
-    #[test]
     fn level_class_recognises_warn_and_error() {
         assert_eq!(level_class("WARN foo"), "warn");
         assert_eq!(level_class("ERROR bar"), "error");
         assert_eq!(level_class("ERR err"), "error");
+        assert_eq!(level_class("FATAL boom"), "error");
         assert_eq!(level_class("INFO baz"), "");
         assert_eq!(level_class(""), "");
         assert_eq!(level_class("   "), "");
+    }
+
+    #[test]
+    fn parse_log_line_splits_a_kube_line_into_the_reference_columns() {
+        let line = parse_log_line("2026-10-03T10:42:07.114Z INFO GET /api/v1/orders 200 18.4ms");
+        assert_eq!(line.time, "10:42:07.114");
+        assert_eq!(line.level, "INFO");
+        assert_eq!(line.method, "GET");
+        assert_eq!(line.message, "/api/v1/orders 200 18.4ms");
+        assert_eq!(line.level_class(), "");
+    }
+
+    #[test]
+    fn parse_log_line_reads_a_writer_printed_clock_and_severity() {
+        let line = parse_log_line("10:42:09.204 ERROR GET /internal/queue depth exceeded");
+        assert_eq!(line.time, "10:42:09.204");
+        assert_eq!(line.level, "ERROR");
+        assert_eq!(line.method, "GET");
+        assert_eq!(line.message, "/internal/queue depth exceeded");
+        assert_eq!(line.level_class(), "error");
+        assert!(line.message_is_error());
+    }
+
+    #[test]
+    fn parse_log_line_keeps_unrecognised_text_in_the_message() {
+        let line = parse_log_line("plain message with no prefixes");
+        assert_eq!(line.time, "");
+        assert_eq!(line.level, "");
+        assert_eq!(line.method, "");
+        assert_eq!(line.message, "plain message with no prefixes");
+        assert!(!line.message_is_error());
+    }
+
+    #[test]
+    fn parse_log_line_leaves_prose_that_looks_like_a_method_alone() {
+        let line = parse_log_line("2026-10-03T10:42:07Z Delete the stale endpoint");
+        assert_eq!(line.time, "10:42:07");
+        assert_eq!(line.level, "");
+        assert_eq!(line.method, "");
+        assert_eq!(line.message, "Delete the stale endpoint");
+    }
+
+    #[test]
+    fn parse_log_line_tolerates_brackets_and_lowercase_levels() {
+        let line = parse_log_line("[warn] upstream 10.0.0.1 slow");
+        assert_eq!(line.level, "WARN");
+        assert_eq!(line.method, "");
+        assert_eq!(line.message, "upstream 10.0.0.1 slow");
+        assert_eq!(line.level_class(), "warn");
+    }
+
+    #[test]
+    fn parse_log_line_accepts_an_empty_input() {
+        assert_eq!(parse_log_line(""), LogLine::default());
+        assert_eq!(parse_log_line("   "), LogLine::default());
     }
 
     #[test]
