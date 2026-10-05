@@ -22,6 +22,12 @@ use serde_json::{json, Value};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tower::ServiceExt;
 
+/// One SSR render at a time (see [`get_body`]).
+///
+/// A tokio mutex on purpose: the guard is held across an `await`, which the
+/// `await_holding_lock` lint forbids for a `std` guard.
+static RENDER_TURN: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 /// The pod list a fake API server answers with.
 pub const POD_NAME: &str = "probe-pod";
 pub const POD_NAMESPACE: &str = "default";
@@ -72,7 +78,14 @@ pub async fn post_json(app: Router, path: &str, body: Value) -> (StatusCode, Val
 }
 
 /// GET a path from the router and read the body as text.
+///
+/// One SSR render at a time: the console's resource detail pane reads a
+/// process-wide selection, which the host seeds from the request's query
+/// string, so two tests rendering different addresses at once could paint each
+/// other's pane. The turnstile is held until the body has been read, so the
+/// text handed back is the page this request asked for (OKT-175).
 pub async fn get_body(app: Router, path: &str) -> (StatusCode, String) {
+    let _turn = RENDER_TURN.lock().await;
     let (status, bytes) = get_bytes(app, path).await;
     (status, String::from_utf8_lossy(&bytes).into_owned())
 }
@@ -180,6 +193,17 @@ async fn pod_list() -> Json<Value> {
 /// A raw socket keeps the tests free of an HTTP client dependency, and the
 /// assertions only need substrings of the response.
 pub async fn raw_http(addr: SocketAddr, method: &str, path: &str, body: Option<&str>) -> String {
+    String::from_utf8_lossy(&raw_http_bytes(addr, method, path, body).await).into_owned()
+}
+
+/// The same request, answered as bytes: a binary response (the wasm client, the
+/// vendored typefaces) is not valid UTF-8 and would be corrupted as text.
+pub async fn raw_http_bytes(
+    addr: SocketAddr,
+    method: &str,
+    path: &str,
+    body: Option<&str>,
+) -> Vec<u8> {
     let mut stream = tokio::net::TcpStream::connect(addr)
         .await
         .expect("connect to host");
@@ -191,9 +215,9 @@ pub async fn raw_http(addr: SocketAddr, method: &str, path: &str, body: Option<&
     );
     stream.write_all(head.as_bytes()).await.expect("write head");
     stream.write_all(body.as_bytes()).await.expect("write body");
-    let mut response = String::new();
+    let mut response = Vec::new();
     stream
-        .read_to_string(&mut response)
+        .read_to_end(&mut response)
         .await
         .expect("read response");
     response

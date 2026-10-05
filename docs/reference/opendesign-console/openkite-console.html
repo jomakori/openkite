@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenKite — Kubernetes Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="openkite-console.css">
+</head>
+<body>
+<svg class="svg-defs" aria-hidden="true">
+  <symbol id="i-kite" viewBox="0 0 32 32">
+    <path d="M16 3l11.5 10L16 28 4.5 13 16 3z" fill="var(--brand)"/>
+    <path d="M12.2 15 16 13l6-4.8M12.9 20 16 13l6.3 5.2" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M16 28v4M11.5 29.2 16 33l4.5-3.8" fill="none" stroke="var(--brand)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+  <symbol id="i-cluster" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2.6"/><circle cx="5" cy="18" r="2.6"/><circle cx="19" cy="18" r="2.6"/><path d="M12 7.6v4.2M12 11.8 6.6 15.2M12 11.8l5.4 3.4"/></symbol>
+  <symbol id="i-workloads" viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1.3"/><rect x="14" y="4" width="6" height="6" rx="1.3"/><rect x="4" y="14" width="6" height="6" rx="1.3"/><rect x="14" y="14" width="6" height="6" rx="1.3"/></symbol>
+  <symbol id="i-pods" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></symbol>
+  <symbol id="i-deploy" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M12 9v6M9 13l3-3 3 3"/></symbol>
+  <symbol id="i-services" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="12" cy="18" r="2"/><path d="M8 6h8M6 8v8M18 8v8M10 18h4"/></symbol>
+  <symbol id="i-config" viewBox="0 0 24 24"><path d="M5 6h14M5 12h14M5 18h14"/><circle cx="9" cy="6" r="2.4"/><circle cx="15" cy="12" r="2.4"/><circle cx="8" cy="18" r="2.4"/></symbol>
+  <symbol id="i-storage" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="7" ry="2.6"/><path d="M5 5v7c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6V5M5 12v7c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6v-7"/></symbol>
+  <symbol id="i-network" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.3 2.2 3.5 5.1 3.5 8.5s-1.2 6.3-3.5 8.5c-2.3-2.2-3.5-5.1-3.5-8.5S9.7 5.7 12 3.5z"/></symbol>
+  <symbol id="i-argo" viewBox="0 0 24 24"><path d="M12 3 21 8v8l-9 5-9-5V8l9-5z"/><path d="M8 9h8M12 9v6M9.5 12l2.5-2.5 2.5 2.5"/></symbol>
+  <symbol id="i-apps" viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1.3"/><rect x="14" y="4" width="6" height="6" rx="1.3"/><rect x="4" y="14" width="6" height="6" rx="1.3"/><rect x="14" y="14" width="6" height="6" rx="1.3"/></symbol>
+  <symbol id="i-projects" viewBox="0 0 24 24"><path d="M4 6.5h6l2 2h8v9H4v-11z"/></symbol>
+  <symbol id="i-repo" viewBox="0 0 24 24"><path d="M6 3v12"/><circle cx="6" cy="18" r="2.2"/><path d="M6 15c3.5 0 5-2.4 12-2.4"/><circle cx="18" cy="15.6" r="2.2"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19 8a7.5 7.5 0 1 0 2 6"/><path d="M19 3v5h-5"/></symbol>
+  <symbol id="i-sync" viewBox="0 0 24 24"><path d="M19 8a7.5 7.5 0 1 0 2 6"/><path d="M19 3v5h-5"/><path d="M5 16a7.5 7.5 0 1 1-2-6"/><path d="M5 21v-5h5"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-terminal" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M12 15h5"/></symbol>
+  <symbol id="i-logs" viewBox="0 0 24 24"><path d="M5 6h14M5 10h14M5 14h14M5 18h9"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="i-kebab" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 6v12M16 6v12"/></symbol>
+  <symbol id="i-clear" viewBox="0 0 24 24"><path d="M5 7h14M9 7V4h6v3M8 10v10h8V10M10 13v4M14 13v4"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3V2.8h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1z"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5.5 20c.8-3.3 3.1-5 6.5-5s5.7 1.7 6.5 5"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M14 7l5 5-5 5"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4.5 4.5L19 7"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 4 3.5 19h17L12 4z"/><path d="M12 9v4M12 16.4v.1"/></symbol>
+  <symbol id="i-error" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 8v5M12 16v.1"/></symbol>
+  <symbol id="i-helm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.5"/><path d="M12 4.5v15M4.5 12h15M6.7 6.7l10.6 10.6M17.3 6.7 6.7 17.3"/><circle cx="12" cy="12" r="2.2"/></symbol>
+  <symbol id="i-kustomize" viewBox="0 0 24 24"><path d="M7 4v16M7 12l11-8M7 12l11 8"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.5 2"/></symbol>
+  <symbol id="i-node" viewBox="0 0 24 24"><path d="m12 3 7 4v9l-7 4-7-4V7l7-4z"/><path d="m5 7.5 7 4 7-4M12 11.5V20"/></symbol>
+</svg>
+
+<div class="app" data-od-id="openkite-app">
+  <aside class="sidebar" id="sidebar" data-od-id="sidebar">
+    <div class="brand" data-od-id="sidebar-brand">
+      <span class="brand-mark"><svg class="icon" style="width:30px;height:30px"><use href="#i-kite"/></svg></span>
+      <span class="brand-word">Open<strong>Kite</strong></span>
+    </div>
+
+    <button class="cluster-btn" type="button" data-toast="Cluster menu opens here in the full product">
+      <span class="status-line"><span class="dot"></span></span>
+      <span class="cluster-text">prod-us-east-1<small>v1.29.4 · us-east-1</small></span>
+      <svg class="icon"><use href="#i-chevron"/></svg>
+    </button>
+
+    <nav class="nav" aria-label="Resource navigation">
+      <div class="nav-section">
+        <div class="nav-title">Cluster</div>
+        <button class="nav-item" type="button" data-disabled data-toast="Overview is part of the full OpenKite product">
+          <svg class="icon"><use href="#i-cluster"/></svg><span>Overview</span>
+        </button>
+        <button class="nav-item" type="button" data-disabled data-toast="Nodes is part of the full OpenKite product">
+          <svg class="icon"><use href="#i-node"/></svg><span>Nodes</span><span class="nav-badge">8</span>
+        </button>
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-title">Workloads</div>
+        <button class="nav-item active" type="button" data-view="workloads">
+          <svg class="icon"><use href="#i-pods"/></svg><span>Pods</span><span class="nav-badge">124</span>
+        </button>
+        <button class="nav-item" type="button" data-disabled data-toast="Deployments is part of the full OpenKite product">
+          <svg class="icon"><use href="#i-deploy"/></svg><span>Deployments</span><span class="nav-badge">37</span>
+        </button>
+        <button class="nav-item" type="button" data-disabled data-toast="Services is part of the full OpenKite product">
+          <svg class="icon"><use href="#i-services"/></svg><span>Services</span><span class="nav-badge">29</span>
+        </button>
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-title">Config &amp; Storage</div>
+        <button class="nav-item" type="button" data-disabled data-toast="ConfigMaps is part of the full OpenKite product">
+          <svg class="icon"><use href="#i-config"/></svg><span>ConfigMaps</span><span class="nav-badge">46</span>
+        </button>
+        <button class="nav-item" type="button" data-disabled data-toast="Storage is part of the full OpenKite product">
+          <svg class="icon"><use href="#i-storage"/></svg><span>Storage</span>
+        </button>
+        <button class="nav-item" type="button" data-disabled data-toast="Network is part of the full OpenKite product">
+          <svg class="icon"><use href="#i-network"/></svg><span>Network</span>
+        </button>
+      </div>
+
+      <div class="nav-section argo">
+        <div class="nav-title">Argo CD</div>
+        <button class="nav-item" type="button" data-view="argocd">
+          <svg class="icon"><use href="#i-argo"/></svg><span>Applications</span><span class="nav-badge">18</span>
+        </button>
+        <button class="nav-item" type="button" data-disabled data-toast="Projects is part of the full OpenKite product">
+          <svg class="icon"><use href="#i-projects"/></svg><span>Projects</span><span class="nav-badge">3</span>
+        </button>
+        <button class="nav-item" type="button" data-disabled data-toast="Repositories is part of the full OpenKite product">
+          <svg class="icon"><use href="#i-repo"/></svg><span>Repositories</span><span class="nav-badge">6</span>
+        </button>
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <span class="version">v0.4.2-alpha</span>
+      <span class="status-line"><span class="dot"></span>Connected</span>
+    </div>
+  </aside>
+
+  <button class="sidebar-backdrop" id="sidebarBackdrop" type="button" aria-label="Close navigation"></button>
+
+  <main class="main" id="main" data-od-id="main-content">
+    <header class="topbar" data-od-id="topbar">
+      <button class="icon-btn menu-toggle" id="menuToggle" type="button" aria-label="Open navigation" aria-expanded="false">
+        <svg class="icon"><use href="#i-menu"/></svg>
+      </button>
+      <div class="breadcrumbs" id="breadcrumbs">
+        <span>prod-us-east-1</span>
+        <svg class="icon"><use href="#i-chevron"/></svg>
+        <span id="crumbSection">Workloads</span>
+        <svg class="icon"><use href="#i-chevron"/></svg>
+        <span class="current" id="crumbCurrent">Pods</span>
+      </div>
+      <div class="topbar-actions">
+        <button class="icon-btn" type="button" aria-label="Search" data-toast="Command palette opens here">
+          <svg class="icon"><use href="#i-search"/></svg>
+        </button>
+        <button class="icon-btn" id="refreshTop" type="button" aria-label="Refresh resources" data-refresh>
+          <svg class="icon"><use href="#i-refresh"/></svg>
+        </button>
+        <button class="icon-btn" type="button" aria-label="Settings" data-toast="Settings opens here">
+          <svg class="icon"><use href="#i-settings"/></svg>
+        </button>
+        <button class="avatar" type="button" aria-label="User menu" data-toast="User menu opens here">EK</button>
+      </div>
+    </header>
+
+    <div class="pull-indicator" id="pullIndicator"><span class="spinner"></span>Release to refresh</div>
+
+    <section class="view active" id="view-workloads" data-od-id="workloads-view">
+      <div class="page-head" data-od-id="workloads-header">
+        <div>
+          <div class="eyebrow">Workloads</div>
+          <h1>Pods</h1>
+          <p class="page-sub">Live pod inventory across the cluster. Select a row for pod details, or filter by namespace below.</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-secondary" type="button" data-toast="Terminal attach opens here">
+            <svg class="icon"><use href="#i-terminal"/></svg>Terminal
+          </button>
+          <button class="btn btn-primary" type="button" data-toast="Create Pod flow opens here">
+            <svg class="icon"><use href="#i-plus"/></svg>Create Pod
+          </button>
+        </div>
+      </div>
+
+      <div class="toolbar" data-od-id="workloads-toolbar">
+        <div class="chip-row" role="group" aria-label="Namespace filter">
+          <button class="chip active" type="button" data-ns="all">All <span class="count">124</span></button>
+          <button class="chip" type="button" data-ns="default">default <span class="count">41</span></button>
+          <button class="chip" type="button" data-ns="kube-system">kube-system <span class="count">28</span></button>
+          <button class="chip" type="button" data-ns="argocd">argocd <span class="count">9</span></button>
+          <button class="chip" type="button" data-ns="monitoring">monitoring <span class="count">22</span></button>
+        </div>
+        <label class="search-field">
+          <svg class="icon"><use href="#i-search"/></svg>
+          <input type="search" placeholder="Filter pods…" id="podSearch" aria-label="Filter pods">
+        </label>
+      </div>
+
+      <div class="panel" data-od-id="pod-table-panel">
+        <div class="table-wrap">
+          <table class="resource-table">
+            <thead>
+              <tr>
+                <th>Name</th><th>Namespace</th><th>Health</th><th>Restarts</th><th>Controller</th><th>Node</th><th>QoS</th><th>Age</th><th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="podRows">
+              <tr data-ns="default" data-name="checkout-api-7c9f8d6b4f-x2k9m" data-controller="Deployment/checkout-api" data-node="ip-10-0-4-18" data-qos="Burstable" data-age="2d" data-status="Running">
+                <td data-label="Name"><span class="cell-value resource-name"><svg class="icon"><use href="#i-pods"/></svg>checkout-api-7c9f8d6b4f-x2k9m</span></td>
+                <td data-label="Namespace"><span class="cell-value namespace">default</span></td>
+                <td data-label="Health"><span class="cell-value health-dots"><span class="dot ok"></span><span class="dot ok"></span></span></td>
+                <td data-label="Restarts"><span class="cell-value restarts">0</span></td>
+                <td data-label="Controller"><span class="cell-value controller">Deployment/checkout-api</span></td>
+                <td data-label="Node"><span class="cell-value node">ip-10-0-4-18</span></td>
+                <td data-label="QoS"><span class="cell-value qos">Burstable</span></td>
+                <td data-label="Age"><span class="cell-value qos">2d</span></td>
+                <td data-label="Status"><span class="cell-value"><span class="pill success"><span class="dot ok"></span>Running</span></span></td>
+              </tr>
+              <tr data-ns="kube-system" data-name="coredns-5c98db65d4-6mh2p" data-controller="Deployment/coredns" data-node="ip-10-0-4-2" data-qos="Guaranteed" data-age="12d" data-status="Running">
+                <td data-label="Name"><span class="cell-value resource-name"><svg class="icon"><use href="#i-pods"/></svg>coredns-5c98db65d4-6mh2p</span></td>
+                <td data-label="Namespace"><span class="cell-value namespace">kube-system</span></td>
+                <td data-label="Health"><span class="cell-value health-dots"><span class="dot ok"></span><span class="dot ok"></span></span></td>
+                <td data-label="Restarts"><span class="cell-value restarts">0</span></td>
+                <td data-label="Controller"><span class="cell-value controller">Deployment/coredns</span></td>
+                <td data-label="Node"><span class="cell-value node">ip-10-0-4-2</span></td>
+                <td data-label="QoS"><span class="cell-value qos">Guaranteed</span></td>
+                <td data-label="Age"><span class="cell-value qos">12d</span></td>
+                <td data-label="Status"><span class="cell-value"><span class="pill success"><span class="dot ok"></span>Running</span></span></td>
+              </tr>
+              <tr data-ns="monitoring" data-name="prometheus-server-0" data-controller="StatefulSet/prometheus-server" data-node="ip-10-0-5-11" data-qos="Guaranteed" data-age="9d" data-status="Running">
+                <td data-label="Name"><span class="cell-value resource-name"><svg class="icon"><use href="#i-pods"/></svg>prometheus-server-0</span></td>
+                <td data-label="Namespace"><span class="cell-value namespace">monitoring</span></td>
+                <td data-label="Health"><span class="cell-value health-dots"><span class="dot ok"></span><span class="dot ok"></span></span></td>
+                <td data-label="Restarts"><span class="cell-value restarts">0</span></td>
+                <td data-label="Controller"><span class="cell-value controller">StatefulSet/prometheus-server</span></td>
+                <td data-label="Node"><span class="cell-value node">ip-10-0-5-11</span></td>
+                <td data-label="QoS"><span class="cell-value qos">Guaranteed</span></td>
+                <td data-label="Age"><span class="cell-value qos">9d</span></td>
+                <td data-label="Status"><span class="cell-value"><span class="pill success"><span class="dot ok"></span>Running</span></span></td>
+              </tr>
+              <tr data-ns="default" data-name="payments-worker-6b8d9c7f5d-9nq4r" data-controller="Deployment/payments-worker" data-node="ip-10-0-4-19" data-qos="Burstable" data-age="6h" data-status="CrashLoopBackOff">
+                <td data-label="Name"><span class="cell-value resource-name"><svg class="icon"><use href="#i-pods"/></svg>payments-worker-6b8d9c7f5d-9nq4r</span></td>
+                <td data-label="Namespace"><span class="cell-value namespace">default</span></td>
+                <td data-label="Health"><span class="cell-value health-dots"><span class="dot ok"></span><span class="dot err"></span></span></td>
+                <td data-label="Restarts"><span class="cell-value restarts warn">14</span></td>
+                <td data-label="Controller"><span class="cell-value controller">Deployment/payments-worker</span></td>
+                <td data-label="Node"><span class="cell-value node">ip-10-0-4-19</span></td>
+                <td data-label="QoS"><span class="cell-value qos">Burstable</span></td>
+                <td data-label="Age"><span class="cell-value qos">6h</span></td>
+                <td data-label="Status"><span class="cell-value"><span class="pill danger"><span class="dot err"></span>CrashLoopBackOff</span></span></td>
+              </tr>
+              <tr data-ns="argocd" data-name="argocd-repo-server-55b7c44d9c-7b2wm" data-controller="Deployment/argocd-repo-server" data-node="ip-10-0-5-8" data-qos="Guaranteed" data-age="18d" data-status="Running">
+                <td data-label="Name"><span class="cell-value resource-name"><svg class="icon"><use href="#i-pods"/></svg>argocd-repo-server-55b7c44d9c-7b2wm</span></td>
+                <td data-label="Namespace"><span class="cell-value namespace">argocd</span></td>
+                <td data-label="Health"><span class="cell-value health-dots"><span class="dot ok"></span><span class="dot ok"></span></span></td>
+                <td data-label="Restarts"><span class="cell-value restarts">0</span></td>
+                <td data-label="Controller"><span class="cell-value controller">Deployment/argocd-repo-server</span></td>
+                <td data-label="Node"><span class="cell-value node">ip-10-0-5-8</span></td>
+                <td data-label="QoS"><span class="cell-value qos">Guaranteed</span></td>
+                <td data-label="Age"><span class="cell-value qos">18d</span></td>
+                <td data-label="Status"><span class="cell-value"><span class="pill success"><span class="dot ok"></span>Running</span></span></td>
+              </tr>
+              <tr data-ns="default" data-name="nginx-ingress-controller-5d9f8c6b7-x4z1p" data-controller="DaemonSet/nginx-ingress" data-node="ip-10-0-4-12" data-qos="Guaranteed" data-age="4d" data-status="Running">
+                <td data-label="Name"><span class="cell-value resource-name"><svg class="icon"><use href="#i-pods"/></svg>nginx-ingress-controller-5d9f8c6b7-x4z1p</span></td>
+                <td data-label="Namespace"><span class="cell-value namespace">default</span></td>
+                <td data-label="Health"><span class="cell-value health-dots"><span class="dot ok"></span><span class="dot ok"></span></span></td>
+                <td data-label="Restarts"><span class="cell-value restarts">0</span></td>
+                <td data-label="Controller"><span class="cell-value controller">DaemonSet/nginx-ingress</span></td>
+                <td data-label="Node"><span class="cell-value node">ip-10-0-4-12</span></td>
+                <td data-label="QoS"><span class="cell-value qos">Guaranteed</span></td>
+                <td data-label="Age"><span class="cell-value qos">4d</span></td>
+                <td data-label="Status"><span class="cell-value"><span class="pill success"><span class="dot ok"></span>Running</span></span></td>
+              </tr>
+              <tr data-ns="monitoring" data-name="grafana-7f6d4c8b5d-mz8kt" data-controller="Deployment/grafana" data-node="ip-10-0-5-14" data-qos="Burstable" data-age="11d" data-status="Running">
+                <td data-label="Name"><span class="cell-value resource-name"><svg class="icon"><use href="#i-pods"/></svg>grafana-7f6d4c8b5d-mz8kt</span></td>
+                <td data-label="Namespace"><span class="cell-value namespace">monitoring</span></td>
+                <td data-label="Health"><span class="cell-value health-dots"><span class="dot ok"></span><span class="dot ok"></span></span></td>
+                <td data-label="Restarts"><span class="cell-value restarts">0</span></td>
+                <td data-label="Controller"><span class="cell-value controller">Deployment/grafana</span></td>
+                <td data-label="Node"><span class="cell-value node">ip-10-0-5-14</span></td>
+                <td data-label="QoS"><span class="cell-value qos">Burstable</span></td>
+                <td data-label="Age"><span class="cell-value qos">11d</span></td>
+                <td data-label="Status"><span class="cell-value"><span class="pill success"><span class="dot ok"></span>Running</span></span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="panel-footer">
+          <span id="rowCount">Showing 7 of 124 pods</span>
+          <div class="pager" aria-label="Pagination">
+            <button type="button" class="active" data-toast="Page 1">1</button>
+            <button type="button" data-toast="Page 2">2</button>
+            <button type="button" data-toast="Page 3">3</button>
+            <button type="button" data-toast="Next page">›</button>
+          </div>
+        </div>
+      </div>
+
+      <section class="log-panel" id="logPanel" data-od-id="log-panel" aria-label="Pod logs">
+        <button class="log-handle" type="button" id="logHandle" aria-expanded="false">Logs</button>
+        <div class="log-header">
+          <div class="log-title">
+            <svg class="icon"><use href="#i-terminal"/></svg>
+            <span>Logs</span>
+            <span class="log-pod">nginx-ingress-controller-5d9f8c6b7-x4z1p</span>
+          </div>
+          <div class="log-actions">
+            <button class="icon-btn" type="button" id="pauseLogs" aria-label="Pause logs" aria-pressed="false">
+              <svg class="icon"><use href="#i-pause"/></svg>
+            </button>
+            <button class="icon-btn" type="button" id="clearLogs" aria-label="Clear logs">
+              <svg class="icon"><use href="#i-clear"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="log-paused" role="status"><svg class="icon"><use href="#i-pause"/></svg>Log stream paused</div>
+        <div class="log-body" id="logBody">
+          <div class="log-line"><span class="log-time">10:42:07.114</span><span class="log-level">INFO</span><span class="log-method">GET</span><span class="log-msg">/api/v1/orders 200 18.4ms</span></div>
+          <div class="log-line"><span class="log-time">10:42:07.182</span><span class="log-level">INFO</span><span class="log-method">POST</span><span class="log-msg">/api/v1/checkout 201 42.1ms</span></div>
+          <div class="log-line"><span class="log-time">10:42:08.001</span><span class="log-level">INFO</span><span class="log-method">GET</span><span class="log-msg">/healthz 200 1.2ms</span></div>
+          <div class="log-line"><span class="log-time">10:42:08.647</span><span class="log-level warn">WARN</span><span class="log-msg">upstream 10.0.4.22:8080 slow response 312ms</span></div>
+          <div class="log-line"><span class="log-time">10:42:09.204</span><span class="log-level error">ERROR</span><span class="log-method">GET</span><span class="log-msg error">/internal/queue depth exceeded threshold (queue=1024)</span></div>
+          <div class="log-line"><span class="log-time">10:42:09.531</span><span class="log-level">INFO</span><span class="log-method">GET</span><span class="log-msg">/metrics 200 3.9ms</span></div>
+        </div>
+      </section>
+    </section>
+
+    <section class="view" id="view-argocd" data-od-id="argocd-view">
+      <div class="page-head" data-od-id="argocd-header">
+        <div>
+          <div class="eyebrow">Argo CD</div>
+          <h1>Applications</h1>
+          <p class="page-sub">Sync and health across 18 GitOps applications. Swipe a card on touch devices to reveal quick actions.</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-secondary" type="button" data-toast="App list settings open here">
+            <svg class="icon"><use href="#i-filter"/></svg>Filter
+          </button>
+          <button class="btn btn-primary" type="button" data-toast="New Application flow opens here">
+            <svg class="icon"><use href="#i-plus"/></svg>New App
+          </button>
+        </div>
+      </div>
+
+      <div class="app-grid" id="appGrid" data-od-id="argocd-grid">
+        <article class="app-card" data-od-id="argocd-card-guestbook" data-app="guestbook">
+          <div class="card-swipe-actions" aria-label="Quick actions">
+            <button type="button" class="sync" data-toast="Syncing guestbook">Sync</button>
+            <button type="button" data-toast="Refreshing guestbook">Refresh</button>
+          </div>
+          <div class="card-main">
+            <div class="card-status synced"></div>
+            <div class="card-body">
+              <button class="card-menu-btn" type="button" aria-label="Open guestbook actions"><svg class="icon"><use href="#i-kebab"/></svg></button>
+              <div class="card-title-row">
+                <span class="source-icon"><svg class="icon"><use href="#i-helm"/></svg></span>
+                <div>
+                  <h2 class="app-name">guestbook</h2>
+                  <p class="app-sub">default / demo-apps</p>
+                </div>
+              </div>
+              <div class="tag-row">
+                <span class="tag">github.com/acme/guestbook</span>
+                <span class="tag">chart 1.4.2</span>
+              </div>
+              <div class="card-footer">
+                <div class="badges">
+                  <span class="pill success"><svg class="icon"><use href="#i-check"/></svg>Synced</span>
+                  <span class="pill success"><svg class="icon"><use href="#i-check"/></svg>Healthy</span>
+                </div>
+                <span class="card-meta"><svg class="icon"><use href="#i-clock"/></svg>2m</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="app-card" data-od-id="argocd-card-rollouts" data-app="canary-rollouts">
+          <div class="card-swipe-actions" aria-label="Quick actions">
+            <button type="button" class="sync" data-toast="Syncing canary-rollouts">Sync</button>
+            <button type="button" data-toast="Refreshing canary-rollouts">Refresh</button>
+          </div>
+          <div class="card-main">
+            <div class="card-status outofsync"></div>
+            <div class="card-body">
+              <button class="card-menu-btn" type="button" aria-label="Open canary-rollouts actions"><svg class="icon"><use href="#i-kebab"/></svg></button>
+              <div class="card-title-row">
+                <span class="source-icon"><svg class="icon"><use href="#i-kustomize"/></svg></span>
+                <div>
+                  <h2 class="app-name">canary-rollouts</h2>
+                  <p class="app-sub">prod / platform</p>
+                </div>
+              </div>
+              <div class="tag-row">
+                <span class="tag">gitlab.com/acme/gitops</span>
+                <span class="tag">kustomize 5.4</span>
+              </div>
+              <div class="card-footer">
+                <div class="badges">
+                  <span class="pill warn"><svg class="icon"><use href="#i-warn"/></svg>OutOfSync</span>
+                  <span class="pill success"><svg class="icon"><use href="#i-check"/></svg>Healthy</span>
+                </div>
+                <span class="card-meta"><svg class="icon"><use href="#i-clock"/></svg>8m</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="app-card" data-od-id="argocd-card-prometheus" data-app="prometheus-stack">
+          <div class="card-swipe-actions" aria-label="Quick actions">
+            <button type="button" class="sync" data-toast="Syncing prometheus-stack">Sync</button>
+            <button type="button" data-toast="Refreshing prometheus-stack">Refresh</button>
+          </div>
+          <div class="card-main">
+            <div class="card-status synced"></div>
+            <div class="card-body">
+              <button class="card-menu-btn" type="button" aria-label="Open prometheus-stack actions"><svg class="icon"><use href="#i-kebab"/></svg></button>
+              <div class="card-title-row">
+                <span class="source-icon"><svg class="icon"><use href="#i-helm"/></svg></span>
+                <div>
+                  <h2 class="app-name">prometheus-stack</h2>
+                  <p class="app-sub">monitoring / infra</p>
+                </div>
+              </div>
+              <div class="tag-row">
+                <span class="tag">github.com/acme/helm-charts</span>
+                <span class="tag">chart 58.2.1</span>
+              </div>
+              <div class="card-footer">
+                <div class="badges">
+                  <span class="pill success"><svg class="icon"><use href="#i-check"/></svg>Synced</span>
+                  <span class="pill success"><svg class="icon"><use href="#i-check"/></svg>Healthy</span>
+                </div>
+                <span class="card-meta"><svg class="icon"><use href="#i-clock"/></svg>1m</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="app-card" data-od-id="argocd-card-certmanager" data-app="cert-manager">
+          <div class="card-swipe-actions" aria-label="Quick actions">
+            <button type="button" class="sync" data-toast="Syncing cert-manager">Sync</button>
+            <button type="button" data-toast="Refreshing cert-manager">Refresh</button>
+          </div>
+          <div class="card-main">
+            <div class="card-status degraded"></div>
+            <div class="card-body">
+              <button class="card-menu-btn" type="button" aria-label="Open cert-manager actions"><svg class="icon"><use href="#i-kebab"/></svg></button>
+              <div class="card-title-row">
+                <span class="source-icon"><svg class="icon"><use href="#i-helm"/></svg></span>
+                <div>
+                  <h2 class="app-name">cert-manager</h2>
+                  <p class="app-sub">security / certs</p>
+                </div>
+              </div>
+              <div class="tag-row">
+                <span class="tag">github.com/cert-manager/cert-manager</span>
+                <span class="tag">chart 1.15.0</span>
+              </div>
+              <div class="card-footer">
+                <div class="badges">
+                  <span class="pill success"><svg class="icon"><use href="#i-check"/></svg>Synced</span>
+                  <span class="pill danger"><svg class="icon"><use href="#i-error"/></svg>Degraded</span>
+                </div>
+                <span class="card-meta"><svg class="icon"><use href="#i-clock"/></svg>34m</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="app-card" data-od-id="argocd-card-nginx" data-app="nginx-ingress">
+          <div class="card-swipe-actions" aria-label="Quick actions">
+            <button type="button" class="sync" data-toast="Syncing nginx-ingress">Sync</button>
+            <button type="button" data-toast="Refreshing nginx-ingress">Refresh</button>
+          </div>
+          <div class="card-main">
+            <div class="card-status progressing"></div>
+            <div class="card-body">
+              <button class="card-menu-btn" type="button" aria-label="Open nginx-ingress actions"><svg class="icon"><use href="#i-kebab"/></svg></button>
+              <div class="card-title-row">
+                <span class="source-icon"><svg class="icon"><use href="#i-kustomize"/></svg></span>
+                <div>
+                  <h2 class="app-name">nginx-ingress</h2>
+                  <p class="app-sub">default / edge</p>
+                </div>
+              </div>
+              <div class="tag-row">
+                <span class="tag">github.com/acme/infra</span>
+                <span class="tag">kustomize 5.4</span>
+              </div>
+              <div class="card-footer">
+                <div class="badges">
+                  <span class="pill success"><svg class="icon"><use href="#i-check"/></svg>Synced</span>
+                  <span class="pill warn"><svg class="icon"><use href="#i-warn"/></svg>Progressing</span>
+                </div>
+                <span class="card-meta"><svg class="icon"><use href="#i-clock"/></svg>12m</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="app-card" data-od-id="argocd-card-postgres" data-app="postgres-cluster">
+          <div class="card-swipe-actions" aria-label="Quick actions">
+            <button type="button" class="sync" data-toast="Syncing postgres-cluster">Sync</button>
+            <button type="button" data-toast="Refreshing postgres-cluster">Refresh</button>
+          </div>
+          <div class="card-main">
+            <div class="card-status synced"></div>
+            <div class="card-body">
+              <button class="card-menu-btn" type="button" aria-label="Open postgres-cluster actions"><svg class="icon"><use href="#i-kebab"/></svg></button>
+              <div class="card-title-row">
+                <span class="source-icon"><svg class="icon"><use href="#i-helm"/></svg></span>
+                <div>
+                  <h2 class="app-name">postgres-cluster</h2>
+                  <p class="app-sub">data / storage</p>
+                </div>
+              </div>
+              <div class="tag-row">
+                <span class="tag">github.com/acme/data-ops</span>
+                <span class="tag">chart 12.8.0</span>
+              </div>
+              <div class="card-footer">
+                <div class="badges">
+                  <span class="pill success"><svg class="icon"><use href="#i-check"/></svg>Synced</span>
+                  <span class="pill success"><svg class="icon"><use href="#i-check"/></svg>Healthy</span>
+                </div>
+                <span class="card-meta"><svg class="icon"><use href="#i-clock"/></svg>3m</span>
+              </div>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <nav class="bottom-nav" aria-label="Mobile navigation" data-od-id="mobile-nav">
+    <div class="bottom-tabs">
+      <button class="bottom-tab active" type="button" data-view="workloads">
+        <svg class="icon"><use href="#i-workloads"/></svg><span>Workloads</span>
+      </button>
+      <button class="bottom-tab argo" type="button" data-view="argocd">
+        <svg class="icon"><use href="#i-argo"/></svg><span>Argo CD</span>
+      </button>
+      <button class="bottom-tab" type="button" id="logTab" aria-expanded="false">
+        <svg class="icon"><use href="#i-logs"/></svg><span>Logs</span>
+      </button>
+      <button class="bottom-tab" type="button" id="menuTab" aria-label="Open navigation">
+        <svg class="icon"><use href="#i-menu"/></svg><span>Menu</span>
+      </button>
+    </div>
+  </nav>
+
+  <button class="inspector-scrim" id="inspectorScrim" type="button" aria-label="Close pod details"></button>
+  <aside class="inspector" id="inspector" data-od-id="pod-inspector" aria-label="Pod details">
+    <div class="inspector-header">
+      <svg class="icon"><use href="#i-pods"/></svg>
+      <h2 id="inspectorName">Pod details</h2>
+      <button class="icon-btn" type="button" id="closeInspector" aria-label="Close pod details">
+        <svg class="icon"><use href="#i-close"/></svg>
+      </button>
+    </div>
+    <div class="inspector-body">
+      <div class="inspector-eyebrow">Resource summary</div>
+      <dl class="kv-list" id="inspectorList">
+        <div class="kv-row"><dt>Namespace</dt><dd id="inspectorNs">default</dd></div>
+        <div class="kv-row"><dt>Controller</dt><dd id="inspectorController">Deployment/checkout-api</dd></div>
+        <div class="kv-row"><dt>Node</dt><dd id="inspectorNode">ip-10-0-4-18</dd></div>
+        <div class="kv-row"><dt>QoS</dt><dd id="inspectorQos">Burstable</dd></div>
+        <div class="kv-row"><dt>Age</dt><dd id="inspectorAge">2d</dd></div>
+        <div class="kv-row"><dt>Status</dt><dd id="inspectorStatus">Running</dd></div>
+      </dl>
+      <div class="inspector-actions">
+        <button class="btn btn-secondary" type="button" data-toast="Logs attached to this pod">
+          <svg class="icon"><use href="#i-logs"/></svg>View Logs
+        </button>
+        <button class="btn btn-primary" type="button" data-toast="Terminal attach opens here">
+          <svg class="icon"><use href="#i-terminal"/></svg>Terminal
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</div>
+
+  <script src="openkite-console.js" defer></script>
+</body>
+</html>

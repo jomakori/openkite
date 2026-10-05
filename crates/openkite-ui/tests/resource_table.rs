@@ -3,16 +3,50 @@
 //! Re-asserts the pure-logic helpers (`sort_by_key`, `compare_sort_keys`,
 //! `visible_range`, `matches_query`, `Cell`, `ResourceRow::search_text`)
 //! from the public API and pins the `StatusKind::pill_class` mapping
-//! added by the design-system re-skin. The `namespace_filter` tests pin
-//! the multi-select namespace chip semantics.
+//! The `namespace_filter` tests pin the console-wide namespace selection
+//! semantics: empty = all namespaces, cluster-scoped rows survive.
 
-use std::collections::HashSet;
+use dioxus::prelude::*;
+
+mod support;
 
 use openkite_ui::components::resource_table::{
     compare_sort_keys, matches_query, namespace_filter, sort_by_key, visible_range, Cell,
-    ResourceRow, SortDirection, SortKey, OVERSCAN, ROW_HEIGHT,
+    ColumnDef, ResourceRow, ResourceTable, SortDirection, SortKey, OVERSCAN, ROW_HEIGHT,
 };
 use openkite_ui::components::status_badge::StatusKind;
+
+/// A one-row table with the two columns the label assertion inspects.
+fn labelled_table() -> Element {
+    rsx! {
+        ResourceTable {
+            columns: vec![
+                ColumnDef { key: "name".into(), label: "Name".into(), width: Some(180), sortable: true },
+                ColumnDef { key: "status".into(), label: "Status".into(), width: None, sortable: false },
+            ],
+            rows: vec![ResourceRow {
+                id: "nginx-1".into(),
+                namespace: Some("default".into()),
+                cells: vec![
+                    Cell::text("nginx"),
+                    Cell::status("Running", StatusKind::Running),
+                ],
+            }],
+        }
+    }
+}
+
+#[test]
+fn every_cell_carries_its_column_data_label() {
+    let html = support::mount_html(labelled_table, || {});
+    assert!(html.contains("data-label=\"Name\""), "got: {html}");
+    assert!(html.contains("data-label=\"Status\""), "got: {html}");
+    assert_eq!(
+        html.matches("data-label=").count(),
+        2,
+        "every data cell carries its column's label: {html}"
+    );
+}
 
 fn row_with_namespace(namespace: Option<&str>, cells: Vec<Cell>) -> ResourceRow {
     ResourceRow {
@@ -30,7 +64,7 @@ fn ns_row(id: &str, namespace: Option<&str>) -> ResourceRow {
     }
 }
 
-fn ns_set(names: &[&str]) -> HashSet<String> {
+fn ns_set(names: &[&str]) -> Vec<String> {
     names.iter().map(|n| n.to_string()).collect()
 }
 
@@ -229,7 +263,7 @@ fn namespace_filter_empty_selection_keeps_every_row() {
         ns_row("b", Some("kube-system")),
         ns_row("c", None),
     ];
-    let filtered = namespace_filter(&rows, &HashSet::new());
+    let filtered = namespace_filter(&rows, &Vec::new());
     assert_eq!(filtered.len(), 3);
 }
 
@@ -268,12 +302,17 @@ fn namespace_filter_unknown_selection_returns_no_rows() {
 }
 
 #[test]
-fn namespace_filter_keeps_cluster_scoped_rows_only_without_selection() {
+fn namespace_filter_keeps_cluster_scoped_rows_under_any_selection() {
     let rows = vec![ns_row("cluster-a", None), ns_row("pod-a", Some("default"))];
-    assert_eq!(namespace_filter(&rows, &HashSet::new()).len(), 2);
+    assert_eq!(namespace_filter(&rows, &Vec::new()).len(), 2);
     let filtered = namespace_filter(&rows, &ns_set(&["default"]));
-    assert_eq!(filtered.len(), 1);
-    assert_eq!(filtered[0].id, "pod-a");
+    assert_eq!(
+        filtered.len(),
+        2,
+        "the cluster-scoped row is in no namespace, so it survives: {filtered:?}"
+    );
+    assert_eq!(filtered[0].id, "cluster-a");
+    assert_eq!(filtered[1].id, "pod-a");
 }
 
 #[test]

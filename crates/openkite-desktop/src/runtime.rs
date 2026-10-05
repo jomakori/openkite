@@ -21,12 +21,11 @@ pub use openkite_ui::runtime::{
 /// views that need a live `Api`.
 pub static CLIENT: GlobalSignal<Option<Client>> = Signal::global(|| None);
 
-/// Namespaces on the active cluster (for the multi-select chips).
-pub static NAMESPACES: GlobalSignal<Vec<String>> = Signal::global(Vec::new);
-
-/// The selected namespaces (defaults to `["default"]`).
-pub static SELECTED_NAMESPACES: GlobalSignal<Vec<String>> =
-    Signal::global(|| vec!["default".into()]);
+/// Namespaces on the active cluster (the bar's chip options) and the console's
+/// namespace selection, re-exported under the desktop's historical names.
+pub use openkite_ui::runtime::{
+    NAMESPACE_OPTIONS as NAMESPACES, NAMESPACE_SELECTION as SELECTED_NAMESPACES,
+};
 
 /// Detected Prometheus service name, if any (status-bar indicator).
 pub static PROMETHEUS: GlobalSignal<Option<String>> = Signal::global(|| None);
@@ -129,14 +128,14 @@ pub fn apply_persisted_os_settings() {
     }
 }
 
-/// Publish the namespace list for the multi-select chips.
+/// Publish the namespace list for the bar's chips.
 pub fn set_namespaces(ns: Vec<String>) {
-    *NAMESPACES.write() = ns;
+    openkite_ui::runtime::set_namespace_options(ns);
 }
 
-/// Publish the selected namespace set.
+/// Publish the selected namespace set (`[]` = all namespaces).
 pub fn set_selected_namespaces(ns: Vec<String>) {
-    *SELECTED_NAMESPACES.write() = ns;
+    openkite_ui::runtime::set_namespace_selection(ns);
 }
 
 /// Publish the detected Prometheus service name (or `None`).
@@ -146,12 +145,7 @@ pub fn set_prometheus(name: Option<String>) {
 
 /// Toggle a namespace in the selected set.
 pub fn toggle_namespace(ns: String) {
-    let mut selected = SELECTED_NAMESPACES.write();
-    if let Some(pos) = selected.iter().position(|x| x == &ns) {
-        selected.remove(pos);
-    } else {
-        selected.push(ns);
-    }
+    openkite_ui::runtime::toggle_namespace(ns);
 }
 
 /// Publish the current path the Dioxus router is rendering.

@@ -71,7 +71,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
 use openkite_ui::components::palette::{CommandPalette, PaletteHost, PaletteKeybind};
-use openkite_ui::components::route_views::RouteView;
+use openkite_ui::components::route_views::{resolve_route, RouteView};
 use openkite_ui::components::shell::{
     AppShell as ShellFrame, ClusterInfo, ShellIcon, TopBarAction,
 };
@@ -150,6 +150,21 @@ pub fn route_from_path(path: &str) -> Route {
 /// Reconstruct a full path from wildcard segments.
 fn full_path(path: &[String]) -> String {
     format!("/{}", path.join("/"))
+}
+
+/// The console view's route for an address: the URL path resolved through the
+/// console's own route contract against the sidebar model this host renders.
+///
+/// This is the desktop's half of the one route contract (OKT-125). The browser
+/// host resolves a request path through the same call
+/// ([`openkite_ui::components::route_views::resolve_route`]), so both hosts
+/// derive the console view from the address: a path the model carries resolves
+/// to itself, and anything else falls back to the landing route rather than to
+/// a second, host-private view. Keeping the resolution here — not in a table
+/// this host writes down beside the crate's — is what stops the two hosts
+/// drifting.
+pub fn console_route(path: &str, sections: &[crate::shell::ShellSection]) -> String {
+    resolve_route(path, sections)
 }
 
 /// The core routes. Every primary route mounts the crate's route chrome, so
@@ -263,9 +278,13 @@ fn AppShell() -> Element {
         }
     });
 
-    // The route the sidebar marks active; `Routable`'s `Display` writes the
-    // URL path, which is the same vocabulary the entries carry.
-    let current_route = use_route::<Route>().to_string();
+    // The console view's route: the address the webview is showing, resolved
+    // through the console's own route contract — the same call the browser host
+    // makes when it resolves a request path — so the sidebar's active entry,
+    // the breadcrumbs and the route chrome all read one value, and the two
+    // hosts derive the console view from the address rather than from a table
+    // each writes down for itself.
+    let current_route = console_route(&use_route::<Route>().to_string(), &shell_sections());
 
     // The desktop answers every palette action: it owns the router, the theme
     // store and the OS chrome. The crate registers only the commands whose
@@ -590,13 +609,18 @@ pub(crate) fn json_response(resp: ApiResponse) -> AssetHttpResponse<Vec<u8>> {
 }
 
 /// The four primary routes mount the crate's route chrome (OKT-155). The
-/// desktop keeps only the wiring: the route contract its router resolved, the
-/// sidebar model the shell renders, and the handlers for the actions this host
-/// can honour. What the crate chrome needs from the descriptor
+/// desktop keeps only the wiring: the route contract the address resolved to,
+/// the sidebar model the shell renders, and the handlers for the actions this
+/// host can honour. What the crate chrome needs from the descriptor
 /// (`terminal_can_render`, `mutations_can_render`, `cluster_switch_can_render`)
 /// it reads itself, so a host that cannot do something declares it instead of
 /// painting a control that does nothing.
-fn route_view(route: &'static str) -> Element {
+fn route_view() -> Element {
+    // The address is the source of truth here too: the chrome paints the route
+    // the URL resolved to, never a literal this component carries beside it,
+    // so it cannot disagree with the shell's active entry or with the browser
+    // host serving the same address.
+    let route = console_route(&use_route::<Route>().to_string(), &shell_sections());
     let nav = use_navigator();
     let on_action = EventHandler::new(move |action: String| {
         match action.as_str() {
@@ -616,6 +640,7 @@ fn route_view(route: &'static str) -> Element {
         RouteView {
             route: route.to_string(),
             sections: shell_sections(),
+            namespaces: crate::runtime::NAMESPACES.read().clone(),
             on_action: Some(on_action),
         }
     }
@@ -623,17 +648,17 @@ fn route_view(route: &'static str) -> Element {
 
 #[component]
 fn Home() -> Element {
-    route_view("/")
+    route_view()
 }
 
 #[component]
 fn Cluster() -> Element {
-    route_view("/cluster")
+    route_view()
 }
 
 #[component]
 fn Workloads() -> Element {
-    route_view("/workloads")
+    route_view()
 }
 
 #[component]
@@ -736,7 +761,7 @@ fn Terminal() -> Element {
 
 #[component]
 fn Config() -> Element {
-    route_view("/config")
+    route_view()
 }
 
 /// Wildcard dispatcher: reconstruct the path, resolve it against this host's

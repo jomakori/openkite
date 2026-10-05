@@ -13,7 +13,7 @@ use std::sync::Mutex;
 
 use dioxus::prelude::*;
 use openkite_api::capability::Capabilities;
-use openkite_ui::components::route_views::{route_page, RouteCapability, RouteView};
+use openkite_ui::components::route_views::{resolve_route, route_page, RouteCapability, RouteView};
 use openkite_ui::plugin_api::RegistrationStore;
 use openkite_ui::runtime::set_published_capabilities;
 use openkite_ui::shell::{core_sections, sidebar_model, ShellSection};
@@ -56,6 +56,26 @@ fn with_action(route: &'static str, sections: Vec<ShellSection>, wired: bool) ->
     rsx! {
         RouteView { route: route.to_string(), sections, on_action }
     }
+}
+
+#[test]
+fn a_request_path_resolves_against_the_crates_route_contract() {
+    let sections = browser_sections();
+    for route in ["/", "/cluster", "/workloads", "/config"] {
+        assert_eq!(resolve_route(route, &sections), route);
+    }
+    // The same page for every spelling of the same contract.
+    assert_eq!(resolve_route("/workloads/", &sections), "/workloads");
+    assert_eq!(resolve_route(" workloads ", &sections), "/workloads");
+    // Anything the navigation does not carry falls back to the landing route.
+    for unknown in ["/nonsense", "", "/logs", "/terminal", "/argocd/apps"] {
+        assert_eq!(resolve_route(unknown, &sections), "/", "{unknown}");
+    }
+    // The contract is the navigation the host renders, not a table this crate
+    // hides: a profile whose sidebar carries more routes resolves them.
+    let desktop = desktop_sections();
+    assert_eq!(resolve_route("/logs", &desktop), "/logs");
+    assert_eq!(resolve_route("/terminal", &desktop), "/terminal");
 }
 
 #[test]
