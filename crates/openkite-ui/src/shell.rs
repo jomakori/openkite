@@ -101,6 +101,51 @@ pub fn core_sections() -> Vec<ShellSection> {
     core_sections_with_counts(&NavCounts::default())
 }
 
+/// The desktop's core navigation: the flat entry list it shows above the
+/// plugin sections, in order, with the terminal entry gated on the host
+/// capability.
+///
+/// The terminal surface is host-only (OKT-126), so a host that cannot run one
+/// never advertises the entry — passing the gate in keeps the decision with
+/// the host and the vocabulary with the crate.
+pub fn core_nav(terminal: bool) -> Vec<ShellNavItem> {
+    let mut items = vec![
+        ShellNavItem {
+            label: "Cluster".into(),
+            route: "/cluster".into(),
+            plugin: None,
+            badge: None,
+        },
+        ShellNavItem {
+            label: "Workloads".into(),
+            route: "/workloads".into(),
+            plugin: None,
+            badge: None,
+        },
+        ShellNavItem {
+            label: "Logs".into(),
+            route: "/logs".into(),
+            plugin: None,
+            badge: None,
+        },
+    ];
+    if terminal {
+        items.push(ShellNavItem {
+            label: "Terminal".into(),
+            route: "/terminal".into(),
+            plugin: None,
+            badge: None,
+        });
+    }
+    items.push(ShellNavItem {
+        label: "Config".into(),
+        route: "/config".into(),
+        plugin: None,
+        badge: None,
+    });
+    items
+}
+
 /// The reference sidebar's three core sections, with per-entry live counts.
 ///
 /// Cluster (Overview, Nodes) · Workloads (Pods, Deployments, Services) ·
