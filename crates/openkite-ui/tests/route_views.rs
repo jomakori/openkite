@@ -72,10 +72,14 @@ fn a_request_path_resolves_against_the_crates_route_contract() {
         assert_eq!(resolve_route(unknown, &sections), "/", "{unknown}");
     }
     // The contract is the navigation the host renders, not a table this crate
-    // hides: a profile whose sidebar carries more routes resolves them.
+    // hides: a route the sidebar carries resolves to itself, one it does not
+    // falls back. OKT-161 dropped the desktop's host-only Logs/Terminal entries
+    // (logs are a panel, the terminal a dock), so its model is the reference's
+    // core sections and carries neither route — exactly like the browser's.
     let desktop = desktop_sections();
-    assert_eq!(resolve_route("/logs", &desktop), "/logs");
-    assert_eq!(resolve_route("/terminal", &desktop), "/terminal");
+    for route in ["/logs", "/terminal"] {
+        assert_eq!(resolve_route(route, &desktop), "/", "{route}");
+    }
 }
 
 #[test]

@@ -457,10 +457,10 @@ async fn the_host_resolves_the_route_it_was_asked_for() {
     let app = app(Arc::new(Bridge::new()), dir.path());
 
     for (path, route, page) in [
-        ("/", "/", "Cluster"),
-        ("/cluster", "/cluster", "Cluster"),
-        ("/workloads", "/workloads", "Workloads"),
-        ("/config", "/config", "Config"),
+        ("/", "/", "Overview"),
+        ("/cluster", "/cluster", "Nodes"),
+        ("/workloads", "/workloads", "Pods"),
+        ("/config", "/config", "ConfigMaps"),
     ] {
         let (status, body) = get_body(app.clone(), path).await;
         assert_eq!(status, StatusCode::OK, "{path}");
@@ -501,7 +501,7 @@ async fn an_unknown_path_falls_back_to_the_home_route() {
             "{path} must fall back to the home route: {body}"
         );
         assert!(
-            body.contains("data-page=\"Cluster\""),
+            body.contains("data-page=\"Overview\""),
             "{path} must paint the home route's head: {body}"
         );
     }
@@ -514,7 +514,7 @@ async fn the_unwired_routes_are_declared_not_invented() {
     let dir = temp_root();
     let app = app(Arc::new(Bridge::new()), dir.path());
 
-    for (path, page) in [("/cluster", "Cluster"), ("/config", "Config")] {
+    for (path, page) in [("/cluster", "Nodes"), ("/config", "ConfigMaps")] {
         let (status, body) = get_body(app.clone(), path).await;
         assert_eq!(status, StatusCode::OK, "{path}");
         assert!(
@@ -546,7 +546,7 @@ async fn the_workloads_route_paints_the_clusters_pods() {
 
     for rendered in [
         "data-route=\"/workloads\"",
-        "data-page=\"Workloads\"",
+        "data-page=\"Pods\"",
         "class=\"nav-item active\"",
         "data-surface=\"workloads\"",
         "class=\"resource-table\"",
