@@ -35,7 +35,7 @@ Each environment answers one question, and together they cover a change end to e
 | Environment | Question | Reached by |
 | --- | --- | --- |
 | preview | does this change do what I think? | the `preview` label, at `pr<N>-openkite.maklab.net` |
-| staging | does this build? | the `staging` label, at `staging-openkite.maklab.net` |
+| staging | does this build? | the `staging` label, at `staging.openkite.maklab.net` |
 | prod | does this release? | a merge to `main`, at `openkite.maklab.net` |
 
 **Preview** puts the branch's browser bundle on top of the newest release the branch is

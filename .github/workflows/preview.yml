@@ -149,7 +149,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           tag: pr-${{ github.event.pull_request.number }}
           pin-sha-tag: 'true'
-          host: staging-openkite.maklab.net
+          host: staging.openkite.maklab.net
 
   withdraw-staging:
     name: Withdraw the staging label when the image failed
