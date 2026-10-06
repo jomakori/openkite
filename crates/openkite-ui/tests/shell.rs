@@ -200,6 +200,7 @@ fn status_bar_states_the_push_mode() {
             "{want} missing from {bar:?}"
         );
     }
+}
 
 /// The bottom bar is a second view of this model, never a second route list.
 #[test]

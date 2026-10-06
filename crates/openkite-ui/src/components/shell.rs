@@ -32,8 +32,7 @@ use crate::components::secret_detail::SecretDetail;
 use crate::runtime::{cluster_switch_can_render, native_chrome_can_render};
 use crate::shell::{
     bottom_tabs, breadcrumbs, initials, plugin_section_variant, status_rows, Crumb, ShellNavItem,
-    ShellSection,
-    StatusBarEntry,
+    ShellSection, StatusBarEntry,
 };
 
 /// The cluster the console is pointed at, as the sidebar's cluster button

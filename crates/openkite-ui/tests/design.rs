@@ -938,6 +938,8 @@ fn namespace_strip_is_one_hidden_scrollbar_line_with_scroll_snap() {
     assert!(
         circles.contains("border-radius: var(--r-pill)"),
         "…and circular: {circles}"
+    );
+}
 
 /// The ≤767px half of the shell (OKT-166): the bar is a below-768px
 /// affordance and the view scrolls clear of it.
