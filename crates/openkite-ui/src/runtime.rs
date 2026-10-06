@@ -4,7 +4,7 @@
 //! action) and read by the shared UI. Dioxus global signals are backed by the
 //! runtime, so a host must write them inside the VirtualDom's runtime.
 
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock, RwLock};
 
 use dioxus::prelude::*;
 use openkite_api::capability::{Capabilities, GatewayKind};
@@ -12,6 +12,8 @@ use openkite_api::gateway::Gateway;
 use openkite_api::pod::{LineBuffer, PodObject};
 use openkite_api::secret::SecretObject;
 use serde_json::Value;
+
+use crate::components::resource_pane::ResourceDetail;
 
 /// The secret the detail slide-over shows (`None` = closed).
 pub static SELECTED_SECRET: GlobalSignal<Option<SecretObject>> = Signal::global(|| None);
@@ -24,13 +26,46 @@ pub static SELECTED_POD: GlobalSignal<Option<PodObject>> = Signal::global(|| Non
 /// Open the pod slide-over for `pod`. Convenience for the host adapters that
 /// own a kube `Pod` — this helper takes the owned contract shape directly so
 /// the host never imports Dioxus globals.
+///
+/// The pod slide-over and the resource detail pane share the right edge's one
+/// stop, so opening this closes the pane rather than overlapping it.
 pub fn set_selected_pod(pod: Option<PodObject>) {
+    if pod.is_some() {
+        *RESOURCE_SELECTION.write() = None;
+    }
     *SELECTED_POD.write() = pod;
 }
 
 /// Close the pod slide-over.
 pub fn clear_selected_pod() {
     set_selected_pod(None);
+}
+
+/// The resource the detail pane shows (`None` = closed).
+///
+/// One slot, one pane: a new selection REPLACES the previous one, which is what
+/// keeps a second click from stacking panes, and the pane is never dismissed in
+/// order to switch resources. The selection is what the address carries, so the
+/// type is serde-shaped (see `components::resource_pane`).
+pub static RESOURCE_SELECTION: GlobalSignal<Option<ResourceDetail>> = Signal::global(|| None);
+
+/// Open the resource detail pane for `detail`, replacing whatever it showed.
+///
+/// The right edge has one stop: the pane and the pod slide-over are the same
+/// slot, so opening one closes the other rather than overlapping in place.
+pub fn select_resource(detail: ResourceDetail) {
+    *SELECTED_POD.write() = None;
+    *RESOURCE_SELECTION.write() = Some(detail);
+}
+
+/// Close the resource detail pane.
+pub fn clear_resource_selection() {
+    *RESOURCE_SELECTION.write() = None;
+}
+
+/// The resource the detail pane is showing, if any.
+pub fn selected_resource() -> Option<ResourceDetail> {
+    RESOURCE_SELECTION.read().clone()
 }
 
 /// Streaming log buffer the log viewer renders. The host populates this when
@@ -96,6 +131,67 @@ pub fn set_push_mode(mode: PushMode) {
 /// The host's push mode.
 pub fn push_mode() -> PushMode {
     *PUSH_MODE.read()
+}
+
+/// The namespace names the console's bar offers.
+pub static NAMESPACE_OPTIONS: GlobalSignal<Vec<String>> = Signal::global(Vec::new);
+
+/// The selected namespaces; empty means "all namespaces".
+pub static NAMESPACE_SELECTION: GlobalSignal<Vec<String>> = Signal::global(Vec::new);
+
+/// Runtime-free mirror of [`NAMESPACE_SELECTION`].
+static SELECTION_SCOPE: OnceLock<RwLock<Vec<String>>> = OnceLock::new();
+
+fn selection_scope_store() -> &'static RwLock<Vec<String>> {
+    SELECTION_SCOPE.get_or_init(|| RwLock::new(Vec::new()))
+}
+
+/// The selected namespaces, readable without a Dioxus runtime.
+///
+/// The host's snapshot and push paths run on plain tokio tasks, so they cannot
+/// read [`NAMESPACE_SELECTION`]; they scope by this instead.
+pub fn namespace_selection_scope() -> Vec<String> {
+    selection_scope_store()
+        .read()
+        .map(|scope| scope.clone())
+        .unwrap_or_default()
+}
+
+/// Publish the namespace list the bar offers.
+pub fn set_namespace_options(namespaces: Vec<String>) {
+    *NAMESPACE_OPTIONS.write() = namespaces;
+}
+
+/// The namespace names the bar offers (empty before the host publishes them).
+pub fn namespace_options() -> Vec<String> {
+    NAMESPACE_OPTIONS.read().clone()
+}
+
+/// Publish the selected namespace set (`[]` = all namespaces).
+pub fn set_namespace_selection(namespaces: Vec<String>) {
+    if let Ok(mut scope) = selection_scope_store().write() {
+        *scope = namespaces.clone();
+    }
+    *NAMESPACE_SELECTION.write() = namespaces;
+}
+
+/// The selected namespace set (`[]` = all namespaces).
+pub fn selected_namespaces() -> Vec<String> {
+    NAMESPACE_SELECTION.read().clone()
+}
+
+/// Toggle one namespace in the selection, preserving insertion order.
+pub fn toggle_namespace(namespace: String) {
+    let next = crate::components::namespace_bar::toggle_selection(
+        &namespace_selection_scope(),
+        &namespace,
+    );
+    set_namespace_selection(next);
+}
+
+/// Clear every selection back to "all namespaces".
+pub fn clear_namespace_selection() {
+    set_namespace_selection(Vec::new());
 }
 
 /// Whether the viewer is in follow-tail mode. Same rationale as

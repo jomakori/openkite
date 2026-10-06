@@ -27,10 +27,12 @@ use dioxus::prelude::*;
 
 use crate::components::crud_modal::CrudOverlay;
 use crate::components::pod_detail::PodDetail;
+use crate::components::resource_pane::ResourcePane;
 use crate::components::secret_detail::SecretDetail;
 use crate::runtime::{cluster_switch_can_render, native_chrome_can_render};
 use crate::shell::{
-    breadcrumbs, initials, status_rows, Crumb, ShellNavItem, ShellSection, StatusBarEntry,
+    breadcrumbs, initials, plugin_section_variant, status_rows, Crumb, ShellNavItem, ShellSection,
+    StatusBarEntry,
 };
 
 /// The cluster the console is pointed at, as the sidebar's cluster button
@@ -116,6 +118,7 @@ pub fn AppShell(
                 {chrome}
             }
             PodDetail {}
+            ResourcePane {}
             SecretDetail {}
             CrudOverlay {}
             Sidebar {
@@ -190,24 +193,10 @@ pub fn Sidebar(
                 ClusterButton { cluster, on_switch: on_switch_cluster }
             }
             nav { class: "nav", aria_label: "Resource navigation",
-                for section in sections.iter().cloned() {
-                    div { class: "nav-section",
-                        if !section.label.is_empty() {
-                            div {
-                                class: "nav-title",
-                                style: section.accent.as_ref().map(|accent| format!("color: {accent}")),
-                                "{section.label}"
-                            }
-                        }
-                        for item in section.items.iter().cloned() {
-                            NavItem {
-                                item,
-                                current_route: current_route.clone(),
-                                accent: section.accent.clone(),
-                                on_navigate,
-                            }
-                        }
-                    }
+                NavSections {
+                    sections: sections.clone(),
+                    current_route: current_route.clone(),
+                    on_navigate,
                 }
                 if !native_chrome_can_render() {
                     div { class: "nav-section",
@@ -224,6 +213,137 @@ pub fn Sidebar(
             SidebarFooter { entries: status }
         }
     }
+}
+
+/// One sidebar entry with the state the shell resolved for it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct NavEntry {
+    item: ShellNavItem,
+    /// The entry the current route lands on. A route's owner is its first
+    /// carrier, the same rule the breadcrumbs use.
+    active: bool,
+}
+
+/// One sidebar block as the shell renders it: heading, accent and entries.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct NavBlock {
+    label: String,
+    /// The contributing plugin, for a plugin-owned block (`None` = core).
+    plugin: Option<String>,
+    /// The contributor's inline accent, when it named one.
+    accent: Option<String>,
+    entries: Vec<NavEntry>,
+}
+
+/// The sidebar's navigation: the shell's own sections, then the plugin slot.
+///
+/// Core sections are built from the shared model with the live counts the host
+/// published; everything a plugin contributed renders through
+/// [`PluginNavSlot`], never through the core list and never as plugin markup.
+#[component]
+fn NavSections(
+    sections: Vec<ShellSection>,
+    current_route: String,
+    #[props(default)] on_navigate: Option<EventHandler<String>>,
+) -> Element {
+    let (core, plugins): (Vec<ShellSection>, Vec<ShellSection>) = sections
+        .into_iter()
+        .partition(|section| !section.is_plugin());
+
+    let mut claimed = false;
+    let mut resolve = |section: ShellSection| NavBlock {
+        plugin: section.plugin().map(str::to_string),
+        label: section.label,
+        accent: section.accent,
+        entries: section
+            .items
+            .into_iter()
+            .map(|item| {
+                let active = !claimed && item.route == current_route;
+                claimed |= active;
+                NavEntry { item, active }
+            })
+            .collect(),
+    };
+    let core: Vec<NavBlock> = core.into_iter().map(&mut resolve).collect();
+    let plugins: Vec<NavBlock> = plugins.into_iter().map(&mut resolve).collect();
+
+    rsx! {
+        for block in core {
+            CoreNavSection { block, on_navigate }
+        }
+        PluginNavSlot { plugins, on_navigate }
+    }
+}
+
+/// One core section: the shell's own heading and entries.
+#[component]
+fn CoreNavSection(
+    block: NavBlock,
+    #[props(default)] on_navigate: Option<EventHandler<String>>,
+) -> Element {
+    rsx! {
+        div { class: "nav-section",
+            if !block.label.is_empty() {
+                div { class: "nav-title", style: accent_style(&block.accent), "{block.label}" }
+            }
+            for entry in block.entries.iter().cloned() {
+                NavItem {
+                    item: entry.item,
+                    active: entry.active,
+                    accent: block.accent.clone(),
+                    on_navigate,
+                }
+            }
+        }
+    }
+}
+
+/// The plugin section slot: every section a plugin contributed renders here,
+/// styled by the shell, including the reference's per-plugin variant.
+#[component]
+fn PluginNavSlot(
+    #[props(default)] plugins: Vec<NavBlock>,
+    #[props(default)] on_navigate: Option<EventHandler<String>>,
+) -> Element {
+    rsx! {
+        for block in plugins {
+            PluginNavSection { block, on_navigate }
+        }
+    }
+}
+
+/// One plugin-owned section, in the shell's plugin slot.
+#[component]
+fn PluginNavSection(
+    block: NavBlock,
+    #[props(default)] on_navigate: Option<EventHandler<String>>,
+) -> Element {
+    let class = match block.plugin.as_deref().and_then(plugin_section_variant) {
+        Some(variant) => format!("nav-section {variant}"),
+        None => "nav-section".to_string(),
+    };
+    rsx! {
+        div { class: "{class}", "data-plugin": "{block.label}",
+            if !block.label.is_empty() {
+                div { class: "nav-title", style: accent_style(&block.accent), "{block.label}" }
+            }
+            for entry in block.entries.iter().cloned() {
+                NavItem {
+                    item: entry.item,
+                    active: entry.active,
+                    accent: block.accent.clone(),
+                    on_navigate,
+                }
+            }
+        }
+    }
+}
+
+/// The inline accent a section's heading and entries carry (`None` = the
+/// stylesheet's own colour, no inline style).
+fn accent_style(accent: &Option<String>) -> Option<String> {
+    accent.as_ref().map(|accent| format!("color: {accent}"))
 }
 
 /// The sidebar's cluster button: the context the console is pointed at, with
@@ -393,11 +513,12 @@ fn PullIndicator() -> Element {
 #[component]
 fn NavItem(
     item: ShellNavItem,
-    current_route: String,
+    // Whether this is the entry the current route lands on; the parent
+    // resolves ownership, so only one entry per route is current.
+    #[props(default)] active: bool,
     #[props(default)] accent: Option<String>,
     #[props(default)] on_navigate: Option<EventHandler<String>>,
 ) -> Element {
-    let active = item.route == current_route;
     let plugin = item.plugin.is_some();
     let route = item.route.clone();
     let onclick = move |event: Event<MouseData>| {

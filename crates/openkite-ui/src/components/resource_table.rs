@@ -8,11 +8,12 @@
 #![allow(non_snake_case)]
 
 use std::cmp::Ordering;
-use std::collections::HashSet;
 use std::ops::Range;
 
 use dioxus::prelude::*;
+use serde::{Deserialize, Serialize};
 
+use crate::components::namespace_bar::selection_matches;
 use crate::components::status_badge::{StatusKind, StatusPill};
 
 /// Fixed row height for virtualization, in pixels.
@@ -39,7 +40,7 @@ impl SortDirection {
 }
 
 /// Normalized sort key so text and numeric columns order sanely.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum SortKey {
     Text(String),
     Number(f64),
@@ -76,18 +77,11 @@ pub fn matches_query(text: &str, query: &str) -> bool {
     needle.is_empty() || text.to_lowercase().contains(&needle)
 }
 
-/// Multi-select namespace filter. An empty selection shows every row,
-/// cluster-scoped rows (no namespace) pass unless a filter is active.
-pub fn namespace_filter(rows: &[ResourceRow], selected: &HashSet<String>) -> Vec<ResourceRow> {
-    if selected.is_empty() {
-        return rows.to_vec();
-    }
+/// Scope rows to the console's namespace selection; an empty selection shows
+/// every row, and cluster-scoped rows (no namespace) stay visible.
+pub fn namespace_filter(rows: &[ResourceRow], selected: &[String]) -> Vec<ResourceRow> {
     rows.iter()
-        .filter(|row| {
-            row.namespace
-                .as_deref()
-                .is_some_and(|ns| selected.contains(ns))
-        })
+        .filter(|row| selection_matches(selected, row.namespace.as_deref()))
         .cloned()
         .collect()
 }
@@ -105,7 +99,7 @@ pub fn visible_range(scroll_top: f64, viewport_height: f64, total_rows: usize) -
 }
 
 /// A single table cell: display text, optional status badge, and a sort key.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Cell {
     pub text: String,
     pub status: Option<StatusKind>,
@@ -117,7 +111,7 @@ pub struct Cell {
 
 /// Rich per-cell render payload. The health-dot row is the only shape so far;
 /// future kinds (sparkline, progress bar) extend this enum.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub enum CellExtras {
     /// No extra rendering: plain text or a status pill.
     #[default]
@@ -127,7 +121,7 @@ pub enum CellExtras {
 }
 
 /// One container's readiness dot.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HealthDot {
     Ok,
     Err,
@@ -158,8 +152,9 @@ impl Cell {
         }
     }
 
-    /// Numeric cell; sorts numerically, displays `text`.
+    /// Numeric cell; a non-finite key is stored finite, so the snapshot stays JSON.
     pub fn number(text: impl Into<String>, value: f64) -> Self {
+        let value = if value.is_finite() { value } else { f64::MAX };
         Self {
             text: text.into(),
             sort: SortKey::Number(value),
@@ -187,7 +182,7 @@ impl Cell {
 }
 
 /// A concrete, display-ready table row.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ResourceRow {
     pub id: String,
     pub namespace: Option<String>,
@@ -211,10 +206,10 @@ impl ResourceRow {
 }
 
 /// A column definition (cells are pre-built; no per-cell render closure).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ColumnDef {
-    pub key: &'static str,
-    pub label: &'static str,
+    pub key: String,
+    pub label: String,
     pub width: Option<u32>,
     pub sortable: bool,
 }
@@ -254,13 +249,16 @@ pub fn ResourceTable(
     rows: Vec<ResourceRow>,
     #[props(default)] status: TableStatus,
     #[props(default)] empty_message: Option<String>,
+    /// The row id the detail pane is showing, so the list keeps a visible
+    /// selection while the pane is open (the row-selection path sets it).
+    #[props(default)]
+    selected_row: Option<String>,
     #[props(default)] row_actions: Option<RowActions>,
     #[props(default)] on_row_click: Option<EventHandler<ResourceRow>>,
     #[props(default = 600.0)] height: f64,
 ) -> Element {
     let sort = use_signal(|| None::<(usize, SortDirection)>);
     let mut query = use_signal(String::new);
-    let namespace = use_signal(HashSet::<String>::new);
 
     match status {
         TableStatus::Loading => rsx! { div { class: "table-state", "Loading…" } },
@@ -268,7 +266,7 @@ pub fn ResourceTable(
             rsx! { div { class: "table-state table-error", "{message}" } }
         }
         TableStatus::Ready => {
-            let selected: HashSet<String> = namespace.read().clone();
+            let selected: Vec<String> = crate::runtime::NAMESPACE_SELECTION.read().clone();
             let mut view: Vec<ResourceRow> = namespace_filter(&rows, &selected)
                 .into_iter()
                 .filter(|row| matches_query(&row.search_text(), &query()))
@@ -281,18 +279,6 @@ pub fn ResourceTable(
                 let message = empty_message.unwrap_or_else(|| "No resources".to_string());
                 return rsx! { div { class: "table-state table-empty", "{message}" } };
             }
-
-            let mut namespaces: Vec<String> = rows
-                .iter()
-                .filter_map(|row| row.namespace.clone())
-                .collect();
-            namespaces.sort();
-            namespaces.dedup();
-            let mut chips: Vec<(String, bool)> = vec![("All".to_string(), selected.is_empty())];
-            chips.extend(namespaces.into_iter().map(|ns| {
-                let active = selected.contains(&ns);
-                (ns, active)
-            }));
 
             rsx! {
                 div { class: "panel",
@@ -307,9 +293,6 @@ pub fn ResourceTable(
                                         oninput: move |event| query.set(event.value()),
                                     }
                                 }
-                                for (label, active) in chips.into_iter() {
-                                    { namespace_chip(label, active, namespace) }
-                                }
                             }
                             div { class: "table-header table-row",
                                 for (i, column) in columns.iter().enumerate() {
@@ -321,6 +304,7 @@ pub fn ResourceTable(
                                 columns: columns.clone(),
                                 row_actions: row_actions.clone(),
                                 on_row_click,
+                                selected_row: selected_row.clone(),
                                 height,
                             }
                         }
@@ -337,8 +321,8 @@ fn header_cell(
     column: &ColumnDef,
     sort: Signal<Option<(usize, SortDirection)>>,
 ) -> Element {
-    let key = column.key;
-    let label = column.label;
+    let key = column.key.clone();
+    let label = column.label.clone();
     let width = column.width;
     let sortable = column.sortable;
     let direction = sort().and_then(|(active, dir)| (active == index).then_some(dir));
@@ -363,29 +347,6 @@ fn header_cell(
     }
 }
 
-/// Render a multi-select namespace chip. The synthetic "All" chip clears the
-/// selection so cluster-scoped rows (no namespace) reappear.
-fn namespace_chip(label: String, active: bool, mut namespace: Signal<HashSet<String>>) -> Element {
-    let is_all = label == "All";
-    let label_for_click = label.clone();
-    rsx! {
-        button {
-            key: "{label}",
-            class: if active { "chip active" } else { "chip" },
-            onclick: move |_| {
-                if is_all {
-                    namespace.write().clear();
-                } else if namespace.read().contains(&label_for_click) {
-                    namespace.write().remove(&label_for_click);
-                } else {
-                    namespace.write().insert(label_for_click.clone());
-                }
-            },
-            "{label}"
-        }
-    }
-}
-
 /// The scrollable, virtualized body of the table. Holds scroll state so that
 /// scrolling re-renders only the visible window, never the full sorted list.
 #[component]
@@ -394,6 +355,7 @@ fn TableBody(
     columns: Vec<ColumnDef>,
     row_actions: Option<RowActions>,
     on_row_click: Option<EventHandler<ResourceRow>>,
+    selected_row: Option<String>,
     height: f64,
 ) -> Element {
     let mut scroll_top = use_signal(|| 0.0f64);
@@ -404,6 +366,7 @@ fn TableBody(
     let slice = &view[range];
     let total_height = total as f64 * ROW_HEIGHT;
     let widths: Vec<Option<u32>> = columns.iter().map(|column| column.width).collect();
+    let labels: Vec<String> = columns.iter().map(|column| column.label.clone()).collect();
 
     rsx! {
         div {
@@ -415,11 +378,12 @@ fn TableBody(
                     {
                         render_table_row(
                             row,
-                            offset,
-                            start,
+                            (start + offset) as f64 * ROW_HEIGHT,
                             &widths,
+                            &labels,
                             row_actions.clone(),
                             on_row_click,
+                            selected_row.clone(),
                         )
                     }
                 }
@@ -431,20 +395,29 @@ fn TableBody(
 /// Render a single virtualized table row (absolute-positioned).
 fn render_table_row(
     row: &ResourceRow,
-    offset: usize,
-    start: usize,
+    top: f64,
     widths: &[Option<u32>],
+    labels: &[String],
     row_actions: Option<RowActions>,
     on_row_click: Option<EventHandler<ResourceRow>>,
+    selected_row: Option<String>,
 ) -> Element {
-    let top = (start + offset) as f64 * ROW_HEIGHT;
     let row_id = row.id.clone();
     let row_for_click = row.clone();
     let handler = on_row_click;
+    // The list keeps its selection: the row the pane is showing stays marked
+    // while the pane is open, and the table itself is never remounted.
+    let is_selected = selected_row.as_deref() == Some(row.id.as_str());
+    let class = if is_selected {
+        "table-row selected"
+    } else {
+        "table-row"
+    };
     rsx! {
         div {
             key: "{row_id}",
-            class: "table-row",
+            class: "{class}",
+            "aria-selected": "{is_selected}",
             style: "position: absolute; top: {top}px; height: {ROW_HEIGHT}px; left: 0; right: 0;",
             onclick: move |_| {
                 if let Some(h) = handler {
@@ -452,7 +425,14 @@ fn render_table_row(
                 }
             },
             for (i, cell) in row.cells.iter().enumerate() {
-                { render_table_cell(cell, i, widths.get(i).copied().flatten()) }
+                {
+                    render_table_cell(
+                        cell,
+                        i,
+                        widths.get(i).copied().flatten(),
+                        labels.get(i).map(String::as_str),
+                    )
+                }
             }
             if let Some(actions) = row_actions {
                 { render_row_actions(&row_id, &actions) }
@@ -462,8 +442,14 @@ fn render_table_row(
 }
 
 /// Render a single table cell (plain text, status pill, or rich extra).
-fn render_table_cell(cell: &Cell, index: usize, width: Option<u32>) -> Element {
+fn render_table_cell(
+    cell: &Cell,
+    index: usize,
+    width: Option<u32>,
+    label: Option<&str>,
+) -> Element {
     let style = width.map(|w| format!("width: {w}px")).unwrap_or_default();
+    let label = label.unwrap_or_default();
     let dot_classes: Vec<&'static str> = match &cell.extras {
         CellExtras::HealthDots(dots) => dots
             .iter()
@@ -479,6 +465,7 @@ fn render_table_cell(cell: &Cell, index: usize, width: Option<u32>) -> Element {
             div {
                 key: "{index}",
                 class: "table-cell health-dots",
+                "data-label": "{label}",
                 style: "{style}",
                 if dot_classes.is_empty() {
                     span { "—" }
@@ -494,6 +481,7 @@ fn render_table_cell(cell: &Cell, index: usize, width: Option<u32>) -> Element {
                 div {
                     key: "{index}",
                     class: "table-cell",
+                    "data-label": "{label}",
                     style: "{style}",
                     StatusPill { status: kind }
                 }
@@ -502,6 +490,7 @@ fn render_table_cell(cell: &Cell, index: usize, width: Option<u32>) -> Element {
                 div {
                     key: "{index}",
                     class: "table-cell",
+                    "data-label": "{label}",
                     style: "{style}",
                     span { "{cell.text}" }
                 }

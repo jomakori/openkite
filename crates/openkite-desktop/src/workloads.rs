@@ -92,22 +92,22 @@ impl WorkloadKind {
 /// columns, Age second-to-last, Status last — the order `kubectl get` uses.
 fn kind_columns(middle: &[ColumnDef]) -> Vec<ColumnDef> {
     let mut columns = vec![ColumnDef {
-        key: "name",
-        label: "Name",
+        key: "name".into(),
+        label: "Name".into(),
         width: None,
         sortable: true,
     }];
     columns.extend(middle.iter().cloned());
     columns.extend([
         ColumnDef {
-            key: "age",
-            label: "Age",
+            key: "age".into(),
+            label: "Age".into(),
             width: Some(80),
             sortable: true,
         },
         ColumnDef {
-            key: "status",
-            label: "Status",
+            key: "status".into(),
+            label: "Status".into(),
             width: Some(110),
             sortable: true,
         },
@@ -232,38 +232,38 @@ fn qos_cell(pod: &Pod) -> Cell {
 pub fn pod_columns() -> Vec<ColumnDef> {
     kind_columns(&[
         ColumnDef {
-            key: "health",
-            label: "Health",
+            key: "health".into(),
+            label: "Health".into(),
             width: Some(70),
             sortable: true,
         },
         ColumnDef {
-            key: "ready",
-            label: "Ready",
+            key: "ready".into(),
+            label: "Ready".into(),
             width: Some(80),
             sortable: true,
         },
         ColumnDef {
-            key: "restarts",
-            label: "Restarts",
+            key: "restarts".into(),
+            label: "Restarts".into(),
             width: Some(90),
             sortable: true,
         },
         ColumnDef {
-            key: "controller",
-            label: "Controller",
+            key: "controller".into(),
+            label: "Controller".into(),
             width: Some(220),
             sortable: true,
         },
         ColumnDef {
-            key: "node",
-            label: "Node",
+            key: "node".into(),
+            label: "Node".into(),
             width: Some(140),
             sortable: true,
         },
         ColumnDef {
-            key: "qos",
-            label: "QoS",
+            key: "qos".into(),
+            label: "QoS".into(),
             width: Some(110),
             sortable: true,
         },
@@ -339,14 +339,14 @@ fn pod_restarts(pod: &Pod) -> i32 {
 pub fn node_columns() -> Vec<ColumnDef> {
     kind_columns(&[
         ColumnDef {
-            key: "roles",
-            label: "Roles",
+            key: "roles".into(),
+            label: "Roles".into(),
             width: Some(180),
             sortable: true,
         },
         ColumnDef {
-            key: "conditions",
-            label: "Conditions",
+            key: "conditions".into(),
+            label: "Conditions".into(),
             width: Some(300),
             sortable: false,
         },
@@ -438,26 +438,26 @@ fn node_conditions_cell(node: &k8s_openapi::api::core::v1::Node) -> Cell {
 pub fn deployment_columns() -> Vec<ColumnDef> {
     kind_columns(&[
         ColumnDef {
-            key: "ready",
-            label: "Ready",
+            key: "ready".into(),
+            label: "Ready".into(),
             width: Some(90),
             sortable: true,
         },
         ColumnDef {
-            key: "updated",
-            label: "Up-to-date",
+            key: "updated".into(),
+            label: "Up-to-date".into(),
             width: Some(100),
             sortable: true,
         },
         ColumnDef {
-            key: "available",
-            label: "Available",
+            key: "available".into(),
+            label: "Available".into(),
             width: Some(100),
             sortable: true,
         },
         ColumnDef {
-            key: "controller",
-            label: "Controller",
+            key: "controller".into(),
+            label: "Controller".into(),
             width: Some(220),
             sortable: true,
         },
@@ -504,14 +504,14 @@ pub fn deployment_row(d: &Deployment) -> ResourceRow {
 pub fn stateful_set_columns() -> Vec<ColumnDef> {
     kind_columns(&[
         ColumnDef {
-            key: "ready",
-            label: "Ready",
+            key: "ready".into(),
+            label: "Ready".into(),
             width: Some(90),
             sortable: true,
         },
         ColumnDef {
-            key: "updated",
-            label: "Up-to-date",
+            key: "updated".into(),
+            label: "Up-to-date".into(),
             width: Some(100),
             sortable: true,
         },
@@ -551,26 +551,26 @@ pub fn stateful_set_row(s: &StatefulSet) -> ResourceRow {
 pub fn daemon_set_columns() -> Vec<ColumnDef> {
     kind_columns(&[
         ColumnDef {
-            key: "ready",
-            label: "Ready",
+            key: "ready".into(),
+            label: "Ready".into(),
             width: Some(90),
             sortable: true,
         },
         ColumnDef {
-            key: "desired",
-            label: "Desired",
+            key: "desired".into(),
+            label: "Desired".into(),
             width: Some(90),
             sortable: true,
         },
         ColumnDef {
-            key: "current",
-            label: "Current",
+            key: "current".into(),
+            label: "Current".into(),
             width: Some(90),
             sortable: true,
         },
         ColumnDef {
-            key: "available",
-            label: "Available",
+            key: "available".into(),
+            label: "Available".into(),
             width: Some(100),
             sortable: true,
         },
@@ -617,14 +617,14 @@ pub fn daemon_set_row(ds: &DaemonSet) -> ResourceRow {
 pub fn replica_set_columns() -> Vec<ColumnDef> {
     kind_columns(&[
         ColumnDef {
-            key: "ready",
-            label: "Ready",
+            key: "ready".into(),
+            label: "Ready".into(),
             width: Some(90),
             sortable: true,
         },
         ColumnDef {
-            key: "desired",
-            label: "Desired",
+            key: "desired".into(),
+            label: "Desired".into(),
             width: Some(90),
             sortable: true,
         },
@@ -659,14 +659,14 @@ pub fn replica_set_row(rs: &ReplicaSet) -> ResourceRow {
 pub fn job_columns() -> Vec<ColumnDef> {
     kind_columns(&[
         ColumnDef {
-            key: "completions",
-            label: "Completions",
+            key: "completions".into(),
+            label: "Completions".into(),
             width: Some(110),
             sortable: true,
         },
         ColumnDef {
-            key: "duration",
-            label: "Duration",
+            key: "duration".into(),
+            label: "Duration".into(),
             width: Some(100),
             sortable: true,
         },
@@ -724,20 +724,20 @@ pub fn job_row(job: &Job) -> ResourceRow {
 pub fn cron_job_columns() -> Vec<ColumnDef> {
     kind_columns(&[
         ColumnDef {
-            key: "schedule",
-            label: "Schedule",
+            key: "schedule".into(),
+            label: "Schedule".into(),
             width: Some(140),
             sortable: true,
         },
         ColumnDef {
-            key: "suspend",
-            label: "Suspend",
+            key: "suspend".into(),
+            label: "Suspend".into(),
             width: Some(90),
             sortable: true,
         },
         ColumnDef {
-            key: "last_schedule",
-            label: "Last schedule",
+            key: "last_schedule".into(),
+            label: "Last schedule".into(),
             width: Some(120),
             sortable: true,
         },
@@ -779,14 +779,14 @@ pub fn cron_job_row(cj: &CronJob) -> ResourceRow {
 pub fn secret_columns() -> Vec<ColumnDef> {
     kind_columns(&[
         ColumnDef {
-            key: "type",
-            label: "Type",
+            key: "type".into(),
+            label: "Type".into(),
             width: Some(120),
             sortable: true,
         },
         ColumnDef {
-            key: "keys",
-            label: "Keys",
+            key: "keys".into(),
+            label: "Keys".into(),
             width: Some(80),
             sortable: true,
         },

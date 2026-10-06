@@ -23,6 +23,7 @@
 
 use dioxus::prelude::*;
 
+use crate::components::namespace_bar::NamespaceBar;
 use crate::runtime::{
     cluster_switch_can_render, mutations_can_render, plugin_route_can_render, terminal_can_render,
 };
@@ -320,6 +321,20 @@ fn route_path(route: &str) -> String {
     }
 }
 
+/// The route a request path resolves to: the path the chrome owns, else `/`.
+pub fn resolve_route(route: &str, sections: &[ShellSection]) -> String {
+    let route = route_path(route);
+    let primary = matches!(route.as_str(), "/" | "/cluster" | "/workloads" | "/config");
+    let navigable = sections
+        .iter()
+        .any(|section| section.items.iter().any(|item| item.route == route));
+    if primary || navigable {
+        route
+    } else {
+        "/".to_string()
+    }
+}
+
 /// The route's chrome, mounted by both hosts inside the shell's `.view`.
 ///
 /// `route` is what the host resolved (the URL path); `sections` is the same
@@ -356,27 +371,7 @@ pub fn RouteView(
                 }
             }
             div { class: "toolbar", "data-toolbar": "{page.route}",
-                div {
-                    class: "chip-row",
-                    role: "group",
-                    aria_label: "Namespace filter",
-                    "data-empty": if filter_unsupported { Some("namespaces") } else { None },
-                    if filter_unsupported {
-                        button {
-                            class: "chip",
-                            r#type: "button",
-                            disabled: true,
-                            "data-unsupported": "namespace-filter",
-                            title: "This host has no namespace inventory to filter by.",
-                            "No namespaces"
-                        }
-                    } else {
-                        button { class: "chip active", r#type: "button", "data-ns": "all", "All" }
-                        for namespace in namespaces.iter().cloned() {
-                            button { class: "chip", r#type: "button", "data-ns": "{namespace}", "{namespace}" }
-                        }
-                    }
-                }
+                NamespaceBar { options: namespaces.clone() }
                 if busy {
                     span { class: "spinner", "data-state": "loading", title: "Loading {page.title}…" }
                 }

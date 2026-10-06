@@ -17,7 +17,8 @@ use openkite_ui::components::shell::{AppShell, ClusterInfo, ShellIcon, TopBarAct
 use openkite_ui::plugin_api::RegistrationStore;
 use openkite_ui::runtime::{set_published_capabilities, PushMode};
 use openkite_ui::shell::{
-    core_nav, status_bar_model, ShellNavItem, ShellSection, ShellState, StatusBarEntry,
+    core_sections, core_sections_with_counts, status_bar_model, NavCounts, ShellNavItem,
+    ShellSection, ShellState, StatusBarEntry,
 };
 
 // The host descriptor is process-global, exactly like tests/capability_gate.rs:
@@ -45,26 +46,50 @@ fn browser_host() -> std::sync::MutexGuard<'static, ()> {
     guard
 }
 
-/// The desktop's sidebar: the core navigation block, then one plugin section
-/// with the contributor's accent.
+/// The desktop's sidebar: the core sections, then the plugin slot's one
+/// section, carrying the contributor's accent.
 fn desktop_sections() -> Vec<ShellSection> {
-    vec![
-        ShellSection {
-            label: "Overview".into(),
-            accent: None,
-            items: core_nav(true),
-        },
-        ShellSection {
-            label: "argocd".into(),
-            accent: Some("var(--accent)".into()),
-            items: vec![ShellNavItem {
-                label: "Applications".into(),
-                route: "/argocd/apps".into(),
-                plugin: Some("argocd".into()),
-                badge: Some("18".into()),
-            }],
-        },
-    ]
+    let mut sections = core_sections();
+    sections.push(ShellSection {
+        label: "argocd".into(),
+        accent: Some("var(--accent)".into()),
+        items: vec![ShellNavItem {
+            label: "Applications".into(),
+            route: "/argocd/apps".into(),
+            plugin: Some("argocd".into()),
+            badge: Some("18".into()),
+        }],
+    });
+    sections
+}
+
+/// The desktop's sidebar with the counts the reflectors publish.
+fn counted_sections() -> Vec<ShellSection> {
+    core_sections_with_counts(&NavCounts {
+        nodes: Some(8),
+        pods: Some(124),
+        deployments: Some(37),
+        services: Some(29),
+        config_maps: Some(46),
+    })
+}
+
+/// The shell as a connected desktop mounts it: the reference's sections with
+/// the live counts the reflectors published.
+fn counted_shell() -> Element {
+    rsx! {
+        AppShell {
+            sections: counted_sections(),
+            current_route: "/workloads",
+            cluster: Some(ClusterInfo {
+                label: "prod-us-east-1".into(),
+                detail: None,
+                connected: true,
+            }),
+            status: connected_entries(),
+            div { "data-outlet": "counted", "route outlet" }
+        }
+    }
 }
 
 /// The status entries a connected cluster produces.
@@ -225,8 +250,15 @@ fn nav_sections_carry_their_title_badge_and_accent() {
 
     assert!(html.contains("class=\"nav-section\""), "got: {html}");
     assert!(html.contains("class=\"nav-title\""), "got: {html}");
-    assert!(html.contains(">Overview<"), "core title: {html}");
-    assert!(html.contains(">argocd<"), "plugin title: {html}");
+    for title in [
+        ">Cluster<",
+        ">Workloads<",
+        // The SSR pass escapes `&` as `&#38;` in a text node.
+        ">Config &#38; Storage<",
+        ">argocd<",
+    ] {
+        assert!(html.contains(title), "section title {title}: {html}");
+    }
     assert!(
         html.contains("style=\"color: var(--accent)\""),
         "the contributor's accent reaches the title and its entries: {html}"
@@ -244,6 +276,100 @@ fn nav_sections_carry_their_title_badge_and_accent() {
         !html.contains("nav-divider") && !html.contains("nav-section-label"),
         "the old divider/label vocabulary is gone: {html}"
     );
+}
+
+#[test]
+fn core_sections_render_their_entries_and_no_badge_without_counts() {
+    let _host = desktop_host();
+    let html = support::mount_html(desktop_shell, || {});
+
+    for entry in [
+        ">Overview<",
+        ">Nodes<",
+        ">Pods<",
+        ">Deployments<",
+        ">Services<",
+        ">ConfigMaps<",
+        ">Storage<",
+        ">Network<",
+    ] {
+        assert!(html.contains(entry), "core entry {entry}: {html}");
+    }
+    // Disconnected (no counts published): the plugin's own badge is the only
+    // one in the sidebar — the shell renders no zero.
+    assert_eq!(
+        html.matches("class=\"nav-badge\"").count(),
+        1,
+        "only the plugin's badge draws: {html}"
+    );
+    assert!(html.contains(">18<"), "the plugin's count: {html}");
+    assert!(
+        !html.contains(">0<"),
+        "a missing count is absent, never zero: {html}"
+    );
+}
+
+#[test]
+fn live_counts_reach_their_own_rows() {
+    let _host = desktop_host();
+    let html = support::mount_html(counted_shell, || {});
+
+    for badge in [">8<", ">124<", ">37<", ">29<", ">46<"] {
+        assert!(html.contains(badge), "count badge {badge}: {html}");
+    }
+    // One badge per row the reference badges: Nodes, Pods, Deployments,
+    // Services and ConfigMaps. Storage and Network draw none.
+    assert_eq!(
+        html.matches("class=\"nav-badge\"").count(),
+        5,
+        "one badge per positive count: {html}"
+    );
+}
+
+#[test]
+fn the_plugin_slot_renders_a_section_the_shell_does_not_own() {
+    let _host = desktop_host();
+    let html = support::mount_html(desktop_shell, || {});
+
+    // The Argo CD section is the plugin's, and the shell pins the reference's
+    // variant class on it: `.nav-section.argo` is the shell's rule.
+    assert_eq!(
+        html.matches("class=\"nav-section argo\"").count(),
+        1,
+        "exactly the plugin's section carries the argo variant: {html}"
+    );
+    assert!(
+        html.contains("data-plugin=\"argocd\""),
+        "the slot names its contributor: {html}"
+    );
+    assert!(
+        html.contains(">Applications<") && html.contains("href=\"/argocd/apps\""),
+        "the plugin's entries render inside the shell's section: {html}"
+    );
+    assert!(
+        openkite_ui::MAIN_CSS.contains(".nav-section.argo"),
+        "the shell styles the variant the plugin does not own"
+    );
+}
+
+#[test]
+fn the_current_route_marks_exactly_one_entry() {
+    let _host = desktop_host();
+    let html = support::mount_html(desktop_shell, || {});
+
+    // /workloads carries three entries (Pods, Deployments, Services); the
+    // route's owner — its first carrier — is the one marked current.
+    assert_eq!(
+        html.matches("class=\"nav-item active\"").count(),
+        1,
+        "one current entry per route: {html}"
+    );
+    let active_at = html
+        .find("class=\"nav-item active\"")
+        .expect("an active entry");
+    let entry = &html[active_at..];
+    let entry = &entry[..entry.find("</a>").expect("the anchor closes")];
+    assert!(entry.contains(">Pods<"), "the route's owner: {entry}");
 }
 
 #[test]
@@ -284,8 +410,8 @@ fn breadcrumbs_resolve_cluster_section_then_route() {
         "the route is the current crumb: {trail}"
     );
     let cluster = trail.find("prod-us-east-1").expect("cluster crumb");
-    let section = trail.find(">Overview<").expect("section crumb");
-    let current = trail.find(">Workloads<").expect("route crumb");
+    let section = trail.find(">Workloads<").expect("section crumb");
+    let current = trail.find(">Pods<").expect("route crumb");
     assert!(
         cluster < section && section < current,
         "crumbs read cluster → section → route: {trail}"
