@@ -517,7 +517,6 @@ async fn snapshot_lists_gateway_secret_refs_and_preserves_empty_state() {
     assert!(render_body(&disconnected).contains("data-empty=\"secrets\""));
 }
 
-#[test]
 fn every_page_carries_the_shell_stylesheet() {
     let wrapped = format!("<style>{}</style>", openkite_ui::MAIN_CSS);
     for options in [RenderOptions::ssr_only(), RenderOptions::hydrating()] {
