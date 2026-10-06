@@ -321,6 +321,20 @@ fn route_path(route: &str) -> String {
     }
 }
 
+/// The route a request path resolves to: the path the chrome owns, else `/`.
+pub fn resolve_route(route: &str, sections: &[ShellSection]) -> String {
+    let route = route_path(route);
+    let primary = matches!(route.as_str(), "/" | "/cluster" | "/workloads" | "/config");
+    let navigable = sections
+        .iter()
+        .any(|section| section.items.iter().any(|item| item.route == route));
+    if primary || navigable {
+        route
+    } else {
+        "/".to_string()
+    }
+}
+
 /// The route's chrome, mounted by both hosts inside the shell's `.view`.
 ///
 /// `route` is what the host resolved (the URL path); `sections` is the same

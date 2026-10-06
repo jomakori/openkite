@@ -11,6 +11,7 @@ use std::cmp::Ordering;
 use std::ops::Range;
 
 use dioxus::prelude::*;
+use serde::{Deserialize, Serialize};
 
 use crate::components::namespace_bar::selection_matches;
 use crate::components::status_badge::{StatusKind, StatusPill};
@@ -39,7 +40,7 @@ impl SortDirection {
 }
 
 /// Normalized sort key so text and numeric columns order sanely.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum SortKey {
     Text(String),
     Number(f64),
@@ -98,7 +99,7 @@ pub fn visible_range(scroll_top: f64, viewport_height: f64, total_rows: usize) -
 }
 
 /// A single table cell: display text, optional status badge, and a sort key.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Cell {
     pub text: String,
     pub status: Option<StatusKind>,
@@ -110,7 +111,7 @@ pub struct Cell {
 
 /// Rich per-cell render payload. The health-dot row is the only shape so far;
 /// future kinds (sparkline, progress bar) extend this enum.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub enum CellExtras {
     /// No extra rendering: plain text or a status pill.
     #[default]
@@ -120,7 +121,7 @@ pub enum CellExtras {
 }
 
 /// One container's readiness dot.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HealthDot {
     Ok,
     Err,
@@ -151,8 +152,9 @@ impl Cell {
         }
     }
 
-    /// Numeric cell; sorts numerically, displays `text`.
+    /// Numeric cell; a non-finite key is stored finite, so the snapshot stays JSON.
     pub fn number(text: impl Into<String>, value: f64) -> Self {
+        let value = if value.is_finite() { value } else { f64::MAX };
         Self {
             text: text.into(),
             sort: SortKey::Number(value),
@@ -180,7 +182,7 @@ impl Cell {
 }
 
 /// A concrete, display-ready table row.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ResourceRow {
     pub id: String,
     pub namespace: Option<String>,
@@ -204,10 +206,10 @@ impl ResourceRow {
 }
 
 /// A column definition (cells are pre-built; no per-cell render closure).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ColumnDef {
-    pub key: &'static str,
-    pub label: &'static str,
+    pub key: String,
+    pub label: String,
     pub width: Option<u32>,
     pub sortable: bool,
 }
@@ -247,6 +249,10 @@ pub fn ResourceTable(
     rows: Vec<ResourceRow>,
     #[props(default)] status: TableStatus,
     #[props(default)] empty_message: Option<String>,
+    /// The row id the detail pane is showing, so the list keeps a visible
+    /// selection while the pane is open (the row-selection path sets it).
+    #[props(default)]
+    selected_row: Option<String>,
     #[props(default)] row_actions: Option<RowActions>,
     #[props(default)] on_row_click: Option<EventHandler<ResourceRow>>,
     #[props(default = 600.0)] height: f64,
@@ -298,6 +304,7 @@ pub fn ResourceTable(
                                 columns: columns.clone(),
                                 row_actions: row_actions.clone(),
                                 on_row_click,
+                                selected_row: selected_row.clone(),
                                 height,
                             }
                         }
@@ -314,8 +321,8 @@ fn header_cell(
     column: &ColumnDef,
     sort: Signal<Option<(usize, SortDirection)>>,
 ) -> Element {
-    let key = column.key;
-    let label = column.label;
+    let key = column.key.clone();
+    let label = column.label.clone();
     let width = column.width;
     let sortable = column.sortable;
     let direction = sort().and_then(|(active, dir)| (active == index).then_some(dir));
@@ -348,6 +355,7 @@ fn TableBody(
     columns: Vec<ColumnDef>,
     row_actions: Option<RowActions>,
     on_row_click: Option<EventHandler<ResourceRow>>,
+    selected_row: Option<String>,
     height: f64,
 ) -> Element {
     let mut scroll_top = use_signal(|| 0.0f64);
@@ -358,6 +366,7 @@ fn TableBody(
     let slice = &view[range];
     let total_height = total as f64 * ROW_HEIGHT;
     let widths: Vec<Option<u32>> = columns.iter().map(|column| column.width).collect();
+    let labels: Vec<String> = columns.iter().map(|column| column.label.clone()).collect();
 
     rsx! {
         div {
@@ -369,11 +378,12 @@ fn TableBody(
                     {
                         render_table_row(
                             row,
-                            offset,
-                            start,
+                            (start + offset) as f64 * ROW_HEIGHT,
                             &widths,
+                            &labels,
                             row_actions.clone(),
                             on_row_click,
+                            selected_row.clone(),
                         )
                     }
                 }
@@ -385,20 +395,29 @@ fn TableBody(
 /// Render a single virtualized table row (absolute-positioned).
 fn render_table_row(
     row: &ResourceRow,
-    offset: usize,
-    start: usize,
+    top: f64,
     widths: &[Option<u32>],
+    labels: &[String],
     row_actions: Option<RowActions>,
     on_row_click: Option<EventHandler<ResourceRow>>,
+    selected_row: Option<String>,
 ) -> Element {
-    let top = (start + offset) as f64 * ROW_HEIGHT;
     let row_id = row.id.clone();
     let row_for_click = row.clone();
     let handler = on_row_click;
+    // The list keeps its selection: the row the pane is showing stays marked
+    // while the pane is open, and the table itself is never remounted.
+    let is_selected = selected_row.as_deref() == Some(row.id.as_str());
+    let class = if is_selected {
+        "table-row selected"
+    } else {
+        "table-row"
+    };
     rsx! {
         div {
             key: "{row_id}",
-            class: "table-row",
+            class: "{class}",
+            "aria-selected": "{is_selected}",
             style: "position: absolute; top: {top}px; height: {ROW_HEIGHT}px; left: 0; right: 0;",
             onclick: move |_| {
                 if let Some(h) = handler {
@@ -406,7 +425,14 @@ fn render_table_row(
                 }
             },
             for (i, cell) in row.cells.iter().enumerate() {
-                { render_table_cell(cell, i, widths.get(i).copied().flatten()) }
+                {
+                    render_table_cell(
+                        cell,
+                        i,
+                        widths.get(i).copied().flatten(),
+                        labels.get(i).map(String::as_str),
+                    )
+                }
             }
             if let Some(actions) = row_actions {
                 { render_row_actions(&row_id, &actions) }
@@ -416,8 +442,14 @@ fn render_table_row(
 }
 
 /// Render a single table cell (plain text, status pill, or rich extra).
-fn render_table_cell(cell: &Cell, index: usize, width: Option<u32>) -> Element {
+fn render_table_cell(
+    cell: &Cell,
+    index: usize,
+    width: Option<u32>,
+    label: Option<&str>,
+) -> Element {
     let style = width.map(|w| format!("width: {w}px")).unwrap_or_default();
+    let label = label.unwrap_or_default();
     let dot_classes: Vec<&'static str> = match &cell.extras {
         CellExtras::HealthDots(dots) => dots
             .iter()
@@ -433,6 +465,7 @@ fn render_table_cell(cell: &Cell, index: usize, width: Option<u32>) -> Element {
             div {
                 key: "{index}",
                 class: "table-cell health-dots",
+                "data-label": "{label}",
                 style: "{style}",
                 if dot_classes.is_empty() {
                     span { "—" }
@@ -448,6 +481,7 @@ fn render_table_cell(cell: &Cell, index: usize, width: Option<u32>) -> Element {
                 div {
                     key: "{index}",
                     class: "table-cell",
+                    "data-label": "{label}",
                     style: "{style}",
                     StatusPill { status: kind }
                 }
@@ -456,6 +490,7 @@ fn render_table_cell(cell: &Cell, index: usize, width: Option<u32>) -> Element {
                 div {
                     key: "{index}",
                     class: "table-cell",
+                    "data-label": "{label}",
                     style: "{style}",
                     span { "{cell.text}" }
                 }

@@ -71,7 +71,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
 use openkite_ui::components::palette::{CommandPalette, PaletteHost, PaletteKeybind};
-use openkite_ui::components::route_views::RouteView;
+use openkite_ui::components::route_views::{resolve_route, RouteView};
 use openkite_ui::components::shell::{
     AppShell as ShellFrame, ClusterInfo, ShellIcon, TopBarAction,
 };
@@ -152,6 +152,21 @@ fn full_path(path: &[String]) -> String {
     format!("/{}", path.join("/"))
 }
 
+/// The console view's route for an address: the URL path resolved through the
+/// console's own route contract against the sidebar model this host renders.
+///
+/// This is the desktop's half of the one route contract (OKT-125). The browser
+/// host resolves a request path through the same call
+/// ([`openkite_ui::components::route_views::resolve_route`]), so both hosts
+/// derive the console view from the address: a path the model carries resolves
+/// to itself, and anything else falls back to the landing route rather than to
+/// a second, host-private view. Keeping the resolution here — not in a table
+/// this host writes down beside the crate's — is what stops the two hosts
+/// drifting.
+pub fn console_route(path: &str, sections: &[crate::shell::ShellSection]) -> String {
+    resolve_route(path, sections)
+}
+
 /// The core routes. Every primary route mounts the crate's route chrome, so
 /// the navigation entries the sidebar renders resolve to a real surface; the
 /// route contract is the URL path, which is what the shell's breadcrumbs, the
@@ -201,6 +216,7 @@ fn AppShell() -> Element {
 
     use_hook(|| {
         if let Some(mut rx) = crate::push::install() {
+            openkite_ui::runtime::set_push_mode(openkite_ui::runtime::PushMode::Push);
             spawn(async move {
                 while let Some(msg) = rx.recv().await {
                     document::eval(&msg.to_js());
@@ -263,9 +279,13 @@ fn AppShell() -> Element {
         }
     });
 
-    // The route the sidebar marks active; `Routable`'s `Display` writes the
-    // URL path, which is the same vocabulary the entries carry.
-    let current_route = use_route::<Route>().to_string();
+    // The console view's route: the address the webview is showing, resolved
+    // through the console's own route contract — the same call the browser host
+    // makes when it resolves a request path — so the sidebar's active entry,
+    // the breadcrumbs and the route chrome all read one value, and the two
+    // hosts derive the console view from the address rather than from a table
+    // each writes down for itself.
+    let current_route = console_route(&use_route::<Route>().to_string(), &shell_sections());
 
     // The desktop answers every palette action: it owns the router, the theme
     // store and the OS chrome. The crate registers only the commands whose
@@ -359,21 +379,90 @@ fn cycle_theme() {
     let _ = config.save();
 }
 
-/// The sidebar the crate shell renders: the desktop's core navigation (the
-/// terminal entry gated on the host capability), then the static Rust-SDK
+/// Count one kind's objects in scope, or `None` when the kind is not watched.
+///
+/// A cluster-scoped object (a node) is in no namespace, so a namespace scope
+/// never excludes it; an empty selection means every namespace.
+fn count_in_scope<T>(
+    rows: Option<Vec<Arc<T>>>,
+    scope: &[String],
+    namespace_of: impl Fn(&T) -> Option<String>,
+) -> Option<u64> {
+    Some(
+        rows?
+            .iter()
+            .filter(|row| match namespace_of(row) {
+                None => true,
+                Some(namespace) => scope.is_empty() || scope.contains(&namespace),
+            })
+            .count() as u64,
+    )
+}
+
+/// The sidebar's live counts, scoped to the namespaces the console is looking
+/// at: one number per entry the reference badges, read from the same reflector
+/// signals the views render from.
+///
+/// A kind that is not being watched yields `None` and a watched kind with no
+/// rows in scope yields zero; both draw no badge, because the design shows a
+/// count only when there is one to show. The reference badges five rows
+/// (Nodes, Pods, Deployments, Services, ConfigMaps) and draws Storage and
+/// Network without a count, so only those five are read.
+///
+/// The scope comes in as a parameter so the mapping is testable without a
+/// Dioxus runtime; [`nav_counts`] supplies the selected namespaces.
+fn nav_counts_in_scope(scope: &[String]) -> openkite_ui::shell::NavCounts {
+    use crate::state::live;
+    use openkite_ui::shell::NavCounts;
+
+    NavCounts {
+        nodes: count_in_scope(
+            live::nodes_signal().map(|signal| signal.cloned()),
+            scope,
+            |node| node.metadata.namespace.clone(),
+        ),
+        pods: count_in_scope(
+            live::pods_signal().map(|signal| signal.cloned()),
+            scope,
+            |pod| pod.metadata.namespace.clone(),
+        ),
+        deployments: count_in_scope(
+            live::deployments_signal().map(|signal| signal.cloned()),
+            scope,
+            |deployment| deployment.metadata.namespace.clone(),
+        ),
+        services: count_in_scope(
+            live::services_signal().map(|signal| signal.cloned()),
+            scope,
+            |service| service.metadata.namespace.clone(),
+        ),
+        config_maps: count_in_scope(
+            live::config_maps_signal().map(|signal| signal.cloned()),
+            scope,
+            |config_map| config_map.metadata.namespace.clone(),
+        ),
+    }
+}
+
+/// The sidebar's live counts under the console's current namespace selection.
+fn nav_counts() -> openkite_ui::shell::NavCounts {
+    let scope = crate::runtime::SELECTED_NAMESPACES.read().clone();
+    nav_counts_in_scope(&scope)
+}
+
+/// The sidebar the crate shell renders: the reference's three core sections
+/// (with the live counts the reflectors publish), then the static Rust-SDK
 /// plugin sections, then the JS-plugin sections mirrored from the bridge.
 ///
 /// Every block is a `.nav-section` with its own `.nav-title`, which is how the
-/// design separates them; the core block carries the same title the shared
-/// model gives it, so the sidebar and the breadcrumbs name it alike.
+/// design separates them; the core blocks carry the same titles the shared
+/// model gives them, so the sidebar and the breadcrumbs name them alike. The
+/// plugin blocks are the plugin slot's contents — the crate renders and styles
+/// them, a plugin only registers entries.
 fn shell_sections() -> Vec<crate::shell::ShellSection> {
-    use crate::shell::{core_nav, plugin_sections, ShellNavItem, ShellSection};
+    use crate::shell::{core_sections_with_counts, plugin_sections, ShellNavItem, ShellSection};
 
-    let mut sections = vec![ShellSection {
-        label: "Overview".into(),
-        accent: None,
-        items: core_nav(openkite_ui::runtime::terminal_can_render()),
-    }];
+    let mut sections = core_sections_with_counts(&nav_counts());
 
     let sdk_sections = PLUGIN_SECTIONS.read();
     for section in sdk_sections.iter() {
@@ -433,6 +522,7 @@ fn status_entries() -> Vec<crate::shell::StatusBarEntry> {
         &state,
         &REGISTRATIONS.read(),
         version.as_deref().unwrap_or_default(),
+        openkite_ui::runtime::push_mode(),
     )
 }
 
@@ -521,13 +611,18 @@ pub(crate) fn json_response(resp: ApiResponse) -> AssetHttpResponse<Vec<u8>> {
 }
 
 /// The four primary routes mount the crate's route chrome (OKT-155). The
-/// desktop keeps only the wiring: the route contract its router resolved, the
-/// sidebar model the shell renders, and the handlers for the actions this host
-/// can honour. What the crate chrome needs from the descriptor
+/// desktop keeps only the wiring: the route contract the address resolved to,
+/// the sidebar model the shell renders, and the handlers for the actions this
+/// host can honour. What the crate chrome needs from the descriptor
 /// (`terminal_can_render`, `mutations_can_render`, `cluster_switch_can_render`)
 /// it reads itself, so a host that cannot do something declares it instead of
 /// painting a control that does nothing.
-fn route_view(route: &'static str) -> Element {
+fn route_view() -> Element {
+    // The address is the source of truth here too: the chrome paints the route
+    // the URL resolved to, never a literal this component carries beside it,
+    // so it cannot disagree with the shell's active entry or with the browser
+    // host serving the same address.
+    let route = console_route(&use_route::<Route>().to_string(), &shell_sections());
     let nav = use_navigator();
     let on_action = EventHandler::new(move |action: String| {
         match action.as_str() {
@@ -555,17 +650,17 @@ fn route_view(route: &'static str) -> Element {
 
 #[component]
 fn Home() -> Element {
-    route_view("/")
+    route_view()
 }
 
 #[component]
 fn Cluster() -> Element {
-    route_view("/cluster")
+    route_view()
 }
 
 #[component]
 fn Workloads() -> Element {
-    route_view("/workloads")
+    route_view()
 }
 
 #[component]
@@ -668,7 +763,7 @@ fn Terminal() -> Element {
 
 #[component]
 fn Config() -> Element {
-    route_view("/config")
+    route_view()
 }
 
 /// Wildcard dispatcher: reconstruct the path, resolve it against this host's
@@ -822,6 +917,8 @@ mod tests {
         assert_eq!(full_path(&path), "/");
     }
 
+    // `json_response` is the desktop asset handler's; the test rides its gate.
+    #[cfg(feature = "desktop")]
     #[test]
     fn json_response_serializes_ok_and_error_envelopes() {
         let ok = json_response(ApiResponse::Ok {
@@ -849,5 +946,70 @@ mod tests {
                 error: "bridge not installed".into()
             }
         );
+    }
+
+    /// A row shaped like the kube objects the counts read: a metadata
+    /// namespace, absent for a cluster-scoped kind.
+    struct Row {
+        namespace: Option<String>,
+    }
+
+    fn rows(namespaces: &[Option<&str>]) -> Option<Vec<Arc<Row>>> {
+        Some(
+            namespaces
+                .iter()
+                .map(|namespace| {
+                    Arc::new(Row {
+                        namespace: namespace.map(str::to_string),
+                    })
+                })
+                .collect(),
+        )
+    }
+
+    fn count(rows: Option<Vec<Arc<Row>>>, scope: &[&str]) -> Option<u64> {
+        let scope: Vec<String> = scope.iter().map(|ns| ns.to_string()).collect();
+        count_in_scope(rows, &scope, |row| row.namespace.clone())
+    }
+
+    #[test]
+    fn count_in_scope_separates_an_unwatched_kind_from_an_empty_scope() {
+        // An unwatched kind has no signal at all: no count, so no badge.
+        assert_eq!(count(None, &[]), None);
+        // A watched kind with nothing in scope is a real zero.
+        assert_eq!(count(rows(&[]), &[]), Some(0));
+    }
+
+    #[test]
+    fn count_in_scope_keeps_cluster_scoped_rows_in_every_namespace_scope() {
+        // A node is cluster-scoped: a namespace scope never excludes it.
+        assert_eq!(count(rows(&[None, None]), &["prod"]), Some(2));
+        assert_eq!(count(rows(&[None, None]), &["missing"]), Some(2));
+        // A namespaced row beside it still obeys the scope.
+        assert_eq!(count(rows(&[None, Some("other")]), &["prod"]), Some(1));
+    }
+
+    #[test]
+    fn count_in_scope_keeps_only_the_selected_namespaces() {
+        let all = || rows(&[Some("prod"), Some("prod"), Some("kube-system")]);
+        // An empty selection means every namespace.
+        assert_eq!(count(all(), &[]), Some(3));
+        assert_eq!(count(all(), &["prod"]), Some(2));
+        assert_eq!(count(all(), &["prod", "kube-system"]), Some(3));
+        assert_eq!(count(all(), &["missing"]), Some(0));
+    }
+
+    #[test]
+    fn the_desktop_counts_read_the_watched_signals_per_scope() {
+        // No client is published in a unit test, so no reflector signal is
+        // present: every count is `None` for any scope — no kind is watched —
+        // so the core rows draw no badge, never a zero.
+        let none = openkite_ui::shell::NavCounts::default();
+        assert_eq!(nav_counts_in_scope(&[]), none);
+        assert_eq!(nav_counts_in_scope(&["prod".to_string()]), none);
+        // The mapping is the desktop's real one: each row reads its own kind.
+        // A watched-but-empty kind is exercised at the `count_in_scope` seam
+        // (a `None` signal is "unwatched", an empty one is a real zero), and
+        // the read of `SELECTED_NAMESPACES` needs a Dioxus runtime to execute.
     }
 }

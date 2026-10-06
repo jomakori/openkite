@@ -14,14 +14,14 @@ use openkite_ui::components::status_badge::StatusKind;
 fn columns() -> Vec<ColumnDef> {
     vec![
         ColumnDef {
-            key: "name",
-            label: "Name",
+            key: "name".into(),
+            label: "Name".into(),
             width: Some(180),
             sortable: true,
         },
         ColumnDef {
-            key: "namespace",
-            label: "Namespace",
+            key: "namespace".into(),
+            label: "Namespace".into(),
             width: None,
             sortable: true,
         },
@@ -199,6 +199,25 @@ fn populated_table_renders_headers_rows_and_actions() {
     assert!(html.contains("Edit"), "got: {html}");
     assert!(html.contains("Scale"), "got: {html}");
     assert!(html.contains("row-action"), "got: {html}");
+    assert_eq!(
+        html.matches("data-label=\"Name\"").count(),
+        2,
+        "each row's Name cell carries its column label"
+    );
+    assert_eq!(html.matches("data-label=\"Namespace\"").count(), 2);
+    assert_eq!(
+        html.matches("data-label=").count(),
+        4,
+        "only data cells carry a label — header cells do not: {html}"
+    );
+}
+
+#[test]
+fn health_and_number_cells_carry_column_labels() {
+    let html = support::mount_html(table_health_dot_rows, || {});
+    assert!(html.contains("data-label=\"Name\""), "got: {html}");
+    assert!(html.contains("data-label=\"Namespace\""), "got: {html}");
+    assert!(html.contains("health-dots"), "got: {html}");
 }
 
 #[test]

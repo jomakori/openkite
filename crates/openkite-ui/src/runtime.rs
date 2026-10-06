@@ -14,6 +14,7 @@ use openkite_api::pod::{LineBuffer, PodObject};
 use openkite_api::secret::SecretObject;
 use serde_json::Value;
 
+use crate::components::resource_pane::ResourceDetail;
 use crate::dock::DockState;
 
 /// The secret the detail slide-over shows (`None` = closed).
@@ -27,13 +28,46 @@ pub static SELECTED_POD: GlobalSignal<Option<PodObject>> = Signal::global(|| Non
 /// Open the pod slide-over for `pod`. Convenience for the host adapters that
 /// own a kube `Pod` — this helper takes the owned contract shape directly so
 /// the host never imports Dioxus globals.
+///
+/// The pod slide-over and the resource detail pane share the right edge's one
+/// stop, so opening this closes the pane rather than overlapping it.
 pub fn set_selected_pod(pod: Option<PodObject>) {
+    if pod.is_some() {
+        *RESOURCE_SELECTION.write() = None;
+    }
     *SELECTED_POD.write() = pod;
 }
 
 /// Close the pod slide-over.
 pub fn clear_selected_pod() {
     set_selected_pod(None);
+}
+
+/// The resource the detail pane shows (`None` = closed).
+///
+/// One slot, one pane: a new selection REPLACES the previous one, which is what
+/// keeps a second click from stacking panes, and the pane is never dismissed in
+/// order to switch resources. The selection is what the address carries, so the
+/// type is serde-shaped (see `components::resource_pane`).
+pub static RESOURCE_SELECTION: GlobalSignal<Option<ResourceDetail>> = Signal::global(|| None);
+
+/// Open the resource detail pane for `detail`, replacing whatever it showed.
+///
+/// The right edge has one stop: the pane and the pod slide-over are the same
+/// slot, so opening one closes the other rather than overlapping in place.
+pub fn select_resource(detail: ResourceDetail) {
+    *SELECTED_POD.write() = None;
+    *RESOURCE_SELECTION.write() = Some(detail);
+}
+
+/// Close the resource detail pane.
+pub fn clear_resource_selection() {
+    *RESOURCE_SELECTION.write() = None;
+}
+
+/// The resource the detail pane is showing, if any.
+pub fn selected_resource() -> Option<ResourceDetail> {
+    RESOURCE_SELECTION.read().clone()
 }
 
 /// Streaming log buffer the log viewer renders. The host populates this when
@@ -74,6 +108,31 @@ pub fn set_contexts(names: Vec<String>) {
 /// The current context name, if a kubeconfig is loaded.
 pub fn context_name() -> Option<String> {
     CONTEXT.read().clone()
+}
+
+/// How live cluster state reaches the console, decided by the host that owns
+/// the transport.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PushMode {
+    /// Reflector updates arrive through the host's push pump.
+    Push,
+    /// No push transport; the host refetches on a timer.
+    Polling,
+    /// Neither: no live updates are expected.
+    Off,
+}
+
+/// The push mode the host published; `Off` until a host states one.
+pub static PUSH_MODE: GlobalSignal<PushMode> = Signal::global(|| PushMode::Off);
+
+/// Publish the host's push mode.
+pub fn set_push_mode(mode: PushMode) {
+    *PUSH_MODE.write() = mode;
+}
+
+/// The host's push mode.
+pub fn push_mode() -> PushMode {
+    *PUSH_MODE.read()
 }
 
 /// The namespace names the console's bar offers.

@@ -188,7 +188,9 @@ body {
   cursor: pointer;
   box-sizing: border-box;
 }
-.cluster-btn:hover { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); }
+@media (hover: hover) and (pointer: fine) {
+  .cluster-btn:hover { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); }
+}
 .cluster-btn .cluster-text {
   min-width: 0;
   display: flex;
@@ -210,6 +212,10 @@ body {
   color: var(--subtle);
   padding: 0 10px 6px;
 }
+/* The reference's per-plugin section variant: Argo CD's zone is orange, and
+   the shell draws it — a plugin contributes entries, not styling. */
+.nav-section.argo .nav-title { color: var(--argo); }
+.nav-section.argo .nav-item.active .icon { color: var(--argo); }
 .nav-item {
   display: flex;
   align-items: center;
@@ -232,7 +238,9 @@ body {
 /* An entry a plugin contributed: same shape, lighter weight than the core
    navigation. */
 .nav-item.plugin { font-weight: 400; }
-.nav-item:hover { background: color-mix(in srgb, var(--surface) 62%, transparent); }
+@media (hover: hover) and (pointer: fine) {
+  .nav-item:hover { background: color-mix(in srgb, var(--surface) 62%, transparent); }
+}
 .nav-item.active { background: var(--surface); box-shadow: var(--shadow-rest); }
 .nav-item.active .icon { color: var(--accent); }
 .nav-item[data-disabled] { opacity: 0.62; cursor: default; }
@@ -283,6 +291,47 @@ body {
 }
 .sidebar-backdrop.show { display: block; }
 
+/* The ≤767px bottom bar: the sidebar's leading destinations plus the drawer's
+   Menu tab, over the view. The 768px breakpoint hides it again. */
+.bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  height: 66px;
+  padding-bottom: env(safe-area-inset-bottom);
+  background: color-mix(in oklab, var(--bg) 74%, transparent);
+  border-top: 1px solid var(--border);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+.bottom-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  height: 100%;
+}
+.bottom-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: 100%;
+  min-height: 66px;
+  font: inherit;
+  font-size: 10px;
+  color: var(--muted);
+  text-decoration: none;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+.bottom-tab.active { color: var(--fg); }
+
 .not-found { text-align: center; padding: 48px; color: var(--subtle); }
 
 /* The crate-rendered mount node a JS plugin route renders into. `display:
@@ -314,7 +363,9 @@ body {
   backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px);
   color: var(--fg); font: inherit; text-align: left; transition: border-color 0.15s, background 0.15s;
 }
-.theme-row:hover { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); }
+@media (hover: hover) and (pointer: fine) {
+  .theme-row:hover { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); }
+}
 .theme-row-active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .theme-swatch { display: flex; gap: 3px; }
 .swatch-chip { width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--border); }
@@ -384,7 +435,9 @@ body {
   box-shadow: var(--shadow-rest);
   cursor: pointer;
 }
-.icon-btn:hover { box-shadow: var(--shadow-hover); }
+@media (hover: hover) and (pointer: fine) {
+  .icon-btn:hover { box-shadow: var(--shadow-hover); }
+}
 .icon-btn:active { transform: translateY(1px); }
 .icon-btn[data-unsupported] { opacity: 0.62; cursor: not-allowed; }
 
@@ -487,6 +540,7 @@ body {
   gap: 8px;
   flex: 1 1 auto;
   min-width: 0;
+  max-width: 100%;
   flex-wrap: nowrap;
 }
 /* The chip strip: one scrolling line with snap points and a hidden scrollbar. */
@@ -499,7 +553,7 @@ body {
   min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
-  scroll-snap-type: x proximity;
+  scroll-snap-type: x mandatory;
   scroll-padding-inline: 8px;
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -523,12 +577,16 @@ body {
   color: var(--muted);
   cursor: pointer;
 }
-.ns-search:hover,
-.ns-reset:hover { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); }
+@media (hover: hover) and (pointer: fine) {
+  .ns-search:hover,
+  .ns-reset:hover { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); }
+}
 .ns-search[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
 .ns-reset { color: var(--fg); }
 /* The inline chip-list filter the search circle opens. */
 .ns-filter { flex: 0 0 auto; width: min(220px, 45vw); }
+/* Closed: the row keeps one line and the circle stays the only search affordance. */
+.ns-bar[data-filtering="false"] .ns-filter { display: none; }
 .panel-footer {
   display: flex;
   align-items: center;
@@ -622,7 +680,9 @@ body {
   box-sizing: border-box;
   transition: border-color 0.15s, background 0.15s, box-shadow 0.15s, transform 0.05s;
 }
-.btn:hover { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); box-shadow: var(--shadow-hover); }
+@media (hover: hover) and (pointer: fine) {
+  .btn:hover { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); box-shadow: var(--shadow-hover); }
+}
 .btn:active { transform: translateY(1px); }
 .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
@@ -632,9 +692,11 @@ body {
   color: #fff;
   border-color: var(--accent);
 }
-.btn-primary:hover {
-  background: color-mix(in srgb, var(--accent) 90%, var(--fg));
-  border-color: color-mix(in srgb, var(--accent) 90%, var(--fg));
+@media (hover: hover) and (pointer: fine) {
+  .btn-primary:hover {
+    background: color-mix(in srgb, var(--accent) 90%, var(--fg));
+    border-color: color-mix(in srgb, var(--accent) 90%, var(--fg));
+  }
 }
 
 .btn-secondary {
@@ -656,7 +718,9 @@ body {
   box-sizing: border-box;
   transition: border-color 0.15s, background 0.15s, color 0.15s;
 }
-.chip:hover { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); }
+@media (hover: hover) and (pointer: fine) {
+  .chip:hover { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); }
+}
 .chip.active {
   background: var(--fg);
   color: #fff;
@@ -666,6 +730,7 @@ body {
 .chip-row .chip {
   flex: 0 0 auto;
   scroll-snap-align: start;
+  scroll-snap-stop: always;
 }
 /* The check on a selected chip. */
 .chip-mark {
@@ -780,6 +845,9 @@ body {
 }
 .table-body { position: relative; }
 .table-row { display: flex; align-items: center; border-bottom: 1px solid var(--border); }
+/* The row the detail pane is showing. The list keeps this mark while the pane
+   is open, so switching resources never looks like a lost selection. */
+.table-row.selected { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .table-cell {
   padding: 0 16px;
   overflow: hidden;
@@ -868,9 +936,40 @@ body {
 }
 
 /* --- Inspector (slide-over) --- */
+/* The right edge's one stop: the resource detail pane (OKT-175) and the
+   pod/secret slide-overs all dock here, at the same position for every
+   resource kind. `--pane-width` is the width a drag persisted (the design's
+   420px is the fallback). */
+/* The touch backdrop for the detail pane. It stays inert above the mobile
+   breakpoint so the list behind the pane remains clickable — that is what lets
+   a second click replace the pane's content in place — and becomes the
+   bottom sheet's scrim at ≤767px, where the list is behind the sheet. */
+.inspector-scrim {
+  display: none;
+  position: fixed; inset: 0;
+  z-index: 65;
+  padding: 0;
+  border: 0;
+  background: rgba(15, 23, 42, 0.28);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+/* The drag handle: the pane's left edge, the only thing that resizes it. */
+.inspector-resize {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  touch-action: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .inspector-resize:hover {
+    background: color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+}
+.inspector-close { margin-left: auto; }
 .inspector {
   position: fixed; right: 0; top: 0; bottom: 0;
-  width: min(420px, 100%);
+  width: min(var(--pane-width, 420px), 100%);
   background: var(--surface);
   border-left: 1px solid var(--border);
   box-shadow: var(--shadow-hover);
@@ -879,7 +978,11 @@ body {
   transform: translateX(100%);
   transition: transform 0.2s ease;
   display: flex; flex-direction: column;
-  z-index: 50;
+  /* Above the scrim (65) and above the toast's old stop: the reference's own
+     ladder is 65 scrim / 70 inspector / 90 toast, and the sheet has to sit on
+     top of its scrim or the ≤767px sheet is covered by its own backdrop and
+     cannot be closed. */
+  z-index: 70;
   box-sizing: border-box;
 }
 .inspector.open { transform: translateX(0); }
@@ -941,11 +1044,170 @@ body {
   font-size: 13px;
   opacity: 0;
   transition: opacity 0.2s ease;
-  z-index: 60;
+  /* The reference's toast stop, above the inspector (70) so a toast is never
+     hidden behind an open pane. */
+  z-index: 90;
   pointer-events: none;
   box-sizing: border-box;
 }
 .toast.show { opacity: 1; }
+
+/* ========================================================================
+   Application cards (OKT-169) — the reference's `.app-card` with its action
+   column. The kebab (fine pointer) and a horizontal swipe (touch) reveal the
+   same `.card-swipe-actions` column, and every control in the card meets the
+   brand-spec 44px touch floor.
+   ======================================================================== */
+
+.app-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(272px, 1fr));
+  gap: 14px;
+  padding-bottom: 20px;
+}
+
+.app-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-rest);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+/* The lift is decorative: only a fine pointer hovers, so touch never gets a
+   stuck hover state. */
+@media (hover: hover) and (pointer: fine) {
+  .app-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-hover); }
+  .app-card:active { transform: translateY(-1px); }
+}
+
+/* The action column, behind `.card-main` on the right edge. It stays mounted
+   so the kebab and the swipe expose exactly the same buttons. */
+.card-swipe-actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 112px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 10px;
+  box-sizing: border-box;
+  background: color-mix(in oklab, var(--argo) 7%, white);
+  border-left: 1px solid var(--border);
+  overscroll-behavior: contain;
+}
+.card-action {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-solid);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--fg);
+  cursor: pointer;
+  box-sizing: border-box;
+}
+.card-action.sync { color: var(--success); }
+
+.card-main {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--surface);
+  transition: transform 0.22s cubic-bezier(.2,.7,.2,1);
+}
+.app-card.swiped .card-main { transform: translateX(-112px); }
+
+.card-status { height: 5px; width: 100%; flex: 0 0 auto; }
+.card-status.synced { background: var(--success); }
+.card-status.outofsync { background: var(--warn); }
+.card-status.degraded { background: var(--danger); }
+.card-status.progressing { background: var(--progress); }
+
+.card-body { padding: 16px 16px 14px; display: flex; flex-direction: column; flex: 1; }
+.card-title-row { display: flex; align-items: flex-start; gap: 11px; }
+
+.source-icon {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-solid);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+.source-icon .icon { width: 18px; height: 18px; }
+
+.app-name {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  margin: 0;
+  line-height: 1.2;
+}
+.app-sub {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--muted);
+  margin: 3px 0 0;
+}
+
+/* The kebab: always rendered, never hover-only, and a 44px target. */
+.card-menu-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.card-menu-btn .icon { fill: currentColor; stroke: none; }
+@media (hover: hover) and (pointer: fine) {
+  .card-menu-btn:hover { background: color-mix(in srgb, var(--surface-solid) 70%, transparent); }
+}
+
+.card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 14px;
+}
+.badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.card-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--subtle);
+}
+
+@media (max-width: 767px) {
+  .app-grid { grid-template-columns: 1fr; gap: 10px; }
+}
 
 /* --- Responsive (tablet + mobile) --- */
 
@@ -964,7 +1226,7 @@ body {
   .menu-toggle { display: inline-flex; }
   .topbar { padding-left: 12px; padding-right: 16px; }
   .view { padding: 16px; }
-  .inspector { width: min(360px, 100%); }
+  .inspector { width: min(var(--pane-width, 360px), 100%); }
 }
 
 /* Mobile: the same drawer, narrower, with the crumbs trimmed. */
@@ -981,6 +1243,8 @@ body {
   }
   .sidebar.open { transform: translateX(0); }
   .sidebar-backdrop.show { display: block; }
+  /* The bar is fixed over the view, so the view scrolls clear of it. */
+  .main { padding-bottom: 74px; }
   .menu-toggle { display: inline-flex; }
   .topbar { min-height: 54px; padding: 8px 12px; }
   .breadcrumbs { font-size: 11px; }
@@ -991,9 +1255,66 @@ body {
   .page-actions .btn { flex: 1; }
   .toolbar { flex-direction: column; align-items: stretch; }
   .chip-row { padding-bottom: 4px; }
-  .inspector { width: 100%; }
+  /* The pane is the reference's full-width bottom-anchored sheet here (its own
+     @media rule), dismissed by the scrim, which is only live at this width. */
+  .inspector {
+    width: 100%;
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+  .inspector-scrim.show { display: block; }
+  .inspector-resize { display: none; }
+  /* The reference narrows the pane's label column on touch so the value keeps
+     room on a full-width sheet. */
+  .kv-row { grid-template-columns: 110px 1fr; }
   .panel { padding: 12px; }
   .toast { bottom: 16px; max-width: calc(100% - 32px); }
+  /* OKT-167: mobile rows stack into label/value blocks (inline row positioning overridden). */
+  .resource-table .table-header { display: none; }
+  .table-body { height: auto !important; overflow: visible !important; }
+  .table-body > div { height: auto !important; position: static !important; }
+  .table-row {
+    position: static !important;
+    height: auto !important;
+    display: block;
+    width: 100%;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .table-row:last-child { border-bottom: 0; }
+  .table-cell {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    width: 100% !important;
+    box-sizing: border-box;
+    padding: 11px 14px;
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: anywhere;
+    text-align: right;
+    border-bottom: 1px solid color-mix(in oklab, var(--border) 55%, transparent);
+  }
+  .table-row .table-cell:last-child { border-bottom: 0; }
+  .table-cell::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    font-family: var(--font-sans);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.075em;
+    color: var(--muted);
+    text-align: left;
+  }
+  .table-cell[data-label="Name"] { padding-top: 14px; }
+  .resource-name { justify-content: flex-end; }
+  .bottom-nav { display: block; }
+}
+
+/* The bar is a below-768px affordance only. */
+@media (min-width: 768px) {
+  .bottom-nav { display: none; }
 }
 
 /* Desktop: the sidebar never leaves the frame, so the toggle never shows. */
@@ -1291,8 +1612,10 @@ body {
   color: #fff;
   border-color: var(--danger);
 }
-.btn-danger:hover:not(:disabled) {
-  filter: brightness(1.05);
+@media (hover: hover) and (pointer: fine) {
+  .btn-danger:hover:not(:disabled) {
+    filter: brightness(1.05);
+  }
 }
 .btn-danger:disabled {
   opacity: 0.5;
@@ -1303,6 +1626,7 @@ body {
    differentiate width/alignment for the two use cases. */
 .modal-editor { width: 560px; }
 .modal-confirm { width: 380px; }
+
 
 /* Bottom dock (OKT-172): a resizable panel holding a tab strip, a dropdown
    tab manager and the active terminal/log surface. The view only gives up
@@ -1322,6 +1646,14 @@ body {
   box-shadow: var(--shadow-rest);
 }
 
+@media (hover: hover) and (pointer: fine) {
+  .dock-resize:hover { background: var(--border); }
+  .dock-tab-close:hover { color: var(--fg); background: var(--surface); }
+  .dock-menu-switch:hover { background: var(--surface); }
+  .dock-menu-close:hover { color: var(--fg); background: var(--surface); }
+  .dock-menu-action:hover:not(:disabled) { color: var(--fg); box-shadow: var(--shadow-rest); }
+}
+
 /* The drag grip: a thin strip along the dock's top edge. */
 .dock-resize {
   flex: 0 0 auto;
@@ -1330,7 +1662,7 @@ body {
   background: transparent;
   touch-action: none;
 }
-.dock-resize:hover { background: var(--border); }
+
 
 .dock-bar {
   display: flex;
@@ -1368,6 +1700,9 @@ body {
   border: 1px solid transparent;
   border-radius: var(--r-sm);
   cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 .dock-tab.active {
   color: var(--fg);
@@ -1400,7 +1735,7 @@ body {
   border-radius: var(--r-sm);
   cursor: pointer;
 }
-.dock-tab-close:hover { color: var(--fg); background: var(--surface); }
+
 
 .dock-manager { position: relative; flex: 0 0 auto; }
 .dock-manager-btn {
@@ -1449,7 +1784,7 @@ body {
   border-radius: var(--r-sm);
   cursor: pointer;
 }
-.dock-menu-switch:hover { background: var(--surface); }
+
 .dock-menu-close {
   display: inline-flex;
   align-items: center;
@@ -1467,7 +1802,7 @@ body {
   border-radius: var(--r-sm);
   cursor: pointer;
 }
-.dock-menu-close:hover { color: var(--fg); background: var(--surface); }
+
 
 .dock-menu-actions {
   display: flex;
@@ -1487,7 +1822,7 @@ body {
   border-radius: var(--r-sm);
   cursor: pointer;
 }
-.dock-menu-action:hover:not(:disabled) { color: var(--fg); box-shadow: var(--shadow-rest); }
+
 .dock-menu-action:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .dock-body {
@@ -1496,5 +1831,72 @@ body {
   overflow: auto;
   padding: 10px 12px;
   background: var(--terminal-bg);
+}
+
+
+/* ========================================================================
+   Touch (OKT-173) — every desktop affordance keeps a path on a touch screen.
+   The search field takes the full width above the strip, and the dock's tab
+   manager opens as a bottom sheet with its controls on the 44px floor. The
+   long-press that stands in for a double-click is resolved in
+   `openkite_ui::touch`, which latches a scroll so a long-press can never be
+   confused with one.
+   ======================================================================== */
+
+@media (pointer: coarse) {
+  /* The circle's field leaves the row and spans the width above the strip. */
+  .ns-bar[data-filtering="true"] {
+    flex-wrap: wrap;
+    row-gap: 8px;
+    width: 100%;
+    max-width: 100%;
+  }
+  .ns-bar[data-filtering="true"] .ns-filter {
+    order: -1;
+    flex: 1 0 100%;
+    width: 100%;
+  }
+}
+
+/* The dock's touch contract (OKT-172): a tab's long-press keeps it, and the
+   dropdown tab manager becomes a bottom sheet. */
+@media (pointer: coarse) {
+  .dock-tab {
+    min-height: 44px;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  .dock-tab-close {
+    width: 44px;
+    height: 44px;
+  }
+  .dock-resize { height: 22px; }
+  .dock-menu.open {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: auto;
+    bottom: 0;
+    z-index: 120;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    max-height: 70vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-radius: var(--r-md) var(--r-md) 0 0;
+    padding-bottom: max(6px, env(safe-area-inset-bottom));
+  }
+  .dock-menu-row { min-height: 44px; }
+  .dock-menu-switch {
+    min-height: 44px;
+    padding: 0 8px;
+  }
+  .dock-menu-close {
+    width: 44px;
+    height: 44px;
+  }
+  .dock-menu-action { min-height: 44px; }
 }
 

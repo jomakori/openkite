@@ -19,12 +19,14 @@ use dioxus::prelude::*;
 use openkite_api::capability::{Capabilities, GatewayKind};
 use openkite_ui::components::namespace_bar::selection_matches;
 use openkite_ui::components::palette::{CommandPalette, PaletteHost, PaletteKeybind};
+use openkite_ui::components::resource_pane::ResourceDetail;
+use openkite_ui::components::resource_table::{ResourceTable, TableStatus};
 use openkite_ui::components::route_views::RouteView;
 use openkite_ui::components::shell::{AppShell, ClusterInfo, ShellIcon, TopBarAction};
 use openkite_ui::components::status_badge::{StatusKind, StatusPill};
 use openkite_ui::components::switcher::{ClusterSwitcher, SwitcherKeybind};
 use openkite_ui::plugin_api::RegistrationStore;
-use openkite_ui::runtime::NAMESPACE_SELECTION;
+use openkite_ui::runtime::{push_mode, set_push_mode, PushMode, NAMESPACE_SELECTION};
 use openkite_ui::shell::{sidebar_model, status_bar_model, ShellState};
 
 use crate::ssr::Snapshot;
@@ -64,6 +66,21 @@ pub fn App(props: AppProps) -> Element {
     // the SSR markup and the client's first render agree (both start false).
     let mut pending = use_signal(|| false);
 
+    // The route the host resolved, read once so a refresh cannot move the page.
+    let route = props.snapshot.route.clone();
+
+    // The selection is the address (OKT-175): the host read it out of the query
+    // string it served, and it rides the snapshot so both this SSR pass and the
+    // hydrating client open the resource detail pane at the same stop for the
+    // same resource. `use_hook` runs once per mount, so a later snapshot
+    // refresh cannot clobber a selection the user has since made.
+    let restored = props.snapshot.selection.clone();
+    use_hook(move || {
+        if let Some(identity) = restored.clone() {
+            openkite_ui::runtime::select_resource(ResourceDetail::from_ref(identity));
+        }
+    });
+
     // One refetch, two callers: the top bar's refresh action and the panel's
     // button. The closure only captures signals, so both may hold a copy.
     let refetch = move || {
@@ -88,20 +105,48 @@ pub fn App(props: AppProps) -> Element {
     let on_refresh = move |_: ()| refetch();
     let on_refresh_click = move |_: Event<MouseData>| refetch();
 
+    // This host has no push transport, so the page polls for fresh state.
+    // The 10 s interval is half of the degraded bound: an update lands within
+    // one interval plus a round-trip and a render.
+    use_hook(|| set_push_mode(PushMode::Polling));
+    use_future(move || async move {
+        loop {
+            poll_interval().await;
+            refetch();
+        }
+    });
+
     let snapshot = state();
     let capabilities = snapshot.capabilities;
 
-    // No namespace inventory here, so the bar offers what the secrets know.
+    // The namespace bar includes every namespace represented by the snapshot.
     let namespaces: Vec<String> = {
         let mut names: Vec<String> = snapshot
             .secrets
             .iter()
             .map(|secret| secret.namespace.clone())
+            .chain(
+                snapshot
+                    .workloads
+                    .rows
+                    .iter()
+                    .filter_map(|row| row.namespace.clone()),
+            )
             .collect();
         names.sort();
         names.dedup();
         names
     };
+    let namespace = namespaces
+        .iter()
+        .find(|name| {
+            snapshot
+                .secrets
+                .iter()
+                .any(|secret| &secret.namespace == *name)
+        })
+        .cloned()
+        .unwrap_or_else(|| "default".into());
     let selection = NAMESPACE_SELECTION.read().clone();
     let secrets: Vec<_> = snapshot
         .secrets
@@ -111,13 +156,13 @@ pub fn App(props: AppProps) -> Element {
 
     let shell = ShellState {
         cluster: snapshot.context.clone(),
-        namespace: "default".into(),
+        namespace,
         connected: snapshot.connected,
         prometheus: None,
     };
     let registrations = RegistrationStore::default();
     let sections = sidebar_model(&registrations);
-    let status_entries = status_bar_model(&shell, &registrations, "");
+    let status_entries = status_bar_model(&shell, &registrations, "", push_mode());
 
     let gateway_label = match capabilities.gateway {
         GatewayKind::InProcess => "in-process",
@@ -155,9 +200,8 @@ pub fn App(props: AppProps) -> Element {
     rsx! {
         AppShell {
             sections: sections.clone(),
-            // The page has no client router: entries are plain links, and
-            // nothing is marked current until a route resolves.
-            current_route: String::new(),
+            // The sidebar marks the route the host resolved.
+            current_route: route.clone(),
             cluster: Some(cluster),
             status: status_entries,
             actions,
@@ -169,16 +213,18 @@ pub fn App(props: AppProps) -> Element {
             SwitcherKeybind {}
             ClusterSwitcher {}
             CommandPalette { host: palette_host }
-            // The route chrome the desktop mounts too (OKT-155). This host
-            // serves one route — `GET /` and every path the bundle has no file
-            // for both render this document — and the snapshot panels below are
-            // that route's body: the chrome around them is the crate's.
+            // The route chrome the desktop mounts too: each surface below is
+            // that route's body.
             RouteView {
-                route: "/".to_string(),
+                route: route.clone(),
                 sections,
                 namespaces,
                 busy: pending(),
-                content: rsx! {
+                content: match route.as_str() {
+                    "/workloads" => Some(workload_surface(&snapshot)),
+                    // Declared, not invented: this host has not wired them.
+                    "/cluster" | "/config" => None,
+                    _ => Some(rsx! {
                     section { class: "panel", "data-surface": "overview",
                         h2 { "Cluster" }
                         dl { class: "kv-list",
@@ -230,7 +276,27 @@ pub fn App(props: AppProps) -> Element {
                             }
                         }
                     }
+                    }),
                 },
+            }
+        }
+    }
+}
+
+/// The `/workloads` body: the console's table, or its declared error state.
+fn workload_surface(snapshot: &Snapshot) -> Element {
+    let workloads = &snapshot.workloads;
+    let status = match &workloads.error {
+        Some(error) => TableStatus::Error(format!("The gateway could not list pods: {error}")),
+        None => TableStatus::Ready,
+    };
+    rsx! {
+        div { "data-surface": "workloads",
+            ResourceTable {
+                columns: workloads.columns.clone(),
+                rows: workloads.rows.clone(),
+                status,
+                empty_message: Some("No pods in the gateway's scope".to_string()),
             }
         }
     }
@@ -243,4 +309,29 @@ fn capability_rows(capabilities: &Capabilities) -> [(&'static str, bool); 3] {
         ("Terminal", capabilities.terminal),
         ("Exec", capabilities.exec),
     ]
+}
+
+/// How long the page waits between polls: the interval half of the degraded
+/// bound, so a round-trip and a render fit inside the rest.
+const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// Wait one poll interval. No timer is shared by both targets: the SSR pass
+/// and the tests sit on tokio, the browser on the page's own timer.
+#[cfg(not(target_arch = "wasm32"))]
+async fn poll_interval() {
+    tokio::time::sleep(POLL_INTERVAL).await;
+}
+
+/// Wait one poll interval on the page's timer.
+#[cfg(target_arch = "wasm32")]
+async fn poll_interval() {
+    let promise = js_sys::Promise::new(&mut |resolve, _reject| {
+        if let Some(window) = web_sys::window() {
+            let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(
+                &resolve,
+                POLL_INTERVAL.as_millis() as i32,
+            );
+        }
+    });
+    let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
 }

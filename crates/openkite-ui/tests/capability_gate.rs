@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 use openkite_api::capability::Capabilities;
 use openkite_api::crud::{Mutation, PropagationPolicy};
 use openkite_api::gateway::{Gateway, GatewayError, GatewayFuture};
-use openkite_api::secret::SecretObject;
+use openkite_api::secret::{SecretObject, SecretRef};
 use openkite_ui::runtime::{
     cluster_switch_can_render, mutations_can_render, native_chrome_can_render, terminal_can_render,
 };
@@ -47,6 +47,10 @@ impl Gateway for FixedGateway {
                 ..SecretObject::default()
             })
         })
+    }
+
+    fn secret_refs(&self) -> GatewayFuture<'_, Result<Vec<SecretRef>, GatewayError>> {
+        Box::pin(async { Ok(Vec::new()) })
     }
 }
 

@@ -191,22 +191,22 @@ impl ConfigKind {
 /// generic Status, just the kind-discriminating type cell.
 fn kind_columns(middle: &[ColumnDef]) -> Vec<ColumnDef> {
     let mut columns = vec![ColumnDef {
-        key: "name",
-        label: "Name",
+        key: "name".into(),
+        label: "Name".into(),
         width: None,
         sortable: true,
     }];
     columns.extend(middle.iter().cloned());
     columns.extend([
         ColumnDef {
-            key: "age",
-            label: "Age",
+            key: "age".into(),
+            label: "Age".into(),
             width: Some(80),
             sortable: true,
         },
         ColumnDef {
-            key: "type",
-            label: "Type",
+            key: "type".into(),
+            label: "Type".into(),
             width: Some(110),
             sortable: true,
         },
@@ -315,14 +315,14 @@ pub fn secret_key_count(secret: &Secret) -> usize {
 pub fn config_map_columns() -> Vec<ColumnDef> {
     kind_columns(&[
         ColumnDef {
-            key: "data",
-            label: "Data",
+            key: "data".into(),
+            label: "Data".into(),
             width: Some(220),
             sortable: true,
         },
         ColumnDef {
-            key: "keys",
-            label: "Keys",
+            key: "keys".into(),
+            label: "Keys".into(),
             width: Some(80),
             sortable: true,
         },
@@ -334,14 +334,14 @@ pub fn config_map_columns() -> Vec<ColumnDef> {
 pub fn secret_columns() -> Vec<ColumnDef> {
     kind_columns(&[
         ColumnDef {
-            key: "type",
-            label: "Type",
+            key: "type".into(),
+            label: "Type".into(),
             width: Some(140),
             sortable: true,
         },
         ColumnDef {
-            key: "keys",
-            label: "Keys",
+            key: "keys".into(),
+            label: "Keys".into(),
             width: Some(80),
             sortable: true,
         },
@@ -352,26 +352,26 @@ pub fn secret_columns() -> Vec<ColumnDef> {
 pub fn service_columns() -> Vec<ColumnDef> {
     kind_columns(&[
         ColumnDef {
-            key: "svc_type",
-            label: "Svc Type",
+            key: "svc_type".into(),
+            label: "Svc Type".into(),
             width: Some(120),
             sortable: true,
         },
         ColumnDef {
-            key: "cluster_ip",
-            label: "Cluster IP",
+            key: "cluster_ip".into(),
+            label: "Cluster IP".into(),
             width: Some(140),
             sortable: true,
         },
         ColumnDef {
-            key: "ports",
-            label: "Ports",
+            key: "ports".into(),
+            label: "Ports".into(),
             width: Some(220),
             sortable: true,
         },
         ColumnDef {
-            key: "selector",
-            label: "Selector",
+            key: "selector".into(),
+            label: "Selector".into(),
             width: Some(200),
             sortable: true,
         },
@@ -382,20 +382,20 @@ pub fn service_columns() -> Vec<ColumnDef> {
 pub fn ingress_columns() -> Vec<ColumnDef> {
     kind_columns(&[
         ColumnDef {
-            key: "class",
-            label: "Class",
+            key: "class".into(),
+            label: "Class".into(),
             width: Some(120),
             sortable: true,
         },
         ColumnDef {
-            key: "hosts",
-            label: "Hosts",
+            key: "hosts".into(),
+            label: "Hosts".into(),
             width: Some(200),
             sortable: true,
         },
         ColumnDef {
-            key: "paths",
-            label: "Paths",
+            key: "paths".into(),
+            label: "Paths".into(),
             width: Some(280),
             sortable: true,
         },

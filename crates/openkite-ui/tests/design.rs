@@ -67,6 +67,21 @@ const REQUIRED_CLASSES: &[&str] = &[
     ".value-actions",
     ".reveal-btn",
     ".inspector",
+    // The resource detail pane (OKT-175): one stop for every kind, its own
+    // drag handle, and the touch scrim the reference draws for the ≤767px
+    // bottom sheet.
+    ".inspector-scrim",
+    ".inspector-scrim.show",
+    ".inspector-resize",
+    ".inspector-close",
+    ".inspector-header",
+    ".inspector-title",
+    ".inspector-body",
+    ".inspector-actions",
+    ".inspector-eyebrow",
+    ".resource-kind",
+    ".kv-row",
+    ".table-row.selected",
     ".kv-list",
     ".toast",
     ".nav-section",
@@ -107,9 +122,17 @@ const REQUIRED_CLASSES: &[&str] = &[
     ".nav-item",
     ".nav-item.active",
     ".nav-badge",
+    // The reference's per-plugin section variant the shell styles.
+    ".nav-section.argo",
     ".main",
     ".topbar",
     ".menu-toggle",
+    // The ≤767px bottom bar (OKT-166): the destination tabs and the drawer's
+    // Menu tab share the bar's grid.
+    ".bottom-nav",
+    ".bottom-tabs",
+    ".bottom-tab",
+    ".bottom-tab.active",
     ".breadcrumbs",
     ".breadcrumbs .crumb",
     ".breadcrumbs .current",
@@ -158,6 +181,29 @@ const REQUIRED_CLASSES: &[&str] = &[
     ".dock-menu-actions",
     ".dock-menu-action",
     ".dock-body",
+    // The application card (OKT-169): the swipe column, its controls, and the
+    // status stripe both the kebab and the swipe reveal.
+    ".app-grid",
+    ".app-card",
+    ".app-card.swiped",
+    ".card-main",
+    ".card-swipe-actions",
+    ".card-action",
+    ".card-action.sync",
+    ".card-status",
+    ".card-status.synced",
+    ".card-status.outofsync",
+    ".card-status.degraded",
+    ".card-status.progressing",
+    ".card-body",
+    ".card-title-row",
+    ".source-icon",
+    ".app-name",
+    ".app-sub",
+    ".card-menu-btn",
+    ".card-footer",
+    ".badges",
+    ".card-meta",
 ];
 
 /// Properties the opaline theme contract already provides — must not be
@@ -332,6 +378,7 @@ const SHELL_RSX: &str = include_str!("../src/components/shell.rs");
 const ROUTE_VIEWS_RSX: &str = include_str!("../src/components/route_views.rs");
 const NAMESPACE_BAR_RSX: &str = include_str!("../src/components/namespace_bar.rs");
 const DOCK_RSX: &str = include_str!("../src/components/dock.rs");
+const APP_CARD_RSX: &str = include_str!("../src/components/app_card.rs");
 
 /// Every rsx source file the crate renders. Order is for stable error
 /// messages — does not affect semantics.
@@ -371,6 +418,10 @@ const RSX_SOURCES: &[(&str, &str)] = &[
         NAMESPACE_BAR_RSX,
     ),
     ("crates/openkite-ui/src/components/dock.rs", DOCK_RSX),
+    (
+        "crates/openkite-ui/src/components/app_card.rs",
+        APP_CARD_RSX,
+    ),
 ];
 
 /// Extract every distinct CSS token used in a `class:` or `class=` rsx
@@ -863,7 +914,7 @@ fn namespace_strip_is_one_hidden_scrollbar_line_with_scroll_snap() {
         "the strip scrolls horizontally: {row}"
     );
     assert!(
-        row.contains("scroll-snap-type: x proximity"),
+        row.contains("scroll-snap-type: x mandatory"),
         "chips snap so none rests half-visible: {row}"
     );
     assert!(
@@ -886,6 +937,10 @@ fn namespace_strip_is_one_hidden_scrollbar_line_with_scroll_snap() {
         "each chip is a snap target: {chip}"
     );
     assert!(
+        chip.contains("scroll-snap-stop: always"),
+        "a flick cannot carry past a chip's snap point: {chip}"
+    );
+    assert!(
         chip.contains("flex: 0 0 auto"),
         "chips keep their natural width instead of squashing: {chip}"
     );
@@ -904,5 +959,23 @@ fn namespace_strip_is_one_hidden_scrollbar_line_with_scroll_snap() {
     assert!(
         circles.contains("border-radius: var(--r-pill)"),
         "…and circular: {circles}"
+    );
+}
+
+/// The ≤767px half of the shell (OKT-166): the bar is a below-768px
+/// affordance and the view scrolls clear of it.
+#[test]
+fn the_bottom_bar_lives_below_the_768px_breakpoint() {
+    assert!(
+        STYLESHEET.contains(".main { padding-bottom: 74px; }"),
+        "the view must clear the fixed bar"
+    );
+    assert!(
+        STYLESHEET.contains(".bottom-nav { display: block; }"),
+        "the bar is shown below 768px"
+    );
+    assert!(
+        STYLESHEET.contains("@media (min-width: 768px) {\n  .bottom-nav { display: none; }\n}"),
+        "and reset from 768px up"
     );
 }

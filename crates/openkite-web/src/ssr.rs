@@ -15,6 +15,8 @@
 use std::sync::Arc;
 
 use openkite_api::gateway::Gateway;
+use openkite_ui::components::resource_pane::ResourceRef;
+use openkite_ui::components::resource_table::{ColumnDef, ResourceRow};
 
 #[cfg(all(feature = "ssr", not(target_arch = "wasm32")))]
 use base64::Engine as _;
@@ -42,6 +44,33 @@ pub struct Snapshot {
     /// surface shows them and the client doesn't have to round-trip just to
     /// paint.
     pub secrets: Vec<SecretRef>,
+    /// The resource detail pane's selection, restored from the query string of
+    /// the address this host served (`/workloads?kind=Pod&ns=default&name=…`).
+    /// It rides the snapshot so the SSR pass and the hydrating client both
+    /// paint the pane open — a reload or a shared link reopens the same pane.
+    #[serde(default)]
+    pub selection: Option<ResourceRef>,
+    /// The route the host resolved for this document.
+    #[serde(default = "home_route")]
+    pub route: String,
+    /// The table the `/workloads` route paints, or why the host could not list.
+    #[serde(default)]
+    pub workloads: WorkloadsTable,
+}
+
+/// The table a route paints, in the console's own column/row vocabulary.
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct WorkloadsTable {
+    pub columns: Vec<ColumnDef>,
+    pub rows: Vec<ResourceRow>,
+    /// The gateway's refusal, when it had one.
+    #[serde(default)]
+    pub error: Option<String>,
+}
+
+/// The route a snapshot with no address of its own lands on.
+fn home_route() -> String {
+    "/".to_string()
 }
 
 impl Default for Snapshot {
@@ -51,6 +80,9 @@ impl Default for Snapshot {
             connected: false,
             context: None,
             secrets: Vec::new(),
+            selection: None,
+            route: home_route(),
+            workloads: WorkloadsTable::default(),
         }
     }
 }
@@ -69,16 +101,44 @@ impl Snapshot {
             connected,
             context,
             secrets,
+            selection: None,
+            route: home_route(),
+            workloads: WorkloadsTable::default(),
         }
+    }
+
+    /// The same snapshot, with the detail pane's selection taken from the
+    /// address the request carried.
+    pub fn with_selection(mut self, selection: Option<ResourceRef>) -> Self {
+        self.selection = selection;
+        self
+    }
+
+    /// The same snapshot, addressed at the route the request resolved to.
+    pub fn with_route(mut self, route: impl Into<String>) -> Self {
+        self.route = route.into();
+        self
+    }
+
+    /// The same snapshot, carrying the table the workloads route paints.
+    pub fn with_workloads(mut self, workloads: WorkloadsTable) -> Self {
+        self.workloads = workloads;
+        self
     }
 }
 
 /// A secret reference safe to ship to the browser: name + namespace, never
 /// values. The slide-over calls `gateway.secret(ns, name)` on demand.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct SecretRef {
-    pub namespace: String,
-    pub name: String,
+pub use openkite_api::secret::SecretRef;
+
+/// The distinct namespaces the refs live in, sorted — the namespace bar's rows.
+pub fn namespaces_of(secrets: &[SecretRef]) -> Vec<String> {
+    secrets
+        .iter()
+        .map(|secret| secret.namespace.clone())
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect()
 }
 
 /// Render the SSR body for the snapshot.
@@ -170,6 +230,7 @@ pub fn render_page(snapshot: &Snapshot, options: &RenderOptions) -> String {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OpenKite</title>
 <style>{css}</style>
+<script>{bridge}</script>
 </head>
 <body>
 <div id="main">{body}</div>
@@ -177,11 +238,11 @@ pub fn render_page(snapshot: &Snapshot, options: &RenderOptions) -> String {
 </body>
 </html>"#,
         css = openkite_ui::MAIN_CSS,
+        bridge = openkite_ui::plugin_api::OPENKITE_BRIDGE_JS,
     )
 }
 
-/// Best-effort list of secrets the gateway can hand out.
+/// The secret refs the gateway can hand out, or `Err` when it cannot list.
 async fn list_secret_refs(gateway: &Arc<dyn Gateway>) -> Result<Vec<SecretRef>, ()> {
-    let _ = gateway.capabilities();
-    Ok(Vec::new())
+    gateway.secret_refs().await.map_err(|_| ())
 }

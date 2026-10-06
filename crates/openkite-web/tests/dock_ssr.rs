@@ -17,6 +17,9 @@ fn snapshot() -> Snapshot {
         connected: true,
         context: Some("in-cluster".into()),
         secrets: Vec::new(),
+        selection: None,
+        route: "/".into(),
+        workloads: Default::default(),
     }
 }
 

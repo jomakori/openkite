@@ -70,6 +70,7 @@ pub fn NamespaceBar(options: Vec<String>) -> Element {
         div {
             class: "ns-bar",
             "data-empty": if empty { Some("namespaces") } else { None },
+            "data-filtering": if filter_open() { "true" } else { "false" },
             if empty {
                 div { class: "chip-row", role: "group", aria_label: "Namespace filter",
                     button {
@@ -96,15 +97,15 @@ pub fn NamespaceBar(options: Vec<String>) -> Element {
                         path { d: "m16 16 4 4" }
                     }
                 }
-                if filter_open() {
-                    label { class: "search-field ns-filter",
-                        input {
-                            r#type: "search",
-                            placeholder: "Filter namespaces…",
-                            aria_label: "Filter namespaces",
-                            value: "{query}",
-                            oninput: move |event| query.set(event.value()),
-                        }
+                // The field is always in the row; the search circle shows it and
+                // the coarse-pointer stylesheet lifts it above the strip.
+                label { class: "search-field ns-filter",
+                    input {
+                        r#type: "search",
+                        placeholder: "Filter namespaces…",
+                        aria_label: "Filter namespaces",
+                        value: "{query}",
+                        oninput: move |event| query.set(event.value()),
                     }
                 }
                 div { class: "chip-row", role: "group", aria_label: "Namespace filter",
