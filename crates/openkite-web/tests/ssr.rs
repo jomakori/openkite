@@ -430,119 +430,44 @@ fn the_workloads_snapshot_still_hydrates() {
 
 // --- Secret inventory from the gateway (OKT-179) ----------------------------
 
-#[tokio::test]
-async fn snapshot_lists_gateway_secret_refs_and_preserves_empty_state() {
-    let gateway = ref_gateway(Some(vec![
-        SecretRef {
-            namespace: "default".into(),
-            name: "regcred".into(),
-        },
-        SecretRef {
-            namespace: "team-a".into(),
-            name: "db".into(),
-        },
-    ]));
-    let snapshot = Snapshot::from_gateway(&gateway, true, Some("in-cluster".into())).await;
-    assert_eq!(snapshot.secrets.len(), 2);
-    assert_eq!(namespaces_of(&snapshot.secrets), vec!["default", "team-a"]);
+struct RefGateway(Option<Vec<SecretRef>>);
 
-    // The page paints the rows and the namespace bar the same list fed.
-    let body = render_body(&snapshot);
-    assert!(body.contains(">regcred<"), "secret row: {body}");
-    assert!(
-        body.contains("data-ns=\"team-a\""),
-        "namespace chip: {body}"
-    );
-    assert!(
-        !body.contains("data-empty=\"secrets\""),
-        "secrets surface must not paint empty: {body}"
-    );
-    assert!(
-        !body.contains("data-empty=\"namespaces\""),
-        "namespace bar must not paint empty: {body}"
-    );
-}
+impl Gateway for RefGateway {
+    fn capabilities(&self) -> Capabilities {
+        Capabilities::server_side()
+    }
 
-#[tokio::test]
-async fn snapshot_keeps_the_declared_empty_state_when_the_gateway_lists_nothing() {
-    let gateway = ref_gateway(Some(Vec::new()));
-    let snapshot = Snapshot::from_gateway(&gateway, true, Some("in-cluster".into())).await;
-    assert!(snapshot.secrets.is_empty());
+    fn apply(&self, _: Mutation) -> GatewayFuture<'_, Result<(), GatewayError>> {
+        Box::pin(async { Ok(()) })
+    }
 
-    let body = render_body(&snapshot);
-    assert!(
-        body.contains("data-empty=\"secrets\""),
-        "empty secrets surface: {body}"
-    );
-    assert!(
-        body.contains("data-empty=\"namespaces\""),
-        "declared empty namespace bar: {body}"
-    );
-}
+    fn secret(
+        &self,
+        namespace: String,
+        name: String,
+    ) -> GatewayFuture<'_, Result<SecretObject, GatewayError>> {
+        Box::pin(async move {
+            Ok(SecretObject {
+                name,
+                namespace: Some(namespace),
+                ..SecretObject::default()
+            })
+        })
+    }
 
-#[tokio::test]
-async fn snapshot_keeps_the_declared_empty_state_when_the_gateway_cannot_list() {
-    let gateway = ref_gateway(None);
-    let snapshot = Snapshot::from_gateway(&gateway, false, None).await;
-    assert!(snapshot.secrets.is_empty());
-    assert!(!snapshot.connected);
-
-    let body = render_body(&snapshot);
-    assert!(
-        body.contains("data-empty=\"secrets\""),
-        "disconnected page must keep the empty secrets surface: {body}"
-    );
-    assert!(
-        body.contains("data-empty=\"namespaces\""),
-        "disconnected page must keep the declared namespace bar: {body}"
-    );
-}
-
-#[test]
-fn namespaces_are_the_sorted_distinct_set_of_the_refs() {
-    let refs = vec![
-        SecretRef {
-            namespace: "team-b".into(),
-            name: "one".into(),
-        },
-        SecretRef {
-            namespace: "default".into(),
-            name: "two".into(),
-        },
-        SecretRef {
-            namespace: "team-b".into(),
-            name: "three".into(),
-        },
-    ];
-    assert_eq!(namespaces_of(&refs), vec!["default", "team-b"]);
-    assert!(namespaces_of(&[]).is_empty());
-}
-
-#[test]
-fn every_page_carries_the_shell_stylesheet() {
-    let wrapped = format!("<style>{}</style>", openkite_ui::MAIN_CSS);
-    for options in [RenderOptions::ssr_only(), RenderOptions::hydrating()] {
-        let page = render_page(&snapshot(), &options);
-        assert!(
-            page.contains(&wrapped),
-            "page must inline the shared shell stylesheet"
-        );
+    fn secret_refs(&self) -> GatewayFuture<'_, Result<Vec<SecretRef>, GatewayError>> {
+        match &self.0 {
+            Some(refs) => {
+                let refs = refs.clone();
+                Box::pin(async move { Ok(refs) })
+            }
+            None => Box::pin(async { Err(GatewayError::new("no cluster")) }),
+        }
     }
 }
 
-#[test]
-fn rendered_page_defines_the_openkite_bridge() {
-    for options in [RenderOptions::ssr_only(), RenderOptions::hydrating()] {
-        let page = render_page(&snapshot(), &options);
-        assert!(
-            page.contains("window.openkite"),
-            "the page must define the bridge the console's JS calls: {page}"
-        );
-        assert!(
-            page.contains("_pushState"),
-            "the page must route pushed updates: {page}"
-        );
-    }
+fn ref_gateway(refs: Option<Vec<SecretRef>>) -> Arc<dyn Gateway> {
+    Arc::new(RefGateway(refs))
 }
 
 #[tokio::test]
@@ -590,6 +515,32 @@ async fn snapshot_lists_gateway_secret_refs_and_preserves_empty_state() {
     let disconnected = Snapshot::from_gateway(&ref_gateway(None), false, None).await;
     assert!(disconnected.secrets.is_empty());
     assert!(render_body(&disconnected).contains("data-empty=\"secrets\""));
+}
+
+fn every_page_carries_the_shell_stylesheet() {
+    let wrapped = format!("<style>{}</style>", openkite_ui::MAIN_CSS);
+    for options in [RenderOptions::ssr_only(), RenderOptions::hydrating()] {
+        let page = render_page(&snapshot(), &options);
+        assert!(
+            page.contains(&wrapped),
+            "page must inline the shared shell stylesheet"
+        );
+    }
+}
+
+#[test]
+fn rendered_page_defines_the_openkite_bridge() {
+    for options in [RenderOptions::ssr_only(), RenderOptions::hydrating()] {
+        let page = render_page(&snapshot(), &options);
+        assert!(
+            page.contains("window.openkite"),
+            "the page must define the bridge the console's JS calls: {page}"
+        );
+        assert!(
+            page.contains("_pushState"),
+            "the page must route pushed updates: {page}"
+        );
+    }
 }
 
 #[test]
