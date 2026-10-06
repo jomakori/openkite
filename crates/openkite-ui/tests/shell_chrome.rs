@@ -662,7 +662,7 @@ fn the_bottom_bar_lists_the_sidebar_models_leading_destinations() {
         "cluster destination tab: {bar}"
     );
     assert!(
-        bar.contains("<a class=\"bottom-tab active\" href=\"/workloads\">"),
+        bar.contains("<a class=\"bottom-tab active\" href=\"/workloads\"><span>Pods</span></a>"),
         "the current workload destination is in the bar: {bar}"
     );
     assert!(
