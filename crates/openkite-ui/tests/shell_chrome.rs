@@ -654,16 +654,16 @@ fn the_bottom_bar_lists_the_sidebar_models_leading_destinations() {
     );
     // The model's own leading routes, in order — not a second route list.
     assert!(
+        bar.contains("<a class=\"bottom-tab\" href=\"/\">"),
+        "overview destination tab: {bar}"
+    );
+    assert!(
         bar.contains("<a class=\"bottom-tab\" href=\"/cluster\">"),
-        "first destination tab: {bar}"
+        "cluster destination tab: {bar}"
     );
     assert!(
         bar.contains("<a class=\"bottom-tab active\" href=\"/workloads\">"),
-        "the current route's tab is the active one: {bar}"
-    );
-    assert!(
-        bar.contains("<a class=\"bottom-tab\" href=\"/logs\">"),
-        "third destination tab: {bar}"
+        "the current workload destination is in the bar: {bar}"
     );
     assert!(
         !bar.contains("href=\"/terminal\"") && !bar.contains("href=\"/config\""),
