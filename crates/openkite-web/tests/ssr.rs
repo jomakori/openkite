@@ -430,48 +430,8 @@ fn the_workloads_snapshot_still_hydrates() {
 
 // --- Secret inventory from the gateway (OKT-179) ----------------------------
 
-/// A gateway whose list op answers with the refs under test; `None` makes the
-/// list fail, so the disconnected fallback is exercised too.
-struct RefGateway(Option<Vec<SecretRef>>);
-
-impl Gateway for RefGateway {
-    fn capabilities(&self) -> Capabilities {
-        Capabilities::server_side()
-    }
-
-    fn apply(&self, _: Mutation) -> GatewayFuture<'_, Result<(), GatewayError>> {
-        Box::pin(async { Ok(()) })
-    }
-
-    fn secret(
-        &self,
-        namespace: String,
-        name: String,
-    ) -> GatewayFuture<'_, Result<SecretObject, GatewayError>> {
-        Box::pin(async move {
-            Ok(SecretObject {
-                name,
-                namespace: Some(namespace),
-                ..SecretObject::default()
-            })
-        })
-    }
-
-    fn secret_refs(&self) -> GatewayFuture<'_, Result<Vec<SecretRef>, GatewayError>> {
-        let outcome = match &self.0 {
-            Some(refs) => Ok(refs.clone()),
-            None => Err(GatewayError::new("no cluster")),
-        };
-        Box::pin(async move { outcome })
-    }
-}
-
-fn ref_gateway(refs: Option<Vec<SecretRef>>) -> Arc<dyn Gateway> {
-    Arc::new(RefGateway(refs))
-}
-
 #[tokio::test]
-async fn snapshot_lists_the_secrets_the_gateway_returns() {
+async fn snapshot_lists_gateway_secret_refs_and_preserves_empty_state() {
     let gateway = ref_gateway(Some(vec![
         SecretRef {
             namespace: "default".into(),
@@ -585,44 +545,6 @@ fn rendered_page_defines_the_openkite_bridge() {
     }
 }
 
-struct RefGateway(Option<Vec<SecretRef>>);
-
-impl Gateway for RefGateway {
-    fn capabilities(&self) -> Capabilities {
-        Capabilities::server_side()
-    }
-    fn apply(&self, _: Mutation) -> GatewayFuture<'_, Result<(), GatewayError>> {
-        Box::pin(async { Ok(()) })
-    }
-    fn secret(
-        &self,
-        namespace: String,
-        name: String,
-    ) -> GatewayFuture<'_, Result<SecretObject, GatewayError>> {
-        Box::pin(async move {
-            Ok(SecretObject {
-                name,
-                namespace: Some(namespace),
-                ..SecretObject::default()
-            })
-        })
-    }
-    fn secret_refs(&self) -> GatewayFuture<'_, Result<Vec<SecretRef>, GatewayError>> {
-        match &self.0 {
-            Some(refs) => {
-                let refs = refs.clone();
-                Box::pin(async move { Ok(refs) })
-            }
-            None => Box::pin(async { Err(GatewayError::new("no cluster")) }),
-        }
-    }
-}
-
-fn ref_gateway(refs: Option<Vec<SecretRef>>) -> Arc<dyn Gateway> {
-    Arc::new(RefGateway(refs))
-}
-
-#[tokio::test]
 async fn snapshot_lists_gateway_secret_refs_and_preserves_empty_state() {
     let gateway = ref_gateway(Some(vec![
         SecretRef {
