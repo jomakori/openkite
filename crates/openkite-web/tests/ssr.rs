@@ -300,10 +300,10 @@ fn workloads_snapshot() -> Snapshot {
 #[test]
 fn the_route_the_host_served_reaches_the_rendered_page() {
     for (route, page) in [
-        ("/", "Cluster"),
-        ("/cluster", "Cluster"),
-        ("/workloads", "Workloads"),
-        ("/config", "Config"),
+        ("/", "Overview"),
+        ("/cluster", "Nodes"),
+        ("/workloads", "Pods"),
+        ("/config", "ConfigMaps"),
     ] {
         let body = render_body(&route_snapshot(route));
         assert!(
@@ -329,13 +329,21 @@ fn the_current_route_marks_its_own_sidebar_entry() {
         .find("class=\"nav-item active\"")
         .expect("an active entry");
     assert!(
-        body[active..].contains(">Workloads<"),
+        body[active..].contains(">Pods<"),
         "the current route's own entry is the active one: {body}"
     );
-    // The crate's core navigation has no entry for `/`, so it marks nothing.
+    let home = render_body(&route_snapshot("/"));
+    assert_eq!(
+        home.matches("class=\"nav-item active\"").count(),
+        1,
+        "exactly one entry is current on the overview route: {home}"
+    );
+    let active = home
+        .find("class=\"nav-item active\"")
+        .expect("an active overview entry");
     assert!(
-        !render_body(&route_snapshot("/")).contains("nav-item active"),
-        "the home route is not a sidebar entry"
+        home[active..].contains(">Overview<"),
+        "the overview route marks Overview active: {home}"
     );
 }
 
