@@ -4,6 +4,7 @@
 //! action) and read by the shared UI. Dioxus global signals are backed by the
 //! runtime, so a host must write them inside the VirtualDom's runtime.
 
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
 
 use dioxus::prelude::*;
@@ -14,6 +15,7 @@ use openkite_api::secret::SecretObject;
 use serde_json::Value;
 
 use crate::components::resource_pane::ResourceDetail;
+use crate::dock::DockState;
 
 /// The secret the detail slide-over shows (`None` = closed).
 pub static SELECTED_SECRET: GlobalSignal<Option<SecretObject>> = Signal::global(|| None);
@@ -198,6 +200,78 @@ pub fn clear_namespace_selection() {
 /// [`LOGS_CONTAINER`]: a global so the host-side stream controller can
 /// pause/resume without owning the Dioxus component tree.
 pub static LOGS_FOLLOW: GlobalSignal<bool> = Signal::global(|| true);
+
+/// The bottom dock's tabs and active tab.
+pub static DOCK: GlobalSignal<DockState> = Signal::global(DockState::default);
+
+/// The dock's height in CSS pixels.
+pub static DOCK_HEIGHT: GlobalSignal<u32> = Signal::global(|| crate::dock::DEFAULT_HEIGHT);
+
+/// Runtime-free mirror of [`DOCK_HEIGHT`], for hosts outside the Dioxus runtime.
+static DOCK_HEIGHT_STORE: OnceLock<AtomicU32> = OnceLock::new();
+
+fn dock_height_store() -> &'static AtomicU32 {
+    DOCK_HEIGHT_STORE.get_or_init(|| AtomicU32::new(crate::dock::DEFAULT_HEIGHT))
+}
+
+/// The dock height in CSS pixels, readable without a Dioxus runtime.
+pub fn dock_height() -> u32 {
+    dock_height_store().load(Ordering::Relaxed)
+}
+
+/// Persist a dock height (clamped to the draggable range) into the global and
+/// the runtime-free mirror.
+pub fn set_dock_height(px: u32) {
+    let clamped = crate::dock::clamp_height(px as f64);
+    dock_height_store().store(clamped, Ordering::Relaxed);
+    *DOCK_HEIGHT.write() = clamped;
+}
+
+/// Open the dock tab a pod selection names, reusing the temporary tab.
+pub fn open_pod_tab(pod: PodObject) {
+    DOCK.with_mut(|state| crate::dock::open_pod(state, pod));
+}
+
+/// Open (or focus) a permanent terminal dock tab for `pod`.
+pub fn open_terminal_tab(pod: PodObject) {
+    DOCK.with_mut(|state| crate::dock::open_terminal(state, pod));
+}
+
+/// Focus the dock tab `id`, publishing its pod to the surfaces it renders.
+pub fn activate_dock_tab(id: &str) {
+    let pod = DOCK.read().tab(id).and_then(|tab| tab.pod.clone());
+    DOCK.with_mut(|state| crate::dock::activate(state, id));
+    if let Some(pod) = pod {
+        let changed = SELECTED_POD
+            .read()
+            .as_ref()
+            .map(|current| current != &pod)
+            .unwrap_or(true);
+        if changed {
+            *SELECTED_POD.write() = Some(pod);
+        }
+    }
+}
+
+/// Promote the dock tab `id` from temporary to permanent.
+pub fn promote_dock_tab(id: &str) {
+    DOCK.with_mut(|state| crate::dock::promote(state, id));
+}
+
+/// Close the dock tab `id`.
+pub fn close_dock_tab(id: &str) {
+    DOCK.with_mut(|state| crate::dock::close(state, id));
+}
+
+/// Close every dock tab but `id`.
+pub fn close_other_dock_tabs(id: &str) {
+    DOCK.with_mut(|state| crate::dock::close_others(state, id));
+}
+
+/// Close every dock tab; an empty dock renders nothing.
+pub fn close_all_dock_tabs() {
+    DOCK.with_mut(crate::dock::close_all);
+}
 
 /// The resource the CRUD overlay is currently showing, or `None` when the
 /// overlay is closed. Dispatched on by

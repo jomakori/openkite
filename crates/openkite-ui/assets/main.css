@@ -1627,6 +1627,213 @@ body {
 .modal-editor { width: 560px; }
 .modal-confirm { width: 380px; }
 
+
+/* Bottom dock (OKT-172): a resizable panel holding a tab strip, a dropdown
+   tab manager and the active terminal/log surface. The view only gives up
+   height while a dock is mounted, so the no-dock layout is unchanged. */
+.main:has(> .dock) { display: flex; flex-direction: column; }
+.main:has(> .dock) .view.active { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+
+.dock {
+  flex: 0 0 auto;
+  height: var(--dock-height, 264px);
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+  background: var(--surface-solid);
+  border-top: 1px solid var(--border);
+  box-shadow: var(--shadow-rest);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .dock-resize:hover { background: var(--border); }
+  .dock-tab-close:hover { color: var(--fg); background: var(--surface); }
+  .dock-menu-switch:hover { background: var(--surface); }
+  .dock-menu-close:hover { color: var(--fg); background: var(--surface); }
+  .dock-menu-action:hover:not(:disabled) { color: var(--fg); box-shadow: var(--shadow-rest); }
+}
+
+/* The drag grip: a thin strip along the dock's top edge. */
+.dock-resize {
+  flex: 0 0 auto;
+  height: 6px;
+  cursor: ns-resize;
+  background: transparent;
+  touch-action: none;
+}
+
+
+.dock-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.dock-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.dock-tabs::-webkit-scrollbar { display: none; }
+
+.dock-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  max-width: 220px;
+  min-height: 28px;
+  padding: 0 4px 0 8px;
+  font-size: 12px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.dock-tab.active {
+  color: var(--fg);
+  background: var(--surface);
+  border-color: var(--border);
+}
+/* The temporary tab is muted until a double-click promotes it. */
+.dock-tab[data-temporary] { opacity: 0.7; font-style: italic; }
+.dock-tab .dot { width: 6px; height: 6px; background: var(--accent); }
+.dock-tab-label {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.dock-tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--subtle);
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+
+
+.dock-manager { position: relative; flex: 0 0 auto; }
+.dock-manager-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+
+.dock-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 60;
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 220px;
+  padding: 6px;
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-hover);
+}
+.dock-menu.open { display: flex; }
+
+.dock-menu-row { display: flex; align-items: center; gap: 4px; }
+.dock-menu-switch {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  color: var(--fg);
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+
+.dock-menu-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--subtle);
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+
+
+.dock-menu-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+.dock-menu-action {
+  flex: 1 1 auto;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+
+.dock-menu-action:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.dock-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 12px;
+  background: var(--terminal-bg);
+}
+
+
 /* ========================================================================
    Touch (OKT-173) — every desktop affordance keeps a path on a touch screen.
    The search field takes the full width above the strip, and the dock's tab
@@ -1692,3 +1899,4 @@ body {
   }
   .dock-menu-action { min-height: 44px; }
 }
+

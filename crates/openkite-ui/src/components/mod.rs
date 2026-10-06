@@ -3,6 +3,7 @@
 pub mod app_card;
 pub mod code_editor;
 pub mod crud_modal;
+pub mod dock;
 pub mod logs;
 pub mod namespace_bar;
 pub mod palette;
