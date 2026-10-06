@@ -216,6 +216,7 @@ fn AppShell() -> Element {
 
     use_hook(|| {
         if let Some(mut rx) = crate::push::install() {
+            openkite_ui::runtime::set_push_mode(openkite_ui::runtime::PushMode::Push);
             spawn(async move {
                 while let Some(msg) = rx.recv().await {
                     document::eval(&msg.to_js());
@@ -521,6 +522,7 @@ fn status_entries() -> Vec<crate::shell::StatusBarEntry> {
         &state,
         &REGISTRATIONS.read(),
         version.as_deref().unwrap_or_default(),
+        openkite_ui::runtime::push_mode(),
     )
 }
 

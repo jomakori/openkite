@@ -8,6 +8,7 @@
 //! these — wired when the shell view lands.
 
 use crate::plugin_api::{RegistrationStore, SidebarItem, StatusItem};
+use crate::runtime::PushMode;
 
 /// A sidebar entry: core nav or plugin-registered.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -374,11 +375,12 @@ pub struct StatusBarEntry {
 }
 
 /// The status-bar model: cluster, connection, version, Prometheus (when
-/// detected), then plugin status items in plugin order.
+/// detected), the host's push mode, then plugin status items in plugin order.
 pub fn status_bar_model(
     state: &ShellState,
     store: &RegistrationStore,
     version: &str,
+    push: PushMode,
 ) -> Vec<StatusBarEntry> {
     let mut entries = vec![StatusBarEntry {
         label: format!("{} · {}", state.cluster_label(), state.status_label()),
@@ -399,6 +401,16 @@ pub fn status_bar_model(
             plugin: None,
         });
     }
+    let (label, color) = match push {
+        PushMode::Push => ("Push", "green"),
+        PushMode::Polling => ("Polling", "yellow"),
+        PushMode::Off => ("Off", "red"),
+    };
+    entries.push(StatusBarEntry {
+        label: label.into(),
+        color: Some(color.into()),
+        plugin: None,
+    });
     for (plugin, item) in store.all_status_items() {
         entries.push(StatusBarEntry {
             label: item.label.clone(),
@@ -605,13 +617,14 @@ mod tests {
             connected: true,
             ..ShellState::default()
         };
-        let entries = status_bar_model(&state, &store, "0.8.0");
-        assert_eq!(entries.len(), 3);
+        let entries = status_bar_model(&state, &store, "0.8.0", PushMode::Push);
+        assert_eq!(entries.len(), 4);
         assert_eq!(entries[0].label, "prod · Connected");
         assert_eq!(entries[0].color.as_deref(), Some("green"));
         assert_eq!(entries[1].label, "v0.8.0");
-        assert_eq!(entries[2].label, "argocd: ok");
-        assert_eq!(entries[2].plugin.as_deref(), Some("argocd"));
+        assert_eq!(entries[2].label, "Push");
+        assert_eq!(entries[3].label, "argocd: ok");
+        assert_eq!(entries[3].plugin.as_deref(), Some("argocd"));
     }
 
     #[test]

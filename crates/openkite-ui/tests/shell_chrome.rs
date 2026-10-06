@@ -15,7 +15,7 @@ use dioxus::prelude::*;
 use openkite_api::capability::Capabilities;
 use openkite_ui::components::shell::{AppShell, ClusterInfo, ShellIcon, TopBarAction};
 use openkite_ui::plugin_api::RegistrationStore;
-use openkite_ui::runtime::set_published_capabilities;
+use openkite_ui::runtime::{set_published_capabilities, PushMode};
 use openkite_ui::shell::{
     core_sections, core_sections_with_counts, status_bar_model, NavCounts, ShellNavItem,
     ShellSection, ShellState, StatusBarEntry,
@@ -102,12 +102,18 @@ fn connected_entries() -> Vec<StatusBarEntry> {
         },
         &RegistrationStore::new(),
         "1.2.3",
+        PushMode::Push,
     )
 }
 
 /// The status entries a host without a cluster produces.
 fn disconnected_entries() -> Vec<StatusBarEntry> {
-    status_bar_model(&ShellState::default(), &RegistrationStore::new(), "")
+    status_bar_model(
+        &ShellState::default(),
+        &RegistrationStore::new(),
+        "",
+        PushMode::Polling,
+    )
 }
 
 /// The shell as the desktop mounts it: entries with a badge, the cluster

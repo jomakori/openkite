@@ -224,6 +224,7 @@ pub fn render_page(snapshot: &Snapshot, options: &RenderOptions) -> String {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OpenKite</title>
 <style>{css}</style>
+<script>{bridge}</script>
 </head>
 <body>
 <div id="main">{body}</div>
@@ -231,6 +232,7 @@ pub fn render_page(snapshot: &Snapshot, options: &RenderOptions) -> String {
 </body>
 </html>"#,
         css = openkite_ui::MAIN_CSS,
+        bridge = openkite_ui::plugin_api::OPENKITE_BRIDGE_JS,
     )
 }
 

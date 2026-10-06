@@ -108,6 +108,31 @@ pub fn context_name() -> Option<String> {
     CONTEXT.read().clone()
 }
 
+/// How live cluster state reaches the console, decided by the host that owns
+/// the transport.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PushMode {
+    /// Reflector updates arrive through the host's push pump.
+    Push,
+    /// No push transport; the host refetches on a timer.
+    Polling,
+    /// Neither: no live updates are expected.
+    Off,
+}
+
+/// The push mode the host published; `Off` until a host states one.
+pub static PUSH_MODE: GlobalSignal<PushMode> = Signal::global(|| PushMode::Off);
+
+/// Publish the host's push mode.
+pub fn set_push_mode(mode: PushMode) {
+    *PUSH_MODE.write() = mode;
+}
+
+/// The host's push mode.
+pub fn push_mode() -> PushMode {
+    *PUSH_MODE.read()
+}
+
 /// The namespace names the console's bar offers.
 pub static NAMESPACE_OPTIONS: GlobalSignal<Vec<String>> = Signal::global(Vec::new);
 

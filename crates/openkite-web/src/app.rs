@@ -26,7 +26,7 @@ use openkite_ui::components::shell::{AppShell, ClusterInfo, ShellIcon, TopBarAct
 use openkite_ui::components::status_badge::{StatusKind, StatusPill};
 use openkite_ui::components::switcher::{ClusterSwitcher, SwitcherKeybind};
 use openkite_ui::plugin_api::RegistrationStore;
-use openkite_ui::runtime::NAMESPACE_SELECTION;
+use openkite_ui::runtime::{push_mode, set_push_mode, PushMode, NAMESPACE_SELECTION};
 use openkite_ui::shell::{sidebar_model, status_bar_model, ShellState};
 
 use crate::ssr::Snapshot;
@@ -105,6 +105,17 @@ pub fn App(props: AppProps) -> Element {
     let on_refresh = move |_: ()| refetch();
     let on_refresh_click = move |_: Event<MouseData>| refetch();
 
+    // This host has no push transport, so the page polls for fresh state.
+    // The 10 s interval is half of the degraded bound: an update lands within
+    // one interval plus a round-trip and a render.
+    use_hook(|| set_push_mode(PushMode::Polling));
+    use_future(move || async move {
+        loop {
+            poll_interval().await;
+            refetch();
+        }
+    });
+
     let snapshot = state();
     let capabilities = snapshot.capabilities;
 
@@ -141,7 +152,7 @@ pub fn App(props: AppProps) -> Element {
     };
     let registrations = RegistrationStore::default();
     let sections = sidebar_model(&registrations);
-    let status_entries = status_bar_model(&shell, &registrations, "");
+    let status_entries = status_bar_model(&shell, &registrations, "", push_mode());
 
     let gateway_label = match capabilities.gateway {
         GatewayKind::InProcess => "in-process",
@@ -288,4 +299,29 @@ fn capability_rows(capabilities: &Capabilities) -> [(&'static str, bool); 3] {
         ("Terminal", capabilities.terminal),
         ("Exec", capabilities.exec),
     ]
+}
+
+/// How long the page waits between polls: the interval half of the degraded
+/// bound, so a round-trip and a render fit inside the rest.
+const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// Wait one poll interval. No timer is shared by both targets: the SSR pass
+/// and the tests sit on tokio, the browser on the page's own timer.
+#[cfg(not(target_arch = "wasm32"))]
+async fn poll_interval() {
+    tokio::time::sleep(POLL_INTERVAL).await;
+}
+
+/// Wait one poll interval on the page's timer.
+#[cfg(target_arch = "wasm32")]
+async fn poll_interval() {
+    let promise = js_sys::Promise::new(&mut |resolve, _reject| {
+        if let Some(window) = web_sys::window() {
+            let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(
+                &resolve,
+                POLL_INTERVAL.as_millis() as i32,
+            );
+        }
+    });
+    let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
 }
