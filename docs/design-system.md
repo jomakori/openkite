@@ -71,6 +71,7 @@ list is `REQUIRED_CLASSES` in `crates/openkite-ui/tests/design.rs`.
 | `.toast` + `.toast.show` | Bottom-anchored notification (340px max-width) |
 | `.page-head`/`.eyebrow`/`.page-sub`/`.page-actions`, `.toolbar`/`.chip-row`, `.panel-footer`/`.pager` | Route chrome (heading row, filter toolbar, footer) |
 | `.nav-section` + `.nav-item` (+ `.nav-badge`) | Sidebar navigation |
+| `.nav-section.argo` | Per-plugin section variant — the shell styles it; the plugin owns its section |
 | `.modal-backdrop`/`.modal` (+ 7 children), `.field-input`/`.field-label`/`.field-helper`/`.field-error`, `.editor-textarea` | CRUD/edit surfaces |
 | `.value-mask`/`.value-masked`/`.value-revealed`/`.value-actions`/`.reveal-btn` | Secret value masking |
 | `.app-grid` + `.app-card` | Application card grid and frosted card shell |

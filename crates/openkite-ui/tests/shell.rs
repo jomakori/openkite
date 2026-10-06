@@ -54,9 +54,19 @@ fn sidebar_orders_core_then_registered_plugins() {
     store.upsert("argocd", argocd_registration());
 
     let model = sidebar_model(&store);
-    assert_eq!(model[0].label, "Overview");
-    assert_eq!(model[1].label, "argocd");
-    assert_eq!(model[2].label, "istio");
+    assert_eq!(
+        model
+            .iter()
+            .map(|section| section.label.as_str())
+            .collect::<Vec<_>>(),
+        vec![
+            "Cluster",
+            "Workloads",
+            "Config & Storage",
+            "argocd",
+            "istio"
+        ]
+    );
 
     let plugins = plugin_sections(&store);
     assert_eq!(plugins.len(), 2);

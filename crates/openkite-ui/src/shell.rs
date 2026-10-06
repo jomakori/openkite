@@ -16,17 +16,16 @@ pub struct ShellNavItem {
     pub route: String,
     /// Plugin that contributed this item (`None` = core).
     pub plugin: Option<String>,
-    /// Count the design's nav badge shows next to the entry. Hosts publish
-    /// one when they have a count to show; `None` renders no badge.
+    /// Count the design's nav badge shows next to the entry. Hosts publish one
+    /// when they have a count to show; `None` — or the `Some(0)` [`nav_badge`]
+    /// collapses — renders no badge.
     pub badge: Option<String>,
 }
 
 /// A sidebar section: core (built-in) or one per plugin.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ShellSection {
-    /// Section header. Empty renders no header at all, which is how the
-    /// desktop shows its core navigation: one unlabelled block above the
-    /// plugin sections.
+    /// Section header. Empty renders no header at all.
     pub label: String,
     /// Inline accent for the header and its entries (`None` = the stylesheet's
     /// own colour, no inline style). Plugin sections carry their contributor's
@@ -35,32 +34,71 @@ pub struct ShellSection {
     pub items: Vec<ShellNavItem>,
 }
 
-/// Core sidebar sections (the shell's own navigation).
+impl ShellSection {
+    /// Whether this section is plugin-owned: the shell renders it through the
+    /// plugin slot, never as core navigation.
+    pub fn is_plugin(&self) -> bool {
+        self.items.iter().any(|item| item.plugin.is_some())
+    }
+
+    /// The plugin that owns the section, when one does.
+    pub fn plugin(&self) -> Option<&str> {
+        self.items.iter().find_map(|item| item.plugin.as_deref())
+    }
+}
+
+/// The section-variant class the shell applies to a plugin-owned section.
+///
+/// The reference gives Argo CD its own `.argo` zone, and that variant is the
+/// shell's to draw: a plugin names itself and its entries, never its own
+/// styling. Normalised names match, so `argocd`, `argo-cd` and `Argo CD` all
+/// land on the reference's `.argo`; `None` keeps the default treatment.
+pub fn plugin_section_variant(plugin: &str) -> Option<&'static str> {
+    let normalized: String = plugin
+        .chars()
+        .filter(char::is_ascii_alphanumeric)
+        .collect::<String>()
+        .to_ascii_lowercase();
+    match normalized.as_str() {
+        "argocd" | "argo" => Some("argo"),
+        _ => None,
+    }
+}
+
+/// The variant class for a section: the contributing plugin's, or none for
+/// core navigation.
+pub fn section_variant(section: &ShellSection) -> Option<&'static str> {
+    section.plugin().and_then(plugin_section_variant)
+}
+
+/// Live counts for the core navigation: one per entry the reference badges.
+///
+/// The reference badges five rows — Nodes, Pods, Deployments, Services,
+/// ConfigMaps — and draws Storage and Network without a count, so neither is
+/// modelled here. A field is `None` while the host has no live count for that
+/// kind — an unwatched kind, or a scope with no objects — so an absent count
+/// and an empty scope both render no badge instead of a zero.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct NavCounts {
+    pub nodes: Option<u64>,
+    pub pods: Option<u64>,
+    pub deployments: Option<u64>,
+    pub services: Option<u64>,
+    pub config_maps: Option<u64>,
+}
+
+/// The `.nav-badge` text for a live count: `None` while loading and for an
+/// empty scope alike, because the design never renders a zero badge.
+pub fn nav_badge(count: Option<u64>) -> Option<String> {
+    count
+        .filter(|count| *count > 0)
+        .map(|count| count.to_string())
+}
+
+/// Core sidebar sections (the shell's own navigation), with no counts — the
+/// disconnected shape.
 pub fn core_sections() -> Vec<ShellSection> {
-    vec![ShellSection {
-        label: "Overview".into(),
-        accent: None,
-        items: vec![
-            ShellNavItem {
-                label: "Cluster".into(),
-                route: "/cluster".into(),
-                plugin: None,
-                badge: None,
-            },
-            ShellNavItem {
-                label: "Workloads".into(),
-                route: "/workloads".into(),
-                plugin: None,
-                badge: None,
-            },
-            ShellNavItem {
-                label: "Config".into(),
-                route: "/config".into(),
-                plugin: None,
-                badge: None,
-            },
-        ],
-    }]
+    core_sections_with_counts(&NavCounts::default())
 }
 
 /// The desktop's core navigation: the flat entry list it shows above the
@@ -108,6 +146,54 @@ pub fn core_nav(terminal: bool) -> Vec<ShellNavItem> {
     items
 }
 
+/// The reference sidebar's three core sections, with per-entry live counts.
+///
+/// Cluster (Overview, Nodes) · Workloads (Pods, Deployments, Services) ·
+/// Config & Storage (ConfigMaps, Storage, Network). Entries carry the console's
+/// own routes; it has no per-kind route yet, so a family shares its section's
+/// route and the first entry on a route is the current one.
+///
+/// Badges land on exactly the rows the reference badges (Nodes, Pods,
+/// Deployments, Services, ConfigMaps); Storage and Network are count-less
+/// there and stay count-less here.
+pub fn core_sections_with_counts(counts: &NavCounts) -> Vec<ShellSection> {
+    let item = |label: &str, route: &str, badge: Option<String>| ShellNavItem {
+        label: label.into(),
+        route: route.into(),
+        plugin: None,
+        badge,
+    };
+    vec![
+        ShellSection {
+            label: "Cluster".into(),
+            accent: None,
+            items: vec![
+                item("Overview", "/", None),
+                item("Nodes", "/cluster", nav_badge(counts.nodes)),
+            ],
+        },
+        ShellSection {
+            label: "Workloads".into(),
+            accent: None,
+            items: vec![
+                item("Pods", "/workloads", nav_badge(counts.pods)),
+                item("Deployments", "/workloads", nav_badge(counts.deployments)),
+                item("Services", "/workloads", nav_badge(counts.services)),
+            ],
+        },
+        ShellSection {
+            label: "Config & Storage".into(),
+            accent: None,
+            items: vec![
+                item("ConfigMaps", "/config", nav_badge(counts.config_maps)),
+                // The reference draws these two rows without a count.
+                item("Storage", "/config", None),
+                item("Network", "/config", None),
+            ],
+        },
+    ]
+}
+
 /// The ordered sidebar model: core sections, then one section per plugin
 /// that registered sidebar items (plugin-name order, entries in
 /// registration order). Plugins without sidebar items contribute no section.
@@ -117,10 +203,14 @@ pub fn sidebar_model(store: &RegistrationStore) -> Vec<ShellSection> {
     sections
 }
 
-/// The plugin-added sidebar sections only — what the interactive shell
-/// appends after the core nav when rendering the bridge's
-/// registration mirror. Same ordering rules as [`sidebar_model`]; plugins
-/// without sidebar items contribute no section.
+/// The plugin-added sidebar sections only — the contents of the shell's plugin
+/// slot, which the interactive shell renders after the core navigation.
+///
+/// A plugin never draws its own section: it registers entries and the shell
+/// builds the section, so the styling (including the reference's per-plugin
+/// variant, [`section_variant`]) stays with the shell. Same ordering
+/// rules as [`sidebar_model`]; plugins without sidebar items contribute no
+/// section.
 pub fn plugin_sections(store: &RegistrationStore) -> Vec<ShellSection> {
     let mut sections = Vec::new();
     for plugin in store.plugins() {
@@ -425,16 +515,25 @@ mod tests {
         store.upsert("istio", reg_with_sidebar("istio", "Mesh", "/istio/mesh").1);
         let sections = sidebar_model(&store);
 
-        assert_eq!(sections.len(), 3);
-        assert_eq!(sections[0].label, "Overview");
-        assert_eq!(sections[0].items.len(), 3);
+        assert_eq!(sections.len(), 5, "three core sections then two plugins");
+        assert_eq!(
+            sections
+                .iter()
+                .take(3)
+                .map(|section| section.label.as_str())
+                .collect::<Vec<_>>(),
+            vec!["Cluster", "Workloads", "Config & Storage"]
+        );
+        assert_eq!(sections[0].items.len(), 2);
         assert!(sections[0].items.iter().all(|i| i.plugin.is_none()));
+        assert!(!sections[0].is_plugin());
 
-        assert_eq!(sections[1].label, "argocd");
-        assert_eq!(sections[1].items[0].label, "Applications");
-        assert_eq!(sections[1].items[0].plugin.as_deref(), Some("argocd"));
+        assert_eq!(sections[3].label, "argocd");
+        assert_eq!(sections[3].items[0].label, "Applications");
+        assert_eq!(sections[3].items[0].plugin.as_deref(), Some("argocd"));
+        assert!(sections[3].is_plugin());
 
-        assert_eq!(sections[2].label, "istio");
+        assert_eq!(sections[4].label, "istio");
     }
 
     #[test]
@@ -442,8 +541,8 @@ mod tests {
         let mut store = RegistrationStore::new();
         store.upsert("silent", PluginRegistration::default());
         let sections = sidebar_model(&store);
-        assert_eq!(sections.len(), 1);
-        assert_eq!(sections[0].label, "Overview");
+        assert_eq!(sections.len(), 3);
+        assert_eq!(sections[0].label, "Cluster");
     }
 
     #[test]
@@ -549,21 +648,106 @@ mod tests {
     }
 
     #[test]
-    fn core_nav_gates_the_terminal_entry_on_the_capability() {
-        let routes = |terminal| {
-            core_nav(terminal)
-                .into_iter()
-                .map(|item| item.route)
-                .collect::<Vec<_>>()
+    fn core_sections_match_the_reference_and_carry_no_counts_when_disconnected() {
+        let sections = core_sections();
+        assert_eq!(
+            sections
+                .iter()
+                .map(|section| section.label.as_str())
+                .collect::<Vec<_>>(),
+            vec!["Cluster", "Workloads", "Config & Storage"]
+        );
+        assert!(sections.iter().all(|section| !section.is_plugin()));
+        fn routes(section: &ShellSection) -> Vec<(&str, &str)> {
+            section
+                .items
+                .iter()
+                .map(|item| (item.label.as_str(), item.route.as_str()))
+                .collect()
+        }
+        assert_eq!(
+            routes(&sections[0]),
+            vec![("Overview", "/"), ("Nodes", "/cluster")]
+        );
+        assert_eq!(
+            routes(&sections[1]),
+            vec![
+                ("Pods", "/workloads"),
+                ("Deployments", "/workloads"),
+                ("Services", "/workloads")
+            ]
+        );
+        assert_eq!(
+            routes(&sections[2]),
+            vec![
+                ("ConfigMaps", "/config"),
+                ("Storage", "/config"),
+                ("Network", "/config")
+            ]
+        );
+        // Disconnected: every badge is absent, never "0".
+        assert!(sections
+            .iter()
+            .flat_map(|section| section.items.iter())
+            .all(|item| item.badge.is_none()));
+    }
+
+    #[test]
+    fn counts_badge_only_positive_numbers_in_their_own_rows() {
+        let counts = NavCounts {
+            nodes: Some(8),
+            pods: Some(124),
+            deployments: Some(37),
+            services: Some(29),
+            // A known-but-empty scope is absent, not zero.
+            config_maps: Some(0),
         };
-        assert_eq!(
-            routes(true),
-            vec!["/cluster", "/workloads", "/logs", "/terminal", "/config"]
+        let sections = core_sections_with_counts(&counts);
+        let badge = |label: &str| {
+            sections
+                .iter()
+                .flat_map(|section| section.items.iter())
+                .find(|item| item.label == label)
+                .and_then(|item| item.badge.clone())
+        };
+        assert_eq!(badge("Nodes").as_deref(), Some("8"));
+        assert_eq!(badge("Pods").as_deref(), Some("124"));
+        assert_eq!(badge("Deployments").as_deref(), Some("37"));
+        assert_eq!(badge("Services").as_deref(), Some("29"));
+        // Zero and unwatched rows render nothing.
+        assert_eq!(badge("ConfigMaps"), None);
+        // The reference draws no count for these two rows either.
+        assert_eq!(badge("Storage"), None);
+        assert_eq!(badge("Network"), None);
+        assert_eq!(badge("Overview"), None);
+    }
+
+    #[test]
+    fn nav_badge_treats_loading_and_an_empty_scope_alike() {
+        assert_eq!(nav_badge(None), None);
+        assert_eq!(nav_badge(Some(0)), None);
+        assert_eq!(nav_badge(Some(1)).as_deref(), Some("1"));
+    }
+
+    #[test]
+    fn plugin_sections_take_the_reference_variant_the_shell_styles() {
+        let mut store = RegistrationStore::new();
+        store.upsert(
+            "argocd",
+            reg_with_sidebar("argocd", "Applications", "/argocd/apps").1,
         );
-        assert_eq!(
-            routes(false),
-            vec!["/cluster", "/workloads", "/logs", "/config"]
-        );
+        store.upsert("istio", reg_with_sidebar("istio", "Mesh", "/istio/mesh").1);
+        let plugins = plugin_sections(&store);
+        assert_eq!(section_variant(&plugins[0]), Some("argo"));
+        assert_eq!(section_variant(&plugins[1]), None);
+        // The display label normalises to the same variant as the plugin name.
+        assert_eq!(plugin_section_variant("Argo CD"), Some("argo"));
+        assert_eq!(plugin_section_variant("argo-cd"), Some("argo"));
+        assert_eq!(plugin_section_variant("istio"), None);
+        // Core sections never carry a plugin variant.
+        assert!(core_sections()
+            .iter()
+            .all(|section| section_variant(section).is_none()));
     }
 
     #[test]
@@ -597,7 +781,7 @@ mod tests {
         let sections = core_sections();
         let crumbs = breadcrumbs("/workloads", Some("prod"), &sections);
         let labels: Vec<&str> = crumbs.iter().map(|crumb| crumb.label.as_str()).collect();
-        assert_eq!(labels, vec!["prod", "Overview", "Workloads"]);
+        assert_eq!(labels, vec!["prod", "Workloads", "Pods"]);
         assert_eq!(
             crumbs.iter().filter(|crumb| crumb.current).count(),
             1,

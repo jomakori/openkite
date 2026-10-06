@@ -51,18 +51,21 @@ impl Host {
         (Self(child), addr)
     }
 
-    /// Wait for the listener, or report the host's own log when it dies first.
-    async fn wait_until_serving(&mut self, addr: SocketAddr, log: &Path) {
+    /// Wait for the listener, or return the child's failure reason.
+    async fn wait_until_serving(&mut self, addr: SocketAddr, log: &Path) -> Result<(), String> {
         for _ in 0..100 {
             if let Some(status) = self.0.try_wait().expect("poll the host") {
-                panic!("the host exited before serving ({status}):\n{}", tail(log));
+                return Err(format!(
+                    "host exited before serving ({status}): {}",
+                    tail(log)
+                ));
             }
             if tokio::net::TcpStream::connect(addr).await.is_ok() {
-                return;
+                return Ok(());
             }
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
-        panic!("the host never answered on {addr}:\n{}", tail(log));
+        Err(format!("host did not answer on {addr}: {}", tail(log)))
     }
 }
 
@@ -78,21 +81,31 @@ async fn the_shipped_binary_serves_the_console_on_every_deep_link() {
     let web_root = image_web_root();
     let scratch = tempfile::tempdir().expect("tempdir");
     let log = scratch.path().join("host.log");
-    let (mut host, addr) = Host::boot(web_root.path(), &kubeconfig(scratch.path()), &log);
-    host.wait_until_serving(addr, &log).await;
-
-    for route in CONSOLE_ROUTES {
-        let response = raw_http(addr, "GET", route, None).await;
-        assert!(response.contains("200 OK"), "{route}: {response}");
-        assert!(
-            response.contains("data-surface=\"app\""),
-            "{route} did not render the console: {response}"
-        );
-        assert!(
-            response.contains(r#"import init from "/openkite-web-client.js";"#),
-            "{route} does not boot the client the bundle carries: {response}"
-        );
+    // A free-port probe cannot reserve the address across child startup.
+    // Retry only bind collisions; fail immediately for unrelated exits.
+    for attempt in 0..8 {
+        let (mut host, addr) = Host::boot(web_root.path(), &kubeconfig(scratch.path()), &log);
+        match host.wait_until_serving(addr, &log).await {
+            Ok(()) => {
+                for route in CONSOLE_ROUTES {
+                    let response = raw_http(addr, "GET", route, None).await;
+                    assert!(response.contains("200 OK"), "{route}: {response}");
+                    assert!(
+                        response.contains("data-surface=\"app\""),
+                        "{route} did not render the console: {response}"
+                    );
+                    assert!(
+                        response.contains(r#"import init from "/openkite-web-client.js";"#),
+                        "{route} does not boot the client the bundle carries: {response}"
+                    );
+                }
+                return;
+            }
+            Err(error) if error.contains("Address already in use") && attempt < 7 => continue,
+            Err(error) => panic!("{error}"),
+        }
     }
+    unreachable!("retry loop returns or panics");
 }
 
 #[tokio::test]
@@ -101,7 +114,9 @@ async fn the_shipped_binary_serves_the_bundle_its_console_boots() {
     let scratch = tempfile::tempdir().expect("tempdir");
     let log = scratch.path().join("host.log");
     let (mut host, addr) = Host::boot(web_root.path(), &kubeconfig(scratch.path()), &log);
-    host.wait_until_serving(addr, &log).await;
+    host.wait_until_serving(addr, &log)
+        .await
+        .expect("host serves");
 
     let client = raw_http_bytes(addr, "GET", "/openkite-web-client.js", None).await;
     assert!(
