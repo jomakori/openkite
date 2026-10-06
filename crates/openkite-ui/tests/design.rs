@@ -67,6 +67,21 @@ const REQUIRED_CLASSES: &[&str] = &[
     ".value-actions",
     ".reveal-btn",
     ".inspector",
+    // The resource detail pane (OKT-175): one stop for every kind, its own
+    // drag handle, and the touch scrim the reference draws for the ≤767px
+    // bottom sheet.
+    ".inspector-scrim",
+    ".inspector-scrim.show",
+    ".inspector-resize",
+    ".inspector-close",
+    ".inspector-header",
+    ".inspector-title",
+    ".inspector-body",
+    ".inspector-actions",
+    ".inspector-eyebrow",
+    ".resource-kind",
+    ".kv-row",
+    ".table-row.selected",
     ".kv-list",
     ".toast",
     ".nav-section",
@@ -107,9 +122,17 @@ const REQUIRED_CLASSES: &[&str] = &[
     ".nav-item",
     ".nav-item.active",
     ".nav-badge",
+    // The reference's per-plugin section variant the shell styles.
+    ".nav-section.argo",
     ".main",
     ".topbar",
     ".menu-toggle",
+    // The ≤767px bottom bar (OKT-166): the destination tabs and the drawer's
+    // Menu tab share the bar's grid.
+    ".bottom-nav",
+    ".bottom-tabs",
+    ".bottom-tab",
+    ".bottom-tab.active",
     ".breadcrumbs",
     ".breadcrumbs .crumb",
     ".breadcrumbs .current",
@@ -133,6 +156,35 @@ const REQUIRED_CLASSES: &[&str] = &[
     ".pager button.active",
     ".tag",
     ".tag-row",
+    ".ns-bar",
+    ".ns-search",
+    ".ns-filter",
+    ".ns-reset",
+    ".chip-row .chip",
+    ".chip-mark",
+    // The application card (OKT-169): the swipe column, its controls, and the
+    // status stripe both the kebab and the swipe reveal.
+    ".app-grid",
+    ".app-card",
+    ".app-card.swiped",
+    ".card-main",
+    ".card-swipe-actions",
+    ".card-action",
+    ".card-action.sync",
+    ".card-status",
+    ".card-status.synced",
+    ".card-status.outofsync",
+    ".card-status.degraded",
+    ".card-status.progressing",
+    ".card-body",
+    ".card-title-row",
+    ".source-icon",
+    ".app-name",
+    ".app-sub",
+    ".card-menu-btn",
+    ".card-footer",
+    ".badges",
+    ".card-meta",
 ];
 
 /// Properties the opaline theme contract already provides — must not be
@@ -305,6 +357,8 @@ const CODE_EDITOR_RSX: &str = include_str!("../src/components/code_editor.rs");
 const CRUD_MODAL_RSX: &str = include_str!("../src/components/crud_modal.rs");
 const SHELL_RSX: &str = include_str!("../src/components/shell.rs");
 const ROUTE_VIEWS_RSX: &str = include_str!("../src/components/route_views.rs");
+const NAMESPACE_BAR_RSX: &str = include_str!("../src/components/namespace_bar.rs");
+const APP_CARD_RSX: &str = include_str!("../src/components/app_card.rs");
 
 /// Every rsx source file the crate renders. Order is for stable error
 /// messages — does not affect semantics.
@@ -338,6 +392,14 @@ const RSX_SOURCES: &[(&str, &str)] = &[
     (
         "crates/openkite-ui/src/components/crud_modal.rs",
         CRUD_MODAL_RSX,
+    ),
+    (
+        "crates/openkite-ui/src/components/namespace_bar.rs",
+        NAMESPACE_BAR_RSX,
+    ),
+    (
+        "crates/openkite-ui/src/components/app_card.rs",
+        APP_CARD_RSX,
     ),
 ];
 
@@ -789,4 +851,110 @@ fn rsx_class_walker_finds_known_tokens() {
             "walker regression: rsx must surface `{must_find}` as a class token"
         );
     }
+}
+
+/// The declaration body of the first rule whose selector head is exactly
+/// `selector`.
+fn rule_body(css: &str, selector: &str) -> Option<String> {
+    let mut search_from = 0usize;
+    while let Some(offset) = css[search_from..].find(selector) {
+        let start = search_from + offset;
+        let after = start + selector.len();
+        // The head must end here — the next byte is `{`, `,` (a grouped
+        // selector head) or whitespace. This rejects `selector` appearing as
+        // a prefix of a longer token (`.chip` vs `.chip-row`).
+        let boundary = css[after..].chars().next();
+        let is_head = match boundary {
+            Some('{') | Some(',') | None => true,
+            Some(c) => c.is_whitespace(),
+        };
+        if !is_head {
+            search_from = after;
+            continue;
+        }
+        let open = css[start..].find('{').map(|i| start + i)?;
+        let close = css[open..].find('}').map(|i| open + i)?;
+        return Some(css[open + 1..close].to_string());
+    }
+    None
+}
+
+/// The namespace strip stays one line at every width: `nowrap` with horizontal
+/// overflow, a hidden scrollbar and scroll-snap, and a chip at the 44px floor.
+#[test]
+fn namespace_strip_is_one_hidden_scrollbar_line_with_scroll_snap() {
+    let row = rule_body(STYLESHEET, ".chip-row").expect("`.chip-row` rule");
+    assert!(
+        row.contains("flex-wrap: nowrap"),
+        "the strip must never wrap: {row}"
+    );
+    assert!(
+        row.contains("overflow-x: auto"),
+        "the strip scrolls horizontally: {row}"
+    );
+    assert!(
+        row.contains("scroll-snap-type: x mandatory"),
+        "chips snap so none rests half-visible: {row}"
+    );
+    assert!(
+        row.contains("scrollbar-width: none"),
+        "the scrollbar is hidden (Firefox): {row}"
+    );
+    assert!(
+        STYLESHEET.contains(".chip-row::-webkit-scrollbar"),
+        "the scrollbar is hidden (WebKit/Blink)"
+    );
+    assert!(
+        STYLESHEET.contains("display: none")
+            && STYLESHEET.contains(".chip-row::-webkit-scrollbar { display: none; }"),
+        "the WebKit scrollbar rule must actually hide it"
+    );
+
+    let chip = rule_body(STYLESHEET, ".chip-row .chip").expect("`.chip-row .chip` rule");
+    assert!(
+        chip.contains("scroll-snap-align: start"),
+        "each chip is a snap target: {chip}"
+    );
+    assert!(
+        chip.contains("scroll-snap-stop: always"),
+        "a flick cannot carry past a chip's snap point: {chip}"
+    );
+    assert!(
+        chip.contains("flex: 0 0 auto"),
+        "chips keep their natural width instead of squashing: {chip}"
+    );
+
+    let base_chip = rule_body(STYLESHEET, ".chip").expect("`.chip` rule");
+    assert!(
+        base_chip.contains("min-height: 44px"),
+        "every chip is a >=44px touch target: {base_chip}"
+    );
+
+    let circles = rule_body(STYLESHEET, ".ns-search").expect("`.ns-search` rule");
+    assert!(
+        circles.contains("width: 44px") && circles.contains("height: 44px"),
+        "the search circle and its reset twin are 44px: {circles}"
+    );
+    assert!(
+        circles.contains("border-radius: var(--r-pill)"),
+        "…and circular: {circles}"
+    );
+}
+
+/// The ≤767px half of the shell (OKT-166): the bar is a below-768px
+/// affordance and the view scrolls clear of it.
+#[test]
+fn the_bottom_bar_lives_below_the_768px_breakpoint() {
+    assert!(
+        STYLESHEET.contains(".main { padding-bottom: 74px; }"),
+        "the view must clear the fixed bar"
+    );
+    assert!(
+        STYLESHEET.contains(".bottom-nav { display: block; }"),
+        "the bar is shown below 768px"
+    );
+    assert!(
+        STYLESHEET.contains("@media (min-width: 768px) {\n  .bottom-nav { display: none; }\n}"),
+        "and reset from 768px up"
+    );
 }

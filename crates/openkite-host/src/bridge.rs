@@ -138,9 +138,10 @@ impl Bridge {
                 None => Err(NO_CLUSTER.into()),
             },
             ApiRequest::Watch { kind, ns } => match crate::state::live::snapshot_json(&kind) {
-                Some(rows) => Ok(Value::Array(crate::state::live::filter_ns(
+                Some(rows) => Ok(Value::Array(crate::state::live::scope_snapshot(
                     rows,
                     ns.as_deref(),
+                    &openkite_ui::runtime::namespace_selection_scope(),
                 ))),
                 None => match self.client() {
                     Some(client) => list_resource(&client, &kind, ns.as_deref()).await,

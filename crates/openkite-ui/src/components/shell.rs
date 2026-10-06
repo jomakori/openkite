@@ -27,10 +27,12 @@ use dioxus::prelude::*;
 
 use crate::components::crud_modal::CrudOverlay;
 use crate::components::pod_detail::PodDetail;
+use crate::components::resource_pane::ResourcePane;
 use crate::components::secret_detail::SecretDetail;
 use crate::runtime::{cluster_switch_can_render, native_chrome_can_render};
 use crate::shell::{
-    breadcrumbs, initials, status_rows, Crumb, ShellNavItem, ShellSection, StatusBarEntry,
+    bottom_tabs, breadcrumbs, initials, plugin_section_variant, status_rows, Crumb, ShellNavItem,
+    ShellSection, StatusBarEntry,
 };
 
 /// The cluster the console is pointed at, as the sidebar's cluster button
@@ -110,12 +112,37 @@ pub fn AppShell(
         let next = !drawer_open();
         drawer_open.set(next);
     });
+    // The bar is a second view of the sidebar model, never a second route list.
+    let tabs = bottom_tabs(&sections);
+    // Escape closes the open drawer and Tab stays inside it; both arrive over
+    // the eval channel, the same way the palette's keybind does.
+    use_effect(move || {
+        let mut eval = document::eval(DRAWER_KEYBIND_JS);
+        spawn(async move {
+            while let Ok(action) = eval.recv::<String>().await {
+                if action == "close" {
+                    drawer_open.set(false);
+                }
+            }
+        });
+    });
+    // Focus enters the drawer when it opens and returns to its opener when it
+    // closes — the restore target is the element that was focused before.
+    use_effect(move || {
+        let script = if drawer_open() {
+            DRAWER_FOCUS_JS
+        } else {
+            DRAWER_RESTORE_JS
+        };
+        let _ = document::eval(script);
+    });
     rsx! {
         div { class: "app", ..attributes,
             if native_chrome_can_render() {
                 {chrome}
             }
             PodDetail {}
+            ResourcePane {}
             SecretDetail {}
             CrudOverlay {}
             Sidebar {
@@ -146,9 +173,66 @@ pub fn AppShell(
                 PullIndicator {}
                 section { class: "view active", {children} }
             }
+            BottomNav {
+                tabs,
+                current_route: current_route.clone(),
+                on_navigate,
+                drawer_open: drawer_open(),
+                on_toggle_drawer: toggle_drawer,
+            }
         }
     }
 }
+
+/// The drawer's keydown contract: Tab cycles inside the open drawer (a focus
+/// trap, no way out except the drawer's own controls) and Escape asks the
+/// shell to close it.
+const DRAWER_KEYBIND_JS: &str = r#"
+if (!window.__openkite_drawer_keys) {
+  window.__openkite_drawer_keys = true;
+  document.addEventListener('keydown', (event) => {
+    const sidebar = document.querySelector('.sidebar.open');
+    if (!sidebar) return;
+    if (event.key === 'Escape') { dioxus.send('close'); return; }
+    if (event.key !== 'Tab') return;
+    const focusable = sidebar.querySelectorAll(
+      'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  });
+}
+"#;
+
+/// Move focus into the drawer when it opens, remembering what had it.
+const DRAWER_FOCUS_JS: &str = r#"
+(function () {
+  const sidebar = document.querySelector('.sidebar.open');
+  if (!sidebar) return;
+  window.__openkite_drawer_restore = document.activeElement;
+  const first = sidebar.querySelector(
+    'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  );
+  if (first) first.focus();
+})();
+"#;
+
+/// Return focus to the drawer's opener when it closes.
+const DRAWER_RESTORE_JS: &str = r#"
+(function () {
+  const target = window.__openkite_drawer_restore;
+  window.__openkite_drawer_restore = null;
+  if (target && typeof target.focus === 'function') target.focus();
+})();
+"#;
 
 /// The console sidebar: brand, the cluster button, navigation, and the footer
 /// carrying the host's build and the live cluster state.
@@ -163,7 +247,13 @@ pub fn Sidebar(
     #[props(default)] on_switch_cluster: Option<EventHandler<()>>,
 ) -> Element {
     rsx! {
-        aside { class: if open { "sidebar open" } else { "sidebar" },
+        aside {
+            class: if open { "sidebar open" } else { "sidebar" },
+            // Open below 1025px this is the modal drawer; in the desktop frame
+            // it is the ordinary complementary landmark.
+            role: if open { "dialog" } else { "complementary" },
+            "aria-modal": if open { "true" } else { "false" },
+            aria_label: "Navigation",
             div { class: "brand",
                 svg { class: "brand-mark", "viewBox": "0 0 32 32",
                     path { d: "M16 3l11.5 10L16 28 4.5 13 16 3z", fill: "var(--brand)" }
@@ -190,24 +280,10 @@ pub fn Sidebar(
                 ClusterButton { cluster, on_switch: on_switch_cluster }
             }
             nav { class: "nav", aria_label: "Resource navigation",
-                for section in sections.iter().cloned() {
-                    div { class: "nav-section",
-                        if !section.label.is_empty() {
-                            div {
-                                class: "nav-title",
-                                style: section.accent.as_ref().map(|accent| format!("color: {accent}")),
-                                "{section.label}"
-                            }
-                        }
-                        for item in section.items.iter().cloned() {
-                            NavItem {
-                                item,
-                                current_route: current_route.clone(),
-                                accent: section.accent.clone(),
-                                on_navigate,
-                            }
-                        }
-                    }
+                NavSections {
+                    sections: sections.clone(),
+                    current_route: current_route.clone(),
+                    on_navigate,
                 }
                 if !native_chrome_can_render() {
                     div { class: "nav-section",
@@ -224,6 +300,137 @@ pub fn Sidebar(
             SidebarFooter { entries: status }
         }
     }
+}
+
+/// One sidebar entry with the state the shell resolved for it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct NavEntry {
+    item: ShellNavItem,
+    /// The entry the current route lands on. A route's owner is its first
+    /// carrier, the same rule the breadcrumbs use.
+    active: bool,
+}
+
+/// One sidebar block as the shell renders it: heading, accent and entries.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct NavBlock {
+    label: String,
+    /// The contributing plugin, for a plugin-owned block (`None` = core).
+    plugin: Option<String>,
+    /// The contributor's inline accent, when it named one.
+    accent: Option<String>,
+    entries: Vec<NavEntry>,
+}
+
+/// The sidebar's navigation: the shell's own sections, then the plugin slot.
+///
+/// Core sections are built from the shared model with the live counts the host
+/// published; everything a plugin contributed renders through
+/// [`PluginNavSlot`], never through the core list and never as plugin markup.
+#[component]
+fn NavSections(
+    sections: Vec<ShellSection>,
+    current_route: String,
+    #[props(default)] on_navigate: Option<EventHandler<String>>,
+) -> Element {
+    let (core, plugins): (Vec<ShellSection>, Vec<ShellSection>) = sections
+        .into_iter()
+        .partition(|section| !section.is_plugin());
+
+    let mut claimed = false;
+    let mut resolve = |section: ShellSection| NavBlock {
+        plugin: section.plugin().map(str::to_string),
+        label: section.label,
+        accent: section.accent,
+        entries: section
+            .items
+            .into_iter()
+            .map(|item| {
+                let active = !claimed && item.route == current_route;
+                claimed |= active;
+                NavEntry { item, active }
+            })
+            .collect(),
+    };
+    let core: Vec<NavBlock> = core.into_iter().map(&mut resolve).collect();
+    let plugins: Vec<NavBlock> = plugins.into_iter().map(&mut resolve).collect();
+
+    rsx! {
+        for block in core {
+            CoreNavSection { block, on_navigate }
+        }
+        PluginNavSlot { plugins, on_navigate }
+    }
+}
+
+/// One core section: the shell's own heading and entries.
+#[component]
+fn CoreNavSection(
+    block: NavBlock,
+    #[props(default)] on_navigate: Option<EventHandler<String>>,
+) -> Element {
+    rsx! {
+        div { class: "nav-section",
+            if !block.label.is_empty() {
+                div { class: "nav-title", style: accent_style(&block.accent), "{block.label}" }
+            }
+            for entry in block.entries.iter().cloned() {
+                NavItem {
+                    item: entry.item,
+                    active: entry.active,
+                    accent: block.accent.clone(),
+                    on_navigate,
+                }
+            }
+        }
+    }
+}
+
+/// The plugin section slot: every section a plugin contributed renders here,
+/// styled by the shell, including the reference's per-plugin variant.
+#[component]
+fn PluginNavSlot(
+    #[props(default)] plugins: Vec<NavBlock>,
+    #[props(default)] on_navigate: Option<EventHandler<String>>,
+) -> Element {
+    rsx! {
+        for block in plugins {
+            PluginNavSection { block, on_navigate }
+        }
+    }
+}
+
+/// One plugin-owned section, in the shell's plugin slot.
+#[component]
+fn PluginNavSection(
+    block: NavBlock,
+    #[props(default)] on_navigate: Option<EventHandler<String>>,
+) -> Element {
+    let class = match block.plugin.as_deref().and_then(plugin_section_variant) {
+        Some(variant) => format!("nav-section {variant}"),
+        None => "nav-section".to_string(),
+    };
+    rsx! {
+        div { class: "{class}", "data-plugin": "{block.label}",
+            if !block.label.is_empty() {
+                div { class: "nav-title", style: accent_style(&block.accent), "{block.label}" }
+            }
+            for entry in block.entries.iter().cloned() {
+                NavItem {
+                    item: entry.item,
+                    active: entry.active,
+                    accent: block.accent.clone(),
+                    on_navigate,
+                }
+            }
+        }
+    }
+}
+
+/// The inline accent a section's heading and entries carry (`None` = the
+/// stylesheet's own colour, no inline style).
+fn accent_style(accent: &Option<String>) -> Option<String> {
+    accent.as_ref().map(|accent| format!("color: {accent}"))
 }
 
 /// The sidebar's cluster button: the context the console is pointed at, with
@@ -388,26 +595,32 @@ fn PullIndicator() -> Element {
     }
 }
 
+/// Route one navigation click: a host with a router handles it itself, the
+/// href stays as the honest fallback for anything that ignores the handler.
+fn navigate_on_click(
+    route: String,
+    on_navigate: Option<EventHandler<String>>,
+) -> impl FnMut(Event<MouseData>) {
+    move |event: Event<MouseData>| {
+        if let Some(handler) = on_navigate.as_ref() {
+            event.prevent_default();
+            handler.call(route.clone());
+        }
+    }
+}
+
 /// One sidebar entry: an anchor that marks itself active, carries the
 /// contributing plugin's accent, and asks the host to route the click.
 #[component]
 fn NavItem(
     item: ShellNavItem,
-    current_route: String,
+    // Whether this is the entry the current route lands on; the parent
+    // resolves ownership, so only one entry per route is current.
+    #[props(default)] active: bool,
     #[props(default)] accent: Option<String>,
     #[props(default)] on_navigate: Option<EventHandler<String>>,
 ) -> Element {
-    let active = item.route == current_route;
     let plugin = item.plugin.is_some();
-    let route = item.route.clone();
-    let onclick = move |event: Event<MouseData>| {
-        // A host with a router handles the click itself; the href stays as the
-        // honest fallback for anything that ignores the handler.
-        if let Some(handler) = on_navigate.as_ref() {
-            event.prevent_default();
-            handler.call(route.clone());
-        }
-    };
     rsx! {
         a {
             class: if plugin {
@@ -419,11 +632,63 @@ fn NavItem(
             },
             href: "{item.route}",
             style: accent.as_ref().map(|accent| format!("color: {accent}")),
-            onclick,
+            onclick: navigate_on_click(item.route.clone(), on_navigate),
             span { "{item.label}" }
             if let Some(badge) = item.badge.clone() {
                 span { class: "nav-badge", "{badge}" }
             }
+        }
+    }
+}
+
+/// The ≤767px bottom bar: the sidebar model's leading destinations plus the
+/// drawer's Menu tab. The stylesheet shows it below 768px only.
+#[component]
+fn BottomNav(
+    tabs: Vec<ShellNavItem>,
+    current_route: String,
+    #[props(default)] on_navigate: Option<EventHandler<String>>,
+    #[props(default)] drawer_open: bool,
+    on_toggle_drawer: EventHandler<()>,
+) -> Element {
+    rsx! {
+        nav { class: "bottom-nav", aria_label: "Mobile navigation",
+            div { class: "bottom-tabs",
+                for item in tabs.iter().cloned() {
+                    BottomTab {
+                        item,
+                        current_route: current_route.clone(),
+                        on_navigate,
+                    }
+                }
+                button {
+                    class: "bottom-tab",
+                    r#type: "button",
+                    aria_label: "Open navigation",
+                    "aria-expanded": if drawer_open { "true" } else { "false" },
+                    onclick: move |_| on_toggle_drawer.call(()),
+                    span { "Menu" }
+                }
+            }
+        }
+    }
+}
+
+/// One destination in the bottom bar: the sidebar's own entry, routed and
+/// marked active exactly the way the sidebar routes it.
+#[component]
+fn BottomTab(
+    item: ShellNavItem,
+    current_route: String,
+    #[props(default)] on_navigate: Option<EventHandler<String>>,
+) -> Element {
+    let active = item.route == current_route;
+    rsx! {
+        a {
+            class: if active { "bottom-tab active" } else { "bottom-tab" },
+            href: "{item.route}",
+            onclick: navigate_on_click(item.route.clone(), on_navigate),
+            span { "{item.label}" }
         }
     }
 }

@@ -4,9 +4,10 @@
 use openkite_ui::plugin_api::{
     PluginRegistration, RegistrationStore, RouteSpec, SidebarItem, StatusItem,
 };
+use openkite_ui::runtime::PushMode;
 use openkite_ui::shell::{
-    nav_item_from_plugin, plugin_sections, sidebar_model, status_bar_model, status_dot_color,
-    status_items_of, ShellState,
+    bottom_tabs, core_nav, nav_item_from_plugin, plugin_sections, sidebar_model, status_bar_model,
+    status_dot_color, status_items_of, ShellNavItem, ShellSection, ShellState, BOTTOM_TAB_SLOTS,
 };
 
 fn argocd_registration() -> PluginRegistration {
@@ -54,9 +55,19 @@ fn sidebar_orders_core_then_registered_plugins() {
     store.upsert("argocd", argocd_registration());
 
     let model = sidebar_model(&store);
-    assert_eq!(model[0].label, "Overview");
-    assert_eq!(model[1].label, "argocd");
-    assert_eq!(model[2].label, "istio");
+    assert_eq!(
+        model
+            .iter()
+            .map(|section| section.label.as_str())
+            .collect::<Vec<_>>(),
+        vec![
+            "Cluster",
+            "Workloads",
+            "Config & Storage",
+            "argocd",
+            "istio"
+        ]
+    );
 
     let plugins = plugin_sections(&store);
     assert_eq!(plugins.len(), 2);
@@ -77,13 +88,14 @@ fn status_bar_lists_connection_version_then_plugins() {
         prometheus: None,
     };
 
-    let bar = status_bar_model(&state, &store, "1.2.3");
+    let bar = status_bar_model(&state, &store, "1.2.3", PushMode::Push);
     assert_eq!(bar[0].label, "gke_prod · Connected");
     assert_eq!(bar[0].color.as_deref(), Some("green"));
     assert_eq!(bar[1].label, "v1.2.3");
-    assert_eq!(bar[2].label, "ArgoCD: Synced");
+    assert_eq!(bar[2].label, "Push");
+    assert_eq!(bar[3].label, "ArgoCD: Synced");
 
-    let offline = status_bar_model(&ShellState::default(), &store, "1.2.3");
+    let offline = status_bar_model(&ShellState::default(), &store, "1.2.3", PushMode::Off);
     assert_eq!(offline[0].label, "no cluster · Disconnected");
     assert_eq!(offline[0].color.as_deref(), Some("red"));
 }
@@ -91,9 +103,10 @@ fn status_bar_lists_connection_version_then_plugins() {
 #[test]
 fn status_bar_omits_the_version_slot_when_the_build_carries_none() {
     let store = RegistrationStore::new();
-    let bar = status_bar_model(&ShellState::default(), &store, "");
-    assert_eq!(bar.len(), 1);
+    let bar = status_bar_model(&ShellState::default(), &store, "", PushMode::Off);
+    assert_eq!(bar.len(), 2);
     assert_eq!(bar[0].label, "no cluster · Disconnected");
+    assert_eq!(bar[1].label, "Off");
 }
 
 #[test]
@@ -138,9 +151,10 @@ fn minimal_registration_contributes_no_extra_sections() {
         },
     );
     assert!(plugin_sections(&store).is_empty());
-    let bar = status_bar_model(&ShellState::default(), &store, "1.2.3");
-    assert_eq!(bar.len(), 3);
-    assert_eq!(bar[2].label, "Metrics: Scraping");
+    let bar = status_bar_model(&ShellState::default(), &store, "1.2.3", PushMode::Polling);
+    assert_eq!(bar.len(), 4);
+    assert_eq!(bar[2].label, "Polling");
+    assert_eq!(bar[3].label, "Metrics: Scraping");
 }
 
 #[test]
@@ -152,13 +166,14 @@ fn status_bar_includes_prometheus_entry_when_detected() {
         prometheus: Some("kube-prometheus-stack-prometheus".into()),
         ..ShellState::default()
     };
-    let bar = status_bar_model(&state, &store, "1.2.3");
-    assert_eq!(bar.len(), 3);
+    let bar = status_bar_model(&state, &store, "1.2.3", PushMode::Push);
+    assert_eq!(bar.len(), 4);
     assert_eq!(
         bar[2].label,
         "Prometheus · kube-prometheus-stack-prometheus"
     );
     assert_eq!(bar[2].color.as_deref(), Some("green"));
+    assert_eq!(bar[3].label, "Push");
 }
 
 #[test]
@@ -168,4 +183,92 @@ fn dot_color_rejects_non_function_shapes_and_keeps_hex_lowercase() {
     assert_eq!(status_dot_color("red)"), "var(--subtle)");
     assert_eq!(status_dot_color("#0123456789"), "var(--subtle)");
     assert_eq!(status_dot_color("hsla(0,0%,0%)\",x:1)"), "var(--subtle)");
+}
+
+#[test]
+fn status_bar_states_the_push_mode() {
+    let store = RegistrationStore::new();
+    let state = ShellState::default();
+    for (mode, want) in [
+        (PushMode::Push, "Push"),
+        (PushMode::Polling, "Polling"),
+        (PushMode::Off, "Off"),
+    ] {
+        let bar = status_bar_model(&state, &store, "1.2.3", mode);
+        assert!(
+            bar.iter().any(|entry| entry.label == want),
+            "{want} missing from {bar:?}"
+        );
+    }
+}
+
+/// The bottom bar is a second view of this model, never a second route list.
+#[test]
+fn bottom_tabs_take_the_models_leading_routes_up_to_the_grid() {
+    let sections = vec![ShellSection {
+        label: "Overview".into(),
+        accent: None,
+        items: core_nav(true),
+    }];
+
+    let tabs = bottom_tabs(&sections);
+    assert_eq!(BOTTOM_TAB_SLOTS, 3);
+    assert_eq!(
+        tabs.iter()
+            .map(|tab| tab.route.as_str())
+            .collect::<Vec<_>>(),
+        vec!["/cluster", "/workloads", "/logs"]
+    );
+    // Each tab is the model's own entry — label, route and plugin intact.
+    assert_eq!(tabs, core_nav(true)[..BOTTOM_TAB_SLOTS].to_vec());
+}
+
+#[test]
+fn bottom_tabs_never_repeat_a_destination() {
+    let mut store = RegistrationStore::new();
+    store.upsert("argocd", argocd_registration());
+    let mut model = sidebar_model(&store);
+    // A plugin contributing a route the core navigation already carries.
+    model.push(ShellSection {
+        label: "dup".into(),
+        accent: None,
+        items: vec![ShellNavItem {
+            label: "Pods Again".into(),
+            route: "/workloads".into(),
+            plugin: Some("dup".into()),
+            badge: None,
+        }],
+    });
+
+    let tabs = bottom_tabs(&model);
+    let routes: Vec<&str> = tabs.iter().map(|tab| tab.route.as_str()).collect();
+    let unique: std::collections::HashSet<&str> = routes.iter().copied().collect();
+    assert_eq!(
+        routes.len(),
+        unique.len(),
+        "a tab repeats a destination: {routes:?}"
+    );
+    assert!(
+        tabs.iter().all(|tab| model
+            .iter()
+            .flat_map(|section| section.items.iter())
+            .any(|item| item == tab)),
+        "every tab is an entry of the model: {tabs:?}"
+    );
+}
+
+#[test]
+fn bottom_tabs_take_the_destinations_a_shorter_model_has() {
+    let one = vec![ShellSection {
+        label: "Overview".into(),
+        accent: None,
+        items: vec![ShellNavItem {
+            label: "Cluster".into(),
+            route: "/cluster".into(),
+            plugin: None,
+            badge: None,
+        }],
+    }];
+    assert_eq!(bottom_tabs(&one).len(), 1);
+    assert!(bottom_tabs(&[]).is_empty());
 }
