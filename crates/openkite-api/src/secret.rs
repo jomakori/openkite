@@ -25,6 +25,15 @@ pub struct SecretObject {
     pub string_data: BTreeMap<String, String>,
 }
 
+/// A secret's identity only — namespace + name, the list op's shape (never values).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SecretRef {
+    /// `metadata.namespace`.
+    pub namespace: String,
+    /// `metadata.name`.
+    pub name: String,
+}
+
 /// The keys present in a Secret (from `data` and `string_data`), sorted.
 pub fn secret_keys(secret: &SecretObject) -> Vec<String> {
     let mut keys = BTreeSet::new();

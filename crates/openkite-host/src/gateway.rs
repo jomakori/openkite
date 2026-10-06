@@ -12,7 +12,7 @@ use openkite_api::capability::{Capabilities, GatewayKind};
 use openkite_api::crud::Mutation;
 use openkite_api::gateway::{Gateway, GatewayError, GatewayFuture};
 use openkite_api::pod::{ContainerInfo, PodObject, PodSummary};
-use openkite_api::secret::SecretObject;
+use openkite_api::secret::{SecretObject, SecretRef};
 use serde_saphyr::to_string as yaml_to_string;
 use std::collections::BTreeMap;
 
@@ -39,6 +39,14 @@ pub fn secret_object(secret: &Secret) -> SecretObject {
             .map(|(key, value)| (key, value.0))
             .collect(),
         string_data: secret.string_data.clone().unwrap_or_default(),
+    }
+}
+
+/// Copy a Secret's identity out of kube: namespace + name only, never values.
+pub fn secret_ref(secret: &Secret) -> SecretRef {
+    SecretRef {
+        namespace: secret.metadata.namespace.clone().unwrap_or_default(),
+        name: secret.metadata.name.clone().unwrap_or_default(),
     }
 }
 
@@ -184,6 +192,17 @@ impl Gateway for KubeGateway {
                 .await
                 .map_err(|err| GatewayError::new(err.to_string()))?;
             Ok(secret_object(&secret))
+        })
+    }
+
+    fn secret_refs(&self) -> GatewayFuture<'_, Result<Vec<SecretRef>, GatewayError>> {
+        Box::pin(async move {
+            let secrets: Api<Secret> = Api::all(self.client.clone());
+            let list = secrets
+                .list(&Default::default())
+                .await
+                .map_err(|err| GatewayError::new(err.to_string()))?;
+            Ok(list.items.iter().map(secret_ref).collect())
         })
     }
 }

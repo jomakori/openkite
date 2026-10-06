@@ -119,7 +119,7 @@ pub fn App(props: AppProps) -> Element {
     let snapshot = state();
     let capabilities = snapshot.capabilities;
 
-    // No namespace inventory here: the secrets' namespaces and the pods'.
+    // The namespace bar includes every namespace represented by the snapshot.
     let namespaces: Vec<String> = {
         let mut names: Vec<String> = snapshot
             .secrets
@@ -137,6 +137,16 @@ pub fn App(props: AppProps) -> Element {
         names.dedup();
         names
     };
+    let namespace = namespaces
+        .iter()
+        .find(|name| {
+            snapshot
+                .secrets
+                .iter()
+                .any(|secret| &secret.namespace == *name)
+        })
+        .cloned()
+        .unwrap_or_else(|| "default".into());
     let selection = NAMESPACE_SELECTION.read().clone();
     let secrets: Vec<_> = snapshot
         .secrets
@@ -146,7 +156,7 @@ pub fn App(props: AppProps) -> Element {
 
     let shell = ShellState {
         cluster: snapshot.context.clone(),
-        namespace: "default".into(),
+        namespace,
         connected: snapshot.connected,
         prometheus: None,
     };
