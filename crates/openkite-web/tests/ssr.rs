@@ -332,6 +332,7 @@ fn the_current_route_marks_its_own_sidebar_entry() {
         body[active..].contains(">Pods<"),
         "the current route's own entry is the active one: {body}"
     );
+    // The home route is a sidebar entry labelled Overview.
     let home = render_body(&route_snapshot("/"));
     assert_eq!(
         home.matches("class=\"nav-item active\"").count(),
