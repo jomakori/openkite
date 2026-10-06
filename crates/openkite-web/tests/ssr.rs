@@ -545,6 +545,7 @@ fn rendered_page_defines_the_openkite_bridge() {
     }
 }
 
+#[tokio::test]
 async fn snapshot_lists_gateway_secret_refs_and_preserves_empty_state() {
     let gateway = ref_gateway(Some(vec![
         SecretRef {
