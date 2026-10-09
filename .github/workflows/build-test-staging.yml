@@ -311,6 +311,25 @@ jobs:
           path: e2e/artifacts/connected/
           retention-days: 7
 
+  visual-gate-selftest:
+    name: Visual gate mutation self-test
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: >-
+      !cancelled() &&
+      (github.event_name != 'pull_request' ||
+       (github.event.pull_request.draft == false && needs.changes.outputs.src == 'true'))
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Install ImageMagick
+        run: sudo apt-get update && sudo apt-get install -y imagemagick
+      - name: Test the visual gate with a real image mutation
+        run: bash e2e/visual/gate_selftest.sh --require-imagemagick
+
   visual-regression:
     name: Visual regression
     runs-on: ubuntu-latest
@@ -359,6 +378,7 @@ jobs:
       - user-flows
       - bridge-guard
       - desktop-e2e-connected
+      - visual-gate-selftest
       - visual-regression
     if: >-
       always() &&
@@ -395,6 +415,7 @@ jobs:
       - user-flows
       - bridge-guard
       - desktop-e2e-connected
+      - visual-gate-selftest
       - visual-regression
       - gate
     if: always() && github.event_name == 'push'

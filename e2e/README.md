@@ -59,9 +59,23 @@ ART_ROOT=artifacts/flows bats --report-formatter junit --output artifacts/junit 
 and compares it
 against the committed baselines with `compare.sh` (ImageMagick).
 
+`gate_selftest.sh` checks the comparison decision contract using a fake
+`compare` executable, including threshold boundaries, missing screenshots, and
+empty-baseline rejection. When ImageMagick is installed, it also proves the real
+gate rejects a controlled screenshot mutation and passes again after restoring
+the baseline. CI runs it with `--require-imagemagick` so that real-image proof
+cannot silently skip.
+
+```sh
+bash ./visual/gate_selftest.sh
+```
+
+Run the visual suite against a built binary with:
+
 ```sh
 ./visual/run.sh ../target/debug/openkite visual/baselines artifacts/visual
 ```
+
 
 A change that alters what a user sees refreshes `visual/baselines/` in the same
 PR: a moved
