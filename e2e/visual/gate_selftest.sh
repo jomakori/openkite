@@ -123,16 +123,18 @@ export PATH="$ORIGINAL_PATH"
 if command -v compare >/dev/null 2>&1 && command -v convert >/dev/null 2>&1; then
   REAL_BASELINE="$SCRIPT_DIR/baselines/01-home.png"
   REAL_FRESH="$TEMP_DIR/real-fresh"
-  mkdir -p "$REAL_FRESH"
+  REAL_BASELINES="$TEMP_DIR/real-baselines"
+  mkdir -p "$REAL_FRESH" "$REAL_BASELINES"
   if [[ ! -f "$REAL_BASELINE" ]]; then
     record_case B1 FAIL "committed reference baseline exists"
     record_case B2 FAIL "controlled ImageMagick mutation is detected"
     record_case B3 FAIL "restored ImageMagick baseline passes"
   else
     cp "$REAL_BASELINE" "$REAL_FRESH/01-home.png"
+    cp "$REAL_BASELINE" "$REAL_BASELINES/01-home.png"
     GATE_OUTPUT=""
     GATE_RC=0
-    GATE_OUTPUT=$("$GATE" "$SCRIPT_DIR/baselines" "$REAL_FRESH" 2>&1) || GATE_RC=$?
+    GATE_OUTPUT=$("$GATE" "$REAL_BASELINES" "$REAL_FRESH" 2>&1) || GATE_RC=$?
     result=PASS
     if [[ "$GATE_RC" -ne 0 ]] || ! grep -Fq -- "PASS: 01-home.png" <<<"$GATE_OUTPUT"; then
       result=FAIL
