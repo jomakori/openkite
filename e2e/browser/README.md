@@ -1,11 +1,10 @@
 # Browser E2E harness
 
 This suite exercises OpenKite's shipped `openkite-web` host in a real headless
-Chromium process. It checks the SSR document first, then waits for the production
-wasm-bindgen client to hydrate the exact SSR app root, and clicks the hydrated
-Refresh action against the host's `/api/gateway` route. A deterministic local
-kubeconfig points the host at a loopback endpoint so cluster state and
-credentials are not prerequisites; no Kubernetes API request is expected.
+Chromium process. It opens `/workloads` as a deep-link, inspects the server-rendered
+page, waits for the production wasm-bindgen client to hydrate that SSR tree, and
+clicks the hydrated Refresh action against `/api/gateway`. A deterministic probe
+route is served from a loopback fixture without external network access.
 
 The runner invokes Chrome's DevTools Protocol directly over Node 22+'s built-in
 WebSocket. It does not install browser drivers, packages, or Playwright. Supply

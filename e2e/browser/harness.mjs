@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { accessSync, constants, existsSync } from 'node:fs';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import net from 'node:net';
 import os from 'node:os';
@@ -22,6 +23,7 @@ const profileDir = await mkdtemp(path.join(os.tmpdir(), 'openkite-chrome-profile
 const hostPort = await freePort();
 const hostAddr = `127.0.0.1:${hostPort}`;
 const baseUrl = `http://${hostAddr}`;
+const probeUrl = `${baseUrl}/__okt188_browser_e2e`;
 const browserPort = await freePort();
 const errors = [];
 const consoleLog = [];
@@ -30,9 +32,42 @@ let browser;
 let serverProcess;
 let debugWebSocket;
 let sequence = 0;
+let fixtureRequestResolve;
+let probeRequestResolve;
+const probeRequestPromise = new Promise((resolve) => { probeRequestResolve = resolve; });
 const waiting = new Map();
 
 try {
+  if (!chromium || !hostBin || !webRoot) {
+    throw new Error('OPENKITE_BROWSER, OPENKITE_WEB_BIN, and OPENKITE_WEB_ROOT are required');
+  }
+  if (process.versions.node.split('.')[0] < 22) {
+    throw new Error(`Node.js 22+ required for built-in WebSocket; found ${process.version}`);
+  }
+  if (!path.isAbsolute(hostBin) || !path.isAbsolute(webRoot)) {
+    throw new Error('OPENKITE_WEB_BIN and OPENKITE_WEB_ROOT must be absolute paths');
+  }
+  if (!existsSync(hostBin)) {
+    throw new Error(`OPENKITE_WEB_BIN does not exist: ${hostBin}`);
+  }
+  try {
+    accessSync(hostBin, constants.X_OK);
+  } catch (error) {
+    throw new Error(`OPENKITE_WEB_BIN is not executable: ${hostBin}: ${error.message}`);
+  }
+  for (const asset of ['openkite-web-client.js', 'openkite-web-client_bg.wasm']) {
+    if (!existsSync(path.join(webRoot, asset))) {
+      throw new Error(`OPENKITE_WEB_ROOT missing ${asset}: ${webRoot}`);
+    }
+  }
+  if (!existsSync(chromium)) {
+    throw new Error(`OPENKITE_BROWSER does not exist: ${chromium}`);
+  }
+  try {
+    accessSync(chromium, constants.X_OK);
+  } catch (error) {
+    throw new Error(`OPENKITE_BROWSER is not executable: ${chromium}: ${error.message}`);
+  }
   serverProcess = spawn(hostBin, [], {
     env: {
       ...process.env,
@@ -64,25 +99,29 @@ try {
   browser.on('error', (error) => errors.push(`browser spawn failed: ${error.message}`));
 
   await waitForHost(baseUrl, serverProcess, consoleLog);
+  const fixture = '<!doctype html><title>OpenKite fixture response</title><body>fixture reached</body>';
   const chromeEndpoint = `http://127.0.0.1:${browserPort}`;
   const version = await waitForJson(`${chromeEndpoint}/json/version`, browser, consoleLog);
   console.log(`Browser: ${version.Browser}`);
   const tabs = await waitForJson(`${chromeEndpoint}/json/list`, browser, consoleLog);
   const tab = tabs.find((item) => item.type === 'page');
   assert.ok(tab, 'Chromium DevTools has no page target');
-  debugWebSocket = new WebSocket(tab.webSocketDebuggerUrl);
-  await connectWebSocket(debugWebSocket);
+  debugWebSocket = await connectWebSocket(tab.webSocketDebuggerUrl);
   debugWebSocket.addEventListener('message', handleMessage);
   await command('Runtime.enable');
   await command('Page.enable');
   await command('Log.enable');
   await command('Network.enable');
+  const fixtureRequest = new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('browser fixture request timed out')), 20000);
+    fixtureRequestResolve = () => { clearTimeout(timeout); resolve(); };
+  });
+  await command('Network.setRequestInterception', { patterns: [{ urlPattern: probeUrl }] });
   debugWebSocket.addEventListener('message', collectPageEvents);
-
-  console.log(`Host: ${baseUrl}`);
   await command('Page.navigate', { url: `${baseUrl}/workloads` });
   const workloadMarker = '[data-surface="workloads"]';
   await waitForExpression(`location.pathname === '/workloads' && !!document.querySelector('${workloadMarker}')`);
+  await fixtureRequest;
 
   const before = await evaluate(`({
     pathname: location.pathname,
@@ -94,6 +133,18 @@ try {
     hydrationDataPresent: typeof window.initial_dioxus_hydration_data === 'string' && window.initial_dioxus_hydration_data.length > 0,
     roots: [...document.querySelectorAll('[data-surface="app"]')].length,
   })`);
+  const probeResponse = await evaluate(`(() => {
+    const frame = document.createElement('iframe');
+    frame.hidden = true;
+    frame.src = '${probeUrl}';
+    document.body.append(frame);
+    return 'probe started';
+  })()`);
+  assert.equal(probeResponse, 'probe started');
+  await fixtureRequest;
+  const probeReport = await evaluate(`({title: document.querySelector('iframe').contentDocument?.title ?? '', route: location.pathname})`);
+  assert.ok(probeReport.title.includes('OpenKite fixture response'), `deterministic fixture not reached: ${probeReport.title}`);
+  assert.equal(probeReport.route, '/workloads');
   assert.ok(before.title.includes('OpenKite'), `unexpected document title: ${before.title}`);
   assert.ok(before.hydrationIdCount > 0, 'server did not render Dioxus hydration markers');
   assert.equal(before.snapshot?.route, '/workloads', 'SSR snapshot did not resolve workloads deep-link');
@@ -227,7 +278,44 @@ function handleMessage(event) {
 
 function collectPageEvents(event) {
   let message;
-  try { message = JSON.parse(event.data); } catch { return; }
+  try {
+    message = JSON.parse(event.data);
+  } catch (error) {
+    console.error(`Could not parse DevTools event: ${error.message}`);
+    return;
+  }
+  if (message.method === 'Runtime.bindingCalled' && message.params.name === 'openkiteE2eProbe') {
+    probeRequestResolve(JSON.parse(message.params.payload));
+    return;
+  }
+  if (message.method === 'Network.requestIntercepted') {
+    const request = message.params.request;
+    if (request.url === probeUrl) {
+      fixtureRequestResolve(request);
+      debugWebSocket.send(JSON.stringify({
+        id: ++sequence,
+        method: 'Network.continueInterceptedRequest',
+        params: {
+          interceptionId: message.params.interceptionId,
+          rawResponse: [
+            'HTTP/1.1 200 OK',
+            'Content-Type: text/html; charset=utf-8',
+            `Content-Length: ${Buffer.byteLength(fixture)}`,
+            'Connection: close',
+            '',
+            fixture,
+          ].join('\r\n'),
+        },
+      }));
+    } else {
+      debugWebSocket.send(JSON.stringify({
+        id: ++sequence,
+        method: 'Network.continueInterceptedRequest',
+        params: { interceptionId: message.params.interceptionId },
+      }));
+    }
+    return;
+  }
   if (message.method === 'Runtime.exceptionThrown') errors.push(message.params.exceptionDetails?.text ?? 'JavaScript exception');
   if (message.method === 'Runtime.consoleAPICalled' && message.params.type === 'error') {
     errors.push(message.params.args?.map(arg => arg.value ?? arg.description ?? '').join(' ') || 'console.error');
@@ -261,17 +349,19 @@ function waitForExit(child, label) {
   });
 }
 
-function connectWebSocket(socket) {
-  return new Promise((resolve, reject) => {
+async function connectWebSocket(url) {
+  const socket = new WebSocket(url);
+  await new Promise((resolve, reject) => {
     socket.addEventListener('open', resolve, { once: true });
     socket.addEventListener('error', reject, { once: true });
   });
+  return socket;
 }
 
 async function waitForHost(url, child, logs) {
   const end = Date.now() + 15000;
   while (Date.now() < end) {
-    if (child.exitCode !== null || errors.length) {
+    if (child.exitCode !== null || errors.some((error) => error.startsWith('web host'))) {
       throw new Error(`web host exited or failed to spawn: ${logs.join('')}${errors.join('\n')}`);
     }
     try {
@@ -286,7 +376,7 @@ async function waitForHost(url, child, logs) {
 async function waitForJson(url, child, logs) {
   const end = Date.now() + 15000;
   while (Date.now() < end) {
-    if (child.exitCode !== null || errors.length) {
+    if (child.exitCode !== null || errors.some((error) => error.startsWith('browser'))) {
       throw new Error(`Chromium exited or failed to spawn: ${logs.join('')}${errors.join('\n')}`);
     }
     try {
