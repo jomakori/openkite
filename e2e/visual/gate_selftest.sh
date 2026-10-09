@@ -166,7 +166,7 @@ if command -v compare >/dev/null 2>&1 && command -v convert >/dev/null 2>&1; the
     cp "$REAL_BASELINE" "$REAL_FRESH/01-home.png"
     GATE_OUTPUT=""
     GATE_RC=0
-    GATE_OUTPUT=$("$GATE" "$SCRIPT_DIR/baselines" "$REAL_FRESH" 2>&1) || GATE_RC=$?
+    GATE_OUTPUT=$("$GATE" "$REAL_BASELINES" "$REAL_FRESH" 2>&1) || GATE_RC=$?
     result=PASS
     if [[ "$GATE_RC" -ne 0 ]] || ! grep -Fq -- "PASS: 01-home.png" <<<"$GATE_OUTPUT"; then
       result=FAIL
