@@ -33,6 +33,16 @@ if [ ! -d "$FRESH" ]; then
   fail "fresh screenshots directory not found: $FRESH"
 fi
 
+has_baseline=false
+for baseline in "$BASELINES"/*.png; do
+  [ -f "$baseline" ] || continue
+  has_baseline=true
+  break
+done
+if [ "$has_baseline" = false ]; then
+  fail "no PNG baselines found in: $BASELINES"
+fi
+
 log "comparing fresh screenshots against baselines"
 log "baseline dir: $BASELINES"
 log "fresh dir: $FRESH"
