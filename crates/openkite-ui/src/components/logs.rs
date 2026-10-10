@@ -9,6 +9,7 @@ use dioxus::prelude::*;
 
 use openkite_api::pod::{level_class, pick_default_container, should_show_paused_hint, PodObject};
 
+use crate::design::tokens::R_SM;
 use crate::runtime::{LOGS_BUFFER, LOGS_CONTAINER, LOGS_FOLLOW, SELECTED_POD};
 
 #[component]
@@ -130,7 +131,7 @@ pub fn LogsView() -> Element {
         div { style: "display: flex; flex-direction: column; gap: 8px; height: 100%;",
             div { style: "display: flex; gap: 8px; align-items: center;",
                 select {
-                    style: "font: inherit; font-size: 12px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-solid); color: var(--fg);",
+                    style: "font: inherit; font-size: 12px; padding: 4px 8px; border-radius: {R_SM}; border: 1px solid var(--border); background: var(--surface-solid); color: var(--fg);",
                     value: "{container}",
                     oninput: move |e| container.set(e.value()),
                     for c in containers.iter() {
