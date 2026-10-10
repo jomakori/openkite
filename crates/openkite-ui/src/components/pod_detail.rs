@@ -5,6 +5,7 @@
 use dioxus::prelude::*;
 use openkite_api::pod::pick_default_container;
 
+use crate::design::tokens::R_SM;
 use crate::runtime::{clear_selected_pod, LOGS_BUFFER, LOGS_CONTAINER, SELECTED_POD};
 
 /// The inspector's tab bar, local to the open slide-over.
@@ -164,7 +165,7 @@ fn LogsTab() -> Element {
         div { style: "display: flex; flex-direction: column; gap: 8px;",
             div { style: "display: flex; gap: 8px; align-items: center;",
                 select {
-                    style: "font: inherit; font-size: 12px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-solid); color: var(--fg);",
+                    style: "font: inherit; font-size: 12px; padding: 4px 8px; border-radius: {R_SM}; border: 1px solid var(--border); background: var(--surface-solid); color: var(--fg);",
                     value: "{selected}",
                     oninput: move |e| selected.set(e.value()),
                     for c in containers.iter() {

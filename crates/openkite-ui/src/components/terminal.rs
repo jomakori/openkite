@@ -17,6 +17,7 @@
 use dioxus::prelude::*;
 use openkite_api::pod::{pick_default_container, PodObject};
 
+use crate::design::tokens::R_SM;
 use crate::runtime::{terminal_can_render, SELECTED_POD};
 
 /// Cache-buster id for the vendored xterm bundle. Bump the `vN` suffix
@@ -394,7 +395,7 @@ pub fn TerminalView() -> Element {
             div { style: "display: flex; gap: 8px; align-items: center; flex-wrap: wrap;",
                 span { style: "font-size: 12px; color: var(--subtle);", "pod: {pod_label}" }
                 select {
-                    style: "font: inherit; font-size: 12px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-solid); color: var(--fg);",
+                    style: "font: inherit; font-size: 12px; padding: 4px 8px; border-radius: {R_SM}; border: 1px solid var(--border); background: var(--surface-solid); color: var(--fg);",
                     value: "{container}",
                     oninput: move |e| container.set(e.value()),
                     for c in containers.iter() {
