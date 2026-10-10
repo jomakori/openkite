@@ -27,7 +27,7 @@ impl Gateway for FixtureGateway {
         Capabilities::server_side()
     }
 
-    fn apply(&self, _mutation: Mutation) -> GatewayFuture<Result<(), GatewayError>> {
+    fn apply(&self, _mutation: Mutation) -> GatewayFuture<'_, Result<(), GatewayError>> {
         Box::pin(async {
             Err(GatewayError::new(
                 "fixture gateway does not support mutations",
@@ -39,12 +39,12 @@ impl Gateway for FixtureGateway {
         &self,
         _namespace: String,
         _name: String,
-    ) -> GatewayFuture<Result<SecretObject, GatewayError>> {
+    ) -> GatewayFuture<'_, Result<SecretObject, GatewayError>> {
         let secret = fixture_secret_object();
         Box::pin(async move { Ok(secret) })
     }
 
-    fn secret_refs(&self) -> GatewayFuture<Result<Vec<SecretRef>, GatewayError>> {
+    fn secret_refs(&self) -> GatewayFuture<'_, Result<Vec<SecretRef>, GatewayError>> {
         let refs = vec![SecretRef {
             name: "example-secret".to_string(),
             namespace: "default".to_string(),
