@@ -1,5 +1,6 @@
 //! A mock gateway serving fixture data to a preview host, which has no cluster credential.
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use openkite_api::capability::Capabilities;
@@ -11,9 +12,10 @@ use openkite_api::secret::{SecretObject, SecretRef};
 fn fixture_secret_object() -> SecretObject {
     SecretObject {
         name: "example-secret".to_string(),
-        namespace: "default".to_string(),
-        secret_type: "Opaque".to_string(),
-        keys: vec!["password".to_string()],
+        namespace: Some("default".to_string()),
+        type_: Some("Opaque".to_string()),
+        data: BTreeMap::from([("password".to_string(), b"secret123".to_vec())]),
+        string_data: BTreeMap::new(),
     }
 }
 
