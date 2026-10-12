@@ -29,6 +29,8 @@ mod host;
 pub use host::{bind_and_serve, connect, in_cluster, serve, DEFAULT_ADDR, DEFAULT_WEB_ROOT};
 
 #[cfg(not(target_arch = "wasm32"))]
+pub mod fixture;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod headless;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod routes;

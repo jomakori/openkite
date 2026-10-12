@@ -141,7 +141,8 @@ async fn ssr_snapshot(bridge: &Bridge, route: &str) -> ssr::Snapshot {
             Arc::new(openkite_host::gateway::KubeGateway::server_side(client));
         ssr::Snapshot::from_gateway(&gateway, connected, context).await
     } else {
-        ssr::Snapshot::default()
+        let gateway = crate::fixture::make_fixture_gateway();
+        ssr::Snapshot::from_gateway(&gateway, connected, context).await
     };
     let snapshot = snapshot.with_route(route);
     if route == "/workloads" {
