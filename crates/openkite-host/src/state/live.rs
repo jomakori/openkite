@@ -45,6 +45,29 @@ use serde_json::Value;
 
 use super::resources::ResourceState;
 
+/// The kinds this app actually watches, in the same casing the bridge and the
+/// reflector registry use (`"pods"`, `"configmaps"`, ...).
+///
+/// OKT-178 acceptance: "the read role bound to [the identity] is derived from
+/// the watch list the app actually performs" — this is that watch list, named
+/// once so the GitOps-side ClusterRole can be generated/checked against it
+/// instead of hand-copied from [`LiveResources::start`] and silently drifting.
+pub const WATCHED_KINDS: &[&str] = &[
+    "pods",
+    "nodes",
+    "deployments",
+    "statefulsets",
+    "daemonsets",
+    "replicasets",
+    "jobs",
+    "cronjobs",
+    "secrets",
+    "services",
+    "configmaps",
+    "persistentvolumeclaims",
+    "ingresses",
+];
+
 /// Start one reflector, serialising each snapshot into the push channel
 /// (OKT-91). Extracted so every kind costs a single line below rather than a
 /// copy of the same closure.
@@ -442,6 +465,42 @@ mod tests {
         for kind in ["pods", "deployments", "secrets", "services", "nonsense"] {
             assert!(resources.snapshot_json(kind).is_none(), "{kind}");
         }
+    }
+
+    /// OKT-178: `WATCHED_KINDS` is the list a GitOps ClusterRole gets derived
+    /// from; it must name exactly the kinds `LiveResources::start` wires a
+    /// reflector for (one field each), or the role and the real watch list
+    /// silently drift. `LiveResources::count()`'s field list is the other
+    /// place that set is spelled out, so pin both to the same length.
+    #[test]
+    fn watched_kinds_has_one_entry_per_reflector_field() {
+        assert_eq!(
+            WATCHED_KINDS.len(),
+            13,
+            "WATCHED_KINDS must list exactly the fields LiveResources::count() checks \
+             (pods, nodes, deployments, statefulsets, daemonsets, replicasets, jobs, \
+             cronjobs, secrets, services, configmaps, persistentvolumeclaims, ingresses); \
+             update this alongside LiveResources::start when a kind is added or removed"
+        );
+        // Every watched kind is a recognised-but-currently-unwatched kind on a
+        // fresh registry (`Some(rows)` once started) — not the `_ => None`
+        // catch-all an unregistered/mistyped kind would also return `None`
+        // for, which is why this also checks against `snapshot_json`'s match
+        // arms directly rather than only comparing lengths.
+        let resources = LiveResources::default();
+        for kind in WATCHED_KINDS {
+            assert_eq!(
+                resources.snapshot_json(kind),
+                None,
+                "{kind} must be one of snapshot_json's recognised kinds"
+            );
+        }
+        assert!(
+            resources.snapshot_json("not-a-real-kind").is_none(),
+            "an unregistered kind also returns None, so this test alone can't catch a \
+             WATCHED_KINDS entry that doesn't match a real reflector field — the length \
+             assertion above is the real guard"
+        );
     }
 
     #[test]
