@@ -10,7 +10,7 @@ description = "OpenKite host runtime — the kube client, plugin bridge, live re
 openkite-api = { path = "../openkite-api" }
 openkite-ui = { path = "../openkite-ui" }
 openkite-plugin-sdk = { path = "../plugin-sdk" }
-dioxus = "0.7"
+dioxus = "0.8.0-alpha.1"
 tokio = { version = "1", features = ["sync", "rt"] }
 tracing = "0.1"
 serde = { version = "1", features = ["derive"] }
