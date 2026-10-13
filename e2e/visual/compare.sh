@@ -14,6 +14,17 @@
 #
 # Usage: e2e/visual/compare.sh <baselines-dir> <fresh-screenshots-dir>
 # Exit 0 if all pass, exit 1 if any fail.
+#
+# Two threshold modes, because this gate now serves two capture sizes (the
+# desktop suite's fixed 800x600 stills and the browser suite's three
+# viewports — 1440x900 / 834x1112 / 390x844, OKT-191):
+#   MAX_DIFF_PIXELS   a fixed differing-pixel budget, same for every image
+#                      (the desktop lane's original contract, unchanged).
+#   MAX_DIFF_PERCENT  a per-image budget: each baseline's own width*height
+#                      times this percentage (the browser lane uses this —
+#                      a fixed pixel count would not scale across three very
+#                      differently sized viewports). Takes priority over
+#                      MAX_DIFF_PIXELS when set.
 
 set -euo pipefail
 
@@ -22,6 +33,8 @@ FRESH="${2:?fresh screenshots dir}"
 
 # Threshold: max differing pixels (AE metric). ~3.3% of 800x600.
 MAX_DIFF_PIXELS="${MAX_DIFF_PIXELS:-16000}"
+# Per-image percentage threshold; unset by default (fixed-pixel mode).
+MAX_DIFF_PERCENT="${MAX_DIFF_PERCENT:-}"
 
 log() { echo "[visual-regression] $*"; }
 fail() { log "FAIL: $*"; exit 1; }
