@@ -368,6 +368,69 @@ jobs:
           path: e2e/artifacts/visual/
           retention-days: 7
 
+  visual-regression-browser:
+    name: Visual regression (browser host)
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: >-
+      !cancelled() &&
+      (github.event_name != 'pull_request' ||
+       (github.event.pull_request.draft == false && needs.changes.outputs.src == 'true'))
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      # Must track the wasm-bindgen entry pinned in Cargo.lock (and the
+      # version the Dockerfile's wasm-bindgen stage curls) — a mismatched
+      # CLI/crate version pair fails the bundle with a schema-version error.
+      WASM_BINDGEN_VERSION: 0.2.127
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Install the toolchain
+        uses: ./.github/actions/rust-setup
+        with:
+          targets: wasm32-unknown-unknown
+          profile: none
+          apt-extra: imagemagick
+          cache-key: visual-browser
+      - name: Build the openkite-web host binary
+        run: cargo build -p openkite-web --locked
+      - name: Build the wasm hydration client
+        run: |
+          cargo build --release -p openkite-web --bin openkite-web-client \
+            --target wasm32-unknown-unknown --features hydrate --locked
+      - name: Install the pinned wasm-bindgen CLI
+        run: |
+          set -euo pipefail
+          curl -fsSL \
+            "https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz" \
+            | tar -xz -C /usr/local/bin --strip-components=1 \
+                "wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl/wasm-bindgen"
+      - name: Produce the hydration bundle (wasm-bindgen output)
+        run: |
+          mkdir -p "$RUNNER_TEMP/web-bundle"
+          wasm-bindgen \
+            --target web \
+            --no-typescript \
+            --out-dir "$RUNNER_TEMP/web-bundle" \
+            target/wasm32-unknown-unknown/release/openkite-web-client.wasm
+      - name: Run the browser-host visual regression gate
+        working-directory: e2e
+        env:
+          OPENKITE_WEB_BIN: ${{ github.workspace }}/target/debug/openkite-web
+          OPENKITE_WEB_ROOT: ${{ runner.temp }}/web-bundle
+        run: |
+          mkdir -p artifacts/visual-browser
+          ./visual/browser/run.sh visual/browser/baselines artifacts/visual-browser
+      - name: Upload suite artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-regression-browser-artifacts
+          path: e2e/artifacts/visual-browser/
+          retention-days: 7
+
   gate:
     name: Multi-platform build
     needs:
@@ -380,6 +443,7 @@ jobs:
       - desktop-e2e-connected
       - visual-gate-selftest
       - visual-regression
+      - visual-regression-browser
     if: >-
       always() &&
       (github.event_name != 'pull_request' ||
@@ -417,6 +481,7 @@ jobs:
       - desktop-e2e-connected
       - visual-gate-selftest
       - visual-regression
+      - visual-regression-browser
       - gate
     if: always() && github.event_name == 'push'
     runs-on: ubuntu-latest
