@@ -154,6 +154,84 @@ mod tests {
     }
 
     #[test]
+    fn preflight_errs_when_in_cluster_but_token_file_is_missing() {
+        let _guard = kubeconfig_env_lock().lock().unwrap();
+        let prior_host = std::env::var_os("KUBERNETES_SERVICE_HOST");
+        let prior_kubeconfig = std::env::var_os("KUBECONFIG");
+        std::env::set_var("KUBERNETES_SERVICE_HOST", "10.0.0.1");
+        std::env::remove_var("KUBECONFIG");
+        let missing_token = Path::new("/nonexistent/okt178-token-probe");
+
+        let result = preflight_from(missing_token);
+
+        match prior_host {
+            Some(value) => std::env::set_var("KUBERNETES_SERVICE_HOST", value),
+            None => std::env::remove_var("KUBERNETES_SERVICE_HOST"),
+        }
+        match prior_kubeconfig {
+            Some(value) => std::env::set_var("KUBECONFIG", value),
+            None => std::env::remove_var("KUBECONFIG"),
+        }
+
+        let err = result.expect_err("no projected token mount must be a named failure");
+        assert!(
+            err.contains("no projected ServiceAccount token"),
+            "wrong message: {err}"
+        );
+    }
+
+    #[test]
+    fn preflight_errs_when_kubeconfig_is_set_and_unreadable() {
+        let _guard = kubeconfig_env_lock().lock().unwrap();
+        let prior_host = std::env::var_os("KUBERNETES_SERVICE_HOST");
+        let prior_kubeconfig = std::env::var_os("KUBECONFIG");
+        std::env::remove_var("KUBERNETES_SERVICE_HOST");
+        std::env::set_var("KUBECONFIG", "/nonexistent/okt178-kubeconfig-probe");
+        let irrelevant_token = Path::new("/nonexistent/okt178-token-probe-2");
+
+        let result = preflight_from(irrelevant_token);
+
+        match prior_host {
+            Some(value) => std::env::set_var("KUBERNETES_SERVICE_HOST", value),
+            None => std::env::remove_var("KUBERNETES_SERVICE_HOST"),
+        }
+        match prior_kubeconfig {
+            Some(value) => std::env::set_var("KUBECONFIG", value),
+            None => std::env::remove_var("KUBECONFIG"),
+        }
+
+        let err = result.expect_err("a set-and-unreadable KUBECONFIG must be a named failure");
+        assert!(err.contains("KUBECONFIG is set"), "wrong message: {err}");
+    }
+
+    #[test]
+    fn preflight_ok_when_token_mounted_and_no_kubeconfig_override() {
+        let _guard = kubeconfig_env_lock().lock().unwrap();
+        let prior_host = std::env::var_os("KUBERNETES_SERVICE_HOST");
+        let prior_kubeconfig = std::env::var_os("KUBECONFIG");
+        let dir = std::env::temp_dir().join(format!("okt178-preflight-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let token = dir.join("token");
+        std::fs::write(&token, "fake-token").unwrap();
+        std::env::set_var("KUBERNETES_SERVICE_HOST", "10.0.0.1");
+        std::env::remove_var("KUBECONFIG");
+
+        let result = preflight_from(&token);
+
+        match prior_host {
+            Some(value) => std::env::set_var("KUBERNETES_SERVICE_HOST", value),
+            None => std::env::remove_var("KUBERNETES_SERVICE_HOST"),
+        }
+        match prior_kubeconfig {
+            Some(value) => std::env::set_var("KUBECONFIG", value),
+            None => std::env::remove_var("KUBECONFIG"),
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+
+        assert!(result.is_ok(), "expected Ok, got {result:?}");
+    }
+
+    #[test]
     fn service_account_identity_names_the_namespace_in_its_display_form() {
         let identity = ClusterIdentity::ServiceAccount {
             namespace: "openkite-prod".into(),
