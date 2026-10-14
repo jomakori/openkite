@@ -1,0 +1,68 @@
+# Event-driven merge orchestrator: a check suite completing IS the trigger, so
+# nothing polls on a timer. Same gate as the timer it replaces - at most one PR
+# per event, and only a non-draft PR that is CLEAN, whose every check is green,
+# and that references its Plane ticket.
+name: merge-orchestrator
+
+on:
+  check_suite:
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+# A second event arriving while the first is landing must not merge twice.
+concurrency:
+  group: merge-orchestrator
+  cancel-in-progress: false
+
+jobs:
+  land-one-green-pr:
+    # A failed suite has nothing to land, and a suite on the default branch has
+    # no pull request to land from.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.check_suite.conclusion == 'success' &&
+      github.event.check_suite.head_branch != github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Land at most one green PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -uo pipefail
+
+          pick=""
+          for n in $(gh pr list --repo "$REPO" --state open --json number,isDraft \
+                     --jq '.[] | select(.isDraft == false) | .number' | sort -n); do
+            state=$(gh pr view "$n" --repo "$REPO" \
+              --json mergeStateStatus --jq .mergeStateStatus)
+            case "$state" in
+              CLEAN | HAS_HOOKS) ;;
+              *) continue ;;
+            esac
+            gh pr checks "$n" --repo "$REPO" >/dev/null 2>&1 || continue
+            # The ticket link is the gate: no Plane reference, no auto-land.
+            gh pr view "$n" --repo "$REPO" --json body --jq .body \
+              | grep -q plane.maklab.net || continue
+            pick="$n"
+            break
+          done
+
+          if [ -z "$pick" ]; then
+            echo "No PR is green and gated for landing; nothing to do."
+            exit 0
+          fi
+
+          echo "Landing PR #$pick"
+          gh pr merge "$pick" --repo "$REPO" --squash
+
+          {
+            echo "### merge-orchestrator"
+            echo
+            echo "Landed PR #$pick (squash) on the \`${{ github.event_name }}\`"
+            echo "trigger. No timer was involved."
+          } >> "$GITHUB_STEP_SUMMARY"
