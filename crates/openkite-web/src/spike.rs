@@ -121,27 +121,18 @@ pub fn handle(body: &str, connected: bool) -> ApiResponse {
 }
 
 /// The cluster context label the console shows.
+///
+/// OKT-178: delegates to [`crate::identity_label`] so the console's context
+/// label names the same identity (SA namespace / kubeconfig context) the boot
+/// log and `connect()` preflight reason about, instead of a second,
+/// independent "in-cluster"/"kubeconfig" guess.
 fn context_payload(connected: bool) -> SpikeContext {
     SpikeContext {
-        context: Some(identity_label()),
+        context: Some(crate::identity_label()),
         connected,
         version: openkite::version::reported(),
         mutations: false,
     }
-}
-
-/// The identity the host reads the cluster with.
-///
-/// In-cluster that is the pod's ServiceAccount token, which has no kubeconfig
-/// context name; the label names that source rather than inventing a cluster.
-fn identity_label() -> String {
-    if crate::in_cluster() {
-        return "in-cluster".to_string();
-    }
-    kube::config::Kubeconfig::read()
-        .ok()
-        .and_then(|config| config.current_context)
-        .unwrap_or_else(|| "kubeconfig".to_string())
 }
 
 /// The persisted settings plus the derived catalog, capability and metadata the

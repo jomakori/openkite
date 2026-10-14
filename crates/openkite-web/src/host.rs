@@ -47,11 +47,31 @@ pub fn in_cluster() -> bool {
 /// configuration. A build that also builds dev-dependencies resolves both of
 /// rustls' providers — kube's `ring` next to rustls' default `aws-lc-rs` — and
 /// rustls refuses to choose between two, so the host picks one itself.
+///
+/// OKT-178: before calling kube-rs at all, run [`openkite_host::identity::preflight`]
+/// so the two failure modes the ticket found — a pod with no projected
+/// ServiceAccount token, and a `KUBECONFIG` set to a file the process can't
+/// read — fail with an actionable message instead of kube-rs's opaque "You
+/// must be logged in to the server". The identity itself (SA namespace or
+/// kubeconfig context) is logged by the caller via [`identity_label`].
 pub async fn connect() -> anyhow::Result<Client> {
     let _ = rustls::crypto::ring::default_provider().install_default();
+    openkite_host::identity::preflight().map_err(anyhow::Error::msg)?;
     Client::try_default()
         .await
         .context("connect to the cluster")
+}
+
+/// The effective cluster identity, named per OKT-178's acceptance text
+/// ("the pod's effective identity is named in the ticket"), for the boot log
+/// and the console's context label. Falls back to the raw [`in_cluster`]
+/// guess only when neither credential source can be read at all.
+pub fn identity_label() -> String {
+    match openkite_host::identity::describe() {
+        Ok(identity) => identity.to_string(),
+        Err(_) if in_cluster() => "in-cluster (identity unreadable)".to_string(),
+        Err(_) => "kubeconfig (identity unreadable)".to_string(),
+    }
 }
 
 /// Bind `addr` and serve until the process stops.

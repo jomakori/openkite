@@ -8,7 +8,7 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 
 use anyhow::Context;
-use openkite_web::{bind_and_serve, connect, in_cluster, DEFAULT_ADDR, DEFAULT_WEB_ROOT};
+use openkite_web::{bind_and_serve, connect, identity_label, DEFAULT_ADDR, DEFAULT_WEB_ROOT};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -22,14 +22,10 @@ async fn main() -> anyhow::Result<()> {
         std::env::var("OPENKITE_WEB_ROOT").unwrap_or_else(|_| DEFAULT_WEB_ROOT.to_string()),
     );
 
-    tracing::info!(
-        identity = if in_cluster() {
-            "in-cluster"
-        } else {
-            "kubeconfig"
-        },
-        "connecting to the cluster"
-    );
+    // OKT-178: name the effective identity (SA namespace or kubeconfig
+    // context), not just the in-cluster boolean guess — the ticket's
+    // acceptance requires the identity to be named, not assumed.
+    tracing::info!(identity = %identity_label(), "connecting to the cluster");
     let client = connect().await?;
     bind_and_serve(addr, web_root, client).await
 }
