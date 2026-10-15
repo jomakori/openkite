@@ -108,7 +108,6 @@ try {
       OPENKITE_ADDR: hostAddr,
       OPENKITE_WEB_ROOT: webRoot,
       KUBECONFIG: path.join(scriptDir, '..', '..', 'browser', 'fixtures', 'kubeconfig'),
-      KUBERNETES_SERVICE_HOST: '',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
