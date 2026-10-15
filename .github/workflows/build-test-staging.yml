@@ -3,6 +3,7 @@ name: build-test-staging
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+  merge_group:
   push:
     branches: [main]
 
@@ -25,12 +26,13 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      src: ${{ steps.filter.outputs.src }}
+      src: ${{ github.event_name == 'merge_group' && 'true' || steps.filter.outputs.src }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
       - name: Detect changed paths
         id: filter
+        if: github.event_name != 'merge_group'
         uses: dorny/paths-filter@v3
         with:
           filters: |
