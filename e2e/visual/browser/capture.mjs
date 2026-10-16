@@ -14,7 +14,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { accessSync, constants, existsSync } from 'node:fs';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -79,7 +79,6 @@ await mkdir(outDir, { recursive: true });
 const hostPort = await freePort();
 const hostAddr = `127.0.0.1:${hostPort}`;
 const baseUrl = `http://${hostAddr}`;
-const browserPort = await freePort();
 const profileDir = await mkdtemp0();
 const serverLog = [];
 const browserLog = [];
@@ -117,15 +116,16 @@ try {
     '--hide-scrollbars',
     '--remote-allow-origins=*',
     '--remote-debugging-address=127.0.0.1',
-    `--remote-debugging-port=${browserPort}`,
+    '--remote-debugging-port=0',
     `--user-data-dir=${profileDir}`,
     'about:blank',
-  ], { stdio: ['ignore', 'ignore', 'pipe'] });
+  ], { stdio: ['ignore', 'pipe', 'pipe'] });
+  browser.stdout.on('data', (chunk) => browserLog.push(chunk.toString()));
   browser.stderr.on('data', (chunk) => browserLog.push(chunk.toString()));
   browser.on('error', (error) => errors.push(`browser spawn failed: ${error.message}`));
 
   await waitForHost(baseUrl, serverProcess, serverLog);
-  const chromeEndpoint = `http://127.0.0.1:${browserPort}`;
+  const chromeEndpoint = await waitForDevTools(profileDir, browser, browserLog);
   const version = await waitForJson(`${chromeEndpoint}/json/version`, browser, browserLog);
   console.log(`Browser: ${version.Browser}`);
   const tabs = await waitForJson(`${chromeEndpoint}/json/list`, browser, browserLog);
@@ -304,6 +304,39 @@ async function waitForJson(url, child, logs) {
     await delay(100);
   }
   throw new Error(`Chromium DevTools endpoint did not become ready at ${url}: ${logs.join('').slice(-2000)}`);
+}
+
+// Chrome writes the port it chose to `DevToolsActivePort` once the endpoint is
+// up: asking for port 0 and reading the marker back avoids racing a port we
+// picked ourselves. Both loopback families are probed, since which one Chrome
+// binds to is its call.
+async function waitForDevTools(profileDir, child, logs) {
+  const marker = path.join(profileDir, 'DevToolsActivePort');
+  const end = Date.now() + 20000;
+  const tail = () => logs.join('').slice(-2000);
+  let candidates = [];
+  while (Date.now() < end) {
+    if (child.exitCode !== null) throw new Error(`Chromium exited (${child.exitCode}) before DevTools came up: ${tail()}`);
+    if (candidates.length === 0) {
+      try {
+        const port = Number((await readFile(marker, 'utf8')).split('\n')[0].trim());
+        if (Number.isInteger(port) && port > 0) candidates = [`http://127.0.0.1:${port}`, `http://[::1]:${port}`];
+      } catch {
+        /* marker not written yet */
+      }
+    }
+    for (const base of candidates) {
+      try {
+        const response = await fetch(`${base}/json/version`, { signal: AbortSignal.timeout(500) });
+        if (response.ok) return base;
+      } catch {
+        /* try the other loopback family */
+      }
+    }
+    await delay(100);
+  }
+  if (candidates.length === 0) throw new Error(`Chromium never wrote ${marker}: ${tail()}`);
+  throw new Error(`Chromium DevTools did not answer on ${candidates.join(' or ')}: ${tail()}`);
 }
 
 async function freePort() {

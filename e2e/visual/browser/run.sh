@@ -81,6 +81,7 @@ export OPENKITE_BROWSER OPENKITE_WEB_BIN OPENKITE_WEB_ROOT
 log() { echo "[visual-regression-browser-gate] $*"; }
 
 FRESH="$ART/fresh"
+log "browser: $OPENKITE_BROWSER ($(timeout 10 "$OPENKITE_BROWSER" --version 2>&1 | head -1))"
 log "capturing fresh hydrated-client screenshots"
 node "$script_dir/capture.mjs" "$FRESH"
 
