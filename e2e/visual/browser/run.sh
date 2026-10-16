@@ -85,7 +85,6 @@ log "capturing fresh hydrated-client screenshots"
 node "$script_dir/capture.mjs" "$FRESH"
 
 log "comparing against baselines"
-# A fixed MAX_DIFF_PIXELS does not scale across the three very differently
-# sized viewports (1440x900 vs 390x844), so this lane uses compare.sh's
-# per-image MAX_DIFF_PERCENT mode instead of its fixed-pixel one.
+# Per-image percent budget; compare.sh's fixed-pixel default is sized for the
+# desktop lane's single viewport.
 MAX_DIFF_PERCENT="${MAX_DIFF_PERCENT:-1.5}" "$script_dir/../compare.sh" "$BASELINES" "$FRESH"

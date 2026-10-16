@@ -40,26 +40,12 @@ pub fn in_cluster() -> bool {
     std::env::var_os("KUBERNETES_SERVICE_HOST").is_some()
 }
 
-/// Connect to the cluster: the in-cluster ServiceAccount token when running as a
-/// pod, else the active `KUBECONFIG` context. Returns `Ok(None)` when neither
-/// credential source is usable at all (OKT-191): a preview/CI host with no
-/// cluster credential is a supported, deterministic mode — the caller serves
-/// the fixture gateway instead of failing to boot.
+/// Connect to the cluster from the in-cluster ServiceAccount token, else the
+/// active `KUBECONFIG` context; `Ok(None)` when neither source is usable.
 ///
 /// The crypto provider is installed before the client builds its TLS
-/// configuration. A build that also builds dev-dependencies resolves both of
-/// rustls' providers — kube's `ring` next to rustls' default `aws-lc-rs` — and
-/// rustls refuses to choose between two, so the host picks one itself.
-///
-/// OKT-178: before calling kube-rs at all, run [`openkite_host::identity::preflight`]
-/// so the two failure modes the ticket found — a pod with no projected
-/// ServiceAccount token, and a `KUBECONFIG` set to a file the process can't
-/// read — fail with an actionable message instead of kube-rs's opaque "You
-/// must be logged in to the server". That preflight still runs and still
-/// errors on those two broken-auth modes; only a genuinely absent credential
-/// (not in-cluster, no resolvable kubeconfig) answers `Ok(None)`. The identity
-/// itself (SA namespace or kubeconfig context) is logged by the caller via
-/// [`identity_label`].
+/// configuration: a build that also builds dev-dependencies resolves both
+/// rustls providers, and rustls refuses to choose between two.
 pub async fn connect() -> anyhow::Result<Option<Client>> {
     let _ = rustls::crypto::ring::default_provider().install_default();
     openkite_host::identity::preflight().map_err(anyhow::Error::msg)?;
@@ -72,12 +58,7 @@ pub async fn connect() -> anyhow::Result<Option<Client>> {
         .context("connect to the cluster")
 }
 
-/// The effective cluster identity, named per OKT-178's acceptance text
-/// ("the pod's effective identity is named in the ticket"), for the boot log
-/// and the console's context label. Falls back to the raw [`in_cluster`]
-/// guess when the identity source can be seen but not read, and names a
-/// credential-less start honestly as fixture mode (OKT-191) rather than
-/// guessing at an identity that isn't there.
+/// The effective cluster identity, for the boot log and the console's context label.
 pub fn identity_label() -> String {
     match openkite_host::identity::describe() {
         Ok(identity) => identity.to_string(),
@@ -90,10 +71,6 @@ pub fn identity_label() -> String {
 }
 
 /// Bind `addr` and serve until the process stops.
-///
-/// `client` is `None` for a credential-less start (OKT-191): the bridge then
-/// holds no client and the routes fall back to the fixture gateway instead of
-/// failing to boot.
 pub async fn bind_and_serve(
     addr: SocketAddr,
     web_root: PathBuf,
@@ -106,11 +83,7 @@ pub async fn bind_and_serve(
 }
 
 /// Boot the host on an already-bound listener: install the bridge, start the
-/// reflectors (when there is a client to start them with), then serve.
-///
-/// The listener belongs to the caller so that a port clash fails before the
-/// reflectors start, and so a test can bind `127.0.0.1:0` and read the port
-/// back.
+/// reflectors, then serve.
 pub async fn serve(
     listener: TcpListener,
     web_root: PathBuf,

@@ -1,19 +1,10 @@
 #!/usr/bin/env node
 // Capture hydrated-client visual baselines of the browser host's core
-// surfaces at the three breakpoints the OpenDesign mockup is graded at
-// (OKT-191, Decision D1: grade against the mockup directly, not desktop).
+// surfaces, driving a headless Chrome over the DevTools Protocol with Node's
+// built-in WebSocket.
 //
-// Boots the production `openkite-web` host and drives a real headless
-// Chromium/Chrome process over the DevTools Protocol directly -- same
-// no-dependency approach as e2e/browser/harness.mjs (OKT-188). No
-// Playwright, no browser automation package is installed.
-//
-// A screenshot only counts once the real wasm-bindgen client has mounted
-// over the SSR tree (the wasm payload resource has a non-zero
-// `responseEnd` and the app root is present): a raw SSR screenshot would
-// grade markup the mockup's rendered surfaces never actually show a user,
-// since the SSR pass alone omits anything the hydrated client paints only
-// after mount (see crates/openkite-web/src/ssr.rs doc comment).
+// Each screenshot is taken only once the wasm client has hydrated the SSR
+// tree, so the baselines hold post-hydration pixels.
 //
 // Usage:
 //   OPENKITE_WEB_BIN=/path/to/openkite-web \
@@ -32,9 +23,7 @@ import { fileURLToPath } from 'node:url';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 
-// The four surfaces OKT-191 grades. Overlays (palette/switcher) and the
-// remaining desktop-only surfaces (logs/terminal) stay out of scope -- they
-// are not part of this ticket's acceptance list.
+// Graded surfaces; overlays and desktop-only routes stay out of scope.
 const ROUTES = [
   { slug: 'home', route: '/' },
   { slug: 'cluster', route: '/cluster' },
@@ -42,7 +31,7 @@ const ROUTES = [
   { slug: 'config', route: '/config' },
 ];
 
-// The three breakpoints named in the acceptance text, verbatim.
+// Breakpoints the mockup is graded at.
 const VIEWPORTS = [
   { slug: '1440x900', width: 1440, height: 900 },
   { slug: '834x1112', width: 834, height: 1112 },
@@ -102,14 +91,8 @@ let sequence = 0;
 const waiting = new Map();
 
 try {
-  // Credential-less on purpose (OKT-191): a kubeconfig that only parses but
-  // can't reach a server (e.g. the OKT-188 harness fixture at 127.0.0.1:6443)
-  // makes `connect()` return a real client, so every capture hits a dead API
-  // server instead of the fixture gateway -- that is the
-  // "ServiceError: client error(Connect)" the console used to render.
-  // Dropping both KUBECONFIG and KUBERNETES_SERVICE_HOST (including any
-  // ambient values from the runner's own environment) makes `connect()`
-  // answer `Ok(None)`, so the host serves `FixtureGateway`'s mock data.
+  // Without KUBECONFIG or KUBERNETES_SERVICE_HOST the host answers `Ok(None)`
+  // and serves the fixture gateway.
   const { KUBECONFIG: _ambientKubeconfig, KUBERNETES_SERVICE_HOST: _ambientServiceHost, ...hostEnv } = process.env;
   serverProcess = spawn(hostBin, [], {
     env: {
@@ -124,7 +107,7 @@ try {
   serverProcess.on('error', (error) => errors.push(`web host spawn failed: ${error.message}`));
 
   browser = spawn(chromium, [
-    '--headless',
+    '--headless=new',
     '--no-sandbox',
     '--disable-gpu',
     '--disable-dev-shm-usage',
