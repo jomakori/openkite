@@ -21,7 +21,8 @@ async fn dump_workloads_fixture() {
     };
     let client = openkite_web::connect()
         .await
-        .expect("connect to the cluster");
+        .expect("connect to the cluster")
+        .expect("OPENKITE_WEB_FIXTURE_OUT requires a real cluster connection (set KUBECONFIG)");
     let root = tempfile::tempdir().expect("tempdir");
     let app = support::app(Arc::new(Bridge::connected(client)), root.path());
     let (status, body) = support::get_body(app, "/workloads").await;

@@ -14,6 +14,12 @@
 #
 # Usage: e2e/visual/compare.sh <baselines-dir> <fresh-screenshots-dir>
 # Exit 0 if all pass, exit 1 if any fail.
+#
+# Two threshold modes, for the desktop suite's fixed 800x600 stills and the
+# browser suite's three viewports:
+#   MAX_DIFF_PIXELS   a fixed differing-pixel budget, the same for every image.
+#   MAX_DIFF_PERCENT  a per-image budget: each baseline's own width*height
+#                     times this percentage. Takes priority when set.
 
 set -euo pipefail
 
@@ -22,6 +28,8 @@ FRESH="${2:?fresh screenshots dir}"
 
 # Threshold: max differing pixels (AE metric). ~3.3% of 800x600.
 MAX_DIFF_PIXELS="${MAX_DIFF_PIXELS:-16000}"
+# Per-image percentage threshold; unset by default (fixed-pixel mode).
+MAX_DIFF_PERCENT="${MAX_DIFF_PERCENT:-}"
 
 log() { echo "[visual-regression] $*"; }
 fail() { log "FAIL: $*"; exit 1; }
@@ -46,7 +54,11 @@ fi
 log "comparing fresh screenshots against baselines"
 log "baseline dir: $BASELINES"
 log "fresh dir: $FRESH"
-log "threshold: $MAX_DIFF_PIXELS differing pixels (AE metric, ~1% of 1280x800)"
+if [ -n "$MAX_DIFF_PERCENT" ]; then
+  log "threshold: ${MAX_DIFF_PERCENT}% of each image's own pixel count (AE metric)"
+else
+  log "threshold: $MAX_DIFF_PIXELS differing pixels (AE metric, ~1% of 1280x800)"
+fi
 
 PASS=0
 FAIL=0
@@ -79,11 +91,21 @@ for baseline in "$BASELINES"/*.png; do
   # Strip any non-numeric suffixes (compare sometimes outputs "1024 (0.001)")
   diff_pixels=$(echo "$diff_pixels" | grep -oE '^[0-9]+' || echo "0")
 
-  if [ "$diff_pixels" -le "$MAX_DIFF_PIXELS" ]; then
-    log "PASS: $name ($diff_pixels differing pixels)"
+  if [ -n "$MAX_DIFF_PERCENT" ]; then
+    # Per-image budget: this baseline's own width*height times the percentage.
+    dims=$(identify -format '%w %h' "$baseline")
+    img_w=$(echo "$dims" | cut -d' ' -f1)
+    img_h=$(echo "$dims" | cut -d' ' -f2)
+    budget=$(awk -v w="$img_w" -v h="$img_h" -v pct="$MAX_DIFF_PERCENT" 'BEGIN { printf "%d", (w * h * pct / 100) }')
+  else
+    budget="$MAX_DIFF_PIXELS"
+  fi
+
+  if [ "$diff_pixels" -le "$budget" ]; then
+    log "PASS: $name ($diff_pixels differing pixels, budget $budget)"
     PASS=$((PASS + 1))
   else
-    log "FAIL: $name ($diff_pixels differing pixels > $MAX_DIFF_PIXELS threshold)"
+    log "FAIL: $name ($diff_pixels differing pixels > $budget threshold)"
     FAIL=$((FAIL + 1))
   fi
 done
