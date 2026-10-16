@@ -34,7 +34,10 @@ jobs:
       pull-requests: read
     env:
       STATE_BRANCH: staging-state
-      MARKER_DIR: .staging/idle
+      # A visible path on purpose: the ApplicationSet git generator does not see
+      # dot-prefixed directories, so the marker sits at idle/state.
+      MARKER_DIR: idle
+      MARKER_FILE: idle/state
       STAGING_LABEL: staging
     steps:
       - name: Check out the repository
@@ -67,13 +70,13 @@ jobs:
           else
             echo "no open pull request carries the $STAGING_LABEL label: the placeholder goes on."
             mkdir -p "$MARKER_DIR"
-            : >"$MARKER_DIR/.keep"
+            printf '%s\n' \
+              "# No open pull request carries the $STAGING_LABEL label: the placeholder owns the staging host." \
+              "# CI maintains this file -- see .github/workflows/staging-state.yml." >"$MARKER_FILE"
           fi
-          # Stage the marker only when it exists or is tracked: on a brand new
-          # state branch with nothing staged there is no path to add yet.
-          if [ -d "$MARKER_DIR" ] || git ls-files --error-unmatch "$MARKER_DIR" >/dev/null 2>&1; then
-            git add -A -- "$MARKER_DIR"
-          fi
+          # The state branch carries the marker and nothing else.
+          rm -rf .staging
+          git add -A
 
       - name: Publish the marker when it changed
         run: |
