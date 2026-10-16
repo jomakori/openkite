@@ -15,16 +15,11 @@
 # Usage: e2e/visual/compare.sh <baselines-dir> <fresh-screenshots-dir>
 # Exit 0 if all pass, exit 1 if any fail.
 #
-# Two threshold modes, because this gate now serves two capture sizes (the
-# desktop suite's fixed 800x600 stills and the browser suite's three
-# viewports — 1440x900 / 834x1112 / 390x844, OKT-191):
-#   MAX_DIFF_PIXELS   a fixed differing-pixel budget, same for every image
-#                      (the desktop lane's original contract, unchanged).
+# Two threshold modes, for the desktop suite's fixed 800x600 stills and the
+# browser suite's three viewports:
+#   MAX_DIFF_PIXELS   a fixed differing-pixel budget, the same for every image.
 #   MAX_DIFF_PERCENT  a per-image budget: each baseline's own width*height
-#                      times this percentage (the browser lane uses this —
-#                      a fixed pixel count would not scale across three very
-#                      differently sized viewports). Takes priority over
-#                      MAX_DIFF_PIXELS when set.
+#                     times this percentage. Takes priority when set.
 
 set -euo pipefail
 
@@ -97,10 +92,7 @@ for baseline in "$BASELINES"/*.png; do
   diff_pixels=$(echo "$diff_pixels" | grep -oE '^[0-9]+' || echo "0")
 
   if [ -n "$MAX_DIFF_PERCENT" ]; then
-    # Per-image budget: this baseline's own width*height times the percent.
-    # A fixed MAX_DIFF_PIXELS does not scale across very differently sized
-    # viewports (1440x900 vs 390x844), which is exactly the browser lane's
-    # situation (OKT-191) -- each image is judged against its own size.
+    # Per-image budget: this baseline's own width*height times the percentage.
     dims=$(identify -format '%w %h' "$baseline")
     img_w=$(echo "$dims" | cut -d' ' -f1)
     img_h=$(echo "$dims" | cut -d' ' -f2)
