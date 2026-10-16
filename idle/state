@@ -1,0 +1,2 @@
+# No open pull request carries the staging label: the placeholder owns the staging host.
+# CI owns this path -- see .github/workflows/staging-state.yml in jomakori/openkite.
