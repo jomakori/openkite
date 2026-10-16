@@ -1,0 +1,88 @@
+name: staging-state
+
+# The staging environment is admitted by the `staging` label on a pull request,
+# and the GitOps ApplicationSet watches that label directly. The staging host
+# must never have two claimants, so the same label also gates the placeholder
+# page that answers while nothing is staged: the ApplicationSet renders it only
+# while the marker directory below exists, and this workflow is the only writer
+# of that marker.
+#
+# The marker lives on its own branch because main is protected: the label events
+# for a pull request from a fork get a read-only token, and the schedule below
+# then converges the marker on its own within ten minutes.
+on:
+  pull_request:
+    types: [labeled, unlabeled, closed, reopened]
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-state
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    name: Publish the staging marker
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: read
+    env:
+      STATE_BRANCH: staging-state
+      MARKER_DIR: .staging/idle
+      STAGING_LABEL: staging
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Switch to the state branch
+        run: |
+          set -euo pipefail
+          # The first run finds no branch to switch to, so it starts one empty.
+          if git fetch --depth 1 origin "$STATE_BRANCH"; then
+            git checkout -B "$STATE_BRANCH" FETCH_HEAD
+          else
+            git checkout --orphan "$STATE_BRANCH"
+            git rm -r --cached . >/dev/null
+            find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          fi
+
+      - name: Recompute the marker from the open staging pull requests
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          staged="$(gh pr list --repo "$GITHUB_REPOSITORY" --state open \
+            --label "$STAGING_LABEL" --limit 1 --json number --jq '.[0].number // ""')"
+          if [ -n "$staged" ]; then
+            echo "pr-$staged carries the $STAGING_LABEL label: the placeholder stays off."
+            rm -rf "$MARKER_DIR"
+          else
+            echo "no open pull request carries the $STAGING_LABEL label: the placeholder goes on."
+            mkdir -p "$MARKER_DIR"
+            : >"$MARKER_DIR/.keep"
+          fi
+          # Stage the marker only when it exists or is tracked: on a brand new
+          # state branch with nothing staged there is no path to add yet.
+          if [ -d "$MARKER_DIR" ] || git ls-files --error-unmatch "$MARKER_DIR" >/dev/null 2>&1; then
+            git add -A -- "$MARKER_DIR"
+          fi
+
+      - name: Publish the marker when it changed
+        run: |
+          set -euo pipefail
+          if git diff --cached --quiet; then
+            echo "the marker already matches the label state."
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" \
+            -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -m "chore(staging-state): sync the placeholder marker [skip ci]"
+          git push origin "$STATE_BRANCH"
