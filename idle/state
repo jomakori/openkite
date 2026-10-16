@@ -1,2 +1,0 @@
-# No open pull request carries the staging label: the placeholder owns the staging host.
-# CI maintains this file -- see .github/workflows/staging-state.yml.
