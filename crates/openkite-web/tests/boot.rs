@@ -26,7 +26,7 @@ async fn booted_host_answers_the_console_over_http() {
         .await
         .expect("bind host");
     let addr = listener.local_addr().expect("host address");
-    tokio::spawn(serve(listener, dir.path().to_path_buf(), client));
+    tokio::spawn(serve(listener, dir.path().to_path_buf(), Some(client)));
     wait_until_serving(addr).await;
 
     let shell = raw_http(addr, "GET", "/", None).await;

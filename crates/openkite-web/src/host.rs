@@ -41,7 +41,10 @@ pub fn in_cluster() -> bool {
 }
 
 /// Connect to the cluster: the in-cluster ServiceAccount token when running as a
-/// pod, else the active `KUBECONFIG` context.
+/// pod, else the active `KUBECONFIG` context. Returns `Ok(None)` when neither
+/// credential source is usable at all (OKT-191): a preview/CI host with no
+/// cluster credential is a supported, deterministic mode — the caller serves
+/// the fixture gateway instead of failing to boot.
 ///
 /// The crypto provider is installed before the client builds its TLS
 /// configuration. A build that also builds dev-dependencies resolves both of
@@ -52,33 +55,49 @@ pub fn in_cluster() -> bool {
 /// so the two failure modes the ticket found — a pod with no projected
 /// ServiceAccount token, and a `KUBECONFIG` set to a file the process can't
 /// read — fail with an actionable message instead of kube-rs's opaque "You
-/// must be logged in to the server". The identity itself (SA namespace or
-/// kubeconfig context) is logged by the caller via [`identity_label`].
-pub async fn connect() -> anyhow::Result<Client> {
+/// must be logged in to the server". That preflight still runs and still
+/// errors on those two broken-auth modes; only a genuinely absent credential
+/// (not in-cluster, no resolvable kubeconfig) answers `Ok(None)`. The identity
+/// itself (SA namespace or kubeconfig context) is logged by the caller via
+/// [`identity_label`].
+pub async fn connect() -> anyhow::Result<Option<Client>> {
     let _ = rustls::crypto::ring::default_provider().install_default();
     openkite_host::identity::preflight().map_err(anyhow::Error::msg)?;
+    if !in_cluster() && kube::config::Kubeconfig::read().is_err() {
+        return Ok(None);
+    }
     Client::try_default()
         .await
+        .map(Some)
         .context("connect to the cluster")
 }
 
 /// The effective cluster identity, named per OKT-178's acceptance text
 /// ("the pod's effective identity is named in the ticket"), for the boot log
 /// and the console's context label. Falls back to the raw [`in_cluster`]
-/// guess only when neither credential source can be read at all.
+/// guess when the identity source can be seen but not read, and names a
+/// credential-less start honestly as fixture mode (OKT-191) rather than
+/// guessing at an identity that isn't there.
 pub fn identity_label() -> String {
     match openkite_host::identity::describe() {
         Ok(identity) => identity.to_string(),
         Err(_) if in_cluster() => "in-cluster (identity unreadable)".to_string(),
-        Err(_) => "kubeconfig (identity unreadable)".to_string(),
+        Err(_) if kube::config::Kubeconfig::read().is_ok() => {
+            "kubeconfig (identity unreadable)".to_string()
+        }
+        Err(_) => "no-cluster (fixture)".to_string(),
     }
 }
 
 /// Bind `addr` and serve until the process stops.
+///
+/// `client` is `None` for a credential-less start (OKT-191): the bridge then
+/// holds no client and the routes fall back to the fixture gateway instead of
+/// failing to boot.
 pub async fn bind_and_serve(
     addr: SocketAddr,
     web_root: PathBuf,
-    client: Client,
+    client: Option<Client>,
 ) -> anyhow::Result<()> {
     let listener = TcpListener::bind(addr)
         .await
@@ -87,20 +106,28 @@ pub async fn bind_and_serve(
 }
 
 /// Boot the host on an already-bound listener: install the bridge, start the
-/// reflectors, then serve.
+/// reflectors (when there is a client to start them with), then serve.
 ///
 /// The listener belongs to the caller so that a port clash fails before the
 /// reflectors start, and so a test can bind `127.0.0.1:0` and read the port
 /// back.
-pub async fn serve(listener: TcpListener, web_root: PathBuf, client: Client) -> anyhow::Result<()> {
+pub async fn serve(
+    listener: TcpListener,
+    web_root: PathBuf,
+    client: Option<Client>,
+) -> anyhow::Result<()> {
     // Publish host capabilities before any gateway exists (disconnected boot).
     openkite_ui::runtime::set_published_capabilities(Some(
         openkite_api::capability::Capabilities::server_side(),
     ));
 
-    let bridge = Arc::new(Bridge::connected(client.clone()));
+    let bridge = Arc::new(Bridge::new());
+    bridge.set_client(client.clone());
 
-    let started = crate::headless::start_reflectors(client);
+    let started = match client {
+        Some(client) => crate::headless::start_reflectors(client),
+        None => 0,
+    };
     tracing::info!(started, "reflectors running");
 
     let addr = listener.local_addr().context("read listener address")?;

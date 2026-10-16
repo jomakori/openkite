@@ -102,12 +102,20 @@ let sequence = 0;
 const waiting = new Map();
 
 try {
+  // Credential-less on purpose (OKT-191): a kubeconfig that only parses but
+  // can't reach a server (e.g. the OKT-188 harness fixture at 127.0.0.1:6443)
+  // makes `connect()` return a real client, so every capture hits a dead API
+  // server instead of the fixture gateway -- that is the
+  // "ServiceError: client error(Connect)" the console used to render.
+  // Dropping both KUBECONFIG and KUBERNETES_SERVICE_HOST (including any
+  // ambient values from the runner's own environment) makes `connect()`
+  // answer `Ok(None)`, so the host serves `FixtureGateway`'s mock data.
+  const { KUBECONFIG: _ambientKubeconfig, KUBERNETES_SERVICE_HOST: _ambientServiceHost, ...hostEnv } = process.env;
   serverProcess = spawn(hostBin, [], {
     env: {
-      ...process.env,
+      ...hostEnv,
       OPENKITE_ADDR: hostAddr,
       OPENKITE_WEB_ROOT: webRoot,
-      KUBECONFIG: path.join(scriptDir, '..', '..', 'browser', 'fixtures', 'kubeconfig'),
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });

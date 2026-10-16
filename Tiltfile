@@ -58,12 +58,6 @@ if pr != '':
         links=['https://' + host],
     )
 
-    local_resource(
-        'openkite-bundle',
-        cmd='bash web/build.sh',
-        deps=['web/src', 'web/index.html', 'web/index.web.html', 'web/vite.config.ts', 'web/package.json'],
-    )
-
 if dev_loop:
     local_resource(
         'cargo-check',
