@@ -10,7 +10,7 @@ Six workflows, one job each of them owns:
 | Workflow | Trigger | Jobs |
 |---|---|---|
 | [`lint-test.yml`](lint-test.yml) | `pull_request` (drafts included), push `main` | `changes` · `fmt` · `clippy` · `test` · `build` · `cross-platform` · `web-host` · `wasm-ui` · `coverage` · `report` |
-| [`build-test-staging.yml`](build-test-staging.yml) | `pull_request` (not draft), push `main` | `changes` · `binaries` (6 targets) · `e2e-binary` · `desktop-e2e` · `user-flows` · `bridge-guard` · `desktop-e2e-connected` · `visual-gate-selftest` · `visual-regression` · `visual-regression-browser` · `gate` · `report` |
+| [`build-test-staging.yml`](build-test-staging.yml) | `pull_request` (not draft), push `main` | `changes` · `binaries` (6 targets) · `e2e-binary` · `desktop-e2e` · `user-flows` · `bridge-guard` · `desktop-e2e-connected` · `visual-gate-selftest` · `visual-regression` · `visual-regression-browser` · `parity-gate-selftest` · `parity` · `gate` · `report` |
 | [`preview.yml`](preview.yml) | `pull_request` on the `preview` label | `deploy` · `withdraw` · `teardown` · `staging` · `withdraw-staging` · `prune` |
 | [`staging-state.yml`](staging-state.yml) | `pull_request` label events, `schedule` (10 min), dispatch | `publish` (the staging marker branch) |
 | [`release.yml`](release.yml) | push `main` (Rust/CI paths), dispatch | `analyze` · `locate` · `packages` · `publish` · `image` · `image-rebuild` · `manifest` · `tap` · `choco` · `report` |

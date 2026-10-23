@@ -113,6 +113,8 @@ pub fn install_plugins(sections: Vec<SidebarSection>, routes: HashMap<String, fn
 
 /// App entry: render the router.
 pub fn app() -> Element {
+    // Gate G3 (§`e2e/parity`): a no-op unless OPENKITE_PARITY_SNAPSHOT is set.
+    crate::parity::install();
     rsx! { Router::<Route> {} }
 }
 
