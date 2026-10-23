@@ -9,7 +9,7 @@
 //! same-origin round-trip the hydrating client refreshes through, and `GET
 //! /assets/fonts/{file}` is where the stylesheet's `@font-face` URLs land.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use axum::extract::{OriginalUri, Path as UrlPath, RawQuery, State};
@@ -24,30 +24,79 @@ use openkite_host::bridge::Bridge;
 use openkite_ui::components::route_views::resolve_route;
 use tower_http::services::ServeDir;
 
+use crate::assets::{Bundle, DOCUMENT, IMMUTABLE};
 use crate::spike;
 use crate::ssr;
 
 /// The shared bridge every bridge request dispatches through.
 pub type SharedBridge = Arc<Bridge>;
 
+/// What a handler needs: the bridge, and the hydration pair this process serves.
+///
+/// The bundle rides in the state because the document has to name the same
+/// version the asset route will answer — a document rendered against one
+/// version and served assets from another is the mismatch this closes.
+#[derive(Clone)]
+pub struct HostState {
+    /// The bridge every console call dispatches through.
+    pub bridge: SharedBridge,
+    /// The hashed hydration pair in `OPENKITE_WEB_ROOT`.
+    pub bundle: Arc<Bundle>,
+    /// Where that pair is staged.
+    pub web_root: Arc<PathBuf>,
+}
+
 /// Build the host router: the crate-rendered root, the console's endpoints,
-/// the vendored typefaces, then the hydration bundle.
+/// the versioned hydration pair, the vendored typefaces, then the bundle root.
 ///
 /// The runtime image ships no static document, so a path the bundle has no file
 /// for is answered by the console itself rather than a file that is not there.
 pub fn router(bridge: SharedBridge, web_root: &Path) -> Router {
+    let state = HostState {
+        bridge: bridge.clone(),
+        bundle: Arc::new(Bundle::load(web_root)),
+        web_root: Arc::new(web_root.to_path_buf()),
+    };
     let shell: Router = Router::new()
         .route("/{*path}", get(ssr_root))
-        .with_state(bridge.clone());
+        .with_state(state.clone());
     let assets = ServeDir::new(web_root).fallback(shell);
     Router::new()
         .route("/", get(ssr_root))
         .route("/assets/fonts/{file}", get(font_get))
+        .route("/assets/bundle/{version}/{file}", get(bundle_get))
         .route("/openkite", post(bridge_post))
         .route("/openkite-spike", post(spike_post))
         .route("/api/gateway", post(gateway_post))
         .fallback_service(assets)
-        .with_state(bridge)
+        .with_state(state)
+}
+
+/// Serve one file of the hydration pair under the version the document names.
+///
+/// The version is checked against this process's own hash, so a browser that
+/// kept a URL from an older build gets a 404 rather than this build's bytes
+/// cached under that older name — and the page it loaded cannot hydrate with a
+/// wasm from a different build. The bytes are immutable by construction, which
+/// is what makes the long cache safe.
+async fn bundle_get(
+    State(state): State<HostState>,
+    UrlPath((version, file)): UrlPath<(String, String)>,
+) -> Response {
+    let Some(file) = state.bundle.resolve(&version, &file) else {
+        return (StatusCode::NOT_FOUND, "unknown bundle version").into_response();
+    };
+    match tokio::fs::read(state.web_root.join(file)).await {
+        Ok(bytes) => (
+            [
+                (CONTENT_TYPE, Bundle::content_type(file)),
+                (CACHE_CONTROL, IMMUTABLE),
+            ],
+            bytes,
+        )
+            .into_response(),
+        Err(_) => (StatusCode::NOT_FOUND, "bundle file is not staged").into_response(),
+    }
 }
 
 /// Serve one vendored typeface the shell stylesheet declares.
@@ -73,13 +122,13 @@ async fn font_get(UrlPath(file): UrlPath<String>) -> Response {
 /// Always answers HTTP 200 with an `ok`/`error` envelope: the JS side reads the
 /// envelope, and any non-2xx is treated as "no host here", which would drop the
 /// console back to fixtures.
-async fn bridge_post(State(bridge): State<SharedBridge>, body: String) -> Json<ApiResponse> {
-    Json(bridge.handle_post(&body).await)
+async fn bridge_post(State(state): State<HostState>, body: String) -> Json<ApiResponse> {
+    Json(state.bridge.handle_post(&body).await)
 }
 
 /// Answer one console context/settings POST, in the same envelope.
-async fn spike_post(State(bridge): State<SharedBridge>, body: String) -> Json<ApiResponse> {
-    Json(spike::handle(&body, bridge.client().is_some()))
+async fn spike_post(State(state): State<HostState>, body: String) -> Json<ApiResponse> {
+    Json(spike::handle(&body, state.bridge.client().is_some()))
 }
 
 /// Render the console root server-side from the snapshot the host holds.
@@ -94,7 +143,7 @@ async fn spike_post(State(bridge): State<SharedBridge>, body: String) -> Json<Ap
 /// paints the page a reload or a shared link asked for rather than waiting for
 /// a client to restore it.
 async fn ssr_root(
-    State(bridge): State<SharedBridge>,
+    State(state): State<HostState>,
     OriginalUri(uri): OriginalUri,
     RawQuery(query): RawQuery,
 ) -> Response {
@@ -102,21 +151,31 @@ async fn ssr_root(
     let selection = query
         .as_deref()
         .and_then(openkite_ui::components::resource_pane::ResourceRef::from_query);
-    let snapshot = ssr_snapshot(&bridge, &route)
+    let snapshot = ssr_snapshot(&state.bridge, &route)
         .await
         .with_selection(selection);
-    let page = ssr::render_page(&snapshot, &ssr::RenderOptions::hydrating());
-    ([(CONTENT_TYPE, "text/html; charset=utf-8")], page).into_response()
+    let page = ssr::render_page(
+        &snapshot,
+        &ssr::RenderOptions::hydrating(state.bundle.client_url()),
+    );
+    (
+        [
+            (CONTENT_TYPE, "text/html; charset=utf-8"),
+            (CACHE_CONTROL, DOCUMENT),
+        ],
+        page,
+    )
+        .into_response()
 }
 
 /// Answer the hydrating client's refresh: a fresh snapshot in the envelope
 /// `GatewayResponse` defines, carrying the table the workloads route paints.
-async fn gateway_post(State(bridge): State<SharedBridge>, body: String) -> Response {
+async fn gateway_post(State(state): State<HostState>, body: String) -> Response {
     let request: Result<crate::app::GatewayRequest, _> = serde_json::from_str(&body);
     let snapshot = match request {
-        Ok(_) => ssr_snapshot(&bridge, "/")
+        Ok(_) => ssr_snapshot(&state.bridge, "/")
             .await
-            .with_workloads(workload_table(&bridge).await),
+            .with_workloads(workload_table(&state.bridge).await),
         Err(_) => ssr::Snapshot::default(),
     };
     let response = crate::app::GatewayResponse { snapshot };

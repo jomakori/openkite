@@ -31,6 +31,8 @@ pub use host::{
 };
 
 #[cfg(not(target_arch = "wasm32"))]
+pub mod assets;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod fixture;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod headless;
