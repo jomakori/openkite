@@ -298,6 +298,7 @@ fn workloads_snapshot() -> Snapshot {
             columns: openkite::workloads::pod_columns(),
             rows: vec![web_pod_row()],
             error: None,
+            loading: false,
         },
         ..Snapshot::default()
     }
@@ -386,6 +387,7 @@ fn a_refused_gateway_is_stated_not_left_blank() {
             columns: openkite::workloads::pod_columns(),
             rows: Vec::new(),
             error: Some("no cluster connected".into()),
+            loading: false,
         },
         ..Snapshot::default()
     };
@@ -512,9 +514,24 @@ async fn snapshot_lists_gateway_secret_refs_and_preserves_empty_state() {
         "empty namespaces: {body}"
     );
 
+    // A gateway that refuses to list is not a gateway with no secrets: the
+    // refusal is kept and the panel paints its error state instead of an empty
+    // scope (OKT-194 G4).
     let disconnected = Snapshot::from_gateway(&ref_gateway(None), false, None).await;
     assert!(disconnected.secrets.is_empty());
-    assert!(render_body(&disconnected).contains("data-empty=\"secrets\""));
+    assert!(
+        disconnected.error.is_some(),
+        "the refusal rides the snapshot"
+    );
+    let body = render_body(&disconnected);
+    assert!(
+        body.contains("data-state=\"error\""),
+        "refused secrets surface: {body}"
+    );
+    assert!(
+        !body.contains("data-empty=\"secrets\""),
+        "a refusal is not an empty scope: {body}"
+    );
 }
 
 #[test]
