@@ -349,6 +349,10 @@ pub fn RouteView(
     #[props(default)] namespaces: Vec<String>,
     #[props(default)] busy: bool,
     #[props(default)] content: Option<Element>,
+    /// The host's gateway refused the route's surface. Rendered only when the
+    /// host supplied no surface of its own, so an error never hides real rows.
+    #[props(default)]
+    error: Option<String>,
     #[props(default)] on_action: Option<EventHandler<String>>,
 ) -> Element {
     let page = route_page(&route, &sections);
@@ -387,8 +391,18 @@ pub fn RouteView(
             }
             if let Some(content) = content {
                 {content}
+            } else if busy {
+                // The host is fetching this route's surface: the body says so
+                // rather than painting the empty state over a pending read.
+                div { class: "panel", "data-surface": "route", "data-state": "loading",
+                    div { class: "table-state table-loading", "Loading {page.title}…" }
+                }
+            } else if let Some(error) = error {
+                div { class: "panel", "data-surface": "route", "data-state": "error",
+                    div { class: "table-state table-error", "data-error": "1", "{error}" }
+                }
             } else {
-                div { class: "panel", "data-state": "empty",
+                div { class: "panel", "data-surface": "route", "data-state": "empty",
                     div { class: "table-state", "{page.empty}" }
                     div { class: "panel-footer",
                         span { "data-count": "0", "Showing 0 of 0" }

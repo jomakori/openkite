@@ -38,6 +38,7 @@
   --brand: #0d9488;            /* kite mark teal */
   --argo: #ef7b4d;             /* Argo CD orange (per-plugin accent zone) */
   --on-accent: #070e16;        /* text on bright fills */
+  --on-strong: #ffffff;        /* text on a strong fill: --fg, --accent, --danger */
   --log-info: #98c379;         /* log level + method tags on the terminal anchor */
   --log-method: #61afef;
   --log-error: #e06c75;
@@ -610,7 +611,7 @@ body {
 .pager button.active {
   background: var(--fg);
   border-color: var(--fg);
-  color: #fff;
+  color: var(--on-strong);
 }
 .tag-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
 .tag {
@@ -689,7 +690,7 @@ body {
 
 .btn-primary {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-strong);
   border-color: var(--accent);
 }
 @media (hover: hover) and (pointer: fine) {
@@ -723,7 +724,7 @@ body {
 }
 .chip.active {
   background: var(--fg);
-  color: #fff;
+  color: var(--on-strong);
   border-color: var(--fg);
 }
 /* A chip in the strip keeps its natural width and snaps to the leading edge. */
@@ -764,6 +765,18 @@ body {
   padding: 0 0 0 8px;
 }
 .search-field input::placeholder { color: var(--subtle); }
+/* Touch floor (OKT-194): the field is a target too, not only the box drawn
+   around it. At 767px and below a text input fills the row it sits in, so a
+   finger lands on the control rather than the border beside it. */
+@media (max-width: 767px) {
+  .search-field {
+    min-height: 46px;
+  }
+  .search-field input,
+  .field-input {
+    min-height: 44px;
+  }
+}
 .search-field:focus-within { border-color: var(--accent); }
 
 .field-input {
@@ -861,6 +874,8 @@ body {
   text-align: center;
 }
 .table-error { color: var(--danger); }
+/* A pending read reads as muted, not as a result: the state is its own look. */
+.table-loading { color: var(--muted); }
 .table-actions { display: flex; justify-content: flex-end; gap: 4px; }
 
 /* --- Table primitives --- */
@@ -1038,7 +1053,7 @@ body {
   min-width: 220px; max-width: 340px;
   padding: 10px 16px;
   background: var(--fg);
-  color: #fff;
+  color: var(--on-strong);
   border-radius: var(--r-md);
   box-shadow: var(--shadow-hover);
   font-size: 13px;
@@ -1609,7 +1624,7 @@ body {
 /* Danger button — same shape as .btn-primary but with --danger. */
 .btn-danger {
   background: var(--danger);
-  color: #fff;
+  color: var(--on-strong);
   border-color: var(--danger);
 }
 @media (hover: hover) and (pointer: fine) {

@@ -26,6 +26,7 @@ const REQUIRED_PROPERTIES: &[&str] = &[
     "--brand",
     "--argo",
     "--on-accent",
+    "--on-strong",
     "--terminal-bg",
     "--terminal-fg",
     "--log-info",

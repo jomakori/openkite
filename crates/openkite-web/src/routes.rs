@@ -99,10 +99,18 @@ async fn ssr_root(
     RawQuery(query): RawQuery,
 ) -> Response {
     let route = resolve_route(uri.path(), &sidebar_sections());
+    // `?fixture=` drives the states a surface claims to render (G4). It is read
+    // only where there is no cluster credential to disagree with it: a host
+    // that has a client answers from the cluster, not from a query string.
+    let fixture = if bridge.client().is_some() {
+        crate::fixture::FixtureState::Ready
+    } else {
+        crate::fixture::FixtureState::from_query(query_param(query.as_deref(), "fixture"))
+    };
     let selection = query
         .as_deref()
         .and_then(openkite_ui::components::resource_pane::ResourceRef::from_query);
-    let snapshot = ssr_snapshot(&bridge, &route)
+    let snapshot = ssr_snapshot(&bridge, &route, fixture)
         .await
         .with_selection(selection);
     let page = ssr::render_page(&snapshot, &ssr::RenderOptions::hydrating());
@@ -114,9 +122,9 @@ async fn ssr_root(
 async fn gateway_post(State(bridge): State<SharedBridge>, body: String) -> Response {
     let request: Result<crate::app::GatewayRequest, _> = serde_json::from_str(&body);
     let snapshot = match request {
-        Ok(_) => ssr_snapshot(&bridge, "/")
+        Ok(_) => ssr_snapshot(&bridge, "/", crate::fixture::FixtureState::Ready)
             .await
-            .with_workloads(workload_table(&bridge).await),
+            .with_workloads(workload_table(&bridge, crate::fixture::FixtureState::Ready).await),
         Err(_) => ssr::Snapshot::default(),
     };
     let response = crate::app::GatewayResponse { snapshot };
@@ -125,7 +133,11 @@ async fn gateway_post(State(bridge): State<SharedBridge>, body: String) -> Respo
 
 /// Build the snapshot the SSR pass renders against: the host's capabilities,
 /// identity and route, plus the workloads the route paints.
-async fn ssr_snapshot(bridge: &Bridge, route: &str) -> ssr::Snapshot {
+async fn ssr_snapshot(
+    bridge: &Bridge,
+    route: &str,
+    fixture: crate::fixture::FixtureState,
+) -> ssr::Snapshot {
     let client = bridge.client();
     let connected = client.is_some();
     let context = if crate::in_cluster() {
@@ -141,25 +153,62 @@ async fn ssr_snapshot(bridge: &Bridge, route: &str) -> ssr::Snapshot {
             Arc::new(openkite_host::gateway::KubeGateway::server_side(client));
         ssr::Snapshot::from_gateway(&gateway, connected, context).await
     } else {
-        let gateway = crate::fixture::make_fixture_gateway();
+        let gateway = crate::fixture::make_fixture_gateway_in(fixture);
         ssr::Snapshot::from_gateway(&gateway, connected, context).await
     };
-    let snapshot = snapshot.with_route(route);
+    let snapshot = snapshot.with_route(route).with_busy(fixture.is_loading());
     if route == "/workloads" {
-        snapshot.with_workloads(workload_table(bridge).await)
+        snapshot.with_workloads(workload_table(bridge, fixture).await)
     } else {
         snapshot
     }
 }
 
-/// The sidebar model the shell renders, so a path resolves against it.
-fn sidebar_sections() -> Vec<openkite_ui::shell::ShellSection> {
-    openkite_ui::shell::sidebar_model(&openkite_ui::plugin_api::RegistrationStore::default())
+/// The `key=value` a raw query string carries, undecoded: the fixture states
+/// are plain words and the address is otherwise someone else's to parse.
+fn query_param<'a>(query: Option<&'a str>, key: &str) -> Option<&'a str> {
+    query?.trim_start_matches('?').split('&').find_map(|pair| {
+        let (raw_key, value) = pair.split_once('=').unwrap_or((pair, ""));
+        (raw_key == key).then_some(value)
+    })
 }
 
-/// The `/workloads` table: the cluster's pods, or the gateway's refusal.
-async fn workload_table(bridge: &Bridge) -> ssr::WorkloadsTable {
+/// The `/workloads` table: the cluster's pods, the fixture's answer, or the
+/// gateway's refusal. A loading answer paints the loading state, never an empty
+/// table — the two say different things to the person reading them (G4).
+async fn workload_table(
+    bridge: &Bridge,
+    fixture: crate::fixture::FixtureState,
+) -> ssr::WorkloadsTable {
+    use crate::fixture::FixtureState;
     let columns = openkite::workloads::pod_columns();
+    match fixture {
+        FixtureState::Loading => {
+            return ssr::WorkloadsTable {
+                columns,
+                rows: Vec::new(),
+                error: None,
+                loading: true,
+            }
+        }
+        FixtureState::Error => {
+            return ssr::WorkloadsTable {
+                columns,
+                rows: Vec::new(),
+                error: Some(crate::fixture::FIXTURE_ERROR.to_string()),
+                loading: false,
+            }
+        }
+        FixtureState::Empty => {
+            return ssr::WorkloadsTable {
+                columns,
+                rows: Vec::new(),
+                error: None,
+                loading: false,
+            }
+        }
+        FixtureState::Ready => {}
+    }
     let request = ApiRequest::List {
         kind: "pods".to_string(),
         ns: None,
@@ -170,19 +219,27 @@ async fn workload_table(bridge: &Bridge) -> ssr::WorkloadsTable {
                 columns,
                 rows: pods.iter().map(openkite::workloads::pod_row).collect(),
                 error: None,
+                loading: false,
             },
             Err(error) => ssr::WorkloadsTable {
                 columns,
                 rows: Vec::new(),
                 error: Some(error),
+                loading: false,
             },
         },
         ApiResponse::Error { error } => ssr::WorkloadsTable {
             columns,
             rows: Vec::new(),
             error: Some(error),
+            loading: false,
         },
     }
+}
+
+/// The sidebar model the shell renders, so a path resolves against it.
+fn sidebar_sections() -> Vec<openkite_ui::shell::ShellSection> {
+    openkite_ui::shell::sidebar_model(&openkite_ui::plugin_api::RegistrationStore::default())
 }
 
 /// The pods a `list pods` answer carries.
