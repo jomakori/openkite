@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "policy": [
+    "Gate G3 grades computed classes and token values per core route across the desktop and browser hosts.",
+    "A delta passes only through an entry here. A delta with no entry fails the gate; that is the point.",
+    "Every entry names the exact surface it excuses: route (or \"*\"), kind, and the selector/key/property keys that identify it.",
+    "Every entry carries `why` (what the deliberate difference is and which host mechanism causes it) and `reviewed_by`.",
+    "An entry whose delta no longer occurs fails the gate as stale. Delete it: an allowlist that outlives its delta hides the next regression.",
+    "Prefer fixing the host over adding an entry. An entry is for a difference that is meant to be visible."
+  ],
+  "entries": []
+}

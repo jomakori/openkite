@@ -63,7 +63,20 @@ pub fn window_builder(theme: TitleBarTheme) -> dioxus::desktop::WindowBuilder {
         .with_title(dioxus::cli_config::app_title().unwrap_or_else(|| "Dioxus App".to_string()));
     #[cfg(debug_assertions)]
     let window = window.with_always_on_top(dioxus::cli_config::always_on_top().unwrap_or(true));
-    window.with_theme(to_tao(theme))
+    let window = window.with_theme(to_tao(theme));
+    // Gate G3 grades both hosts in the same breakpoint band, so the graded run
+    // pins the content area to `parity::GRADED_VIEWPORT`; the browser side is
+    // driven to the same size by the capture harness. Startup only, opt-in by
+    // environment: a normal launch keeps the platform's window size.
+    if std::env::var_os(openkite_ui::parity::SNAPSHOT_DIR_ENV).is_some() {
+        let (width, height) = openkite_ui::parity::GRADED_VIEWPORT;
+        window.with_inner_size(dioxus::desktop::LogicalSize::new(
+            width as f64,
+            height as f64,
+        ))
+    } else {
+        window
+    }
 }
 
 /// Apply a decoration theme to the live window and log the effective theme the
