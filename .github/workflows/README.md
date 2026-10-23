@@ -5,14 +5,16 @@ nothing here runs on a developer host (the `openkite` Dioxus link OOMs a small
 container — see
 [`e2e/visual/cluster/README.md`](../../e2e/visual/cluster/README.md)).
 
-Four workflows, one job each of them owns:
+Six workflows, one job each of them owns:
 
 | Workflow | Trigger | Jobs |
 |---|---|---|
 | [`lint-test.yml`](lint-test.yml) | `pull_request` (drafts included), push `main` | `changes` · `fmt` · `clippy` · `test` · `build` · `cross-platform` · `web-host` · `wasm-ui` · `coverage` · `report` |
-| [`build-test-staging.yml`](build-test-staging.yml) | `pull_request` (not draft), push `main` | `changes` · `binaries` (6 targets) · `e2e-binary` · `desktop-e2e` · `user-flows` · `bridge-guard` · `desktop-e2e-connected` · `visual-regression` · `gate` · `report` |
+| [`build-test-staging.yml`](build-test-staging.yml) | `pull_request` (not draft), push `main` | `changes` · `binaries` (6 targets) · `e2e-binary` · `desktop-e2e` · `user-flows` · `bridge-guard` · `desktop-e2e-connected` · `visual-gate-selftest` · `visual-regression` · `visual-regression-browser` · `gate` · `report` |
 | [`preview.yml`](preview.yml) | `pull_request` on the `preview` label | `deploy` · `withdraw` · `teardown` · `staging` · `withdraw-staging` · `prune` |
+| [`staging-state.yml`](staging-state.yml) | `pull_request` label events, `schedule` (10 min), dispatch | `publish` (the staging marker branch) |
 | [`release.yml`](release.yml) | push `main` (Rust/CI paths), dispatch | `analyze` · `locate` · `packages` · `publish` · `image` · `image-rebuild` · `manifest` · `tap` · `choco` · `report` |
+| [`visual-baselines.yml`](visual-baselines.yml) | dispatch | `capture` (browser-host baselines) |
 
 Everything shared lives in [`../actions/`](../actions) as composite actions:
 `rust-setup` (toolchain + the one apt list + cache), `build-image` (the one
@@ -181,7 +183,8 @@ boots per pull request; it is gone.
 
 ## Post-merge surfacing
 
-Each of the four workflows carries a `report` job. On a push-to-main run it
+Each of the four gated workflows (`lint-test`, `build-test-staging`, `preview`,
+`release`) carries a `report` job. On a push-to-main run it
 opens
 or updates exactly **one** `ci-failure` issue per workflow
 (`[ci] <workflow> is red on main`, body updated in place rather than a comment
