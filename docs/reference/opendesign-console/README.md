@@ -32,6 +32,12 @@ invalidates them. Update by re-grabbing (below) and re-deriving the docs.
 These hashes were verified against the live source at grab time; re-check with
 the loop in **Re-grab** below.
 
+The `openkite-console.css` and `openkite-console.html` rows are enforced, not
+just recorded: `crates/openkite-ui/tests/design.rs` pins both files and derives
+its class/token contracts from them, so a re-grab fails CI until the contract
+block in `docs/design-surfaces.md` (§ Reference contract) is re-derived. This
+table is the provenance record; that block is the machine-checked one.
+
 ## What is where
 
 - **`brand-spec.md`** — the reference's own token spec (the file the `design-md`

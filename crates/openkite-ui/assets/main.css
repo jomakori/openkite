@@ -1011,6 +1011,36 @@ body {
   color: var(--subtle);
 }
 .inspector-body { flex: 1; overflow: auto; padding: 16px; }
+/* Inspector tab strip: sits between the header and the scrollable body and
+   speaks the dock tab language (muted at rest, fg + accent underline when
+   active) so the two tab surfaces read as one system. */
+.inspector-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 16px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+}
+.inspector-tabs::-webkit-scrollbar { display: none; }
+.tab-btn {
+  flex: 0 1 auto;
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.tab-btn.active {
+  color: var(--fg);
+  border-bottom-color: var(--accent);
+}
+@media (hover: hover) and (pointer: fine) {
+  .tab-btn:hover { color: var(--fg); }
+}
 .kv-list { display: flex; flex-direction: column; gap: 8px; }
 .kv-row { display: grid; grid-template-columns: 130px 1fr; gap: 8px; align-items: baseline; }
 .kv-row dt { color: var(--subtle); font-size: 12px; margin: 0; }
@@ -1862,6 +1892,12 @@ body {
    dropdown tab manager becomes a bottom sheet. */
 @media (pointer: coarse) {
   .dock-tab {
+    min-height: 44px;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  .tab-btn {
     min-height: 44px;
     -webkit-user-select: none;
     user-select: none;

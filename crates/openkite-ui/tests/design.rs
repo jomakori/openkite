@@ -1,311 +1,645 @@
 //! Liquid Frost Glass design-system CSS contract test.
 //!
-//! Reads the shell stylesheet through `openkite_ui::MAIN_CSS` and asserts every
-//! required custom property and primitive class is present. Catches:
+//! Two layers, both reading shipped bytes through `include_str!` so they run
+//! from a fresh CI clone:
 //!
-//! - A missing class rule (someone deleted `.panel` from `main.css`).
-//! - A token renamed in CSS but not in the Rust constant table, or vice versa
-//!   (`root_declares_only_the_theme_contract_and_the_design_system_properties`
-//!   pins the two layers to the same name set).
-//! - An accidental re-declaration of an opaline-mapped variable (the
-//!   "declared exactly once" checks).
-//! - The file accidentally broken by a partial push (the `include_str!`
-//!   fails at compile time).
+//! 1. **Reference-derived contract (G1, OKT-193).** The expected class, token
+//!    and state sets are derived from the vendored mockup under
+//!    `docs/reference/opendesign-console/` — none of them is hand-listed here.
+//!    The mockup bytes are pinned by SHA-256 in a machine-readable block in
+//!    `docs/design-surfaces.md`, so re-grabbing the mockup fails the contract
+//!    until that block is re-derived and reviewed; the reference selectors the
+//!    app deliberately does not ship are listed in the same block with a
+//!    reason, so an omission is a documented decision and never silent drift.
+//! 2. **RSX-vs-stylesheet contract (OKT-153).** Every class the crate renders
+//!    exists in `assets/main.css`, and every base+state pair it renders has a
+//!    compound rule — a surface that renders `.nav-item` but never
+//!    `.nav-item.active` is a failed contract.
+//!
+//! Catches a deleted class rule (`.panel`), a token renamed on one side only,
+//! an accidental re-declaration of an opaline-mapped variable, and a reference
+//! that changed without anyone re-deriving it.
 //!
 //! This test does NOT import the `design` module (per the foundation-first
-//! rule that foundation tests must not depend on sibling un-merged
-//! modules). It reads the stylesheet bytes so it works from a fresh CI
-//! clone.
+//! rule that foundation tests must not depend on sibling un-merged modules).
 
 /// The shipped stylesheet, embedded at compile time.
 const STYLESHEET: &str = openkite_ui::MAIN_CSS;
 
-/// Custom properties the design-system `:root` declares that the opaline
-/// theme engine does not carry.
-const REQUIRED_PROPERTIES: &[&str] = &[
-    "--brand",
-    "--argo",
-    "--on-accent",
-    "--terminal-bg",
-    "--terminal-fg",
-    "--log-info",
-    "--log-method",
-    "--log-error",
-    "--font-sans",
-    "--font-mono",
-    "--shadow-rest",
-    "--shadow-hover",
-    "--shadow-terminal",
-    "--r-sm",
-    "--r-md",
-    "--r-pill",
+/* ---------------------------------------------------------------------------
+Reference-derived contract (G1, OKT-193).
+
+Everything this contract asserts about the design comes from the vendored
+mockup bytes. The only hand-written part is the *scope*: the pinned hashes and
+the handful of reference selectors the app deliberately does not ship live in a
+`design-contract` block in `docs/design-surfaces.md`, which is also where a
+reviewer looks. Changing the mockup therefore fails twice — once on the hash,
+once on whatever class/token/state set moved — and both failures name the fix.
+--------------------------------------------------------------------------- */
+
+/// The vendored mockup stylesheet: the source of the class, token and state
+/// expectations.
+const REF_STYLESHEET: &str =
+    include_str!("../../../docs/reference/opendesign-console/openkite-console.css");
+
+/// The vendored mockup markup, pinned too, so a re-grab that only rewrites the
+/// HTML still fails the contract.
+const REF_MARKUP: &str =
+    include_str!("../../../docs/reference/opendesign-console/openkite-console.html");
+
+/// The human-owned half of the contract: `ref <file> sha256 <hex>` pins plus
+/// `ref-only <selector> <reason>` lines for reference selectors the app does
+/// not ship.
+const DESIGN_CONTRACT_DOC: &str = include_str!("../../../docs/design-surfaces.md");
+
+/// Class names that turn a base class into a state hook. A compound selector
+/// whose last class is one of these is graded as a state (`.log-panel.open`);
+/// a compound whose last class is not (`.pill.success`) is a variant and is
+/// graded as an ordinary class.
+const STATE_MODIFIERS: &[&str] = &[
+    "active",
+    "open",
+    "show",
+    "is-open",
+    "is-active",
+    "selected",
+    "swiped",
+    "paused",
+    "collapsed",
+    "hidden",
+    "expanded",
 ];
 
-/// Every primitive class the design system ships. Both the design-system
-/// `.pill` and the existing `status-badge` are asserted so the contract
-/// pins both name sets until a consumer refactor migrates one to the
-/// other.
-const REQUIRED_CLASSES: &[&str] = &[
-    ".panel",
-    ".btn",
-    ".btn-primary",
-    ".btn-secondary",
-    ".chip",
-    ".search-field",
-    ".pill",
-    ".pill.success",
-    ".pill.warn",
-    ".pill.danger",
-    ".table-wrap",
-    ".resource-name",
-    ".log-panel",
-    ".log-line",
-    ".term-status",
-    ".value-mask",
-    ".value-masked",
-    ".value-revealed",
-    ".value-actions",
-    ".reveal-btn",
-    ".inspector",
-    // The resource detail pane (OKT-175): one stop for every kind, its own
-    // drag handle, and the touch scrim the reference draws for the ≤767px
-    // bottom sheet.
-    ".inspector-scrim",
-    ".inspector-scrim.show",
-    ".inspector-resize",
-    ".inspector-close",
-    ".inspector-header",
-    ".inspector-title",
-    ".inspector-body",
-    ".inspector-actions",
-    ".inspector-eyebrow",
-    ".resource-kind",
-    ".kv-row",
-    ".table-row.selected",
-    ".kv-list",
-    ".toast",
-    ".nav-section",
-    ".dot",
-    ".dot.ok",
-    ".dot.warn",
-    ".dot.err",
-    ".sort-indicator",
-    ".modal-backdrop",
-    ".modal",
-    ".modal-header",
-    ".modal-eyebrow",
-    ".modal-title",
-    ".modal-body",
-    ".modal-footer",
-    ".modal-editor",
-    ".modal-confirm",
-    ".editor-textarea",
-    ".field-label",
-    ".field-helper",
-    ".field-error",
-    ".confirm-warning",
-    ".btn-danger",
-    // The shell's own vocabulary (OKT-154): the frame, its sidebar and top bar
-    // carry the design's class names, not the desktop's old ones.
-    ".app",
-    ".icon",
-    ".sidebar",
-    ".sidebar-backdrop",
-    ".sidebar-backdrop.show",
-    ".sidebar-footer",
-    ".brand",
-    ".brand-mark",
-    ".brand-word",
-    ".cluster-btn",
-    ".nav",
-    ".nav-title",
-    ".nav-item",
-    ".nav-item.active",
-    ".nav-badge",
-    // The reference's per-plugin section variant the shell styles.
-    ".nav-section.argo",
-    ".main",
-    ".topbar",
-    ".menu-toggle",
-    // The ≤767px bottom bar (OKT-166): the destination tabs and the drawer's
-    // Menu tab share the bar's grid.
-    ".bottom-nav",
-    ".bottom-tabs",
-    ".bottom-tab",
-    ".bottom-tab.active",
-    ".breadcrumbs",
-    ".breadcrumbs .crumb",
-    ".breadcrumbs .current",
-    ".topbar-actions",
-    ".icon-btn",
-    ".avatar",
-    ".view",
-    ".view.active",
-    ".pull-indicator",
-    ".eyebrow",
-    ".status-line",
-    // The route chrome (OKT-155): the heading row, the filter toolbar, the
-    // panel footer and the declaration chips every primary route carries.
-    ".page-head",
-    ".page-sub",
-    ".page-actions",
-    ".toolbar",
-    ".chip-row",
-    ".panel-footer",
-    ".pager",
-    ".pager button.active",
-    ".tag",
-    ".tag-row",
-    ".ns-bar",
-    ".ns-search",
-    ".ns-filter",
-    ".ns-reset",
-    ".chip-row .chip",
-    ".chip-mark",
-    // The bottom dock (OKT-172): the strip, the dropdown tab manager and the
-    // surface the active tab renders into.
-    ".dock",
-    ".dock-resize",
-    ".dock-bar",
-    ".dock-tabs",
-    ".dock-tab",
-    ".dock-tab.active",
-    ".dock-tab-label",
-    ".dock-tab-close",
-    ".dock-manager",
-    ".dock-manager-btn",
-    ".dock-menu",
-    ".dock-menu-row",
-    ".dock-menu-switch",
-    ".dock-menu-close",
-    ".dock-menu-actions",
-    ".dock-menu-action",
-    ".dock-body",
-    // The application card (OKT-169): the swipe column, its controls, and the
-    // status stripe both the kebab and the swipe reveal.
-    ".app-grid",
-    ".app-card",
-    ".app-card.swiped",
-    ".card-main",
-    ".card-swipe-actions",
-    ".card-action",
-    ".card-action.sync",
-    ".card-status",
-    ".card-status.synced",
-    ".card-status.outofsync",
-    ".card-status.degraded",
-    ".card-status.progressing",
-    ".card-body",
-    ".card-title-row",
-    ".source-icon",
-    ".app-name",
-    ".app-sub",
-    ".card-menu-btn",
-    ".card-footer",
-    ".badges",
-    ".card-meta",
+/// Attribute selectors that carry state. `[data-label]` and `[tabindex]` are
+/// layout/focus plumbing and are deliberately absent.
+const STATE_ATTRIBUTES: &[&str] = &[
+    "aria-current",
+    "aria-selected",
+    "aria-expanded",
+    "aria-pressed",
+    "aria-checked",
+    "data-state",
+    "data-disabled",
 ];
 
-/// Properties the opaline theme contract already provides — must not be
-/// re-declared by the design-system `:root` block.
-const PRE_EXISTING_PROPERTIES: &[&str] = &[
-    "--bg",
-    "--surface",
-    "--surface-solid",
-    "--border",
-    "--fg",
-    "--muted",
-    "--subtle",
-    "--accent",
-    "--progress",
-    "--success",
-    "--warn",
-    "--danger",
-    "--violet",
-];
+/// Tokens the *app* adds on top of the reference's `:root`. The reference is
+/// the source of truth for every other custom property.
+const APP_ONLY_TOKENS: &[&str] = &["--r-pill"];
 
-#[test]
-fn every_required_property_is_declared() {
-    for name in REQUIRED_PROPERTIES {
-        let needle = format!("{name}:");
-        assert!(
-            STYLESHEET.contains(&needle),
-            "design-system contract: `{name}` not declared in assets/main.css"
-        );
+/// The parsed `design-contract` block.
+#[derive(Debug)]
+struct DesignContract {
+    /// `(file name, pinned sha256)`.
+    hashes: Vec<(String, String)>,
+    /// `(selector, why the app does not ship it)`.
+    ref_only: Vec<(String, String)>,
+}
+
+impl DesignContract {
+    fn pinned_hash(&self, file: &str) -> Option<&str> {
+        self.hashes
+            .iter()
+            .find(|(name, _)| name == file)
+            .map(|(_, hash)| hash.as_str())
+    }
+
+    fn out_of_scope(&self, selector: &str) -> bool {
+        self.ref_only.iter().any(|(listed, _)| listed == selector)
     }
 }
 
-#[test]
-fn every_required_class_is_present() {
-    for class in REQUIRED_CLASSES {
-        assert!(
-            STYLESHEET.contains(class),
-            "design-system contract: `{class}` rule missing from assets/main.css"
-        );
-    }
-}
+/// Parse the fenced `design-contract` block out of `docs/design-surfaces.md`.
+fn design_contract() -> DesignContract {
+    let block = DESIGN_CONTRACT_DOC
+        .split_once("```design-contract")
+        .expect(
+            "docs/design-surfaces.md must carry a ```design-contract block pinning the vendored \
+             mockup hashes",
+        )
+        .1
+        .split_once("```")
+        .expect("the design-contract block must be closed by ```")
+        .0;
 
-#[test]
-fn pre_existing_theme_properties_are_not_redeclared() {
-    for name in PRE_EXISTING_PROPERTIES {
-        let needle = format!("{name}:");
-        let count = STYLESHEET.matches(&needle).count();
-        assert_eq!(
-            count, 1,
-            "pre-existing opaline property `{name}` is declared {count} times (expected 1)"
-        );
-    }
-}
-
-#[test]
-fn design_system_adds_each_new_property_exactly_once() {
-    for name in REQUIRED_PROPERTIES {
-        let needle = format!("{name}:");
-        let count = STYLESHEET.matches(&needle).count();
-        assert_eq!(
-            count, 1,
-            "design-system property `{name}` is declared {count} times (expected exactly 1)"
-        );
-    }
-}
-
-/// The custom-property names the stylesheet's `:root` block declares.
-fn declared_root_properties() -> Vec<String> {
-    let css = strip_css_comments(STYLESHEET);
-    let (_, rest) = css.split_once(":root {").expect("main.css declares :root");
-    let (block, _) = rest.split_once('}').expect("the :root block is closed");
-    let mut names = Vec::new();
-    let mut cursor = block;
-    while let Some(at) = cursor.find("--") {
-        cursor = &cursor[at..];
-        let end = cursor
-            .find(|c: char| !(c.is_ascii_alphanumeric() || c == '-'))
-            .unwrap_or(cursor.len());
-        if cursor[end..].starts_with(':') {
-            names.push(cursor[..end].to_string());
+    let mut hashes = Vec::new();
+    let mut ref_only = Vec::new();
+    for line in block.lines().map(str::trim) {
+        if line.is_empty() || line.starts_with('#') {
+            continue;
         }
-        cursor = &cursor[end..];
+        if let Some(rest) = line.strip_prefix("ref ") {
+            let mut fields = rest.split_whitespace();
+            let file = fields
+                .next()
+                .expect("`ref <file> sha256 <hex>`")
+                .to_string();
+            let algorithm = fields.next().expect("`ref <file> sha256 <hex>`");
+            let hash = fields
+                .next()
+                .expect("`ref <file> sha256 <hex>`")
+                .to_string();
+            assert_eq!(
+                algorithm, "sha256",
+                "the contract pins sha256, got `{algorithm}`"
+            );
+            assert_eq!(
+                hash.len(),
+                64,
+                "a sha256 digest is 64 hex chars, got `{hash}`"
+            );
+            hashes.push((file, hash));
+        } else if let Some(rest) = line.strip_prefix("ref-only ") {
+            let (selector, reason) = rest
+                .split_once(' ')
+                .expect("`ref-only <selector> <reason>` — every omission carries a reason");
+            assert!(
+                !reason.trim().is_empty(),
+                "`ref-only {selector}` needs a reason; `n/a` is not one"
+            );
+            ref_only.push((selector.to_string(), reason.trim().to_string()));
+        } else {
+            panic!("unparsed design-contract line: `{line}`");
+        }
     }
-    names
+    assert!(!hashes.is_empty(), "the design-contract block pins no file");
+    DesignContract { hashes, ref_only }
+}
+
+/// SHA-256 of the vendored bytes, hex encoded.
+fn sha256_hex(bytes: &str) -> String {
+    use sha2::{Digest, Sha256};
+    use std::fmt::Write as _;
+
+    let digest = Sha256::digest(bytes.as_bytes());
+    let mut hex = String::with_capacity(64);
+    for byte in digest {
+        write!(hex, "{byte:02x}").expect("writing to a String cannot fail");
+    }
+    hex
+}
+
+/// One whitespace-separated piece of a selector: the classes it targets and
+/// the attributes it requires. `.nav-item[data-disabled]` is one piece with
+/// classes `[nav-item]` and attrs `[data-disabled]`.
+#[derive(Clone, Debug, Default)]
+struct SelectorPiece {
+    classes: Vec<String>,
+    attrs: Vec<String>,
+}
+
+impl SelectorPiece {
+    /// The form the `ref-only` list uses: `.log-panel.open`,
+    /// `.nav-item[data-disabled]`.
+    fn label(&self) -> String {
+        let mut out = String::new();
+        for class in &self.classes {
+            out.push('.');
+            out.push_str(class);
+        }
+        for attr in &self.attrs {
+            out.push('[');
+            out.push_str(attr);
+            out.push(']');
+        }
+        out
+    }
+}
+
+/// Every rule head in a stylesheet, at any nesting depth, with at-rule heads
+/// (`@media …`, `@supports …`) dropped.
+fn stylesheet_rule_heads(css: &str) -> Vec<String> {
+    let bytes = css.as_bytes();
+    let mut heads = Vec::new();
+    let mut head_start = 0usize;
+    for (i, &byte) in bytes.iter().enumerate() {
+        match byte {
+            b'{' => {
+                let raw = strip_css_comments(&css[head_start..i]);
+                let head = raw.trim();
+                if !head.is_empty() && !head.starts_with('@') {
+                    heads.push(head.to_string());
+                }
+                head_start = i + 1;
+            }
+            b'}' => head_start = i + 1,
+            _ => {}
+        }
+    }
+    heads
+}
+
+/// Every comma-separated selector in a stylesheet, split into pieces.
+fn stylesheet_selectors(css: &str) -> Vec<Vec<SelectorPiece>> {
+    let mut selectors = Vec::new();
+    for head in stylesheet_rule_heads(css) {
+        for selector in head.split(',') {
+            let pieces: Vec<SelectorPiece> = selector
+                .split_whitespace()
+                .map(parse_selector_piece)
+                .filter(|piece| !piece.classes.is_empty() || !piece.attrs.is_empty())
+                .collect();
+            if !pieces.is_empty() {
+                selectors.push(pieces);
+            }
+        }
+    }
+    selectors
+}
+
+/// Parse one selector piece. Pseudo-classes and pseudo-elements end the piece
+/// (`:hover`, `::before`, `:not(.x)`): their contents are not part of the class
+/// contract.
+fn parse_selector_piece(raw: &str) -> SelectorPiece {
+    let bytes = raw.as_bytes();
+    let mut piece = SelectorPiece::default();
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'.' => {
+                let start = i + 1;
+                let mut end = start;
+                while end < bytes.len() && is_css_ident_byte(bytes[end]) {
+                    end += 1;
+                }
+                if end > start {
+                    piece.classes.push(raw[start..end].to_string());
+                }
+                i = end;
+            }
+            b'[' => {
+                let start = i + 1;
+                let mut end = start;
+                while end < bytes.len() && bytes[end] != b']' && bytes[end] != b'=' {
+                    end += 1;
+                }
+                if end > start {
+                    piece.attrs.push(raw[start..end].trim().to_string());
+                }
+                while end < bytes.len() && bytes[end] != b']' {
+                    end += 1;
+                }
+                i = end + 1;
+            }
+            b':' => break,
+            _ => i += 1,
+        }
+    }
+    let mut seen = std::collections::HashSet::new();
+    piece.classes.retain(|class| seen.insert(class.clone()));
+    piece
+}
+
+fn is_css_ident_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_'
+}
+
+/// Every class the reference stylesheet defines a rule for.
+fn reference_classes() -> std::collections::BTreeSet<String> {
+    stylesheet_selectors(REF_STYLESHEET)
+        .into_iter()
+        .flatten()
+        .flat_map(|piece| piece.classes)
+        .collect()
+}
+
+/// Every custom property the reference's `:root` declares.
+fn reference_tokens() -> std::collections::BTreeSet<String> {
+    declared_root_properties(REF_STYLESHEET)
+        .into_iter()
+        .collect()
+}
+
+/// The reference's state selectors: `.base.modifier` compounds plus
+/// `.base[state-attr]` pieces.
+fn reference_states() -> Vec<SelectorPiece> {
+    let mut states: Vec<SelectorPiece> = Vec::new();
+    for piece in stylesheet_selectors(REF_STYLESHEET).into_iter().flatten() {
+        let modifier = piece.classes.len() >= 2
+            && piece
+                .classes
+                .last()
+                .is_some_and(|last| STATE_MODIFIERS.contains(&last.as_str()));
+        let state_attr = !piece.classes.is_empty()
+            && piece
+                .attrs
+                .iter()
+                .any(|attr| STATE_ATTRIBUTES.contains(&attr.as_str()));
+        if modifier || state_attr {
+            states.push(piece);
+        }
+    }
+    states.sort_by_key(SelectorPiece::label);
+    states.dedup_by_key(|piece| piece.label());
+    states
+}
+
+/// Every class `assets/main.css` defines a rule for.
+fn main_css_classes() -> std::collections::BTreeSet<String> {
+    stylesheet_selectors(STYLESHEET)
+        .into_iter()
+        .flatten()
+        .flat_map(|piece| piece.classes)
+        .collect()
+}
+
+/// Whether some rule in `css` targets a compound that requires every class and
+/// attribute in `state`.
+fn stylesheet_covers_state(css: &str, state: &SelectorPiece) -> bool {
+    stylesheet_selectors(css)
+        .into_iter()
+        .flatten()
+        .any(|piece| {
+            state
+                .classes
+                .iter()
+                .all(|class| piece.classes.contains(class))
+                && state.attrs.iter().all(|attr| piece.attrs.contains(attr))
+        })
+}
+
+/// The `:root` block's custom properties, in declaration order.
+fn declared_root_properties(css: &str) -> Vec<String> {
+    let stripped = strip_css_comments(css);
+    let Some(root_start) = stripped.find(":root") else {
+        return Vec::new();
+    };
+    let Some(open) = stripped[root_start..].find('{') else {
+        return Vec::new();
+    };
+    let body_start = root_start + open + 1;
+    let Some(close) = stripped[body_start..].find('}') else {
+        return Vec::new();
+    };
+    stripped[body_start..body_start + close]
+        .split(';')
+        .filter_map(|declaration| {
+            let (name, _) = declaration.split_once(':')?;
+            let name = name.trim();
+            name.starts_with("--").then(|| name.to_string())
+        })
+        .collect()
+}
+
+/// The expected `:root` property set: opaline's theme contract, the design
+/// tokens the reference declares, and the app's own additions.
+fn expected_root_properties() -> Vec<String> {
+    let mut expected: Vec<String> = openkite_ui::theme::CSS_VARS
+        .iter()
+        .map(|name| (*name).to_string())
+        .collect();
+    expected.extend(reference_tokens());
+    expected.extend(APP_ONLY_TOKENS.iter().map(|name| (*name).to_string()));
+    expected.sort();
+    expected.dedup();
+    expected
+}
+
+#[test]
+fn the_vendored_reference_matches_its_pinned_hashes() {
+    let contract = design_contract();
+    let vendored = [
+        ("openkite-console.css", REF_STYLESHEET),
+        ("openkite-console.html", REF_MARKUP),
+    ];
+
+    for (name, _) in &contract.hashes {
+        assert!(
+            vendored
+                .iter()
+                .any(|(vendored_name, _)| vendored_name == name),
+            "the design-contract block pins `{name}`, which is not one of the vendored \
+             contract files"
+        );
+    }
+
+    let mut mismatches = Vec::new();
+    for (name, bytes) in vendored {
+        let actual = sha256_hex(bytes);
+        match contract.pinned_hash(name) {
+            Some(pinned) if pinned == actual => {}
+            Some(pinned) => mismatches.push(format!("{name}: pinned {pinned}, vendored {actual}")),
+            None => mismatches.push(format!("{name}: no `ref` pin in docs/design-surfaces.md")),
+        }
+    }
+
+    let repin = vendored
+        .iter()
+        .map(|(name, bytes)| format!("ref {name} sha256 {}", sha256_hex(bytes)))
+        .collect::<Vec<_>>()
+        .join("\n  ");
+    assert!(
+        mismatches.is_empty(),
+        "the vendored mockup no longer matches its pinned hash. Re-derive the contract — do \
+         not just edit the hash:\n  {}\n\nRe-derived pins for docs/design-surfaces.md:\n  \
+         {repin}\n\nThen re-check the `ref-only` lines and the class/token/state failures below, \
+         and say in the PR what moved in the mockup.",
+        mismatches.join("\n  ")
+    );
+}
+
+#[test]
+fn every_reference_class_is_covered_by_main_css() {
+    let contract = design_contract();
+    let main_classes = main_css_classes();
+    let mut missing = Vec::new();
+    for class in reference_classes() {
+        if contract.out_of_scope(&format!(".{class}")) {
+            continue;
+        }
+        if !main_classes.contains(&class) {
+            missing.push(class);
+        }
+    }
+    assert!(
+        missing.is_empty(),
+        "the reference mockup styles these classes and assets/main.css does not:\n  {}\n\n\
+         Either ship the rule (the usual fix) or add a `ref-only <selector> <reason>` line to the \
+         design-contract block.",
+        missing
+            .iter()
+            .map(|class| format!(".{class}"))
+            .collect::<Vec<_>>()
+            .join("\n  ")
+    );
+}
+
+#[test]
+fn every_reference_token_is_declared_by_main_css() {
+    let declared: std::collections::BTreeSet<String> =
+        declared_root_properties(STYLESHEET).into_iter().collect();
+    let missing = reference_tokens()
+        .difference(&declared)
+        .cloned()
+        .collect::<Vec<_>>();
+    assert!(
+        missing.is_empty(),
+        "the reference `:root` declares these custom properties and assets/main.css does not: \
+         {missing:?}"
+    );
+}
+
+#[test]
+fn every_reference_state_selector_is_covered_or_declared_out_of_scope() {
+    let contract = design_contract();
+    let mut missing = Vec::new();
+    for state in reference_states() {
+        let label = state.label();
+        if contract.out_of_scope(&label) {
+            continue;
+        }
+        if !stylesheet_covers_state(STYLESHEET, &state) {
+            missing.push(label);
+        }
+    }
+    assert!(
+        missing.is_empty(),
+        "the reference draws these states and assets/main.css has no rule for them:\n  {}\n\n\
+         Ship the compound rule, or record why the app expresses the state another way with a \
+         `ref-only <selector> <reason>` line.",
+        missing.join("\n  ")
+    );
+}
+
+#[test]
+fn the_contract_derives_a_plausible_set_from_the_reference() {
+    let classes = reference_classes();
+    assert!(
+        classes.len() >= 100,
+        "class derivation returned {} names — the parser is broken, not the mockup",
+        classes.len()
+    );
+    for known in ["panel", "nav-item", "log-panel", "resource-table"] {
+        assert!(
+            classes.contains(known),
+            "class derivation missed `.{known}`, which the mockup styles"
+        );
+    }
+
+    let tokens = reference_tokens();
+    assert!(
+        tokens.len() >= 25,
+        "token derivation returned {} names — the parser is broken, not the mockup",
+        tokens.len()
+    );
+    for known in ["--brand", "--shadow-terminal"] {
+        assert!(tokens.contains(known), "token derivation missed `{known}`");
+    }
+
+    let states = reference_states();
+    assert!(
+        states.len() >= 8,
+        "state derivation returned {} selectors — the parser is broken, not the mockup",
+        states.len()
+    );
+    assert!(
+        states
+            .iter()
+            .any(|state| state.label() == ".nav-item.active"),
+        "state derivation missed `.nav-item.active`"
+    );
+}
+
+#[test]
+fn every_out_of_scope_selector_still_exists_in_the_reference() {
+    let contract = design_contract();
+    let mut known: std::collections::BTreeSet<String> = reference_classes()
+        .iter()
+        .map(|class| format!(".{class}"))
+        .collect();
+    known.extend(reference_states().iter().map(SelectorPiece::label));
+
+    let stale: Vec<&str> = contract
+        .ref_only
+        .iter()
+        .map(|(selector, _)| selector.as_str())
+        .filter(|selector| !known.contains(*selector))
+        .collect();
+    assert!(
+        stale.is_empty(),
+        "these `ref-only` entries no longer match anything in the vendored mockup, so the scope \
+         list is stale: {stale:?} — re-derive the block when the reference changes"
+    );
+}
+
+#[test]
+fn every_contract_property_is_declared_exactly_once() {
+    for name in expected_root_properties() {
+        let count = STYLESHEET.matches(&format!("{name}:")).count();
+        assert_eq!(
+            count, 1,
+            "`{name}` is declared {count} times in assets/main.css (expected exactly 1)"
+        );
+    }
+}
+
+/// Every base+state pair the crate renders needs a compound rule. A surface
+/// that renders the base class but never the state class is exactly the drift
+/// this catches: the base rule keeps the element on screen, so nothing looks
+/// broken until someone toggles the state.
+#[test]
+fn every_rendered_base_and_state_pair_has_a_rule() {
+    let mut pairs: std::collections::BTreeMap<(String, String), &'static str> =
+        std::collections::BTreeMap::new();
+    for &(source_path, source) in RSX_SOURCES {
+        let mut record = |value: &str| {
+            let tokens: Vec<String> = tokenize_class_value(value).collect();
+            let Some(base) = tokens.first() else {
+                return;
+            };
+            for modifier in &tokens[1..] {
+                if STATE_MODIFIERS.contains(&modifier.as_str()) {
+                    pairs
+                        .entry((base.clone(), modifier.clone()))
+                        .or_insert(source_path);
+                }
+            }
+        };
+        for_each_class_literal(source, &mut record);
+        for_each_class_ternary(source, |if_true, if_false| {
+            record(if_true);
+            record(if_false);
+        });
+    }
+
+    assert!(
+        !pairs.is_empty(),
+        "the rsx walker found no base+state pair — the walker is broken, not the crate"
+    );
+
+    let missing: Vec<String> = pairs
+        .iter()
+        .filter(|((base, modifier), _)| {
+            !stylesheet_covers_state(
+                STYLESHEET,
+                &SelectorPiece {
+                    classes: vec![base.clone(), modifier.clone()],
+                    attrs: Vec::new(),
+                },
+            )
+        })
+        .map(|((base, modifier), source)| {
+            format!("  - `.{base}.{modifier}` (rendered from {source})")
+        })
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "the crate renders these base+state pairs but assets/main.css has no compound rule for \
+         them:\n{}",
+        missing.join("\n")
+    );
 }
 
 #[test]
 fn root_declares_only_the_theme_contract_and_the_design_system_properties() {
-    let mut declared = declared_root_properties();
+    let mut declared = declared_root_properties(STYLESHEET);
     declared.sort();
     declared.dedup();
 
-    let mut expected: Vec<String> = openkite_ui::theme::CSS_VARS
-        .iter()
-        .map(|v| (*v).to_string())
-        .collect();
-    expected.extend(REQUIRED_PROPERTIES.iter().map(|v| (*v).to_string()));
-    expected.sort();
-
     assert_eq!(
-        declared, expected,
-        "assets/main.css :root and the crate's token tables disagree — a name \
-         exists in one layer but not the other"
+        declared,
+        expected_root_properties(),
+        "assets/main.css :root and the contract's token tables disagree — a name exists in one \
+         layer but not the other"
     );
 }
 
@@ -379,6 +713,7 @@ const ROUTE_VIEWS_RSX: &str = include_str!("../src/components/route_views.rs");
 const NAMESPACE_BAR_RSX: &str = include_str!("../src/components/namespace_bar.rs");
 const DOCK_RSX: &str = include_str!("../src/components/dock.rs");
 const APP_CARD_RSX: &str = include_str!("../src/components/app_card.rs");
+const POD_DETAIL_RSX: &str = include_str!("../src/components/pod_detail.rs");
 
 /// Every rsx source file the crate renders. Order is for stable error
 /// messages — does not affect semantics.
@@ -421,6 +756,10 @@ const RSX_SOURCES: &[(&str, &str)] = &[
     (
         "crates/openkite-ui/src/components/app_card.rs",
         APP_CARD_RSX,
+    ),
+    (
+        "crates/openkite-ui/src/components/pod_detail.rs",
+        POD_DETAIL_RSX,
     ),
 ];
 
@@ -680,83 +1019,26 @@ fn is_css_class_name(s: &str) -> bool {
     chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
 }
 
-/// Parse the bare class selectors out of the stylesheet. Returns the set of
-/// bare tokens and the list of compound selectors (e.g. `.chip.active`) so
-/// the coverage check can match a token like `active` against `.chip.active`.
+/// Split a stylesheet into bare class tokens and compound class sets.
 ///
-/// Walks the stylesheet tracking brace depth so nested rules (inside
-/// `@media`, `@supports`, etc.) are all collected.
+/// Uses [`stylesheet_rule_heads`], so rules nested inside `@media`/
+/// `@supports` are collected too and at-rule heads are dropped.
 fn parse_stylesheet_selectors(css: &str) -> (Vec<String>, Vec<Vec<String>>) {
     let mut bare: Vec<String> = Vec::new();
     let mut compound: Vec<Vec<String>> = Vec::new();
-    let bytes = css.as_bytes();
-    let mut depth = 0usize;
-    let mut head_start = 0usize;
-    let mut heads: Vec<String> = Vec::new();
-    for (i, &b) in bytes.iter().enumerate() {
-        match b {
-            b'{' => {
-                if depth == 0 {
-                    let raw = &css[head_start..i];
-                    let cleaned = strip_css_comments(raw).trim().to_string();
-                    if !cleaned.is_empty() {
-                        heads.push(cleaned);
-                    }
-                    head_start = i + 1;
-                }
-                depth += 1;
-            }
-            b'}' => {
-                depth -= 1;
-                if depth == 0 {
-                    head_start = i + 1;
+    for selector in stylesheet_selectors(css) {
+        let mut classes: Vec<String> = Vec::new();
+        for piece in selector {
+            for class in piece.classes {
+                if !classes.contains(&class) {
+                    classes.push(class);
                 }
             }
-            _ => {}
         }
-    }
-
-    for head in heads {
-        // A single selector head may contain commas (grouped selectors).
-        for sel in head.split(',') {
-            let sel = sel.trim();
-            if sel.is_empty() {
-                continue;
-            }
-            // Tokenize on whitespace — keeps `.foo.bar` as one piece and
-            // splits descendants/children apart. We only care about the
-            // class pieces; element selectors (`input`, `*`) are skipped.
-            //
-            // Compound class selectors (`.chip.active`, `.pill.success`)
-            // are stored as a vec of pieces so the coverage check can
-            // match a token like `active` against `.chip.active`.
-            let mut parts: Vec<String> = Vec::new();
-            for piece in sel.split_whitespace() {
-                // Strip pseudo-class / pseudo-element after the first
-                // colon so `.pill::before` → `.pill`.
-                let head = piece.split(':').next().unwrap_or("");
-                if !head.starts_with('.') {
-                    continue;
-                }
-                for raw in head.split('.') {
-                    let token = raw.trim();
-                    if token.is_empty() {
-                        continue;
-                    }
-                    parts.push(token.to_string());
-                }
-            }
-            if parts.is_empty() {
-                continue;
-            }
-            // Dedup while preserving order so `.foo.foo` → `[foo]`.
-            let mut seen = std::collections::HashSet::<String>::new();
-            parts.retain(|p| seen.insert(p.clone()));
-            if parts.len() == 1 {
-                bare.push(parts.into_iter().next().expect("non-empty"));
-            } else {
-                compound.push(parts);
-            }
+        match classes.len() {
+            0 => {}
+            1 => bare.push(classes.into_iter().next().expect("non-empty")),
+            _ => compound.push(classes),
         }
     }
     (bare, compound)
