@@ -27,6 +27,7 @@ use dioxus::prelude::*;
 
 use crate::components::crud_modal::CrudOverlay;
 use crate::components::dock::DockView;
+use crate::components::logs::LogSheet;
 use crate::components::pod_detail::PodDetail;
 use crate::components::resource_pane::ResourcePane;
 use crate::components::secret_detail::SecretDetail;
@@ -57,6 +58,18 @@ pub enum ShellIcon {
     Refresh,
     Settings,
     Chevron,
+    /// The overview glyph: the design's four-cell workload grid.
+    Workloads,
+    /// A cluster's nodes: the design's hexagon node.
+    Cluster,
+    /// One node in the cluster graph.
+    Node,
+    /// Pods: a manifest card.
+    Pods,
+    /// ConfigMaps and Secrets.
+    Config,
+    /// The log surface's lines.
+    Logs,
 }
 
 /// One icon button in the top bar's action row. The host owns what a click
@@ -115,6 +128,18 @@ pub fn AppShell(
     });
     // The bar is a second view of the sidebar model, never a second route list.
     let tabs = bottom_tabs(&sections);
+    // The ≤767px log sheet, opened from the bar's Logs tab or its own handle.
+    // It is a sibling surface of the drawer: opening one closes the other, so
+    // the two overlays never stack.
+    let mut log_open = use_signal(|| false);
+    let toggle_logs = EventHandler::new(move |_: ()| {
+        let next = !log_open();
+        log_open.set(next);
+        if next {
+            drawer_open.set(false);
+        }
+    });
+    let close_logs = EventHandler::new(move |_: ()| log_open.set(false));
     // Escape closes the open drawer and Tab stays inside it; both arrive over
     // the eval channel, the same way the palette's keybind does.
     use_effect(move || {
@@ -134,6 +159,26 @@ pub fn AppShell(
             DRAWER_FOCUS_JS
         } else {
             DRAWER_RESTORE_JS
+        };
+        let _ = document::eval(script);
+    });
+    // The sheet's contract is the drawer's: Escape closes it, Tab cycles
+    // inside it while it is open, and focus returns to whatever opened it.
+    use_effect(move || {
+        let mut eval = document::eval(LOG_SHEET_KEYBIND_JS);
+        spawn(async move {
+            while let Ok(action) = eval.recv::<String>().await {
+                if action == "close" {
+                    log_open.set(false);
+                }
+            }
+        });
+    });
+    use_effect(move || {
+        let script = if log_open() {
+            LOG_SHEET_FOCUS_JS
+        } else {
+            LOG_SHEET_RESTORE_JS
         };
         let _ = document::eval(script);
     });
@@ -175,12 +220,25 @@ pub fn AppShell(
                 section { class: "view active", {children} }
                 DockView {}
             }
+            button {
+                class: if log_open() { "log-scrim show" } else { "log-scrim" },
+                r#type: "button",
+                aria_label: "Close logs",
+                onclick: move |_| log_open.set(false),
+            }
+            LogSheet {
+                open: log_open(),
+                on_toggle: toggle_logs,
+                on_close: close_logs,
+            }
             BottomNav {
                 tabs,
                 current_route: current_route.clone(),
                 on_navigate,
                 drawer_open: drawer_open(),
+                log_open: log_open(),
                 on_toggle_drawer: toggle_drawer,
+                on_toggle_logs: toggle_logs,
             }
         }
     }
@@ -232,6 +290,53 @@ const DRAWER_RESTORE_JS: &str = r#"
 (function () {
   const target = window.__openkite_drawer_restore;
   window.__openkite_drawer_restore = null;
+  if (target && typeof target.focus === 'function') target.focus();
+})();
+"#;
+
+/// The sheet's keydown contract, the drawer's applied to its own surface:
+/// Tab cycles inside the open sheet, Escape asks the shell to close it.
+const LOG_SHEET_KEYBIND_JS: &str = r#"
+if (!window.__openkite_sheet_keys) {
+  window.__openkite_sheet_keys = true;
+  document.addEventListener('keydown', (event) => {
+    const sheet = document.querySelector('.log-sheet.open');
+    if (!sheet) return;
+    if (event.key === 'Escape') { dioxus.send('close'); return; }
+    if (event.key !== 'Tab') return;
+    const focusable = sheet.querySelectorAll(
+      'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  });
+}
+"#;
+
+/// Move focus onto the sheet's handle when it opens, remembering what had it.
+const LOG_SHEET_FOCUS_JS: &str = r#"
+(function () {
+  const sheet = document.querySelector('.log-sheet.open');
+  if (!sheet) return;
+  window.__openkite_sheet_restore = document.activeElement;
+  const handle = sheet.querySelector('.log-handle');
+  if (handle) handle.focus();
+})();
+"#;
+
+/// Return focus to the sheet's opener when it closes.
+const LOG_SHEET_RESTORE_JS: &str = r#"
+(function () {
+  const target = window.__openkite_sheet_restore;
+  window.__openkite_sheet_restore = null;
   if (target && typeof target.focus === 'function') target.focus();
 })();
 "#;
@@ -651,7 +756,9 @@ fn BottomNav(
     current_route: String,
     #[props(default)] on_navigate: Option<EventHandler<String>>,
     #[props(default)] drawer_open: bool,
+    #[props(default)] log_open: bool,
     on_toggle_drawer: EventHandler<()>,
+    on_toggle_logs: EventHandler<()>,
 ) -> Element {
     rsx! {
         nav { class: "bottom-nav", aria_label: "Mobile navigation",
@@ -663,12 +770,24 @@ fn BottomNav(
                         on_navigate,
                     }
                 }
+                // The mockup's Logs cell: a toggle for the sheet, not a route,
+                // so it carries `aria-expanded` rather than the active mark.
+                button {
+                    class: "bottom-tab",
+                    r#type: "button",
+                    aria_label: "Logs",
+                    "aria-expanded": if log_open { "true" } else { "false" },
+                    onclick: move |_| on_toggle_logs.call(()),
+                    Icon { icon: ShellIcon::Logs }
+                    span { "Logs" }
+                }
                 button {
                     class: "bottom-tab",
                     r#type: "button",
                     aria_label: "Open navigation",
                     "aria-expanded": if drawer_open { "true" } else { "false" },
                     onclick: move |_| on_toggle_drawer.call(()),
+                    Icon { icon: ShellIcon::Menu }
                     span { "Menu" }
                 }
             }
@@ -677,7 +796,8 @@ fn BottomNav(
 }
 
 /// One destination in the bottom bar: the sidebar's own entry, routed and
-/// marked active exactly the way the sidebar routes it.
+/// marked active exactly the way the sidebar routes it, with the design's
+/// per-section glyph.
 #[component]
 fn BottomTab(
     item: ShellNavItem,
@@ -685,13 +805,39 @@ fn BottomTab(
     #[props(default)] on_navigate: Option<EventHandler<String>>,
 ) -> Element {
     let active = item.route == current_route;
+    // A plugin-owned destination keeps the reference's variant class, so the
+    // stylesheet can give it its contributor's accent when it is current.
+    let variant = item
+        .plugin
+        .as_deref()
+        .and_then(plugin_section_variant)
+        .map(|variant| format!(" {variant}"))
+        .unwrap_or_default();
     rsx! {
         a {
-            class: if active { "bottom-tab active" } else { "bottom-tab" },
+            class: if active {
+                "bottom-tab active{variant}"
+            } else {
+                "bottom-tab{variant}"
+            },
             href: "{item.route}",
             onclick: navigate_on_click(item.route.clone(), on_navigate),
+            Icon { icon: tab_icon(&item.route) }
             span { "{item.label}" }
         }
+    }
+}
+
+/// The glyph a bottom tab carries: the design's symbol for the section the
+/// route belongs to, so the bar reads the same as the mockup's.
+fn tab_icon(route: &str) -> ShellIcon {
+    match route {
+        "/" => ShellIcon::Cluster,
+        "/cluster" | "/nodes" => ShellIcon::Node,
+        "/workloads" | "/deployments" | "/pods" => ShellIcon::Pods,
+        "/config" | "/configmaps" | "/secrets" => ShellIcon::Config,
+        "/logs" | "/terminal" => ShellIcon::Logs,
+        _ => ShellIcon::Workloads,
     }
 }
 
@@ -724,6 +870,35 @@ fn glyph(icon: ShellIcon) -> Element {
         },
         ShellIcon::Chevron => rsx! {
             path { d: "m9 6 6 6-6 6" }
+        },
+        ShellIcon::Workloads => rsx! {
+            rect { x: "4", y: "4", width: "6", height: "6", rx: "1.3" }
+            rect { x: "14", y: "4", width: "6", height: "6", rx: "1.3" }
+            rect { x: "4", y: "14", width: "6", height: "6", rx: "1.3" }
+            rect { x: "14", y: "14", width: "6", height: "6", rx: "1.3" }
+        },
+        ShellIcon::Cluster => rsx! {
+            circle { cx: "12", cy: "5", r: "2.6" }
+            circle { cx: "5", cy: "18", r: "2.6" }
+            circle { cx: "19", cy: "18", r: "2.6" }
+            path { d: "M12 7.6v4.2M12 11.8 6.6 15.2M12 11.8l5.4 3.4" }
+        },
+        ShellIcon::Node => rsx! {
+            path { d: "m12 3 7 4v9l-7 4-7-4V7l7-4z" }
+            path { d: "m5 7.5 7 4 7-4M12 11.5V20" }
+        },
+        ShellIcon::Pods => rsx! {
+            rect { x: "5", y: "4", width: "14", height: "16", rx: "2" }
+            path { d: "M9 8h6M9 12h6M9 16h4" }
+        },
+        ShellIcon::Config => rsx! {
+            path { d: "M5 6h14M5 12h14M5 18h14" }
+            circle { cx: "9", cy: "6", r: "2.4" }
+            circle { cx: "15", cy: "12", r: "2.4" }
+            circle { cx: "8", cy: "18", r: "2.4" }
+        },
+        ShellIcon::Logs => rsx! {
+            path { d: "M5 6h14M5 10h14M5 14h14M5 18h9" }
         },
     }
 }

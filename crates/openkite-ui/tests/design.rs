@@ -133,6 +133,16 @@ const REQUIRED_CLASSES: &[&str] = &[
     ".bottom-tabs",
     ".bottom-tab",
     ".bottom-tab.active",
+    // The bar's glyphs and the ≤767px log sheet (OKT-197): the mockup's tab
+    // icon chain, the sheet, its drag handle and its scrim.
+    ".bottom-tab .icon",
+    ".bottom-tab.active .icon",
+    ".bottom-tab.argo.active .icon",
+    ".log-sheet",
+    ".log-sheet.open",
+    ".log-handle",
+    ".log-scrim",
+    ".log-scrim.show",
     ".breadcrumbs",
     ".breadcrumbs .crumb",
     ".breadcrumbs .current",
