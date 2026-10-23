@@ -84,7 +84,7 @@ const STATE_ATTRIBUTES: &[&str] = &[
 
 /// Tokens the *app* adds on top of the reference's `:root`. The reference is
 /// the source of truth for every other custom property.
-const APP_ONLY_TOKENS: &[&str] = &["--r-pill"];
+const APP_ONLY_TOKENS: &[&str] = &["--r-pill", "--on-strong"];
 
 /// The parsed `design-contract` block.
 #[derive(Debug)]
