@@ -475,6 +475,19 @@ fn a_host_that_cannot_switch_contexts_renders_the_button_marked() {
     );
 }
 
+/// The inner markup of the top bar's action row — the ones the host
+/// publishes. Scoped so the chrome's other buttons (the ≤767px bar's Logs
+/// and Menu cells, the log sheet's pause and clear) don't count as actions.
+fn action_row(html: &str) -> &str {
+    let start = html
+        .find("class=\"topbar-actions\"")
+        .expect("topbar actions");
+    let rest = &html[start..];
+    let open = rest.find('>').expect("action row opens");
+    let close = rest[open..].find("</div>").expect("action row closes");
+    &rest[open..open + close]
+}
+
 #[test]
 fn the_topbar_actions_and_avatar_are_what_the_host_publishes() {
     let _host = desktop_host();
@@ -482,7 +495,7 @@ fn the_topbar_actions_and_avatar_are_what_the_host_publishes() {
 
     assert!(html.contains("class=\"topbar-actions\""), "got: {html}");
     assert_eq!(
-        html.matches("class=\"icon-btn\"").count(),
+        action_row(&html).matches("class=\"icon-btn\"").count(),
         2,
         "one button per action the host published: {html}"
     );
@@ -501,7 +514,7 @@ fn a_host_with_no_actions_renders_an_empty_action_row() {
 
     assert!(html.contains("class=\"topbar-actions\""), "got: {html}");
     assert!(
-        !html.contains("class=\"icon-btn\""),
+        !action_row(&html).contains("class=\"icon-btn\""),
         "the browser host wires no top-bar action: {html}"
     );
     assert!(
@@ -662,7 +675,8 @@ fn the_bottom_bar_lists_the_sidebar_models_leading_destinations() {
         "cluster destination tab: {bar}"
     );
     assert!(
-        bar.contains("<a class=\"bottom-tab active\" href=\"/workloads\"><span>Pods</span></a>"),
+        bar.contains("class=\"bottom-tab active\" href=\"/workloads\"")
+            && bar.contains(">Pods</span></a>"),
         "the current workload destination is in the bar: {bar}"
     );
     assert!(
