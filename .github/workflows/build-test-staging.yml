@@ -389,6 +389,9 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+      - name: Check the DevTools discovery helper
+        working-directory: e2e
+        run: node --test visual/browser/devtools.test.mjs
       - name: Install the toolchain
         uses: ./.github/actions/rust-setup
         with:
