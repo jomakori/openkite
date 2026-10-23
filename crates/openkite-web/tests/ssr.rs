@@ -23,6 +23,11 @@ fn snapshot() -> Snapshot {
     Snapshot::default()
 }
 
+/// A client URL of the shape the host passes: the versioned path the asset
+/// route answers. The render itself does not care which version it is — the
+/// host's own test (`tests/assets.rs`) pins that it is the bundle's hash.
+const TEST_CLIENT_URL: &str = "/assets/bundle/0123456789abcdef/openkite-web-client.js";
+
 /// A connected host carrying data, so the surfaces render with rows in them
 /// (capability flags on, a cluster context, one secret in scope).
 fn connected() -> Snapshot {
@@ -211,7 +216,7 @@ fn ssr_only_page_omits_the_wasm_client_bootstrap() {
 
 #[test]
 fn hydrating_page_embeds_the_snapshot_and_client_import() {
-    let page = render_page(&snapshot(), &RenderOptions::hydrating());
+    let page = render_page(&snapshot(), &RenderOptions::hydrating(TEST_CLIENT_URL));
     assert!(page.contains("<!doctype html>"), "page: {page}");
     assert!(
         page.contains("initial_dioxus_hydration_data="),
@@ -222,14 +227,22 @@ fn hydrating_page_embeds_the_snapshot_and_client_import() {
         "hydrating page must embed the snapshot JSON: {page}"
     );
     assert!(
-        page.contains("/openkite-web-client.js"),
-        "hydrating page must point at the wasm client bundle: {page}"
+        page.contains(&format!("import init from \"{TEST_CLIENT_URL}\";")),
+        "hydrating page must import the versioned client bundle: {page}"
+    );
+    assert!(
+        !page.contains("import init from \"/openkite-web-client.js\";"),
+        "the page must not import the bundle unversioned — a cached copy of that \
+         URL can be paired with any build's HTML (OKT-195): {page}"
     );
 }
 
 #[test]
 fn every_page_declares_the_vendored_typefaces() {
-    for options in [RenderOptions::ssr_only(), RenderOptions::hydrating()] {
+    for options in [
+        RenderOptions::ssr_only(),
+        RenderOptions::hydrating(TEST_CLIENT_URL),
+    ] {
         let page = render_page(&snapshot(), &options);
         for face in openkite_ui::assets::FACES {
             assert!(
@@ -422,7 +435,7 @@ fn the_workloads_snapshot_still_hydrates() {
     let parsed: Snapshot = serde_json::from_str(&json).expect("the client boots from this JSON");
     assert_eq!(parsed, snapshot, "the snapshot must round-trip");
 
-    let page = render_page(&snapshot, &RenderOptions::hydrating());
+    let page = render_page(&snapshot, &RenderOptions::hydrating(TEST_CLIENT_URL));
     let client: Snapshot =
         serde_json::from_str(embedded_snapshot(&page)).expect("the embedded JSON parses");
     assert_eq!(client.route, "/workloads");
@@ -537,7 +550,10 @@ async fn snapshot_lists_gateway_secret_refs_and_preserves_empty_state() {
 #[test]
 fn every_page_carries_the_shell_stylesheet() {
     let wrapped = format!("<style>{}</style>", openkite_ui::MAIN_CSS);
-    for options in [RenderOptions::ssr_only(), RenderOptions::hydrating()] {
+    for options in [
+        RenderOptions::ssr_only(),
+        RenderOptions::hydrating(TEST_CLIENT_URL),
+    ] {
         let page = render_page(&snapshot(), &options);
         assert!(
             page.contains(&wrapped),
@@ -548,7 +564,10 @@ fn every_page_carries_the_shell_stylesheet() {
 
 #[test]
 fn rendered_page_defines_the_openkite_bridge() {
-    for options in [RenderOptions::ssr_only(), RenderOptions::hydrating()] {
+    for options in [
+        RenderOptions::ssr_only(),
+        RenderOptions::hydrating(TEST_CLIENT_URL),
+    ] {
         let page = render_page(&snapshot(), &options);
         assert!(
             page.contains("window.openkite"),

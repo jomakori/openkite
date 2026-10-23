@@ -209,17 +209,25 @@ pub struct RenderOptions {
 
 #[cfg(all(feature = "ssr", not(target_arch = "wasm32")))]
 impl RenderOptions {
-    pub fn hydrating() -> Self {
+    /// Hydrate against the client bundle at `client_script`.
+    ///
+    /// The caller names the URL because the document and the wasm it boots have
+    /// to be one build: the host passes the versioned
+    /// [`client_url`](crate::assets::Bundle::client_url), and there is
+    /// deliberately no unversioned default to fall back to (OKT-195).
+    pub fn hydrating(client_script: impl Into<String>) -> Self {
         Self {
             hydrate: true,
-            client_script: "/openkite-web-client.js".to_string(),
+            client_script: client_script.into(),
         }
     }
 
+    /// Server-rendered only: no hydration payload and no client import, so the
+    /// page names no bundle at all.
     pub fn ssr_only() -> Self {
         Self {
             hydrate: false,
-            ..Self::hydrating()
+            client_script: String::new(),
         }
     }
 }
