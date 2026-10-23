@@ -238,6 +238,19 @@ body {
 /* An entry a plugin contributed: same shape, lighter weight than the core
    navigation. */
 .nav-item.plugin { font-weight: 400; }
+/* A plugin the shell could not load: the row keeps the nav's shape and drops
+   its link behaviour, so the plugin stays discoverable and the reason rides
+   the row itself (the title carries the full text). */
+.nav-item[data-disabled] { cursor: default; }
+.nav-item .nav-note {
+  margin-left: auto;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10.5px;
+  color: var(--subtle);
+}
 @media (hover: hover) and (pointer: fine) {
   .nav-item:hover { background: color-mix(in srgb, var(--surface) 62%, transparent); }
 }

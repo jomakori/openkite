@@ -82,6 +82,22 @@ pub fn js_plugins() -> Vec<crate::plugin_js::JsBundle> {
     JS_PLUGINS.get().cloned().unwrap_or_default()
 }
 
+/// Plugins discovery could not load, as `(plugin, reason)` (set once in `run`,
+/// plugin system v1.1).
+static PLUGIN_FAILURES: OnceLock<Vec<(String, String)>> = OnceLock::new();
+
+/// Publish the plugins that failed to load (idempotent: first write wins).
+pub fn set_plugin_failures(failures: Vec<(String, String)>) {
+    let _ = PLUGIN_FAILURES.set(failures);
+}
+
+/// The plugins that failed to load, named, with the reason (empty before
+/// bootstrap). The shell renders one disabled nav entry per failure instead of
+/// letting a broken plugin disappear from the surface.
+pub fn plugin_failures() -> Vec<(String, String)> {
+    PLUGIN_FAILURES.get().cloned().unwrap_or_default()
+}
+
 /// Ping channel for applying persisted settings on the Dioxus side.
 ///
 /// Settings are persisted from the SSR/wasm console (the same `OpenKiteConfig`

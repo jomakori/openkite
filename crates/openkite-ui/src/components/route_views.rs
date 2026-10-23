@@ -24,6 +24,7 @@
 use dioxus::prelude::*;
 
 use crate::components::namespace_bar::NamespaceBar;
+use crate::plugin_api::PluginControl;
 use crate::runtime::{
     cluster_switch_can_render, mutations_can_render, plugin_route_can_render, terminal_can_render,
 };
@@ -350,6 +351,11 @@ pub fn RouteView(
     #[props(default)] busy: bool,
     #[props(default)] content: Option<Element>,
     #[props(default)] on_action: Option<EventHandler<String>>,
+    // The controls the plugin owning this route declared (v1.1). They sit
+    // beside the route's own actions; a control the plugin cannot honour, or
+    // this host did not wire, renders inert with the reason.
+    #[props(default)] controls: Vec<PluginControl>,
+    #[props(default)] on_control: Option<EventHandler<String>>,
 ) -> Element {
     let page = route_page(&route, &sections);
     let declared = page.declared_capabilities();
@@ -367,6 +373,9 @@ pub fn RouteView(
                 div { class: "page-actions",
                     for action in page.actions.iter().copied() {
                         ActionButton { action, on_action }
+                    }
+                    for control in controls.iter().cloned() {
+                        PluginControlButton { control, on_control }
                     }
                 }
             }
@@ -494,6 +503,8 @@ pub fn PluginRouteView(
     #[props(default)] js_route: Option<String>,
     #[props(default)] evaluator: Option<Element>,
     #[props(default)] on_action: Option<EventHandler<String>>,
+    #[props(default)] controls: Vec<PluginControl>,
+    #[props(default)] on_control: Option<EventHandler<String>>,
 ) -> Element {
     let page = route_page(&route, &sections);
     if !plugin_route_can_render() {
@@ -504,6 +515,8 @@ pub fn PluginRouteView(
                 sections,
                 namespaces,
                 on_action,
+                controls,
+                on_control,
                 content: rsx! {
                     div {
                         class: "panel",
@@ -527,6 +540,60 @@ pub fn PluginRouteView(
         _ => None,
     };
     rsx! {
-        RouteView { route: page.route, sections, namespaces, content, on_action }
+        RouteView { route: page.route, sections, namespaces, content, on_action, controls, on_control }
+    }
+}
+
+/// One control a plugin's surface declares (plugin system v1.1).
+///
+/// The plugin owns the label and the action id; the crate owns the button, so
+/// a control the plugin marked unsupported — or one this host wired no handler
+/// for — still appears on the surface, inert, with the reason it cannot fire.
+/// A dead affordance that explains itself beats one that silently does
+/// nothing, and beats one that quietly disappears between hosts.
+#[component]
+fn PluginControlButton(
+    control: PluginControl,
+    #[props(default)] on_control: Option<EventHandler<String>>,
+) -> Element {
+    let action = control.action.clone();
+    let label = control.label.clone();
+    // The registry stamped the declaring plugin; the button carries it so the
+    // plugin's scoped sheet can style the control the crate painted for it.
+    let plugin = control.plugin.clone();
+    let unsupported = control.unsupported.clone().or_else(|| {
+        on_control
+            .is_none()
+            .then(|| "This host did not wire this control.".to_string())
+    });
+    if let Some(reason) = unsupported {
+        return rsx! {
+            button {
+                class: "btn btn-secondary",
+                r#type: "button",
+                disabled: true,
+                "data-control": "{action}",
+                "data-plugin": "{plugin}",
+                "data-unsupported": if control.unsupported.is_some() { "plugin" } else { "unwired" },
+                title: "{reason}",
+                "{label}"
+            }
+        };
+    }
+    let clicked = action.clone();
+    let onclick = move |_| {
+        if let Some(handler) = on_control.as_ref() {
+            handler.call(clicked.clone());
+        }
+    };
+    rsx! {
+        button {
+            class: "btn btn-secondary",
+            r#type: "button",
+            "data-control": "{action}",
+            "data-plugin": "{plugin}",
+            onclick,
+            "{label}"
+        }
     }
 }

@@ -54,6 +54,30 @@ pub struct RendererSpec {
     pub path: String,
 }
 
+/// A control a plugin's surface offers, and — when the plugin cannot honour it
+/// on this host — why not (plugin system v1.1).
+///
+/// The plugin owns the label and the action id; the crate owns the button, so
+/// a control the plugin declares it cannot support still shows up on the
+/// surface, disabled, with `data-unsupported` and the reason — instead of
+/// disappearing and leaving the user to guess.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PluginControl {
+    pub label: String,
+    /// What the host's handler switches on when it wires this control.
+    #[serde(default)]
+    pub action: String,
+    /// Why the plugin cannot honour this control here. `None` = it can, and
+    /// the control is live once the host wires a handler.
+    #[serde(default)]
+    pub unsupported: Option<String>,
+    /// The plugin that declared it, stamped by the registry on registration.
+    /// The crate attributes the painted button with it, so the plugin's own
+    /// scoped sheet can reach controls the host renders for it.
+    #[serde(default)]
+    pub plugin: String,
+}
+
 /// Everything a plugin registered, keyed by kind.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PluginRegistration {
@@ -65,6 +89,14 @@ pub struct PluginRegistration {
     pub status: Vec<StatusItem>,
     #[serde(default)]
     pub renderers: Vec<RendererSpec>,
+    /// The controls the plugin's own surface offers (v1.1).
+    #[serde(default)]
+    pub controls: Vec<PluginControl>,
+    /// The plugin's stylesheet, as authored (v1.1). Never injected raw: the
+    /// shell scopes it to the plugin's own section through
+    /// [`crate::plugin_css::scoped_style`].
+    #[serde(default)]
+    pub style: Option<String>,
 }
 
 impl PluginRegistration {
@@ -97,6 +129,38 @@ impl PluginRegistration {
                 ));
             }
         }
+        // v1.1: a control the plugin cannot honour must say why — an
+        // unexplained disabled button is the dead control the shell refuses.
+        for control in &self.controls {
+            if control.label.trim().is_empty() {
+                return Err("control label must not be empty".into());
+            }
+            if control.action.trim().is_empty() {
+                return Err(format!(
+                    "control '{}' must name the action it fires",
+                    control.label
+                ));
+            }
+            if let Some(reason) = &control.unsupported {
+                if reason.trim().is_empty() {
+                    return Err(format!(
+                        "control '{}' is marked unsupported without a reason",
+                        control.label
+                    ));
+                }
+            }
+        }
+        // v1.1: the stylesheet rides the registration payload, so it is
+        // bounded here and scoped at render time.
+        if let Some(style) = &self.style {
+            if style.len() > crate::plugin_css::MAX_STYLE_BYTES {
+                return Err(format!(
+                    "plugin stylesheet is {} bytes, over the {} byte limit",
+                    style.len(),
+                    crate::plugin_css::MAX_STYLE_BYTES
+                ));
+            }
+        }
         Ok(())
     }
 }
@@ -106,9 +170,14 @@ impl PluginRegistration {
 pub use openkite_api::bridge::{ApiRequest, ApiResponse, BridgeRequest};
 
 /// Per-plugin registration store, keyed by plugin name (the manifest `name`).
+///
+/// v1.1 also keeps the load *failures*: a plugin the host could not load has
+/// no registrations, but it does have a place in the navigation — disabled,
+/// with the reason — so the shell tells the truth instead of dropping it.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RegistrationStore {
     by_plugin: BTreeMap<String, PluginRegistration>,
+    failures: BTreeMap<String, String>,
 }
 
 impl RegistrationStore {
@@ -118,13 +187,39 @@ impl RegistrationStore {
     }
 
     /// Insert or replace a plugin's registrations.
+    ///
+    /// A successful registration clears any failure recorded for that plugin:
+    /// the plugin loaded, so the disabled entry must go (hot reload).
     pub fn upsert(&mut self, plugin: &str, registration: PluginRegistration) {
+        self.failures.remove(plugin);
         self.by_plugin.insert(plugin.to_string(), registration);
+    }
+
+    /// Record that a plugin failed to load, and drop whatever it had
+    /// registered before: a section built from a stale registration is worse
+    /// than an entry that says it is unavailable.
+    pub fn fail(&mut self, plugin: &str, reason: &str) {
+        self.by_plugin.remove(plugin);
+        self.failures.insert(plugin.to_string(), reason.to_string());
+    }
+
+    /// Whether the plugin is currently recorded as failed.
+    pub fn is_failed(&self, plugin: &str) -> bool {
+        self.failures.contains_key(plugin)
+    }
+
+    /// The recorded load failures: `(plugin, reason)`, sorted by plugin name.
+    pub fn failures(&self) -> Vec<(&str, &str)> {
+        self.failures
+            .iter()
+            .map(|(plugin, reason)| (plugin.as_str(), reason.as_str()))
+            .collect()
     }
 
     /// Drop a plugin's registrations (hot-reload Removed).
     pub fn remove(&mut self, plugin: &str) -> bool {
-        self.by_plugin.remove(plugin).is_some()
+        let failed = self.failures.remove(plugin).is_some();
+        self.by_plugin.remove(plugin).is_some() || failed
     }
 
     /// A plugin's registrations, if present.
@@ -184,6 +279,36 @@ impl RegistrationStore {
             })
             .collect()
     }
+
+    /// The plugin that registered `path` (sidebar entry, route or renderer),
+    /// for surfaces that need to draw the owning plugin's own affordances.
+    pub fn owner_of_route(&self, path: &str) -> Option<&str> {
+        self.by_plugin
+            .iter()
+            .find(|(_, reg)| {
+                reg.routes.iter().any(|route| route.path == path)
+                    || reg.renderers.iter().any(|renderer| renderer.path == path)
+                    || reg.sidebar.iter().any(|item| item.route == path)
+            })
+            .map(|(plugin, _)| plugin.as_str())
+    }
+
+    /// The controls the plugin owning `path` declared (v1.1). Empty when no
+    /// plugin owns the path or the plugin declared none.
+    pub fn controls_for_route(&self, path: &str) -> Vec<PluginControl> {
+        self.owner_of_route(path)
+            .and_then(|plugin| self.by_plugin.get(plugin))
+            .map(|reg| reg.controls.clone())
+            .unwrap_or_default()
+    }
+
+    /// Every plugin stylesheet, as authored: `(plugin, css)`.
+    pub fn all_styles(&self) -> Vec<(&str, &str)> {
+        self.by_plugin
+            .iter()
+            .filter_map(|(plugin, reg)| reg.style.as_deref().map(|css| (plugin.as_str(), css)))
+            .collect()
+    }
 }
 
 /// The injected bootstrap: defines `window.openkite` (register* + api.*) with
@@ -219,6 +344,17 @@ pub const OPENKITE_BRIDGE_JS: &str = r##"(() => {
     registerRoute: (route) => register("route", route),
     registerStatusItem: (item) => register("status", item),
     registerRouteRenderer: (path) => register("route_renderer", { path }),
+    registerStyles: (css) => register("style", { css }),
+    registerControl: (control) => register("control", control),
+    // The plugin's side of the control model: the shell paints the buttons a
+    // plugin declared with `registerControl`, and hands clicks back here.
+    onControl: function (handler) {
+      window.openkite._controlHandler = handler;
+    },
+    _control: function (pluginName, action) {
+      const handler = window.openkite._controlHandler;
+      if (typeof handler === "function") handler(action, pluginName);
+    },
     _renderRoute: function (path, container) {
       return function unmount() {};
     },
@@ -295,6 +431,8 @@ mod tests {
             renderers: vec![RendererSpec {
                 path: "/argocd/apps".into(),
             }],
+            controls: Vec::new(),
+            style: None,
         }
     }
 
@@ -495,6 +633,10 @@ mod tests {
             "registerRoute",
             "registerStatusItem",
             "registerRouteRenderer",
+            "registerStyles",
+            "registerControl",
+            "onControl",
+            "_control",
             "_renderRoute",
             "api: {",
             "list: (kind, ns)",

@@ -327,6 +327,10 @@ fn AppShell() -> Element {
     rsx! {
         ShellFrame {
             sections: shell_sections(),
+            plugin_styles: {
+                let registrations = REGISTRATIONS.read();
+                openkite_ui::shell::plugin_styles(&registrations)
+            },
             current_route,
             cluster: cluster_button(),
             status: status_entries(),
@@ -483,12 +487,21 @@ fn shell_sections() -> Vec<crate::shell::ShellSection> {
                     plugin: Some(section.label.clone()),
                     // The SDK's count badge is the design's `.nav-badge`.
                     badge: entry.badge.clone(),
+                    disabled: None,
                 })
                 .collect(),
         });
     }
 
     let registrations = REGISTRATIONS.read();
+    let mut registrations = registrations.clone();
+    // Plugins discovery could not load: they contribute no entries, but they do
+    // get a named, disabled section so the shell can say what is missing and
+    // why (plugin system v1.1). `fail` is idempotent and never blanks a plugin
+    // that is registered.
+    for (plugin, reason) in crate::runtime::plugin_failures() {
+        registrations.fail(&plugin, &reason);
+    }
     sections.extend(plugin_sections(&registrations));
 
     sections
@@ -792,7 +805,14 @@ fn Plugin(path: Vec<String>) -> Element {
         .all_renderer_paths()
         .iter()
         .any(|(_, p)| *p == full);
+    // The plugin that owns this path also owns the controls on it: what it
+    // declared, and — if it wired a handler — who receives the click.
+    let controls = registrations.controls_for_route(&full);
+    let owner = registrations.owner_of_route(&full).map(str::to_string);
     drop(registrations);
+
+    let on_control = owner
+        .map(|plugin| EventHandler::new(move |action: String| dispatch_control(&plugin, &action)));
 
     let evaluator = is_js_route.then(|| rsx! { JsRouteEvaluator { path: full.clone() } });
     rsx! {
@@ -801,8 +821,27 @@ fn Plugin(path: Vec<String>) -> Element {
             sections: shell_sections(),
             js_route: is_js_route.then(|| full.clone()),
             evaluator,
+            controls,
+            on_control,
         }
     }
+}
+
+/// Hand a plugin-declared control to the plugin that declared it.
+///
+/// The crate paints the button (it owns the chrome) and the plugin owns the
+/// action id; this is the single hop between them — `openkite._control` in the
+/// webview, which forwards to the handler the bundle installed with
+/// `openkite.onControl`. Both arguments are JSON-encoded: a plugin's action id
+/// is its own string, never spliced into the script.
+fn dispatch_control(plugin: &str, action: &str) {
+    let (plugin, action) = (
+        serde_json::to_string(plugin).unwrap_or_else(|_| "\"\"".to_string()),
+        serde_json::to_string(action).unwrap_or_else(|_| "\"\"".to_string()),
+    );
+    let _ = document::eval(&format!(
+        r#"if (window.openkite && typeof window.openkite._control === "function") {{ window.openkite._control({plugin}, {action}); }}"#
+    ));
 }
 
 /// The host-only half of a JS-owned plugin route: the `document::eval` that

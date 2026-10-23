@@ -58,6 +58,7 @@ fn desktop_sections() -> Vec<ShellSection> {
             route: "/argocd/apps".into(),
             plugin: Some("argocd".into()),
             badge: Some("18".into()),
+            disabled: None,
         }],
     });
     sections
@@ -167,6 +168,7 @@ fn browser_shell() -> Element {
                     route: "/cluster".into(),
                     plugin: None,
                     badge: None,
+                    disabled: None,
                 }],
             }],
             current_route: String::new(),
@@ -761,5 +763,99 @@ fn the_closed_sidebar_is_not_a_dialog() {
     assert!(
         !html.contains("role=\"dialog\""),
         "no dialog role leaks into the desktop frame: {html}"
+    );
+}
+
+// --- plugin system v1.1 -------------------------------------------------
+//
+// A plugin now contributes style and controls, and a plugin the host could not
+// load keeps a named place in the nav instead of vanishing. These mount each of
+// those states through the real shell.
+
+/// A plugin section whose single entry belongs to a plugin that failed to load.
+fn unloadable_plugin_shell() -> Element {
+    rsx! {
+        AppShell {
+            sections: vec![ShellSection {
+                label: "argocd".into(),
+                accent: Some("var(--accent)".into()),
+                items: vec![ShellNavItem {
+                    label: "Applications".into(),
+                    route: "/argocd/apps".into(),
+                    plugin: Some("argocd".into()),
+                    badge: None,
+                    disabled: Some("manifest.json: expected value at line 3".into()),
+                }],
+            }],
+            current_route: "/workloads",
+            status: Vec::<StatusBarEntry>::new(),
+            div { "data-outlet": "unloadable", "route outlet" }
+        }
+    }
+}
+
+/// The same shell with the scoped sheet a loaded plugin ships.
+fn styled_plugin_shell() -> Element {
+    rsx! {
+        AppShell {
+            sections: desktop_sections(),
+            plugin_styles: vec![(
+                "argocd".to_string(),
+                "[data-plugin=\"argocd\"] .app-card { color: red }".to_string(),
+            )],
+            current_route: "/workloads",
+            status: Vec::<StatusBarEntry>::new(),
+            div { "data-outlet": "styled", "route outlet" }
+        }
+    }
+}
+
+#[test]
+fn a_plugin_that_failed_to_load_keeps_an_inert_row_with_its_reason() {
+    let _host = desktop_host();
+    let html = support::mount_html(unloadable_plugin_shell, || {});
+
+    assert!(
+        html.contains("data-disabled=\"1\""),
+        "the row is marked disabled: {html}"
+    );
+    assert!(
+        html.contains("aria-disabled=\"true\""),
+        "assistive tech gets the same signal: {html}"
+    );
+    assert!(
+        !html.contains("href=\"/argocd/apps\""),
+        "an inert row must not link into a route nothing serves: {html}"
+    );
+    assert!(
+        html.contains("expected value at line 3"),
+        "the failure reason rides the row: {html}"
+    );
+    assert!(
+        html.contains("class=\"nav-note\""),
+        "the reason has its own span, not a title only: {html}"
+    );
+    assert!(
+        html.contains("Applications"),
+        "the plugin stays discoverable under its own name: {html}"
+    );
+}
+
+#[test]
+fn a_plugin_stylesheet_rides_the_shell_frame_scoped() {
+    let _host = desktop_host();
+    let html = support::mount_html(styled_plugin_shell, || {});
+
+    assert!(
+        html.contains("data-plugin-css=\"argocd\""),
+        "one style element, attributed to its plugin: {html}"
+    );
+    assert!(
+        html.contains(r#"[data-plugin="argocd"] .app-card"#),
+        "the sheet arrives already scoped by the host: {html}"
+    );
+    assert!(
+        html.contains(r#"<style data-plugin-css="argocd">[data-plugin="argocd"]"#),
+        "the sheet opens with its scope root, so no rule can escape it: {html}"
     );
 }

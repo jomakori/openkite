@@ -17,6 +17,7 @@ pub mod design;
 pub mod dock;
 pub mod fuzzy;
 pub mod plugin_api;
+pub mod plugin_css;
 pub mod runtime;
 pub mod secrets;
 pub mod shell;

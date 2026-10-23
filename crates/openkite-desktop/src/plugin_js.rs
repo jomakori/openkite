@@ -95,27 +95,71 @@ pub fn plugins_dir() -> PathBuf {
         .join("plugins")
 }
 
+/// A plugin the host could not load.
+///
+/// Carries the plugin's **directory name** — the only identifier a broken
+/// manifest still has, and the name the user sees under the plugins root —
+/// plus why it failed. The shell renders one disabled nav entry per failure
+/// (plugin system v1.1), so the name has to survive a manifest that does not
+/// parse.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PluginLoadError {
+    pub name: String,
+    pub reason: String,
+}
+
+impl PluginLoadError {
+    fn new(name: impl Into<String>, reason: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            reason: reason.into(),
+        }
+    }
+
+    /// Whether the failure text mentions `needle` (the reason, not the name).
+    pub fn contains(&self, needle: &str) -> bool {
+        self.reason.contains(needle)
+    }
+}
+
+impl std::fmt::Display for PluginLoadError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.name, self.reason)
+    }
+}
+
 /// Load + validate the manifest of one plugin directory.
-pub fn load_manifest(plugin_dir: &Path) -> Result<PluginManifest, String> {
+pub fn load_manifest(plugin_dir: &Path) -> Result<PluginManifest, PluginLoadError> {
+    let name = plugin_dir
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_else(|| plugin_dir.display().to_string());
     let path = plugin_dir.join("manifest.json");
-    let text = fs::read_to_string(&path).map_err(|e| format!("read {}: {e}", path.display()))?;
-    let manifest: PluginManifest =
-        serde_json::from_str(&text).map_err(|e| format!("parse {}: {e}", path.display()))?;
-    manifest.validate()?;
+    let text = fs::read_to_string(&path)
+        .map_err(|e| PluginLoadError::new(&name, format!("read {}: {e}", path.display())))?;
+    let manifest: PluginManifest = serde_json::from_str(&text)
+        .map_err(|e| PluginLoadError::new(&name, format!("parse {}: {e}", path.display())))?;
+    manifest
+        .validate()
+        .map_err(|e| PluginLoadError::new(&name, e))?;
     Ok(manifest)
 }
 
 /// Scan a plugins root and load every plugin directory with a valid manifest.
 ///
 /// Returns `(loaded, errors)`; a broken plugin never blocks its siblings.
-/// Plugins are sorted by name for deterministic load order.
-pub fn discover_plugins(root: &Path) -> (Vec<(String, PluginManifest)>, Vec<String>) {
+/// Plugins are sorted by name for deterministic load order, and each failure
+/// carries the plugin's directory name so the shell can name it.
+pub fn discover_plugins(root: &Path) -> (Vec<(String, PluginManifest)>, Vec<PluginLoadError>) {
     let mut loaded = Vec::new();
     let mut errors = Vec::new();
     let entries = match fs::read_dir(root) {
         Ok(entries) => entries,
         Err(e) => {
-            errors.push(format!("scan {}: {e}", root.display()));
+            errors.push(PluginLoadError::new(
+                root.display().to_string(),
+                format!("scan {}: {e}", root.display()),
+            ));
             return (loaded, errors);
         }
     };
@@ -288,7 +332,7 @@ pub fn scan_and_reconcile(
     root: &Path,
     registry: &mut JsPluginRegistry,
     default_enabled: bool,
-) -> (Vec<PluginChange>, Vec<String>) {
+) -> (Vec<PluginChange>, Vec<PluginLoadError>) {
     let (discovered, errors) = discover_plugins(root);
     let changes = registry.reconcile(discovered, default_enabled);
     (changes, errors)
@@ -337,11 +381,12 @@ pub struct JsBundle {
 /// Discover plugins under `root` and keep the enabled ones' bundles.
 ///
 /// Broken siblings never block discovery: manifests that fail validation
-/// surface in `errors`; the enabled predicate runs on the parsed name.
+/// surface in `errors` — each named, so the shell can show the plugin and why
+/// it is unavailable — and the enabled predicate runs on the parsed name.
 pub fn collect_bundles(
     root: &Path,
     enabled: impl Fn(&str) -> bool,
-) -> (Vec<JsBundle>, Vec<String>) {
+) -> (Vec<JsBundle>, Vec<PluginLoadError>) {
     let (discovered, errors) = discover_plugins(root);
     let bundles = discovered
         .into_iter()
@@ -350,6 +395,12 @@ pub fn collect_bundles(
             entry: root.join(&name).join(&manifest.entry),
             name,
         })
+        .collect();
+    // A plugin the user switched off is not a failure: it never loads, and the
+    // shell must not advertise it as broken.
+    let errors = errors
+        .into_iter()
+        .filter(|err| enabled(&err.name))
         .collect();
     (bundles, errors)
 }

@@ -21,6 +21,18 @@ pub struct ShellNavItem {
     /// when they have a count to show; `None` — or the `Some(0)` [`nav_badge`]
     /// collapses — renders no badge.
     pub badge: Option<String>,
+    /// Set when the entry cannot be navigated: the reason the plugin that
+    /// would own it is unavailable (plugin system v1.1). A disabled entry keeps
+    /// its place in the nav — labelled, with the reason — instead of the plugin
+    /// vanishing from the shell or throwing on load.
+    pub disabled: Option<String>,
+}
+
+impl ShellNavItem {
+    /// Whether the entry is a placeholder for something that could not load.
+    pub fn is_disabled(&self) -> bool {
+        self.disabled.is_some()
+    }
 }
 
 /// A sidebar section: core (built-in) or one per plugin.
@@ -116,18 +128,21 @@ pub fn core_nav(terminal: bool) -> Vec<ShellNavItem> {
             route: "/cluster".into(),
             plugin: None,
             badge: None,
+            disabled: None,
         },
         ShellNavItem {
             label: "Workloads".into(),
             route: "/workloads".into(),
             plugin: None,
             badge: None,
+            disabled: None,
         },
         ShellNavItem {
             label: "Logs".into(),
             route: "/logs".into(),
             plugin: None,
             badge: None,
+            disabled: None,
         },
     ];
     if terminal {
@@ -136,6 +151,7 @@ pub fn core_nav(terminal: bool) -> Vec<ShellNavItem> {
             route: "/terminal".into(),
             plugin: None,
             badge: None,
+            disabled: None,
         });
     }
     items.push(ShellNavItem {
@@ -143,6 +159,7 @@ pub fn core_nav(terminal: bool) -> Vec<ShellNavItem> {
         route: "/config".into(),
         plugin: None,
         badge: None,
+        disabled: None,
     });
     items
 }
@@ -163,6 +180,7 @@ pub fn core_sections_with_counts(counts: &NavCounts) -> Vec<ShellSection> {
         route: route.into(),
         plugin: None,
         badge,
+        disabled: None,
     };
     vec![
         ShellSection {
@@ -212,6 +230,11 @@ pub fn sidebar_model(store: &RegistrationStore) -> Vec<ShellSection> {
 /// variant, [`section_variant`]) stays with the shell. Same ordering
 /// rules as [`sidebar_model`]; plugins without sidebar items contribute no
 /// section.
+///
+/// v1.1 also renders the plugins that *failed* to load: each gets a section
+/// with one disabled entry naming it and carrying the failure reason, in
+/// plugin-name order after the loaded ones. The rest of the shell keeps
+/// working, and the user is told which plugin is missing and why.
 pub fn plugin_sections(store: &RegistrationStore) -> Vec<ShellSection> {
     let mut sections = Vec::new();
     for plugin in store.plugins() {
@@ -225,6 +248,7 @@ pub fn plugin_sections(store: &RegistrationStore) -> Vec<ShellSection> {
                         route: item.route.clone(),
                         plugin: Some(plugin.clone()),
                         badge: None,
+                        disabled: None,
                     })
                     .collect()
             })
@@ -237,7 +261,47 @@ pub fn plugin_sections(store: &RegistrationStore) -> Vec<ShellSection> {
             });
         }
     }
+    sections.extend(failure_sections(store));
     sections
+}
+
+/// One section per plugin that failed to load, holding a single disabled entry
+/// (`plugin, reason` order is the store's, i.e. plugin name).
+///
+/// The entry carries no route: there is nowhere to go, so the shell renders it
+/// as an inert row with the reason, never as a link that 404s.
+pub fn failure_sections(store: &RegistrationStore) -> Vec<ShellSection> {
+    store
+        .failures()
+        .into_iter()
+        .map(|(plugin, reason)| ShellSection {
+            label: plugin.to_string(),
+            accent: None,
+            items: vec![ShellNavItem {
+                label: plugin.to_string(),
+                route: String::new(),
+                plugin: Some(plugin.to_string()),
+                badge: None,
+                disabled: Some(reason.to_string()),
+            }],
+        })
+        .collect()
+}
+
+/// The plugin stylesheets the shell may paint, scoped to the plugin's own
+/// section: `(plugin, scoped css)` in plugin-name order.
+///
+/// Scoping happens here, once, on the way to the DOM — see
+/// [`crate::plugin_css`]. A sheet that cannot be scoped safely is dropped
+/// rather than patched into the host's styles.
+pub fn plugin_styles(store: &RegistrationStore) -> Vec<(String, String)> {
+    store
+        .all_styles()
+        .into_iter()
+        .filter_map(|(plugin, css)| {
+            crate::plugin_css::scoped_style(plugin, css).map(|scoped| (plugin.to_string(), scoped))
+        })
+        .collect()
 }
 
 /// How many destination tabs the ≤767px bar shows. The design's bar is a
@@ -253,6 +317,11 @@ pub const BOTTOM_TAB_SLOTS: usize = 3;
 pub fn bottom_tabs(sections: &[ShellSection]) -> Vec<ShellNavItem> {
     let mut tabs: Vec<ShellNavItem> = Vec::new();
     for item in sections.iter().flat_map(|section| section.items.iter()) {
+        // A plugin that failed to load has nothing to open: its entry stays in
+        // the drawer, not in the tab bar.
+        if item.is_disabled() {
+            continue;
+        }
         if tabs.iter().any(|tab| tab.route == item.route) {
             continue;
         }
@@ -453,6 +522,7 @@ pub fn nav_item_from_plugin(plugin: &str, item: &SidebarItem) -> ShellNavItem {
         route: item.route.clone(),
         plugin: Some(plugin.into()),
         badge: None,
+        disabled: None,
     }
 }
 
@@ -537,6 +607,8 @@ mod tests {
                     color: "green".into(),
                 }],
                 renderers: Vec::new(),
+                controls: Vec::new(),
+                style: None,
             },
         )
     }

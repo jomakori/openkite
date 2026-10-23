@@ -96,6 +96,11 @@ pub fn AppShell(
     // the in-window overlays and their key listeners. Rendered only when the
     // host advertises it.
     #[props(default)] chrome: Option<Element>,
+    // The plugin stylesheets the shell may paint, already scoped to each
+    // plugin's own `[data-plugin]` section (plugin system v1.1). The host
+    // builds these with `shell::plugin_styles`; a sheet that cannot be scoped
+    // safely never reaches this prop.
+    #[props(default)] plugin_styles: Vec<(String, String)>,
     #[props(extends = GlobalAttributes)] attributes: Vec<Attribute>,
     // The host's route outlet.
     children: Element,
@@ -139,6 +144,12 @@ pub fn AppShell(
     });
     rsx! {
         div { class: "app", ..attributes,
+            // Plugin CSS rides the shell frame, scoped by the host before it
+            // arrived (see `plugin_css`): one `<style>` per plugin, keyed by
+            // name so a reload replaces the sheet instead of stacking one.
+            for (plugin , css) in plugin_styles.iter().cloned() {
+                style { key: "{plugin}", "data-plugin-css": "{plugin}", dangerous_inner_html: "{css}" }
+            }
             if native_chrome_can_render() {
                 {chrome}
             }
@@ -623,6 +634,22 @@ fn NavItem(
     #[props(default)] on_navigate: Option<EventHandler<String>>,
 ) -> Element {
     let plugin = item.plugin.is_some();
+    // A plugin the shell could not load keeps its place: the row is inert (no
+    // href, no click, out of the tab order) and says why, rather than linking
+    // into a route no plugin serves (plugin system v1.1).
+    if let Some(reason) = item.disabled.clone() {
+        return rsx! {
+            div {
+                class: if plugin { "nav-item plugin" } else { "nav-item" },
+                "data-disabled": "1",
+                "data-unsupported": "plugin-load",
+                "aria-disabled": "true",
+                "title": "{reason}",
+                span { "{item.label}" }
+                span { class: "nav-note", "{reason}" }
+            }
+        };
+    }
     rsx! {
         a {
             class: if plugin {

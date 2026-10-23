@@ -85,8 +85,16 @@ pub fn run() {
     let root = plugin_js::plugins_dir();
     let (bundles, errors) = plugin_js::collect_bundles(&root, |name| config.is_enabled(name));
     for error in &errors {
-        tracing::warn!(error = %error, "js plugin discovery failed");
+        tracing::warn!(plugin = %error.name, error = %error.reason, "js plugin discovery failed");
     }
+    // Broken plugins stay visible: the shell renders a named, disabled entry
+    // for each one instead of dropping it from the surface (v1.1).
+    crate::runtime::set_plugin_failures(
+        errors
+            .iter()
+            .map(|error| (error.name.clone(), error.reason.clone()))
+            .collect(),
+    );
     tracing::info!(count = bundles.len(), "js plugins discovered");
 
     let head = bootstrap_head();
