@@ -40,6 +40,12 @@ jobs:
               - '**.rs'
               - '**/Cargo.toml'
               - 'Cargo.lock'
+              # The design contract (crates/openkite-ui/tests/design.rs) grades
+              # the stylesheet against the vendored mockup, so a change to any
+              # of those bytes has to run the tests even when no Rust moved.
+              - 'crates/openkite-ui/assets/**'
+              - 'docs/reference/opendesign-console/**'
+              - 'docs/design-surfaces.md'
       - name: Check workflows for GNU-only sed
         run: bash .github/scripts/check-portable-sed.sh
       - name: Check the version is read from one resolver

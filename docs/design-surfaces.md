@@ -26,7 +26,7 @@ its values match the tokens in `DESIGN.md`, and its states (below) render.
 | 5 | Log panel / dock | `:287-315` → `:491-570` | `.log-panel` `.log-header` `.log-handle` `.log-body` `.log-line` `.log-time` `.log-level` `.log-method` `.log-msg` `.log-paused` — `.log-title` `.log-pod` `.log-actions` are ref-only | `terminal-bg`, `terminal-fg`, `log-info`, `log-method`, `log-error`, `shadow-terminal`, `r-md` | T6, T11, T15 | classes shipped |
 | 6 | Argo CD cards | `:316-522` → `:571-695` | *(not shipped)* `.app-grid` `.app-card` `.card-status` `.source-icon` `.tag-row` `.tag` `.card-meta` `.card-swipe-actions` | `surface`, `border`, `success`, `warn`, `danger`, `progress`, `argo`, `violet`, `shadow-rest`, `shadow-hover` | T7 (out of scope — OKA) | reference-only |
 | 7 | Mobile bottom nav | `:523-539` → `:696-726` | *(not shipped)* `.bottom-nav` `.bottom-tabs` `.bottom-tab` | `surface-solid`, `border`, `muted`, `fg`, `accent`, `argo` | T9, T16 | reference-only |
-| 8 | Resource detail side pane | `:540-569` → `:746-808` | `.inspector` `.inspector-header` `.inspector-title` `.inspector-eyebrow` `.inspector-body` `.kv-list` `.kv-row` `.inspector-actions` | `surface`, `border`, `fg`, `muted`, `subtle`, `accent`, `shadow-hover`, `r-md` | T18 | classes shipped |
+| 8 | Resource detail side pane | `:540-569` → `:746-808` | `.inspector` `.inspector-header` `.inspector-title` `.inspector-eyebrow` `.inspector-tabs` `.tab-btn` `.tab-btn.active` `.inspector-body` `.kv-list` `.kv-row` `.inspector-actions` | `surface`, `border`, `fg`, `muted`, `subtle`, `accent`, `shadow-hover`, `r-md` | T18 | classes shipped |
 | 9 | Toast (cross-cutting) | `:570` → `:837-855` | `.toast` `.toast.show` | `fg`, `shadow-hover`, `r-md` | all write surfaces | classes shipped |
 | 10 | Pull-to-refresh indicator | *(JS-injected)* → `:808-827` | `.pull-indicator` | `surface-solid`, `border`, `fg`, `shadow-hover`, `r-pill` | T9, T11 | classes shipped |
 
@@ -104,6 +104,51 @@ inventory, the log panel and Argo CD. **Not depicted, therefore not graded
 against the reference:** the command palette, the cluster switcher, CRUD modals,
 the code editor, the terminal view, and the secrets value-masking controls. They
 are graded against `DESIGN.md` only.
+
+## Reference contract (G1)
+
+The class vocabulary, the token set and the state selectors are **derived from
+the vendored mockup**, not listed here: `crates/openkite-ui/tests/design.rs`
+parses `docs/reference/opendesign-console/openkite-console.css` and asserts that
+everything it defines exists in the shipped stylesheet. That only holds while
+the reference bytes stay the reference a reviewer looked at, so the bytes are
+pinned by SHA-256 in the block below. A re-grab that changes the mockup fails
+the contract until this block is re-derived, which is the point: the failure
+message hands back ready-to-paste `ref` lines, and the class/token/state
+failures that follow say what moved.
+
+`ref-only` is the only hand-written part. Each entry is a reference selector the
+app deliberately does not ship, with the reason. An entry that no longer matches
+anything in the mockup fails the contract too, so the list cannot rot.
+
+```design-contract
+# Pinned vendored mockup bytes (G1). Re-derive; never hand-edit the hash alone.
+ref openkite-console.css sha256 11aed3d3f58af7ed2eb6a340fb1399fd3520e2924905f8bdc85bdea01a6adbb1
+ref openkite-console.html sha256 7f3e2931f56fad821f41b1e82116b9ef69c289cdbc2f5f24b03517015c9ed1e4
+
+# Reference selectors the app does not ship, and why.
+ref-only .cell-value the mockup's td wrapper that right-aligns values in the mobile card layout; the repo table renders .table-cell directly
+ref-only .node the mockup's Node-column value text (fg); the repo inventory has no Node column and wraps every value in .table-cell
+ref-only .svg-defs the mockup's inline icon-sprite container; the repo embeds icons per component
+ref-only .paused only ever a modifier on .log-panel, see .log-panel.paused below
+ref-only .log-title mockup log-header chrome; the repo's dock owns its own header (.dock-tab/.dock-menu)
+ref-only .log-pod mockup log-header chrome (pod name); the dock header carries the target instead
+ref-only .log-actions mockup log-header chrome (icon cluster); the repo's dock toolbar carries those actions
+ref-only .log-panel.open the mockup's mobile drawer transform; the repo log panel is a dock surface and is never translated off-canvas
+ref-only .log-panel.paused the repo expresses pause by rendering .log-paused (components/logs.rs) rather than styling a base+state pair
+ref-only .bottom-tab.argo.active the Argo destination tab is plugin-owned (OKA, surface 6 out of scope); the repo ships .bottom-tab.active
+```
+
+Re-deriving after a mockup change:
+
+1. Replace the vendored file(s) under `docs/reference/opendesign-console/`.
+2. `cargo test -p openkite-ui --test design` — the hash test fails and prints
+   the new `ref` lines.
+3. Paste them in, re-run: the class/token/state tests now name exactly what the
+   new mockup added or dropped. Ship the rules, or add `ref-only` lines with a
+   reason.
+4. Update `docs/reference/opendesign-console/README.md`'s hash table and say in
+   the PR what moved in the mockup.
 
 ## Provenance
 
