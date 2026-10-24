@@ -22,6 +22,18 @@ fn temp_root() -> tempfile::TempDir {
     tempfile::tempdir().expect("tempdir")
 }
 
+/// The client bundle URL a rendered document imports.
+///
+/// The host versions it by the hash of the staged bytes (OKT-195), so the value
+/// is only knowable from the page itself — which is the point: a document and
+/// the wasm it boots are one build.
+fn client_import(page: &str) -> String {
+    const OPEN: &str = "import init from \"";
+    let start = page.find(OPEN).expect("the page imports the client bundle") + OPEN.len();
+    let rest = &page[start..];
+    rest[..rest.find('"').expect("the import is a quoted URL")].to_string()
+}
+
 /// A `subscribe` request in the envelope the console's JS posts.
 fn subscribe_envelope() -> Value {
     json!({
@@ -363,13 +375,19 @@ async fn every_console_route_boots_the_client_the_image_stages() {
         for boot in [
             "id=\"openkite-snapshot\"",
             "window.initial_dioxus_hydration_data=",
-            r#"import init from "/openkite-web-client.js";"#,
         ] {
             assert!(
                 body.contains(boot),
                 "{route} does not boot the client ({boot}): {body}"
             );
         }
+        // The import is versioned by the bundle's own bytes, so a document can
+        // only ever boot the wasm from the build that rendered it (OKT-195).
+        let import = client_import(&body);
+        assert!(
+            import.starts_with("/assets/bundle/") && import.ends_with("/openkite-web-client.js"),
+            "{route} boots an unversioned client bundle ({import}): {body}"
+        );
     }
 }
 

@@ -54,6 +54,10 @@ openkite = { path = "../openkite-desktop", default-features = false }
 axum = "0.8"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "time", "io-util"] }
 tower-http = { version = "0.6", features = ["fs"] }
+# The hydration pair is addressed by the hash of its bytes (OKT-195): the
+# document imports `/assets/bundle/{version}/…`, so the wasm a browser loads
+# belongs to the build that rendered the page.
+sha2 = "0.10"
 kube = "4"
 # The host parses the bridge's `list pods` answer into the typed pods the
 # shared console maps into table rows.
