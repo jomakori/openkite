@@ -51,7 +51,18 @@ jobs:
         env:
           OPENKITE_WEB_BIN: ${{ github.workspace }}/target/debug/openkite-web
           OPENKITE_WEB_ROOT: ${{ runner.temp }}/web-bundle
-        run: node visual/browser/capture.mjs visual/browser/baselines
+        run: |
+          set -euo pipefail
+          if [[ -z "${OPENKITE_BROWSER:-}" ]]; then
+            OPENKITE_BROWSER="$(command -v google-chrome || command -v google-chrome-stable \
+              || command -v chromium || command -v chromium-browser || true)"
+          fi
+          if [[ ! -x "$OPENKITE_BROWSER" ]]; then
+            printf 'no Chrome/Chromium on this runner\n' >&2
+            exit 1
+          fi
+          export OPENKITE_BROWSER
+          node visual/browser/capture.mjs visual/browser/baselines
       - name: Report which baselines moved
         run: |
           git status --porcelain -- e2e/visual/browser/baselines
