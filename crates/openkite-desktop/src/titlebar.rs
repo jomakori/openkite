@@ -68,7 +68,7 @@ pub fn window_builder(theme: TitleBarTheme) -> dioxus::desktop::WindowBuilder {
     // pins the content area to `parity::GRADED_VIEWPORT`; the browser side is
     // driven to the same size by the capture harness. Startup only, opt-in by
     // environment: a normal launch keeps the platform's window size.
-    if std::env::var_os(openkite_ui::parity::SNAPSHOT_DIR_ENV).is_some() {
+    if std::env::var_os(crate::parity::SNAPSHOT_DIR_ENV).is_some() {
         let (width, height) = openkite_ui::parity::GRADED_VIEWPORT;
         window.with_inner_size(dioxus::desktop::LogicalSize::new(
             width as f64,
