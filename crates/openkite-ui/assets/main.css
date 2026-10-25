@@ -309,7 +309,11 @@ body {
 }
 .bottom-tabs {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* One cell per tab the model renders — the destinations, the Logs toggle
+     and the drawer's Menu tab — so the bar never wraps or overflows when a
+     host's sidebar model carries a different number of routes. */
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(44px, 1fr);
   height: 100%;
 }
 .bottom-tab {
@@ -319,6 +323,7 @@ body {
   justify-content: center;
   gap: 3px;
   width: 100%;
+  min-width: 44px;
   min-height: 66px;
   font: inherit;
   font-size: 10px;
@@ -331,6 +336,11 @@ body {
   box-sizing: border-box;
 }
 .bottom-tab.active { color: var(--fg); }
+/* The mockup's tab glyph: 19px, muted until its tab is the current one; the
+   Argo CD tab keeps the plugin's own accent when active. */
+.bottom-tab .icon { width: 19px; height: 19px; color: var(--muted); }
+.bottom-tab.active .icon { color: var(--accent); }
+.bottom-tab.argo.active .icon { color: var(--argo); }
 
 .not-found { text-align: center; padding: 48px; color: var(--subtle); }
 
@@ -913,7 +923,57 @@ body {
   font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
   color: var(--term-bright-white);
 }
-.log-handle { padding: 4px 12px; cursor: pointer; user-select: none; }
+.log-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.log-pod {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: color-mix(in srgb, var(--terminal-fg) 50%, transparent);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.log-actions { margin-left: auto; display: flex; gap: 6px; }
+/* Thumb-sized, and quiet enough to sit inside the terminal header. */
+.log-actions .icon-btn {
+  width: 44px; height: 44px;
+  min-width: 44px; min-height: 44px;
+  background: transparent;
+  border-color: color-mix(in srgb, var(--terminal-fg) 12%, transparent);
+  color: var(--terminal-fg);
+  box-shadow: none;
+}
+.log-handle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+  font: inherit;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: color-mix(in srgb, var(--terminal-fg) 55%, transparent);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--terminal-fg) 12%, transparent);
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+/* The grip: the sheet's drag affordance, drawn above its label. */
+.log-handle::before {
+  content: "";
+  width: 36px;
+  height: 4px;
+  border-radius: var(--r-pill);
+  background: currentColor;
+}
+/* The ≤767px log sheet and its scrim: the desktop dock already carries the
+   logs, so both are below-768px affordances only. */
+.log-sheet { display: none; }
+.log-scrim { display: none; }
 .log-body { flex: 1; overflow: auto; padding: 6px 12px; }
 .log-line { display: flex; gap: 8px; align-items: baseline; }
 .log-time { color: var(--term-bright-black); flex-shrink: 0; }
@@ -1339,6 +1399,45 @@ body {
   }
   .table-cell[data-label="Name"] { padding-top: 14px; }
   .resource-name { justify-content: flex-end; }
+  /* The log sheet: the mockup's fixed bottom sheet, parked below the bar
+     until the Logs tab (or its handle) opens it. `.log-sheet` keeps the
+     desktop dock's log panel out of this treatment. */
+  .log-sheet {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: 78px;
+    height: min(58vh, 430px);
+    max-height: none;
+    z-index: 60;
+    margin-top: 0;
+    transform: translateY(calc(100% + 78px));
+    /* Parked off-screen is also unfocusable: visibility keeps a closed sheet's
+       controls out of the tab order, and the delayed step lets the slide
+       finish before it hides. */
+    visibility: hidden;
+    transition:
+      transform 0.28s ease,
+      visibility 0.28s;
+    display: flex;
+    flex-direction: column;
+  }
+  .log-sheet.open {
+    transform: translateY(0);
+    visibility: visible;
+  }
+  .log-handle { display: flex; }
+  .log-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 59;
+    padding: 0;
+    background: color-mix(in oklab, var(--bg) 55%, transparent);
+    border: 0;
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+  }
+  .log-scrim.show { display: block; }
   .bottom-nav { display: block; }
 }
 

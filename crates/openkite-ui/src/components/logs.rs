@@ -11,6 +11,7 @@ use openkite_api::pod::{level_class, pick_default_container, should_show_paused_
 
 use crate::design::tokens::R_SM;
 use crate::runtime::{LOGS_BUFFER, LOGS_CONTAINER, LOGS_FOLLOW, SELECTED_POD};
+use crate::touch::{SHEET_DISMISS_MAX_PX, SHEET_DISMISS_MIN_PX};
 
 #[component]
 pub fn LogsView() -> Element {
@@ -178,6 +179,153 @@ pub fn LogsView() -> Element {
                                 } else {
                                     span { class: "log-level {cls}", "{text}" }
                                 }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// The ≤767px log surface: the design's bottom sheet, the same `.log-panel`
+/// the dock carries, parked below the bottom bar.
+///
+/// The mockup puts a `.log-handle` — a grip plus "Logs" — on the sheet's top
+/// edge, and reveals the sheet from the bar's Logs tab. The handle is the
+/// sheet's only drag affordance: a downward drag past `resolve_sheet_drag`'s
+/// threshold dismisses it, a shorter one springs it back. The stylesheet owns
+/// the geometry (`.log-sheet`, exact mockup values at ≤767px), so above 768px
+/// this markup renders nothing at all.
+#[component]
+pub fn LogSheet(
+    #[props(default)] open: bool,
+    // The handle and the bar's Logs tab both toggle the sheet.
+    on_toggle: EventHandler<()>,
+    // The scrim, Escape and a dismissing drag close it.
+    on_close: EventHandler<()>,
+) -> Element {
+    let pod: Option<PodObject> = SELECTED_POD.read().clone();
+    let pod_name = pod
+        .as_ref()
+        .map(|pod| pod.name.clone())
+        .unwrap_or_else(|| "No pod selected".to_string());
+    let lines_snapshot: Vec<(String, &'static str)> = {
+        let buf = LOGS_BUFFER.read();
+        buf.lines()
+            .iter()
+            .map(|line| (line.clone(), level_class(line)))
+            .collect()
+    };
+    let following = LOGS_FOLLOW.cloned();
+    let show_paused = should_show_paused_hint(following, false);
+
+    // The handle's drag: track the pointer from the handle down the sheet,
+    // follow it while it moves, and on release either dismiss or spring back.
+    // `touch-action: none` on the handle keeps the page from scrolling under
+    // the drag.
+    use_effect(move || {
+        // The dismiss threshold is the crate's, not the script's: the same
+        // quarter-of-the-sheet rule `resolve_sheet_drag` grades, bounded by
+        // the constants the tests pin.
+        let install = format!(
+            r#"
+            (function () {{
+                if (window.__openkite_sheet_drag) return;
+                var handle = document.querySelector('.log-sheet .log-handle');
+                if (!handle) {{ return; }}
+                window.__openkite_sheet_drag = true;
+                var sheet = handle.closest('.log-sheet');
+                var startY = 0, dy = 0, dragging = false;
+                var minThreshold = {min};
+                var maxThreshold = {max};
+                handle.addEventListener('pointerdown', function (event) {{
+                    dragging = true;
+                    startY = event.clientY;
+                    dy = 0;
+                    handle.setPointerCapture(event.pointerId);
+                    sheet.style.transition = 'none';
+                }});
+                handle.addEventListener('pointermove', function (event) {{
+                    if (!dragging) return;
+                    dy = Math.max(0, event.clientY - startY);
+                    sheet.style.transform = 'translateY(' + dy + 'px)';
+                }});
+                function release() {{
+                    if (!dragging) return;
+                    dragging = false;
+                    sheet.style.transition = '';
+                    sheet.style.transform = '';
+                    var threshold = Math.min(
+                        maxThreshold,
+                        Math.max(minThreshold, sheet.clientHeight * 0.25)
+                    );
+                    if (dy >= threshold) dioxus.send('close');
+                }}
+                handle.addEventListener('pointerup', release);
+                handle.addEventListener('pointercancel', release);
+            }})();
+        "#,
+            min = SHEET_DISMISS_MIN_PX,
+            max = SHEET_DISMISS_MAX_PX
+        );
+        let mut eval = document::eval(&install);
+        spawn(async move {
+            while let Ok(action) = eval.recv::<String>().await {
+                if action == "close" {
+                    on_close.call(());
+                }
+            }
+        });
+    });
+
+    rsx! {
+        section {
+            class: if open { "log-panel log-sheet open" } else { "log-panel log-sheet" },
+            aria_label: "Pod logs",
+            button {
+                class: "log-handle",
+                r#type: "button",
+                "aria-expanded": if open { "true" } else { "false" },
+                onclick: move |_| on_toggle.call(()),
+                span { "Logs" }
+            }
+            div { class: "log-header",
+                div { class: "log-title",
+                    span { "Logs" }
+                    span { class: "log-pod", "{pod_name}" }
+                }
+                div { class: "log-actions",
+                    button {
+                        class: "icon-btn",
+                        r#type: "button",
+                        aria_label: if following { "Pause logs" } else { "Resume logs" },
+                        "aria-pressed": if following { "false" } else { "true" },
+                        onclick: move |_| *LOGS_FOLLOW.write() = !following,
+                        if following { "❙❙" } else { "▶" }
+                    }
+                    button {
+                        class: "icon-btn",
+                        r#type: "button",
+                        aria_label: "Clear logs",
+                        onclick: move |_| LOGS_BUFFER.write().clear(),
+                        "×"
+                    }
+                }
+            }
+            if show_paused {
+                div { class: "log-paused", "paused — scroll to bottom to resume" }
+            }
+            div { class: "log-body",
+                if lines_snapshot.is_empty() {
+                    span { style: "color: var(--subtle);", "Select a container to view logs." }
+                } else {
+                    for (text, cls) in lines_snapshot.iter().cloned() {
+                        div { class: "log-line",
+                            if cls.is_empty() {
+                                span { "{text}" }
+                            } else {
+                                span { class: "log-level {cls}", "{text}" }
                             }
                         }
                     }
