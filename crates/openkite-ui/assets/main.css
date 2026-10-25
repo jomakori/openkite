@@ -923,6 +923,25 @@ body {
   font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
   color: var(--term-bright-white);
 }
+.log-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.log-pod {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: color-mix(in srgb, var(--terminal-fg) 50%, transparent);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.log-actions { margin-left: auto; display: flex; gap: 6px; }
+/* Thumb-sized, and quiet enough to sit inside the terminal header. */
+.log-actions .icon-btn {
+  width: 44px; height: 44px;
+  min-width: 44px; min-height: 44px;
+  background: transparent;
+  border-color: color-mix(in srgb, var(--terminal-fg) 12%, transparent);
+  color: var(--terminal-fg);
+  box-shadow: none;
+}
 .log-handle {
   display: none;
   align-items: center;
