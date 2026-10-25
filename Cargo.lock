@@ -4225,6 +4225,7 @@ name = "openkite-web"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "async-stream",
  "axum",
  "base64",
  "ciborium",
@@ -4232,6 +4233,7 @@ dependencies = [
  "dioxus-core",
  "dioxus-ssr",
  "dioxus-web",
+ "futures",
  "http",
  "js-sys",
  "k8s-openapi",
