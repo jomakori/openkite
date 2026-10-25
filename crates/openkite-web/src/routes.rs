@@ -9,15 +9,18 @@
 //! same-origin round-trip the hydrating client refreshes through, and `GET
 //! /assets/fonts/{file}` is where the stylesheet's `@font-face` URLs land.
 
+use std::convert::Infallible;
 use std::path::Path;
 use std::sync::Arc;
 
 use axum::extract::{OriginalUri, Path as UrlPath, RawQuery, State};
 use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE};
 use axum::http::StatusCode;
+use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use futures::stream::Stream;
 use k8s_openapi::api::core::v1::Pod;
 use openkite_api::bridge::{ApiRequest, ApiResponse};
 use openkite_host::bridge::Bridge;
@@ -44,6 +47,7 @@ pub fn router(bridge: SharedBridge, web_root: &Path) -> Router {
         .route("/", get(ssr_root))
         .route("/assets/fonts/{file}", get(font_get))
         .route("/openkite", post(bridge_post))
+        .route("/openkite/events", get(events_get))
         .route("/openkite-spike", post(spike_post))
         .route("/api/gateway", post(gateway_post))
         .fallback_service(assets)
@@ -80,6 +84,25 @@ async fn bridge_post(State(bridge): State<SharedBridge>, body: String) -> Json<A
 /// Answer one console context/settings POST, in the same envelope.
 async fn spike_post(State(bridge): State<SharedBridge>, body: String) -> Json<ApiResponse> {
     Json(spike::handle(&body, bridge.client().is_some()))
+}
+
+/// Stream live push messages to the browser over SSE, so the console stops
+/// polling `/api/gateway` for a snapshot and instead reacts to the host's
+/// pushes as they happen.
+///
+/// Each [`openkite_host::push::PushMessage`] is sent as one `message` event
+/// whose `data` is the message JSON-encoded; a dropped/lagged broadcast
+/// receiver resumes from the newest message rather than closing the stream
+/// (see [`openkite_host::push::recv_sse`]).
+async fn events_get() -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    let mut rx = openkite_host::push::sse_subscribe();
+    let stream = async_stream::stream! {
+        while let Some(msg) = openkite_host::push::recv_sse(&mut rx).await {
+            let data = serde_json::to_string(&msg).unwrap_or_default();
+            yield Ok(Event::default().event("message").data(data));
+        }
+    };
+    Sse::new(stream).keep_alive(KeepAlive::default())
 }
 
 /// Render the console root server-side from the snapshot the host holds.
