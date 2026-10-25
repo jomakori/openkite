@@ -20,6 +20,21 @@ use support::{raw_http, raw_http_bytes};
 /// wasm module it imports. Both land in `OPENKITE_WEB_ROOT` in the image.
 const CLIENT_JS: &[u8] = b"export default function init() {}\n";
 const CLIENT_WASM: &[u8] = b"\0asm\x01\0\0\0";
+const SNIPPET_PATH: &str = "snippets/dioxus-interpreter-js-20451f6aefec841d/inline0.js";
+const SNIPPET_JS: &[u8] = b"export function RawInterpreter() {}\n";
+
+/// The client bundle URL a document serves, read off the page the way a browser
+/// resolves it. The host versions the path by the hash of the staged bytes
+/// (OKT-195), so the test cannot assume the value — only that it is versioned.
+fn client_import(page: &str) -> String {
+    const OPEN: &str = "import init from \"";
+    let start = page
+        .find(OPEN)
+        .unwrap_or_else(|| panic!("the document imports no client bundle: {page}"))
+        + OPEN.len();
+    let rest = &page[start..];
+    rest[..rest.find('"').expect("the import is a quoted URL")].to_string()
+}
 
 /// Every route the sidebar links to, plus a path below one of them: in a
 /// browser each is a document navigation, so each has to answer the console.
@@ -94,9 +109,13 @@ async fn the_shipped_binary_serves_the_console_on_every_deep_link() {
                         response.contains("data-surface=\"app\""),
                         "{route} did not render the console: {response}"
                     );
+                    // Versioned by the hash of the staged bytes, so the page
+                    // boots the wasm from the build that rendered it (OKT-195).
+                    let import = client_import(&response);
                     assert!(
-                        response.contains(r#"import init from "/openkite-web-client.js";"#),
-                        "{route} does not boot the client the bundle carries: {response}"
+                        import.starts_with("/assets/bundle/")
+                            && import.ends_with("/openkite-web-client.js"),
+                        "{route} boots an unversioned client bundle ({import}): {response}"
                     );
                 }
                 return;
@@ -118,10 +137,24 @@ async fn the_shipped_binary_serves_the_bundle_its_console_boots() {
         .await
         .expect("host serves");
 
-    let client = raw_http_bytes(addr, "GET", "/openkite-web-client.js", None).await;
+    // Ask the page which bundle it boots, then fetch exactly that: the URL a
+    // browser would use, not one the test guessed.
+    let document = raw_http(addr, "GET", "/", None).await;
+    let client_url = client_import(&document);
+    assert!(
+        client_url.starts_with("/assets/bundle/"),
+        "the document does not name a versioned bundle: {client_url}"
+    );
+
+    let client = raw_http_bytes(addr, "GET", &client_url, None).await;
     assert!(
         String::from_utf8_lossy(&client).contains("200 OK"),
         "the client glue is not served: {}",
+        String::from_utf8_lossy(&client)
+    );
+    assert!(
+        String::from_utf8_lossy(&client).contains("public, max-age=31536000, immutable"),
+        "a hashed asset must be cacheable for good: {}",
         String::from_utf8_lossy(&client)
     );
     assert!(
@@ -129,10 +162,50 @@ async fn the_shipped_binary_serves_the_bundle_its_console_boots() {
         "the client glue did not round-trip byte for byte"
     );
 
-    let wasm = raw_http_bytes(addr, "GET", "/openkite-web-client_bg.wasm", None).await;
+    let wasm_url = client_url.replace("openkite-web-client.js", "openkite-web-client_bg.wasm");
+    let wasm = raw_http_bytes(addr, "GET", &wasm_url, None).await;
     assert!(
         wasm.ends_with(CLIENT_WASM),
         "the wasm module did not round-trip byte for byte"
+    );
+    assert!(
+        String::from_utf8_lossy(&wasm).contains("application/wasm"),
+        "the module must be served as application/wasm: {}",
+        String::from_utf8_lossy(&wasm)
+    );
+
+    // The glue imports its snippets relatively, so they have to answer under
+    // the same version — this is the part a pair-only mount gets wrong.
+    let snippet_url = client_url.replace("openkite-web-client.js", SNIPPET_PATH);
+    let snippet = raw_http_bytes(addr, "GET", &snippet_url, None).await;
+    assert!(
+        String::from_utf8_lossy(&snippet).contains("200 OK"),
+        "the glue's relative import is not served: {}",
+        String::from_utf8_lossy(&snippet)
+    );
+    assert!(
+        snippet.ends_with(SNIPPET_JS),
+        "the snippet did not round-trip byte for byte"
+    );
+    assert!(
+        String::from_utf8_lossy(&snippet).contains("public, max-age=31536000, immutable"),
+        "a file of the hashed set is cacheable for good: {}",
+        String::from_utf8_lossy(&snippet)
+    );
+
+    // Bytes from another build are not under this one's name.
+    let stale = "openkite-web-client.js";
+    let stale = raw_http_bytes(
+        addr,
+        "GET",
+        &format!("/assets/bundle/deadbeefdeadbeef/{stale}"),
+        None,
+    )
+    .await;
+    assert!(
+        String::from_utf8_lossy(&stale).contains("404"),
+        "an unknown bundle version must 404, not serve this build: {}",
+        String::from_utf8_lossy(&stale)
     );
 }
 
@@ -143,6 +216,9 @@ fn image_web_root() -> tempfile::TempDir {
     std::fs::write(root.path().join("openkite-web-client.js"), CLIENT_JS).expect("write the glue");
     std::fs::write(root.path().join("openkite-web-client_bg.wasm"), CLIENT_WASM)
         .expect("write the wasm");
+    let snippet = root.path().join(SNIPPET_PATH);
+    std::fs::create_dir_all(snippet.parent().expect("snippet dir")).expect("mkdir snippets");
+    std::fs::write(&snippet, SNIPPET_JS).expect("write the snippet");
     root
 }
 
