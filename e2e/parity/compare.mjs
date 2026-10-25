@@ -16,9 +16,12 @@
 //   * for each contract node: presence, the class chain, the contract `data-*`
 //     attributes, and the computed values of the properties named in
 //     `crates/openkite-ui/assets/parity-snapshot.js`.
-// What is reported but not graded: class-token inventories and match counts.
-// The hosts run on different data (the desktop boots disconnected, the browser
-// host serves fixtures), so inventory counts are review material, not parity.
+// What is reported but not graded: class-token inventories, match counts and the
+// host viewport (a window manager may claim a title bar; only the breakpoint
+// band is graded). What is normalised away, because it is serialisation rather
+// than design: hydration bookkeeping attributes, colour channels that differ
+// inside one 8-bit code, and `auto` on one host against the length the other
+// host resolved for the same box.
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -71,6 +74,82 @@ function unionKeys(...objects) {
 
 function sorted(values) {
   return [...values].sort();
+}
+
+// --- Normalisation ---------------------------------------------------------
+// Both hosts render the same crate, but not through the same engine or the same
+// hydration path. Three differences below are serialisation, not design; they
+// are normalised here so the gate keeps failing on everything else.
+
+/**
+ * Dioxus tags the nodes it hydrates with framework bookkeeping ids and paths.
+ * The wry desktop host runs no hydration, so it never serialises them: they are
+ * framework state, not part of the design contract, on either host.
+ */
+function isHydrationAttr(name) {
+  return name === 'data-dioxus-id' || name === 'data-node-hydration' || name.startsWith('data-hydration-');
+}
+
+/** Half an 8-bit code: sub-pixel rounding fits, one whole colour step does not. */
+const COLOUR_TOLERANCE = 0.5;
+
+/**
+ * Parse an engine-serialised colour into 8-bit sRGB channels plus alpha, or
+ * `null` when the value is not a colour. Engines round channels at different
+ * depths (`0.646` vs `0.646745`), so the same declared token arrives as two
+ * different strings; comparing numbers is what makes that one colour.
+ */
+function parseColour(value) {
+  const text = String(value).trim().toLowerCase();
+  if (text === 'transparent') return [0, 0, 0, 0];
+  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/.exec(text);
+  if (hex) {
+    const digits = hex[1].length === 3 ? [...hex[1]].map((digit) => digit + digit).join('') : hex[1];
+    const channel = (index) => parseInt(digits.slice(index, index + 2), 16);
+    return [channel(0), channel(2), channel(4), 1];
+  }
+  const call = /^(?:rgba?|color)\(\s*(?:srgb\s+)?([^)]*)\)$/.exec(text);
+  if (!call) return null;
+  // `color(srgb ...)` states channels in 0..1, `rgb()`/`rgba()` in 0..255.
+  const unitScale = text.startsWith('color(') ? 255 : 1;
+  const parts = call[1].split(/[\s,/]+/).filter(Boolean);
+  if (parts.length < 3 || parts.length > 4) return null;
+  const numbers = parts.map((part, index) => {
+    const percent = part.endsWith('%');
+    const number = parseFloat(part);
+    if (!Number.isFinite(number)) return NaN;
+    if (index === 3) return percent ? number / 100 : number;
+    return percent ? number * 2.55 : number * unitScale;
+  });
+  if (numbers.some((number) => !Number.isFinite(number))) return null;
+  return [numbers[0], numbers[1], numbers[2], numbers.length === 4 ? numbers[3] : 1];
+}
+
+/** True when both values are colours and every channel agrees within tolerance. */
+function coloursEqual(left, right) {
+  const a = parseColour(left);
+  const b = parseColour(right);
+  if (!a || !b) return false;
+  return a.every((channel, index) => Math.abs(channel - b[index]) <= COLOUR_TOLERANCE);
+}
+
+/**
+ * Chromium serialises a content-derived box as `auto` where WebKit resolves the
+ * same box to a length; a keyword default only equals a length that actually
+ * resolved, and any other pairing stays a delta.
+ */
+function autoEquivalent(left, right) {
+  const pair = [left, right].map((value) => (value === null || value === undefined ? '' : String(value).trim()));
+  const length = pair[0] === 'auto' ? pair[1] : pair[1] === 'auto' ? pair[0] : null;
+  if (length === null) return false;
+  const resolved = /^(\d+(?:\.\d+)?)px$/.exec(length);
+  return Boolean(resolved) && Number(resolved[1]) > 0;
+}
+
+/** Both hosts agree, or differ only in ways that are serialisation, not design. */
+function styleValuesEqual(left, right) {
+  if (left === right) return true;
+  return coloursEqual(left, right) || autoEquivalent(left, right);
 }
 
 /**
@@ -138,12 +217,23 @@ function gradeRoute(route, slug, desktopDir, webDir) {
     const left = desktop.nodes?.[selector] ?? { present: false };
     const right = web.nodes?.[selector] ?? { present: false };
     if (left.present !== right.present) {
-      push({
-        kind: 'node',
-        selector,
-        desktop: left.present ? `present (${left.count})` : 'absent',
-        web: right.present ? `present (${right.count})` : 'absent',
-      });
+      // A node the *host* decides to paint (a capability notice no chrome-less
+      // host has, a surface one host supplies itself) is review material.
+      if (left.host_conditional || right.host_conditional) {
+        notices.push({
+          route,
+          kind: 'host-presence',
+          detail: `${selector}: desktop ${left.present ? `present (${left.count})` : 'absent'}, ` +
+            `web ${right.present ? `present (${right.count})` : 'absent'} (host-conditional contract node)`,
+        });
+      } else {
+        push({
+          kind: 'node',
+          selector,
+          desktop: left.present ? `present (${left.count})` : 'absent',
+          web: right.present ? `present (${right.count})` : 'absent',
+        });
+      }
       continue;
     }
     if (!left.present) {
@@ -163,6 +253,8 @@ function gradeRoute(route, slug, desktopDir, webDir) {
       if (inLeft !== inRight) push({ kind: 'class', selector, key: token, desktop: inLeft, web: inRight });
     }
     for (const name of unionKeys(left.attrs, right.attrs)) {
+      // Hydration bookkeeping differs by construction, not by design.
+      if (isHydrationAttr(name)) continue;
       const leftValue = left.attrs?.[name] ?? null;
       const rightValue = right.attrs?.[name] ?? null;
       if (leftValue !== rightValue) push({ kind: 'attr', selector, key: name, desktop: leftValue, web: rightValue });
@@ -170,9 +262,9 @@ function gradeRoute(route, slug, desktopDir, webDir) {
     for (const property of unionKeys(left.style, right.style)) {
       const leftValue = left.style?.[property] ?? null;
       const rightValue = right.style?.[property] ?? null;
-      if (leftValue !== rightValue) {
-        push({ kind: 'style', selector, property, desktop: leftValue, web: rightValue });
-      }
+      // Equal up to colour rounding or a keyword default vs its resolved length.
+      if (styleValuesEqual(leftValue, rightValue)) continue;
+      push({ kind: 'style', selector, property, desktop: leftValue, web: rightValue });
     }
   }
 

@@ -29,6 +29,28 @@ Reported for review, never graded:
   (disconnected) and the browser host (fixtures) are expected to differ,
 - the absolute viewport sizes each host reported.
 
+Normalised before grading — same design, different engine or hydration path:
+
+- hydration bookkeeping (`data-dioxus-id`, `data-node-hydration`, `data-hydration-*`)
+  on either host: Dioxus stamps them on hydrated nodes and the wry desktop host
+  never serialises them, so they are framework state rather than contract;
+- colour channels that differ inside half an 8-bit code: engines round sRGB at
+  different depths (`0.646` vs `0.646745` for one declared token), so colours are
+  parsed and compared channel-wise — a whole code of movement still fails;
+- `auto` on one host against the length the other resolved for the box: Chromium
+  reports a content-derived box as `auto` where WebKit resolves a length; any
+  other keyword pairing is still a delta;
+- `height` on a content-derived box is not a contract property: `.topbar`
+  declares `min-height`, so the floor it declares is what parity compares;
+- `data-surface` is graded only on the app root; elsewhere it marks host-supplied
+  content (the OKT-137 console exists only in the browser host).
+
+A contract node whose *presence* the host decides is marked `host_conditional` in
+the extractor: the capability notice a chrome-less host renders, and the route
+panel a host with its own surface replaces. A presence difference there is review
+material; the node's classes, attributes and styling are still graded whenever
+both hosts paint it.
+
 A failing run prints every delta with both hosts' values, and the same content
 lands in `parity-report.json`.
 

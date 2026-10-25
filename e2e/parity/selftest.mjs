@@ -246,6 +246,133 @@ check('count differences are notices, not deltas', (root) => {
   if (!stdout.includes('count: .tag: desktop 1, web 3')) throw new Error(`count notice missing:\n${stdout}`);
 });
 
+check('hydration bookkeeping attributes are ignored on both hosts', (root) => {
+  const { desktopDir, webDir } = writePair(root, {
+    desktop: (route) => ({
+      nodes: {
+        ...snapshot(route).nodes,
+        '.app': {
+          ...snapshot(route).nodes['.app'],
+          attrs: { 'data-surface': 'app', 'data-dioxus-id': '81' },
+        },
+      },
+    }),
+    web: (route) => ({
+      nodes: {
+        ...snapshot(route).nodes,
+        '.app': {
+          ...snapshot(route).nodes['.app'],
+          attrs: {
+            'data-surface': 'app',
+            'data-dioxus-id': '3',
+            'data-node-hydration': '0.1.2',
+            'data-hydration-path': 'div/div/2',
+          },
+        },
+      },
+    }),
+  });
+  const { status, stdout } = run(desktopDir, webDir);
+  if (status !== 0) throw new Error(`hydration markers must not be graded, got ${status}\n${stdout}`);
+});
+
+check('a non-hydration attribute difference is still a delta', (root) => {
+  const { desktopDir, webDir } = writePair(root, {
+    web: (route) => ({
+      nodes: {
+        ...snapshot(route).nodes,
+        '.app': { ...snapshot(route).nodes['.app'], attrs: { 'data-surface': 'shell' } },
+      },
+    }),
+  });
+  const { status, stdout } = run(desktopDir, webDir);
+  if (status !== 1) throw new Error(`expected exit 1, got ${status}\n${stdout}`);
+  if (!stdout.includes('.app attribute data-surface')) throw new Error(`delta not named:\n${stdout}`);
+});
+
+check('sub-pixel colour rounding on the same token is not a delta', (root) => {
+  const { desktopDir, webDir } = writePair(root, {
+    desktop: (route) => ({
+      nodes: {
+        ...snapshot(route).nodes,
+        '.app': { ...snapshot(route).nodes['.app'], style: { ...snapshot(route).nodes['.app'].style, 'background-color': 'color(srgb 1 1 1 / 0.646)' } },
+      },
+    }),
+    web: (route) => ({
+      nodes: {
+        ...snapshot(route).nodes,
+        '.app': { ...snapshot(route).nodes['.app'], style: { ...snapshot(route).nodes['.app'].style, 'background-color': 'color(srgb 1 1 1 / 0.646745)' } },
+      },
+    }),
+  });
+  const { status, stdout } = run(desktopDir, webDir);
+  if (status !== 0) throw new Error(`rounding inside one code must pass, got ${status}\n${stdout}`);
+});
+
+check('a colour that moved by a whole code still fails', (root) => {
+  const { desktopDir, webDir } = writePair(root, {
+    web: (route) => ({
+      nodes: {
+        ...snapshot(route).nodes,
+        '.app': { ...snapshot(route).nodes['.app'], style: { ...snapshot(route).nodes['.app'].style, 'background-color': 'color(srgb 1 0.996 1 / 0.646745)' } },
+      },
+    }),
+  });
+  const { status, stdout } = run(desktopDir, webDir);
+  if (status !== 1) throw new Error(`expected exit 1, got ${status}\n${stdout}`);
+  if (!stdout.includes('.app background-color')) throw new Error(`delta not named:\n${stdout}`);
+});
+
+check('a keyword height against the resolved length of the same box is not a delta', (root) => {
+  const style = (height) => ({ ...snapshot('/').nodes['.app'].style, height });
+  const { desktopDir, webDir } = writePair(root, {
+    desktop: (route) => ({
+      nodes: { ...snapshot(route).nodes, '.app': { ...snapshot(route).nodes['.app'], style: style('17px') } },
+    }),
+    web: (route) => ({
+      nodes: { ...snapshot(route).nodes, '.app': { ...snapshot(route).nodes['.app'], style: style('auto') } },
+    }),
+  });
+  const { status, stdout } = run(desktopDir, webDir);
+  if (status !== 0) throw new Error(`auto against a resolved length must pass, got ${status}\n${stdout}`);
+});
+
+check('a keyword against a value that is not that box stays a delta', (root) => {
+  const style = (height) => ({ ...snapshot('/').nodes['.app'].style, height });
+  const { desktopDir, webDir } = writePair(root, {
+    web: (route) => ({
+      nodes: { ...snapshot(route).nodes, '.app': { ...snapshot(route).nodes['.app'], style: style('auto') } },
+    }),
+  });
+  const { status, stdout } = run(desktopDir, webDir);
+  if (status !== 1) throw new Error(`expected exit 1, got ${status}\n${stdout}`);
+  if (!stdout.includes('.app height')) throw new Error(`delta not named:\n${stdout}`);
+});
+
+check('presence of a host-conditional node is a notice, not a delta', (root) => {
+  const { desktopDir, webDir } = writePair(root, {
+    desktop: (route) => ({
+      nodes: {
+        ...snapshot(route).nodes,
+        '.panel': {
+          present: true,
+          count: 1,
+          host_conditional: true,
+          classes: ['panel'],
+          attrs: {},
+          style: { 'border-radius': '8px' },
+        },
+      },
+    }),
+    web: (route) => ({
+      nodes: { ...snapshot(route).nodes, '.panel': { present: false, count: 0, host_conditional: true } },
+    }),
+  });
+  const { status, stdout } = run(desktopDir, webDir);
+  if (status !== 0) throw new Error(`host-conditional presence must be review material, got ${status}\n${stdout}`);
+  if (!stdout.includes('host-presence: .panel')) throw new Error(`notice missing:\n${stdout}`);
+});
+
 let failures = 0;
 for (const { name, fn } of cases) {
   const root = mkdtempSync(join(tmpdir(), 'parity-selftest-'));

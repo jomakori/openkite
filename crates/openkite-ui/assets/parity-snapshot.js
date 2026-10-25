@@ -26,15 +26,22 @@
 
   var SCHEMA = 1;
 
-  // The graded contract. Every selector must be one the shared crate paints on
-  // both hosts; the property list is what "same token values" means per node.
+  // The graded contract. Every selector must be one the shared crate paints;
+  // the property list is what "same token values" means per node. A node marked
+  // `host_conditional` is one whose *presence* the host decides (a capability
+  // notice, a surface the host supplies itself): the comparator reports it for
+  // review and grades its classes/attributes/style when both hosts paint it.
   var CONTRACT = [
     { selector: '.app', properties: ['display', 'background-color', 'color', 'font-family', 'font-size', 'line-height'] },
-    { selector: '.topbar', properties: ['display', 'height', 'background-color', 'border-bottom-color', 'padding-left', 'padding-right', 'position', 'z-index'] },
+    // `height` is content-derived: a host whose topbar carries actions is taller
+    // than one without them. The design declares a floor, so the floor is graded.
+    { selector: '.topbar', properties: ['display', 'min-height', 'background-color', 'border-bottom-color', 'padding-left', 'padding-right', 'position', 'z-index'] },
     { selector: '.brand-word', properties: ['color', 'font-family', 'font-size', 'font-weight', 'letter-spacing'] },
     { selector: '.nav-item', properties: ['display', 'color', 'font-size', 'font-weight', 'gap', 'padding-left', 'padding-right', 'border-radius'] },
     { selector: '.nav-item.active', properties: ['color', 'background-color', 'border-radius'] },
-    { selector: '.nav-section .eyebrow', properties: ['color', 'font-size', 'font-weight', 'letter-spacing', 'text-transform'] },
+    // Only a host without native window chrome renders the host notice
+    // (`native_chrome_can_render()`), so its presence belongs to the host.
+    { selector: '.nav-section .eyebrow', host_conditional: true, properties: ['color', 'font-size', 'font-weight', 'letter-spacing', 'text-transform'] },
     { selector: '.sidebar', properties: ['display', 'width', 'background-color', 'border-right-color'] },
     { selector: '.status-line', properties: ['color', 'font-size'] },
     { selector: '.view', properties: ['display', 'background-color', 'padding-top', 'padding-left'] },
@@ -50,7 +57,10 @@
     { selector: '.search-field input', properties: ['background-color', 'border-top-color', 'border-radius', 'color', 'font-size', 'height', 'padding-left'] },
     { selector: '.tag', properties: ['background-color', 'border-radius', 'color', 'font-size', 'font-weight', 'padding-left', 'padding-right'] },
     { selector: '.btn', properties: ['background-color', 'border-radius', 'color', 'font-size', 'font-weight', 'padding-left', 'padding-right'] },
-    { selector: '.panel', properties: ['background-color', 'border-radius', 'border-top-color', 'padding-left', 'padding-top'] }
+    // The shared route panel only paints when the host supplies no surface of
+    // its own (the browser host supplies one), so presence belongs to the host;
+    // when both hosts paint a panel its styling is still graded.
+    { selector: '.panel', host_conditional: true, properties: ['background-color', 'border-radius', 'border-top-color', 'padding-left', 'padding-top'] }
   ];
 
   // `data-*` attributes the host owns (its capability verdict, its live state,
@@ -171,9 +181,12 @@
   }
 
   function nodeReport(entry) {
-    var selector = entry.selector;
-    var matches = document.querySelectorAll(selector);
-    if (!matches.length) return { present: false, count: 0 };
+    // The flag travels with the report so the snapshot states its own semantics:
+    // a host-conditional node's presence is review material, not a delta.
+    var report = { present: false, count: 0 };
+    if (entry.host_conditional) report.host_conditional = true;
+    var matches = document.querySelectorAll(entry.selector);
+    if (!matches.length) return report;
     var el = matches[0];
     var classes = [];
     for (var c = 0; c < el.classList.length; c++) classes.push(el.classList[c]);
@@ -183,14 +196,22 @@
       var attr = el.attributes[a];
       if (attr.name.indexOf('data-') !== 0) continue;
       if (HOST_OWNED_ATTRS.indexOf(attr.name) !== -1) continue;
+      // `data-surface` marks host-supplied content everywhere but the app root,
+      // where it is the shell marker both hosts must carry; grade only the marker.
+      if (attr.name === 'data-surface' && attr.value !== 'app') continue;
       attrs[attr.name] = collapse(attr.value);
     }
     var computed = getComputedStyle(el);
     var style = {};
-    (entry ? entry.properties : []).forEach(function (property) {
+    (entry.properties || []).forEach(function (property) {
       style[property] = computedValue(computed, property);
     });
-    return { present: true, count: matches.length, classes: classes, attrs: attrs, style: style };
+    report.present = true;
+    report.count = matches.length;
+    report.classes = classes;
+    report.attrs = attrs;
+    report.style = style;
+    return report;
   }
 
   function band(width) {
