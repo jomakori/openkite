@@ -333,6 +333,10 @@ fn AppShell() -> Element {
             cluster: cluster_button(),
             status: status_entries(),
             actions,
+            // Gate G3's extractor (`parity-snapshot.js`) looks for this on
+            // both hosts to find the app root; the web host already tags it
+            // (`openkite-web/src/app.rs`), this host was the one missing it.
+            "data-surface": "app",
             on_navigate: Some(EventHandler::new(move |route: String| {
                 nav.push(route_from_path(&route));
             })),
