@@ -55,6 +55,10 @@ pub const SHEET_DISMISS_MIN_PX: f64 = 44.0;
 /// with a comfortable flick.
 pub const SHEET_DISMISS_MAX_PX: f64 = 96.0;
 
+/// The floor must sit under the ceiling, or [`resolve_sheet_drag`]'s clamp
+/// panics on the inverted range. Checked at compile time.
+const _: () = assert!(SHEET_DISMISS_MIN_PX <= SHEET_DISMISS_MAX_PX);
+
 /// What a released drag on the sheet's handle resolves to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SheetDrag {

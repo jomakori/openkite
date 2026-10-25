@@ -23,6 +23,8 @@ tokio = { version = "1", features = ["time"] }
 base64 = "0.22"
 
 [dev-dependencies]
+# The G1 design contract pins the vendored mockup by SHA-256.
+sha2 = "0.10"
 dioxus-ssr = "0.7"
 dioxus-signals = "0.7"
 dioxus-core = "0.7"

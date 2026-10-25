@@ -50,7 +50,13 @@ installed. It:
    every surface renders its disconnected/empty state.
 2. Launches a headless Chrome (`OPENKITE_BROWSER`) with remote debugging, then
    for each of the three viewports navigates to each of the four routes, waits
-   for hydration, and screenshots over CDP's `Page.captureScreenshot`.
+   for hydration, and screenshots over CDP's `Page.captureScreenshot`. The
+   DevTools endpoint is discovered from whichever of the two places the browser
+   publishes it in first — the `DevToolsActivePort` marker in the profile
+   directory, or its own `DevTools listening on ws://…` line on stderr (see
+   [`devtools.mjs`](devtools.mjs)). A runner whose Chrome writes the marker into
+   a private `/tmp` it cannot show the caller would otherwise look like a
+   browser that never started.
 3. Fails loudly (non-zero exit) on any missing binary, missing wasm asset, or
    a JS exception/console error surfaced during the run — it does not degrade
    to a partial or fabricated capture.
@@ -84,3 +90,27 @@ instead of the fixed pixel budget the desktop lane uses.
 Baselines are the captures this gate produces. A change that alters what a user
 sees in the browser host refreshes `baselines/` in the same PR — a moved
 baseline is a decision, not an accident, same convention as the desktop lane.
+
+## Refreshing the baselines
+
+Baselines are regenerated, never hand-edited. Dispatch
+[`visual-baselines.yml`](../../../.github/workflows/visual-baselines.yml) — it
+rebuilds the host and the hydration bundle on a runner, writes the twelve
+screenshots straight into `baselines/`, prints which files moved, and uploads
+the set as the `browser-baselines` artifact. Download that artifact, drop it
+over `baselines/`, and commit it with the change that moved the pixels:
+
+```bash
+gh workflow run visual-baselines.yml --ref <branch>
+gh run download --name browser-baselines --dir /tmp/browser-baselines
+cp /tmp/browser-baselines/*.png e2e/visual/browser/baselines/
+```
+
+The refresh is a dispatch, not a scheduled job: pixels move when someone
+changes the browser host, so a capture nobody asked for is only noise. It also
+needs no cluster credential — the host boots credential-less and serves the
+fixture gateway, which is why the lane runs on a plain runner.
+
+`devtools.test.mjs` covers the endpoint discovery against a stub browser, and
+the browser job runs it before spending a build on the capture.
+

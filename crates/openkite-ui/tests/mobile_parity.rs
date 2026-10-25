@@ -234,8 +234,14 @@ fn the_bar_keeps_the_touch_floor() {
 #[test]
 fn a_drag_past_the_threshold_dismisses_and_a_short_one_snaps_back() {
     // A short sheet asks for the floor, not a quarter of nothing.
-    assert_eq!(resolve_sheet_drag(43.0, 120.0), SheetDrag::Snap);
-    assert_eq!(resolve_sheet_drag(44.0, 120.0), SheetDrag::Dismiss);
+    assert_eq!(
+        resolve_sheet_drag(SHEET_DISMISS_MIN_PX - 1.0, 120.0),
+        SheetDrag::Snap
+    );
+    assert_eq!(
+        resolve_sheet_drag(SHEET_DISMISS_MIN_PX, 120.0),
+        SheetDrag::Dismiss
+    );
     // A mid-height sheet asks for a quarter of its own height…
     assert_eq!(resolve_sheet_drag(69.0, 280.0), SheetDrag::Snap);
     assert_eq!(resolve_sheet_drag(70.0, 280.0), SheetDrag::Dismiss);
@@ -247,7 +253,6 @@ fn a_drag_past_the_threshold_dismisses_and_a_short_one_snaps_back() {
     );
     // Upward travel never dismisses.
     assert_eq!(resolve_sheet_drag(-200.0, 430.0), SheetDrag::Snap);
-    debug_assert!(SHEET_DISMISS_MIN_PX < SHEET_DISMISS_MAX_PX);
 }
 
 #[test]
