@@ -20,6 +20,8 @@ use support::{raw_http, raw_http_bytes};
 /// wasm module it imports. Both land in `OPENKITE_WEB_ROOT` in the image.
 const CLIENT_JS: &[u8] = b"export default function init() {}\n";
 const CLIENT_WASM: &[u8] = b"\0asm\x01\0\0\0";
+const SNIPPET_PATH: &str = "snippets/dioxus-interpreter-js-20451f6aefec841d/inline0.js";
+const SNIPPET_JS: &[u8] = b"export function RawInterpreter() {}\n";
 
 /// The client bundle URL a document serves, read off the page the way a browser
 /// resolves it. The host versions the path by the hash of the staged bytes
@@ -172,6 +174,25 @@ async fn the_shipped_binary_serves_the_bundle_its_console_boots() {
         String::from_utf8_lossy(&wasm)
     );
 
+    // The glue imports its snippets relatively, so they have to answer under
+    // the same version — this is the part a pair-only mount gets wrong.
+    let snippet_url = client_url.replace("openkite-web-client.js", SNIPPET_PATH);
+    let snippet = raw_http_bytes(addr, "GET", &snippet_url, None).await;
+    assert!(
+        String::from_utf8_lossy(&snippet).contains("200 OK"),
+        "the glue's relative import is not served: {}",
+        String::from_utf8_lossy(&snippet)
+    );
+    assert!(
+        snippet.ends_with(SNIPPET_JS),
+        "the snippet did not round-trip byte for byte"
+    );
+    assert!(
+        String::from_utf8_lossy(&snippet).contains("public, max-age=31536000, immutable"),
+        "a file of the hashed set is cacheable for good: {}",
+        String::from_utf8_lossy(&snippet)
+    );
+
     // Bytes from another build are not under this one's name.
     let stale = "openkite-web-client.js";
     let stale = raw_http_bytes(
@@ -195,6 +216,9 @@ fn image_web_root() -> tempfile::TempDir {
     std::fs::write(root.path().join("openkite-web-client.js"), CLIENT_JS).expect("write the glue");
     std::fs::write(root.path().join("openkite-web-client_bg.wasm"), CLIENT_WASM)
         .expect("write the wasm");
+    let snippet = root.path().join(SNIPPET_PATH);
+    std::fs::create_dir_all(snippet.parent().expect("snippet dir")).expect("mkdir snippets");
+    std::fs::write(&snippet, SNIPPET_JS).expect("write the snippet");
     root
 }
 

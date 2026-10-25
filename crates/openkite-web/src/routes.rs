@@ -67,7 +67,7 @@ pub fn router(bridge: SharedBridge, web_root: &Path) -> Router {
     Router::new()
         .route("/", get(ssr_root))
         .route("/assets/fonts/{file}", get(font_get))
-        .route("/assets/bundle/{version}/{file}", get(bundle_get))
+        .route("/assets/bundle/{version}/{*file}", get(bundle_get))
         .route("/openkite", post(bridge_post))
         .route("/openkite/events", get(events_get))
         .route("/openkite-spike", post(spike_post))
@@ -76,13 +76,15 @@ pub fn router(bridge: SharedBridge, web_root: &Path) -> Router {
         .with_state(state)
 }
 
-/// Serve one file of the hydration pair under the version the document names.
+/// Serve one file of the hydration set under the version the document names.
 ///
 /// The version is checked against this process's own hash, so a browser that
 /// kept a URL from an older build gets a 404 rather than this build's bytes
 /// cached under that older name — and the page it loaded cannot hydrate with a
-/// wasm from a different build. The bytes are immutable by construction, which
-/// is what makes the long cache safe.
+/// wasm or snippet from a different build. Everything the glue reaches by
+/// relative import (`_bg.wasm`, `snippets/…`) is under the same version, so the
+/// whole module graph is one build. The bytes are immutable by construction,
+/// which is what makes the long cache safe.
 async fn bundle_get(
     State(state): State<HostState>,
     UrlPath((version, file)): UrlPath<(String, String)>,
@@ -90,10 +92,10 @@ async fn bundle_get(
     let Some(file) = state.bundle.resolve(&version, &file) else {
         return (StatusCode::NOT_FOUND, "unknown bundle version").into_response();
     };
-    match tokio::fs::read(state.web_root.join(file)).await {
+    match tokio::fs::read(state.web_root.join(&file)).await {
         Ok(bytes) => (
             [
-                (CONTENT_TYPE, Bundle::content_type(file)),
+                (CONTENT_TYPE, Bundle::content_type(&file)),
                 (CACHE_CONTROL, IMMUTABLE),
             ],
             bytes,
