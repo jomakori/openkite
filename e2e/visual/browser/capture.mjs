@@ -14,7 +14,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { accessSync, constants, existsSync } from 'node:fs';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -44,6 +44,31 @@ const chromium = process.env.OPENKITE_BROWSER;
 const hostBin = process.env.OPENKITE_WEB_BIN;
 const webRoot = process.env.OPENKITE_WEB_ROOT;
 const outDir = path.resolve(process.argv[2] ?? path.join(scriptDir, 'baselines'));
+
+// Gate G3 (`e2e/parity`): with SNAPSHOT_DIR set this run also dumps the shared
+// parity snapshot — computed classes and token values, not pixels — for every
+// core route at one viewport, the desktop window's frame. The extractor is the
+// same file the desktop hook evaluates, so the two sides cannot drift.
+const snapshotDir = process.env.SNAPSHOT_DIR ? path.resolve(process.env.SNAPSHOT_DIR) : null;
+const snapshotScriptPath = path.join(
+  scriptDir,
+  '..',
+  '..',
+  '..',
+  'crates',
+  'openkite-ui',
+  'assets',
+  'parity-snapshot.js',
+);
+const snapshotViewport = parseSnapshotViewport(process.env.SNAPSHOT_VIEWPORT ?? '800x600');
+
+function parseSnapshotViewport(value) {
+  const match = /^(\d+)x(\d+)$/.exec(value.trim());
+  if (!match) {
+    throw new Error(`SNAPSHOT_VIEWPORT must look like 800x600, got: ${value}`);
+  }
+  return { slug: value.trim(), width: Number(match[1]), height: Number(match[2]) };
+}
 
 function fail(message) {
   console.error(`FAIL: ${message}`);
@@ -77,6 +102,11 @@ try {
 
 await rm(outDir, { recursive: true, force: true });
 await mkdir(outDir, { recursive: true });
+if (snapshotDir) {
+  if (!existsSync(snapshotScriptPath)) fail(`parity extractor missing: ${snapshotScriptPath}`);
+  await mkdir(snapshotDir, { recursive: true });
+}
+const snapshotSource = snapshotDir ? await readFile(snapshotScriptPath, 'utf8') : null;
 
 const hostPort = await freePort();
 const hostAddr = `127.0.0.1:${hostPort}`;
@@ -145,7 +175,8 @@ try {
   await command('Page.enable');
 
   const captured = [];
-  for (const viewport of VIEWPORTS) {
+  const viewports = snapshotDir ? [snapshotViewport] : VIEWPORTS;
+  for (const viewport of viewports) {
     await command('Emulation.setDeviceMetricsOverride', {
       width: viewport.width,
       height: viewport.height,
@@ -159,6 +190,14 @@ try {
       await waitForHydration();
       // Let layout settle one frame after hydration mounts.
       await delay(300);
+      if (snapshotSource) {
+        const json = await evaluate(snapshotSource);
+        const name = `${target.slug}.web.json`;
+        await writeFile(path.join(snapshotDir, name), `${json}\n`);
+        captured.push(name);
+        console.log(`snapshot ${name}`);
+      }
+      if (snapshotDir) continue;
       const { data } = await command('Page.captureScreenshot', {
         format: 'png',
         captureBeyondViewport: false,
@@ -171,7 +210,11 @@ try {
   }
 
   assert.equal(errors.length, 0, errors.join('\n'));
-  console.log(`PASS: captured ${captured.length} hydrated-client baselines in ${outDir}`);
+  console.log(
+    snapshotDir
+      ? `PASS: wrote ${captured.length} parity snapshots to ${snapshotDir}`
+      : `PASS: captured ${captured.length} hydrated-client baselines in ${outDir}`,
+  );
 } catch (error) {
   console.error(`FAIL: ${error instanceof Error ? error.stack : String(error)}`);
   console.error(`server log (tail): ${serverLog.join('').slice(-4000)}`);

@@ -113,6 +113,8 @@ pub fn install_plugins(sections: Vec<SidebarSection>, routes: HashMap<String, fn
 
 /// App entry: render the router.
 pub fn app() -> Element {
+    // Gate G3 (§`e2e/parity`): a no-op unless OPENKITE_PARITY_SNAPSHOT is set.
+    crate::parity::install();
     rsx! { Router::<Route> {} }
 }
 
@@ -331,6 +333,10 @@ fn AppShell() -> Element {
             cluster: cluster_button(),
             status: status_entries(),
             actions,
+            // Gate G3's extractor (`parity-snapshot.js`) looks for this on
+            // both hosts to find the app root; the web host already tags it
+            // (`openkite-web/src/app.rs`), this host was the one missing it.
+            "data-surface": "app",
             on_navigate: Some(EventHandler::new(move |route: String| {
                 nav.push(route_from_path(&route));
             })),

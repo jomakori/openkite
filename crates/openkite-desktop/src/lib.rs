@@ -24,6 +24,7 @@ pub mod logs;
 pub mod menubar;
 pub mod metrics;
 pub mod network;
+pub mod parity;
 pub mod plugin_host;
 pub mod plugin_js;
 pub mod pod;
