@@ -176,7 +176,7 @@ async fn ssr_root(
     // `?fixture=` drives the states a surface claims to render (G4). It is read
     // only where there is no cluster credential to disagree with it: a host
     // that has a client answers from the cluster, not from a query string.
-    let fixture = if bridge.client().is_some() {
+    let fixture = if state.bridge.client().is_some() {
         crate::fixture::FixtureState::Ready
     } else {
         crate::fixture::FixtureState::from_query(query_param(query.as_deref(), "fixture"))
