@@ -38,7 +38,8 @@ async fn events_route_streams_a_published_push_message() {
     let mut stream = tokio::net::TcpStream::connect(addr)
         .await
         .expect("connect to host");
-    let request = format!("GET /openkite/events HTTP/1.1\r\nhost: {addr}\r\nconnection: keep-alive\r\n\r\n");
+    let request =
+        format!("GET /openkite/events HTTP/1.1\r\nhost: {addr}\r\nconnection: keep-alive\r\n\r\n");
     stream
         .write_all(request.as_bytes())
         .await
@@ -96,5 +97,8 @@ async fn events_route_streams_a_published_push_message() {
         "sse payload addressed to the live subscription: {collected}"
     );
 
-    let _ = openkite_host::push::registry().lock().unwrap().unsubscribe(sub);
+    let _ = openkite_host::push::registry()
+        .lock()
+        .unwrap()
+        .unsubscribe(sub);
 }
