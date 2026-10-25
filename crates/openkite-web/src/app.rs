@@ -154,6 +154,28 @@ pub fn App(props: AppProps) -> Element {
         .filter(|secret| selection_matches(&selection, Some(secret.namespace.as_str())))
         .collect();
 
+    // The state each surface paints, read from the snapshot. The same value
+    // lands on `data-state`, so the state a surface is in can be read out of the
+    // DOM (G4) instead of guessed from a screenshot: pending is loading, a
+    // refusal is error, nothing in scope is empty.
+    let gateway_error = snapshot.error.clone();
+    let overview_state = if snapshot.busy {
+        "loading"
+    } else if gateway_error.is_some() {
+        "error"
+    } else {
+        "ready"
+    };
+    let secrets_state = if snapshot.busy {
+        "loading"
+    } else if gateway_error.is_some() {
+        "error"
+    } else if secrets.is_empty() {
+        "empty"
+    } else {
+        "ready"
+    };
+
     let shell = ShellState {
         cluster: snapshot.context.clone(),
         namespace,
@@ -219,37 +241,50 @@ pub fn App(props: AppProps) -> Element {
                 route: route.clone(),
                 sections,
                 namespaces,
-                busy: pending(),
+                busy: pending() || snapshot.busy,
+                error: gateway_error.clone(),
                 content: match route.as_str() {
                     "/workloads" => Some(workload_surface(&snapshot)),
                     // Declared, not invented: this host has not wired them.
                     "/cluster" | "/config" => None,
                     _ => Some(rsx! {
-                    section { class: "panel", "data-surface": "overview",
+                    section { class: "panel", "data-surface": "overview", "data-state": overview_state,
                         h2 { "Cluster" }
-                        dl { class: "kv-list",
-                            div { class: "kv-row", dt { "Gateway" } dd { "{gateway_label}" } }
-                            div { class: "kv-row",
-                                dt { "Connection" }
-                                dd { StatusPill { status: connection } }
+                        if snapshot.busy {
+                            div { class: "table-state table-loading", "data-state": "loading",
+                                "Loading the cluster…"
                             }
-                            div { class: "kv-row",
-                                dt { "Context" }
-                                dd { "{shell.cluster_label()}" }
+                        } else if let Some(error) = gateway_error.clone() {
+                            // The gateway refused: say so rather than painting
+                            // the previous values as if they were still true.
+                            div { class: "table-state table-error", "data-state": "error", "data-error": "1",
+                                "The gateway could not read the cluster: {error}"
                             }
-                        }
-                        button {
-                            class: "btn btn-primary",
-                            r#type: "button",
-                            onclick: on_refresh_click,
-                            "data-action": "refresh",
-                            "Refresh"
-                        }
-                        if let Some(err) = last_error() {
-                            p { class: "field-error", "data-error": "1", "gateway error: {err}" }
+                        } else {
+                            dl { class: "kv-list",
+                                div { class: "kv-row", dt { "Gateway" } dd { "{gateway_label}" } }
+                                div { class: "kv-row",
+                                    dt { "Connection" }
+                                    dd { StatusPill { status: connection } }
+                                }
+                                div { class: "kv-row",
+                                    dt { "Context" }
+                                    dd { "{shell.cluster_label()}" }
+                                }
+                            }
+                            button {
+                                class: "btn btn-primary",
+                                r#type: "button",
+                                onclick: on_refresh_click,
+                                "data-action": "refresh",
+                                "Refresh"
+                            }
+                            if let Some(err) = last_error() {
+                                p { class: "field-error", "data-error": "1", "gateway error: {err}" }
+                            }
                         }
                     }
-                    section { class: "panel", "data-surface": "capabilities",
+                    section { class: "panel", "data-surface": "capabilities", "data-state": "ready",
                         h2 { "Capabilities" }
                         dl { class: "kv-list",
                             for (label, enabled) in capability_rows(&capabilities) {
@@ -261,9 +296,17 @@ pub fn App(props: AppProps) -> Element {
                         }
                         p { class: "message", "data-round": "{round()}", "round {round()}" }
                     }
-                    section { class: "panel", "data-surface": "secrets",
+                    section { class: "panel", "data-surface": "secrets", "data-state": secrets_state,
                         h2 { "Secrets" }
-                        if secrets.is_empty() {
+                        if snapshot.busy {
+                            div { class: "table-state table-loading", "data-state": "loading",
+                                "Loading the gateway's scope…"
+                            }
+                        } else if let Some(error) = gateway_error.clone() {
+                            div { class: "table-state table-error", "data-state": "error", "data-error": "1",
+                                "The gateway could not list secrets: {error}"
+                            }
+                        } else if secrets.is_empty() {
                             p { class: "message", "data-empty": "secrets", "No secrets in the gateway's scope" }
                         } else {
                             dl { class: "kv-list",
@@ -286,12 +329,28 @@ pub fn App(props: AppProps) -> Element {
 /// The `/workloads` body: the console's table, or its declared error state.
 fn workload_surface(snapshot: &Snapshot) -> Element {
     let workloads = &snapshot.workloads;
-    let status = match &workloads.error {
-        Some(error) => TableStatus::Error(format!("The gateway could not list pods: {error}")),
-        None => TableStatus::Ready,
+    // A table that is still loading is not an empty table: the states are
+    // distinct, so they carry distinct values on `data-state` (G4).
+    let loading = snapshot.busy || workloads.loading;
+    let status = if loading {
+        TableStatus::Loading
+    } else {
+        match &workloads.error {
+            Some(error) => TableStatus::Error(format!("The gateway could not list pods: {error}")),
+            None => TableStatus::Ready,
+        }
+    };
+    let state = if loading {
+        "loading"
+    } else if workloads.error.is_some() {
+        "error"
+    } else if workloads.rows.is_empty() {
+        "empty"
+    } else {
+        "ready"
     };
     rsx! {
-        div { "data-surface": "workloads",
+        div { "data-surface": "workloads", "data-state": state,
             ResourceTable {
                 columns: workloads.columns.clone(),
                 rows: workloads.rows.clone(),

@@ -56,6 +56,15 @@ pub struct Snapshot {
     /// The table the `/workloads` route paints, or why the host could not list.
     #[serde(default)]
     pub workloads: WorkloadsTable,
+    /// The gateway's refusal for the surfaces this snapshot fills, when it had
+    /// one. Carried so a surface can paint its error state from the DOM (G4)
+    /// instead of the host swallowing the failure and painting "empty".
+    #[serde(default)]
+    pub error: Option<String>,
+    /// Whether the host is still waiting on its gateway for this render. The
+    /// surfaces paint their loading state while it is set.
+    #[serde(default)]
+    pub busy: bool,
 }
 
 /// The table a route paints, in the console's own column/row vocabulary.
@@ -66,6 +75,10 @@ pub struct WorkloadsTable {
     /// The gateway's refusal, when it had one.
     #[serde(default)]
     pub error: Option<String>,
+    /// Whether the host is still waiting on the list. A table that is loading
+    /// is not an empty table: the two paint different states.
+    #[serde(default)]
+    pub loading: bool,
 }
 
 /// The route a snapshot with no address of its own lands on.
@@ -83,6 +96,8 @@ impl Default for Snapshot {
             selection: None,
             route: home_route(),
             workloads: WorkloadsTable::default(),
+            error: None,
+            busy: false,
         }
     }
 }
@@ -95,7 +110,12 @@ impl Snapshot {
         context: Option<String>,
     ) -> Self {
         let capabilities = gateway.capabilities();
-        let secrets = list_secret_refs(gateway).await.unwrap_or_default();
+        // A gateway that cannot list is not a gateway with no secrets: keep the
+        // refusal so the panel paints its error state instead of "empty".
+        let (secrets, error) = match list_secret_refs(gateway).await {
+            Ok(secrets) => (secrets, None),
+            Err(error) => (Vec::new(), Some(error)),
+        };
         Self {
             capabilities,
             connected,
@@ -104,7 +124,15 @@ impl Snapshot {
             selection: None,
             route: home_route(),
             workloads: WorkloadsTable::default(),
+            error,
+            busy: false,
         }
+    }
+
+    /// The same snapshot, marked as still waiting on the gateway.
+    pub fn with_busy(mut self, busy: bool) -> Self {
+        self.busy = busy;
+        self
     }
 
     /// The same snapshot, with the detail pane's selection taken from the
@@ -242,7 +270,10 @@ pub fn render_page(snapshot: &Snapshot, options: &RenderOptions) -> String {
     )
 }
 
-/// The secret refs the gateway can hand out, or `Err` when it cannot list.
-async fn list_secret_refs(gateway: &Arc<dyn Gateway>) -> Result<Vec<SecretRef>, ()> {
-    gateway.secret_refs().await.map_err(|_| ())
+/// The secret refs the gateway can hand out, or the refusal it answered with.
+async fn list_secret_refs(gateway: &Arc<dyn Gateway>) -> Result<Vec<SecretRef>, String> {
+    gateway
+        .secret_refs()
+        .await
+        .map_err(|error| error.to_string())
 }

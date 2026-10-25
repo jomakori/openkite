@@ -260,11 +260,15 @@ pub fn ResourceTable(
     let sort = use_signal(|| None::<(usize, SortDirection)>);
     let mut query = use_signal(String::new);
 
+    // Every branch carries `data-state`, so the state a surface is in can be
+    // read from the DOM rather than inferred from a screenshot (G4).
     match status {
-        TableStatus::Loading => rsx! { div { class: "table-state", "Loading…" } },
-        TableStatus::Error(message) => {
-            rsx! { div { class: "table-state table-error", "{message}" } }
-        }
+        TableStatus::Loading => rsx! {
+            div { class: "table-state", "data-state": "loading", "Loading…" }
+        },
+        TableStatus::Error(message) => rsx! {
+            div { class: "table-state table-error", "data-state": "error", "{message}" }
+        },
         TableStatus::Ready => {
             let selected: Vec<String> = crate::runtime::NAMESPACE_SELECTION.read().clone();
             let mut view: Vec<ResourceRow> = namespace_filter(&rows, &selected)
@@ -277,11 +281,13 @@ pub fn ResourceTable(
 
             if view.is_empty() {
                 let message = empty_message.unwrap_or_else(|| "No resources".to_string());
-                return rsx! { div { class: "table-state table-empty", "{message}" } };
+                return rsx! {
+                    div { class: "table-state table-empty", "data-state": "empty", "{message}" }
+                };
             }
 
             rsx! {
-                div { class: "panel",
+                div { class: "panel", "data-state": "ready",
                     div { class: "table-wrap",
                         div { class: "resource-table",
                             div { class: "table-toolbar",

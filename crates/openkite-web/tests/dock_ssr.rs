@@ -20,6 +20,8 @@ fn snapshot() -> Snapshot {
         selection: None,
         route: "/".into(),
         workloads: Default::default(),
+        error: None,
+        busy: false,
     }
 }
 
