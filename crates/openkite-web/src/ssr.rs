@@ -65,6 +65,16 @@ pub struct Snapshot {
     /// surfaces paint their loading state while it is set.
     #[serde(default)]
     pub busy: bool,
+    /// The landing dashboard's numbers, counted by the cluster client. Its
+    /// tiles ride the snapshot so the SSR pass and the hydrating client paint
+    /// the same dashboard.
+    #[serde(default)]
+    pub overview: openkite_ui::components::overview::OverviewSummary,
+    /// The cluster client's refusal for the overview read, when it had one —
+    /// carried separately from [`Self::error`] so a secrets refusal cannot
+    /// paint the dashboard's error state.
+    #[serde(default)]
+    pub overview_error: Option<String>,
 }
 
 /// The table a route paints, in the console's own column/row vocabulary.
@@ -98,6 +108,8 @@ impl Default for Snapshot {
             workloads: WorkloadsTable::default(),
             error: None,
             busy: false,
+            overview: openkite_ui::components::overview::OverviewSummary::default(),
+            overview_error: None,
         }
     }
 }
@@ -126,7 +138,24 @@ impl Snapshot {
             workloads: WorkloadsTable::default(),
             error,
             busy: false,
+            overview: openkite_ui::components::overview::OverviewSummary::default(),
+            overview_error: None,
         }
+    }
+
+    /// The same snapshot, carrying the landing dashboard's summary.
+    pub fn with_overview(
+        mut self,
+        overview: openkite_ui::components::overview::OverviewSummary,
+    ) -> Self {
+        self.overview = overview;
+        self
+    }
+
+    /// The same snapshot, carrying the overview read's refusal.
+    pub fn with_overview_error(mut self, error: Option<String>) -> Self {
+        self.overview_error = error;
+        self
     }
 
     /// The same snapshot, marked as still waiting on the gateway.
