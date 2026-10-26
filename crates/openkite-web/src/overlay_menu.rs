@@ -184,62 +184,39 @@ pub fn place(anchor: Anchor, panel: Panel, viewport: Viewport, align: Align) -> 
 // Browser scripts
 // ---------------------------------------------------------------------------
 
-/// Measure, then listen. Runs when the panel appears.
+/// Watches for the panel and keeps the menu's browser half in step with it.
 ///
-/// The promise never settles: the `dioxus.send` channel has to outlive the
-/// script for a later Escape to arrive, and re-rendering the panel must not
-/// lose the listener.
-const OPEN_JS: &str = r#"
+/// Installed once per mount rather than once per open: it measures whenever the
+/// panel appears, listens for keys while the panel is up, and hands focus back
+/// to the trigger when it goes. The promise never settles, so the `dioxus.send`
+/// channel outlives the script and a later Escape still arrives.
+const WATCH_JS: &str = r#"
 new Promise(() => {
   const id = __ID__;
   const anchorSelector = __ANCHOR__;
-  const panel = () => document.querySelector('[data-overlay-menu-panel="' + id + '"]');
-  const send = (message) => dioxus.send(JSON.stringify(message));
-
-  const measure = () => {
-    const node = panel();
-    if (!node) return;
-    const trigger = document.querySelector(anchorSelector);
-    if (!trigger) return;
-    const a = trigger.getBoundingClientRect();
-    const p = node.getBoundingClientRect();
-    send({
-      kind: 'measure',
-      anchor: { x: a.left, y: a.top, width: a.width, height: a.height },
-      panel: { width: p.width, height: p.height },
-      viewport: { width: window.innerWidth, height: window.innerHeight },
-    });
-  };
-
   const key = '__openkite_overlay_' + id;
-  let uninstall = () => {};
+  // A remount must not stack a second observer on the same menu.
+  if (window[key]) return;
 
+  const panel = () => document.querySelector('[data-overlay-menu-panel="' + id + '"]');
+  const trigger = () => document.querySelector(anchorSelector);
+  const send = (message) => dioxus.send(JSON.stringify(message));
   const items = () => Array.from(
     panel()?.querySelectorAll(
       '[role="menuitem"]:not([aria-disabled="true"]):not([disabled])',
     ) ?? [],
   );
 
-  uninstall = () => {
-    document.removeEventListener('keydown', onKey, true);
-    if (window[key] === uninstall) delete window[key];
-  };
+  let open = false;
+  let listening = false;
+  let focused = false;
 
   const onKey = (event) => {
-    if (!panel()) {
-      // The host closed the menu without an Escape or a Tab: stop listening.
-      uninstall();
-      return;
-    }
-    if (event.key === 'Escape') {
-      event.preventDefault();
+    if (!open) return;
+    if (event.key === 'Escape' || event.key === 'Tab') {
+      // Tab hands focus on, so the panel has no business staying up either.
+      if (event.key === 'Escape') event.preventDefault();
       event.stopPropagation();
-      uninstall();
-      send({ kind: 'dismiss' });
-      return;
-    }
-    if (event.key === 'Tab') {
-      uninstall();
       send({ kind: 'dismiss' });
       return;
     }
@@ -255,36 +232,77 @@ new Promise(() => {
     list[next].focus();
   };
 
-  // One session's listener per menu id: a reopen replaces the last one instead
-  // of stacking a second handler that would dismiss twice.
-  window[key]?.();
-  window[key] = uninstall;
-  document.addEventListener('keydown', onKey, true);
-  requestAnimationFrame(measure);
+  const appear = () => {
+    open = true;
+    if (!listening) {
+      document.addEventListener('keydown', onKey, true);
+      listening = true;
+    }
+    const node = panel();
+    const anchor = trigger();
+    if (!node || !anchor) return;
+    const a = anchor.getBoundingClientRect();
+    const p = node.getBoundingClientRect();
+    send({
+      kind: 'measure',
+      anchor: { x: a.left, y: a.top, width: a.width, height: a.height },
+      panel: { width: p.width, height: p.height },
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+    });
+  };
+
+  const vanish = () => {
+    open = false;
+    if (listening) {
+      document.removeEventListener('keydown', onKey, true);
+      listening = false;
+    }
+    focused = false;
+    send({ kind: 'closed' });
+    const anchor = trigger();
+    if (!anchor || typeof anchor.focus !== 'function') return;
+    if (anchor.tabIndex < 0 && !anchor.hasAttribute('tabindex')) {
+      anchor.setAttribute('tabindex', '-1');
+    }
+    anchor.focus({ preventScroll: true });
+  };
+
+  const sync = () => {
+    const node = panel();
+    const present = Boolean(node);
+    if (present !== open) {
+      if (present) appear();
+      else vanish();
+    }
+    if (!node || focused) return;
+    // An unplaced panel is hidden, and a hidden node cannot take focus: wait
+    // for the host to paint the placement it computed from our measurement.
+    if (node.getAttribute('data-positioned') !== 'true') return;
+    focused = true;
+    (items()[0] ?? node).focus({ preventScroll: true });
+  };
+
+  const observer = new MutationObserver(sync);
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['data-positioned'],
+  });
+  window[key] = () => {
+    observer.disconnect();
+    if (listening) document.removeEventListener('keydown', onKey, true);
+  };
+  sync();
 });
 "#;
 
-/// Put focus on the panel's first item once the panel is placed.
-const FOCUS_JS: &str = r#"
+/// Drops the watcher when the menu unmounts.
+const TEARDOWN_JS: &str = r#"
 (() => {
-  const panel = document.querySelector('[data-overlay-menu-panel="' + __ID__ + '"]');
-  if (!panel) return;
-  const first = panel.querySelector(
-    '[role="menuitem"]:not([aria-disabled="true"]):not([disabled])',
-  );
-  (first ?? panel).focus({ preventScroll: true });
-})();
-"#;
-
-/// Give focus back to the trigger. Runs on every close.
-const RESTORE_JS: &str = r#"
-(() => {
-  const trigger = document.querySelector(__ANCHOR__);
-  if (!trigger || typeof trigger.focus !== 'function') return;
-  if (trigger.tabIndex < 0 && !trigger.hasAttribute('tabindex')) {
-    trigger.setAttribute('tabindex', '-1');
-  }
-  trigger.focus({ preventScroll: true });
+  const key = '__openkite_overlay_' + __ID__;
+  if (typeof window[key] === 'function') window[key]();
+  delete window[key];
 })();
 "#;
 
@@ -303,6 +321,8 @@ enum Message {
     },
     /// Escape, Tab, or a press outside the panel.
     Dismiss,
+    /// The panel left the DOM: forget where it sat.
+    Closed,
 }
 
 /// Fill a script template with the JSON-quoted menu id and trigger selector.
@@ -347,30 +367,14 @@ pub fn OverlayMenu(
     children: Element,
 ) -> Element {
     let mut placement = use_signal(|| Option::<Placement>::None);
-    // The previous `open`, so the effect can tell an opening from a closing.
-    let mut was_open = use_signal(|| false);
 
-    // The effect re-runs on every open and close, so it owns its own copies of
-    // the two strings the scripts are built from.
-    let effect_id = id.clone();
-    let effect_anchor = anchor.clone();
+    // The watcher is installed once per mount and follows the panel itself, so
+    // nothing here has to react to `open` flipping: the panel appearing is what
+    // starts a measuring session, and the panel leaving is what ends it.
+    let watch_id = id.clone();
+    let watch_anchor = anchor.clone();
     use_effect(move || {
-        let is_open = open;
-        let was = was_open();
-        if is_open == was {
-            return;
-        }
-        was_open.set(is_open);
-
-        if !is_open {
-            placement.set(None);
-            let _ = document::eval(&script(RESTORE_JS, &effect_id, &effect_anchor));
-            return;
-        }
-
-        let session_id = effect_id.clone();
-        let session_anchor = effect_anchor.clone();
-        let mut eval = document::eval(&script(OPEN_JS, &effect_id, &effect_anchor));
+        let mut eval = document::eval(&script(WATCH_JS, &watch_id, &watch_anchor));
         spawn(async move {
             while let Ok(raw) = eval.recv::<String>().await {
                 match parse_message(&raw) {
@@ -378,15 +382,18 @@ pub fn OverlayMenu(
                         anchor,
                         panel,
                         viewport,
-                    }) => {
-                        placement.set(Some(place(anchor, panel, viewport, align)));
-                        let _ = document::eval(&script(FOCUS_JS, &session_id, &session_anchor));
-                    }
+                    }) => placement.set(Some(place(anchor, panel, viewport, align))),
                     Some(Message::Dismiss) => on_dismiss.call(()),
+                    Some(Message::Closed) => placement.set(None),
                     None => {}
                 }
             }
         });
+    });
+
+    let drop_id = id.clone();
+    use_drop(move || {
+        let _ = document::eval(&TEARDOWN_JS.replace("__ID__", &quote(&drop_id)));
     });
 
     rsx! {
@@ -453,7 +460,7 @@ mod tests {
 
     #[test]
     fn the_scripts_quote_their_inputs() {
-        let filled = script(OPEN_JS, "menu\"id", ".topbar .avatar");
+        let filled = script(WATCH_JS, "menu\"id", ".topbar .avatar");
         assert!(filled.contains(r#"const id = "menu\"id";"#), "{filled}");
         assert!(
             filled.contains(r#"anchorSelector = ".topbar .avatar";"#),
@@ -465,9 +472,23 @@ mod tests {
 
     #[test]
     fn escape_is_swallowed_and_dismisses() {
-        assert!(OPEN_JS.contains("event.stopPropagation()"), "{OPEN_JS}");
-        assert!(OPEN_JS.contains("event.key === 'Escape'"), "{OPEN_JS}");
-        assert!(OPEN_JS.contains("kind: 'dismiss'"), "{OPEN_JS}");
-        assert!(RESTORE_JS.contains("trigger.focus("), "{RESTORE_JS}");
+        assert!(WATCH_JS.contains("event.stopPropagation()"), "{WATCH_JS}");
+        assert!(WATCH_JS.contains("event.key === 'Escape'"), "{WATCH_JS}");
+        assert!(WATCH_JS.contains("kind: 'dismiss'"), "{WATCH_JS}");
+        assert!(WATCH_JS.contains("anchor.focus("), "{WATCH_JS}");
+    }
+
+    #[test]
+    fn the_watcher_arms_itself_when_the_panel_appears() {
+        // The bug this guards: a watcher that only measured on an `open` flip
+        // never fired for a panel that was already up at mount.
+        assert!(
+            WATCH_JS.contains("new MutationObserver(sync)"),
+            "{WATCH_JS}"
+        );
+        assert!(WATCH_JS.contains("sync();"), "{WATCH_JS}");
+        assert!(WATCH_JS.contains("kind: 'measure'"), "{WATCH_JS}");
+        assert!(WATCH_JS.contains("kind: 'closed'"), "{WATCH_JS}");
+        assert!(TEARDOWN_JS.contains("delete window[key]"), "{TEARDOWN_JS}");
     }
 }
