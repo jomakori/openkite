@@ -243,6 +243,10 @@ async fn ssr_snapshot(
         ssr::Snapshot::from_gateway(&gateway, connected, context).await
     };
     let snapshot = snapshot.with_route(route).with_busy(fixture.is_loading());
+    let snapshot = match crate::account_identity() {
+        Some(account) => snapshot.with_account(account),
+        None => snapshot,
+    };
     if route == "/workloads" {
         snapshot.with_workloads(workload_table(bridge, fixture).await)
     } else {
