@@ -21,13 +21,12 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { accessSync, constants, existsSync } from 'node:fs';
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
-
 import { waitForDevTools } from '../visual/browser/devtools.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
