@@ -234,6 +234,9 @@ async fn ssr_snapshot(
             .ok()
             .map(|_| "kubeconfig".to_string())
     };
+    // The overview's identity line is the same context the snapshot carries;
+    // clone it before `from_gateway` takes ownership.
+    let context_label = context.clone().unwrap_or_default();
     let snapshot = if let Some(client) = client {
         let gateway: Arc<dyn openkite_api::gateway::Gateway> =
             Arc::new(openkite_host::gateway::KubeGateway::server_side(client));
@@ -243,6 +246,32 @@ async fn ssr_snapshot(
         ssr::Snapshot::from_gateway(&gateway, connected, context).await
     };
     let snapshot = snapshot.with_route(route).with_busy(fixture.is_loading());
+
+    // The landing dashboard counts what the cluster client can see. Other
+    // routes do not pay for those list calls.
+    let snapshot = if route == "/" {
+        let (tiles, overview_error) = overview_summary(bridge, fixture).await;
+        let summary = openkite_ui::components::overview::OverviewSummary {
+            context: context_label,
+            gateway: if connected {
+                "server-side".to_string()
+            } else {
+                "in-process".to_string()
+            },
+            connection: if connected {
+                "Connected".to_string()
+            } else {
+                "Disconnected".to_string()
+            },
+            tiles: tiles.tiles,
+        };
+        snapshot
+            .with_overview(summary)
+            .with_overview_error(overview_error)
+    } else {
+        snapshot
+    };
+
     if route == "/workloads" {
         snapshot.with_workloads(workload_table(bridge, fixture).await)
     } else {
@@ -326,6 +355,193 @@ async fn workload_table(
 /// The sidebar model the shell renders, so a path resolves against it.
 fn sidebar_sections() -> Vec<openkite_ui::shell::ShellSection> {
     openkite_ui::shell::sidebar_model(&openkite_ui::plugin_api::RegistrationStore::default())
+}
+
+/// The overview's tiles: counts the cluster client reports, or the fixture's
+/// answer, or the client's refusal.
+///
+/// The four lists are asked for together — the landing surface should cost one
+/// round of reads, not four serial ones. A refusal on any of them paints the
+/// error state rather than a partial summary: a dashboard that quietly drops
+/// the half it could not read is worse than one that says it failed.
+async fn overview_summary(
+    bridge: &Bridge,
+    fixture: crate::fixture::FixtureState,
+) -> (
+    openkite_ui::components::overview::OverviewSummary,
+    Option<String>,
+) {
+    use crate::fixture::FixtureState;
+    use openkite_ui::components::overview::{OverviewSummary, OverviewTile, TileTone};
+
+    match fixture {
+        FixtureState::Loading | FixtureState::Error | FixtureState::Empty => {
+            // The identity line is filled by the caller; the tiles are what the
+            // fixture decides here, and loading/error/empty all carry none.
+            let error = match fixture {
+                FixtureState::Error => Some(crate::fixture::FIXTURE_ERROR.to_string()),
+                _ => None,
+            };
+            return (OverviewSummary::default(), error);
+        }
+        FixtureState::Ready => {}
+    }
+
+    let (pods, nodes, deployments, services) = tokio::join!(
+        list_items(bridge, "pods"),
+        list_items(bridge, "nodes"),
+        list_items(bridge, "deployments"),
+        list_items(bridge, "services"),
+    );
+
+    let mut error = None;
+    for refusal in [&pods, &nodes, &deployments, &services] {
+        if let Err(message) = refusal {
+            error.get_or_insert_with(|| message.clone());
+        }
+    }
+    if let Some(error) = error {
+        return (OverviewSummary::default(), Some(error));
+    }
+
+    let pods = pods.unwrap_or_default();
+    let nodes = nodes.unwrap_or_default();
+    let deployments = deployments.unwrap_or_default();
+    let services = services.unwrap_or_default();
+
+    let running = pods.iter().filter(|p| phase(p) == "Running").count();
+    let pending = pods.iter().filter(|p| phase(p) == "Pending").count();
+    let failed = pods
+        .iter()
+        .filter(|p| matches!(phase(p).as_str(), "Failed" | "Unknown"))
+        .count();
+    let pod_tone = if pods.is_empty() {
+        TileTone::Neutral
+    } else if failed > 0 {
+        TileTone::Bad
+    } else if pending > 0 {
+        TileTone::Warn
+    } else if running == pods.len() {
+        TileTone::Ok
+    } else {
+        TileTone::Neutral
+    };
+
+    let ready_nodes = nodes.iter().filter(|node| node_is_ready(node)).count();
+    let node_tone = if nodes.is_empty() {
+        TileTone::Neutral
+    } else if ready_nodes == nodes.len() {
+        TileTone::Ok
+    } else if ready_nodes == 0 {
+        TileTone::Bad
+    } else {
+        TileTone::Warn
+    };
+
+    let ready_deployments = deployments
+        .iter()
+        .filter(|deployment| deployment_is_available(deployment))
+        .count();
+    let deployment_tone = if deployments.is_empty() {
+        TileTone::Neutral
+    } else if ready_deployments == deployments.len() {
+        TileTone::Ok
+    } else {
+        TileTone::Warn
+    };
+
+    let tiles = vec![
+        OverviewTile::new(
+            "pods",
+            "Pods",
+            format!("{running}/{}", pods.len()),
+            format!("running · {pending} pending · {failed} failing"),
+            pod_tone,
+        ),
+        OverviewTile::new(
+            "nodes",
+            "Nodes",
+            format!("{ready_nodes}/{}", nodes.len()),
+            "ready".to_string(),
+            node_tone,
+        ),
+        OverviewTile::new(
+            "deployments",
+            "Deployments",
+            format!("{ready_deployments}/{}", deployments.len()),
+            "fully available".to_string(),
+            deployment_tone,
+        ),
+        OverviewTile::new(
+            "services",
+            "Services",
+            services.len().to_string(),
+            "in the cluster".to_string(),
+            TileTone::Neutral,
+        ),
+    ];
+
+    (
+        OverviewSummary {
+            tiles,
+            ..Default::default()
+        },
+        None,
+    )
+}
+
+/// One `list` against the cluster client, as the items it returned.
+async fn list_items(bridge: &Bridge, kind: &str) -> Result<Vec<serde_json::Value>, String> {
+    let request = ApiRequest::List {
+        kind: kind.to_string(),
+        ns: None,
+    };
+    match bridge.execute("console", request).await {
+        ApiResponse::Ok { result } => result
+            .get("items")
+            .and_then(serde_json::Value::as_array)
+            .map(|items| items.to_vec())
+            .ok_or_else(|| format!("the {kind} list carried no items")),
+        ApiResponse::Error { error } => Err(error),
+    }
+}
+
+/// A pod's phase, or `Unknown` when the list carried none.
+fn phase(pod: &serde_json::Value) -> String {
+    pod.get("status")
+        .and_then(|status| status.get("phase"))
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("Unknown")
+        .to_string()
+}
+
+/// Whether a node reports `Ready=True`.
+fn node_is_ready(node: &serde_json::Value) -> bool {
+    node.get("status")
+        .and_then(|status| status.get("conditions"))
+        .and_then(serde_json::Value::as_array)
+        .map(|conditions| {
+            conditions.iter().any(|condition| {
+                condition.get("type").and_then(serde_json::Value::as_str) == Some("Ready")
+                    && condition.get("status").and_then(serde_json::Value::as_str) == Some("True")
+            })
+        })
+        .unwrap_or(false)
+}
+
+/// Whether a deployment has as many available replicas as it asked for.
+fn deployment_is_available(deployment: &serde_json::Value) -> bool {
+    let desired = deployment
+        .get("spec")
+        .and_then(|spec| spec.get("replicas"))
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(1);
+    let available = deployment
+        .get("status")
+        .and_then(|status| status.get("availableReplicas"))
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0);
+    available >= desired
 }
 
 /// The pods a `list pods` answer carries.

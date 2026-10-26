@@ -16,14 +16,14 @@
 
 use dioxus::prelude::*;
 
-use openkite_api::capability::{Capabilities, GatewayKind};
+use openkite_api::capability::Capabilities;
 use openkite_ui::components::namespace_bar::selection_matches;
+use openkite_ui::components::overview::OverviewDashboard;
 use openkite_ui::components::palette::{CommandPalette, PaletteHost, PaletteKeybind};
 use openkite_ui::components::resource_pane::ResourceDetail;
 use openkite_ui::components::resource_table::{ResourceTable, TableStatus};
 use openkite_ui::components::route_views::RouteView;
 use openkite_ui::components::shell::{AppShell, ClusterInfo, ShellIcon, TopBarAction};
-use openkite_ui::components::status_badge::{StatusKind, StatusPill};
 use openkite_ui::components::switcher::{ClusterSwitcher, SwitcherKeybind};
 use openkite_ui::plugin_api::RegistrationStore;
 use openkite_ui::runtime::{push_mode, set_push_mode, PushMode, NAMESPACE_SELECTION};
@@ -103,7 +103,6 @@ pub fn App(props: AppProps) -> Element {
         });
     };
     let on_refresh = move |_: ()| refetch();
-    let on_refresh_click = move |_: Event<MouseData>| refetch();
 
     // This host has no push transport, so the page polls for fresh state.
     // The 10 s interval is half of the degraded bound: an update lands within
@@ -159,13 +158,14 @@ pub fn App(props: AppProps) -> Element {
     // DOM (G4) instead of guessed from a screenshot: pending is loading, a
     // refusal is error, nothing in scope is empty.
     let gateway_error = snapshot.error.clone();
-    let overview_state = if snapshot.busy {
-        "loading"
-    } else if gateway_error.is_some() {
-        "error"
-    } else {
-        "ready"
-    };
+    // The overview's state has three inputs — the cluster-client read's own
+    // refusal, a transport failure from the last refresh, and the pending
+    // flag. The model owns the precedence, so the desktop paints the same
+    // four states from the same rule.
+    let overview_error = last_error().or_else(|| snapshot.overview_error.clone());
+    let overview_state = snapshot
+        .overview
+        .state(snapshot.busy || pending(), overview_error.as_deref());
     let secrets_state = if snapshot.busy {
         "loading"
     } else if gateway_error.is_some() {
@@ -185,16 +185,6 @@ pub fn App(props: AppProps) -> Element {
     let registrations = RegistrationStore::default();
     let sections = sidebar_model(&registrations);
     let status_entries = status_bar_model(&shell, &registrations, "", push_mode());
-
-    let gateway_label = match capabilities.gateway {
-        GatewayKind::InProcess => "in-process",
-        GatewayKind::ServerSide => "server-side",
-    };
-    let connection = if snapshot.connected {
-        StatusKind::Running
-    } else {
-        StatusKind::Failed
-    };
 
     // The page has no client router, so a palette navigation is a document
     // load — the same thing a sidebar link does. Everything else the palette
@@ -248,41 +238,11 @@ pub fn App(props: AppProps) -> Element {
                     // Declared, not invented: this host has not wired them.
                     "/cluster" | "/config" => None,
                     _ => Some(rsx! {
-                    section { class: "panel", "data-surface": "overview", "data-state": overview_state,
-                        h2 { "Cluster" }
-                        if snapshot.busy {
-                            div { class: "table-state table-loading", "data-state": "loading",
-                                "Loading the cluster…"
-                            }
-                        } else if let Some(error) = gateway_error.clone() {
-                            // The gateway refused: say so rather than painting
-                            // the previous values as if they were still true.
-                            div { class: "table-state table-error", "data-state": "error", "data-error": "1",
-                                "The gateway could not read the cluster: {error}"
-                            }
-                        } else {
-                            dl { class: "kv-list",
-                                div { class: "kv-row", dt { "Gateway" } dd { "{gateway_label}" } }
-                                div { class: "kv-row",
-                                    dt { "Connection" }
-                                    dd { StatusPill { status: connection } }
-                                }
-                                div { class: "kv-row",
-                                    dt { "Context" }
-                                    dd { "{shell.cluster_label()}" }
-                                }
-                            }
-                            button {
-                                class: "btn btn-primary",
-                                r#type: "button",
-                                onclick: on_refresh_click,
-                                "data-action": "refresh",
-                                "Refresh"
-                            }
-                            if let Some(err) = last_error() {
-                                p { class: "field-error", "data-error": "1", "gateway error: {err}" }
-                            }
-                        }
+                    OverviewDashboard {
+                        summary: snapshot.overview.clone(),
+                        state: overview_state.to_string(),
+                        error: overview_error.clone(),
+                        on_refresh: EventHandler::new(move |_: ()| refetch()),
                     }
                     section { class: "panel", "data-surface": "capabilities", "data-state": "ready",
                         h2 { "Capabilities" }

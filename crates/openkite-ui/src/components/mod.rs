@@ -6,6 +6,7 @@ pub mod crud_modal;
 pub mod dock;
 pub mod logs;
 pub mod namespace_bar;
+pub mod overview;
 pub mod palette;
 pub mod pod_detail;
 pub mod resource_pane;

@@ -624,6 +624,11 @@ pub(crate) fn json_response(resp: ApiResponse) -> AssetHttpResponse<Vec<u8>> {
 /// it reads itself, so a host that cannot do something declares it instead of
 /// painting a control that does nothing.
 fn route_view() -> Element {
+    route_view_with(None)
+}
+
+/// The routed shell, with the host's own surface in the outlet when it has one.
+fn route_view_with(content: Option<Element>) -> Element {
     // The address is the source of truth here too: the chrome paints the route
     // the URL resolved to, never a literal this component carries beside it,
     // so it cannot disagree with the shell's active entry or with the browser
@@ -649,6 +654,7 @@ fn route_view() -> Element {
             route: route.to_string(),
             sections: shell_sections(),
             namespaces: crate::runtime::NAMESPACES.read().clone(),
+            content,
             on_action: Some(on_action),
         }
     }
@@ -656,7 +662,10 @@ fn route_view() -> Element {
 
 #[component]
 fn Home() -> Element {
-    route_view()
+    // The landing surface is the live overview dashboard (OKT-203).
+    route_view_with(Some(rsx! {
+        crate::overview::LiveOverview {}
+    }))
 }
 
 #[component]
