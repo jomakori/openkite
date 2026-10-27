@@ -18,8 +18,10 @@
 //! `hydrate` feature have to compile for `wasm32-unknown-unknown`. Keeping the
 //! two apart is what makes a crate-rendered, hydrating console possible at all.
 
+pub mod account_menu;
 pub mod app;
 pub mod client;
+pub mod overlay_menu;
 pub mod ssr;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -27,7 +29,8 @@ mod host;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use host::{
-    bind_and_serve, connect, identity_label, in_cluster, serve, DEFAULT_ADDR, DEFAULT_WEB_ROOT,
+    account_identity, bind_and_serve, connect, identity_label, in_cluster, serve, DEFAULT_ADDR,
+    DEFAULT_WEB_ROOT,
 };
 
 #[cfg(not(target_arch = "wasm32"))]

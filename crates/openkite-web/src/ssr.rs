@@ -65,6 +65,44 @@ pub struct Snapshot {
     /// surfaces paint their loading state while it is set.
     #[serde(default)]
     pub busy: bool,
+    /// The account the top bar's menu names, when the host has one to name.
+    /// It rides the snapshot so the shell's avatar and the menu built on it
+    /// paint in the SSR pass and hydrate against the same identity.
+    #[serde(default)]
+    pub account: Option<AccountIdentity>,
+}
+
+/// Who the console is looking at the cluster as.
+///
+/// This host has no session and no user list: the account is the credential
+/// the gateway authenticates with, read from the host's own identity
+/// (`openkite_host::identity::describe`). `name` is what the avatar shows
+/// initials for; `detail` is the source, in the words the boot log uses.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct AccountIdentity {
+    /// The kubeconfig context, or the namespace the ServiceAccount runs in.
+    pub name: String,
+    /// What kind of credential that is.
+    pub detail: String,
+}
+
+impl AccountIdentity {
+    /// The account for a kubeconfig context.
+    pub fn for_context(context: impl Into<String>) -> Self {
+        Self {
+            name: context.into(),
+            detail: "kubeconfig context".to_string(),
+        }
+    }
+
+    /// The account for an in-cluster ServiceAccount: the workload lives in
+    /// `namespace`, which is what names it here.
+    pub fn for_service_account(namespace: impl Into<String>) -> Self {
+        Self {
+            name: namespace.into(),
+            detail: "in-cluster ServiceAccount".to_string(),
+        }
+    }
 }
 
 /// The table a route paints, in the console's own column/row vocabulary.
@@ -98,6 +136,7 @@ impl Default for Snapshot {
             workloads: WorkloadsTable::default(),
             error: None,
             busy: false,
+            account: None,
         }
     }
 }
@@ -126,6 +165,7 @@ impl Snapshot {
             workloads: WorkloadsTable::default(),
             error,
             busy: false,
+            account: None,
         }
     }
 
@@ -151,6 +191,12 @@ impl Snapshot {
     /// The same snapshot, carrying the table the workloads route paints.
     pub fn with_workloads(mut self, workloads: WorkloadsTable) -> Self {
         self.workloads = workloads;
+        self
+    }
+
+    /// The same snapshot, naming the account the top bar's menu describes.
+    pub fn with_account(mut self, account: AccountIdentity) -> Self {
+        self.account = Some(account);
         self
     }
 }
@@ -266,6 +312,7 @@ pub fn render_page(snapshot: &Snapshot, options: &RenderOptions) -> String {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OpenKite</title>
 <style>{css}</style>
+<style>{host_css}</style>
 <script>{bridge}</script>
 </head>
 <body>
@@ -274,6 +321,7 @@ pub fn render_page(snapshot: &Snapshot, options: &RenderOptions) -> String {
 </body>
 </html>"#,
         css = openkite_ui::MAIN_CSS,
+        host_css = crate::overlay_menu::CSS,
         bridge = openkite_ui::plugin_api::OPENKITE_BRIDGE_JS,
     )
 }

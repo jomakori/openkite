@@ -29,6 +29,7 @@ use openkite_ui::plugin_api::RegistrationStore;
 use openkite_ui::runtime::{push_mode, set_push_mode, PushMode, NAMESPACE_SELECTION};
 use openkite_ui::shell::{sidebar_model, status_bar_model, ShellState};
 
+use crate::account_menu::AccountMenu;
 use crate::ssr::Snapshot;
 
 /// The props the SSR pass and the wasm client both build their VirtualDom
@@ -68,6 +69,10 @@ pub fn App(props: AppProps) -> Element {
 
     // The route the host resolved, read once so a refresh cannot move the page.
     let route = props.snapshot.route.clone();
+
+    // Who this host reads the cluster as: the avatar's identity and the account
+    // menu's subject. The snapshot carries it on both passes (SSR + hydrate).
+    let account = props.snapshot.account.clone();
 
     // The selection is the address (OKT-175): the host read it out of the query
     // string it served, and it rides the snapshot so both this SSR pass and the
@@ -227,6 +232,9 @@ pub fn App(props: AppProps) -> Element {
             cluster: Some(cluster),
             status: status_entries,
             actions,
+            // The top bar paints the avatar from this; the account menu below
+            // is built on the trigger it renders.
+            identity: account.as_ref().map(|account| account.name.clone()),
             "data-surface": "app",
             // The crate's overlays, the same ones the desktop mounts: the
             // palette on this host's single hook (a navigation is a document
@@ -235,6 +243,11 @@ pub fn App(props: AppProps) -> Element {
             SwitcherKeybind {}
             ClusterSwitcher {}
             CommandPalette { host: palette_host }
+            // The account menu hangs off the avatar the shell paints from
+            // `identity`; it is this host's overlay, not the crate's.
+            if let Some(account) = account.clone() {
+                AccountMenu { account, on_refresh: EventHandler::new(on_refresh) }
+            }
             // The route chrome the desktop mounts too: each surface below is
             // that route's body.
             RouteView {
