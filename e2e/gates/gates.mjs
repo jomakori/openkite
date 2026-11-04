@@ -30,18 +30,17 @@ import { fileURLToPath } from 'node:url';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 
-// The routes the shell grades, and the states each surface must paint. A
-// surface is listed with the states it can actually be in: the overview panel
-// always has a gateway, a connection and a context to show, so it has no empty
-// state to grade, while a list always does. A surface with no `states` entry
-// must still be present, and must be ready.
+// The routes the shell grades, and the states each surface must paint. Every
+// data surface renders empty, loading and error (docs/design-surfaces.md,
+// Cross-cutting rules). A surface with no `states` entry must still be present,
+// and must be ready.
 const ALL_STATES = ['empty', 'loading', 'error'];
 const ROUTES = [
   {
     slug: 'home',
     route: '/',
     surfaces: [
-      { name: 'overview', states: ['loading', 'error'] },
+      { name: 'overview', states: ALL_STATES },
       { name: 'capabilities' },
       { name: 'secrets', states: ALL_STATES },
     ],
