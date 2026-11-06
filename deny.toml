@@ -1,0 +1,36 @@
+# cargo-deny configuration — see https://embarkstudios.github.io/cargo-deny
+#
+# Only the `advisories` check is wired into CI today (.github/workflows/lint-test.yml,
+# job `advisories`). licenses/bans/sources are intentionally left at their
+# cargo-deny defaults and unconfigured here; add sections (and a CI step) before
+# relying on them for anything.
+#
+# Refs OKT-199.
+
+[advisories]
+ignore = [
+    # --- genuinely unfixable today: no safe upgrade exists upstream ---
+    { id = "RUSTSEC-2025-0057", reason = "fxhash is unmaintained, no safe-upgrade alternative published by the advisory. Pulled in by selectors 0.24.0 -> kuchikiki 0.8.8-speedreader -> wry 0.53.5 -> dioxus-desktop 0.7.10, the same desktop-stack pin as RUSTSEC-2026-0097/RUSTSEC-2024-0429 below. Clears only when the dioxus-desktop 0.8 stable bump moves wry off 0.53.5 (wry >=0.55 drops kuchikiki entirely)." },
+    { id = "RUSTSEC-2024-0436", reason = "paste is unmaintained (archived upstream), no safe-upgrade alternative published by the advisory (pastey/with_builtin_macros are unreviewed forks, not accepted here). Pulled in by image 0.25.10 (pulp/exr, rav1e/ravif) -> dioxus-desktop 0.7.10. Independent of the gtk/kuchikiki chain; revisit if dioxus-desktop drops the `image` dependency or paste publishes a maintained successor." },
+    { id = "RUSTSEC-2024-0370", reason = "proc-macro-error is unmaintained, no safe-upgrade alternative published by the advisory. Pulled in by glib-macros 0.18.5 -> glib 0.18.5, the same gtk-rs 0.18 stack as RUSTSEC-2024-0429 below; clears with the same gtk-rs 0.20 bump." },
+
+    # --- desktop-stack advisories named in OKT-199 (rand 0.7.3, glib 0.18.5) ---
+    # Neither is matched by cargo-deny's own query against this lockfile today
+    # (confirmed 2026-10-26, cargo-deny 0.20.2: putting these IDs in `ignore`
+    # produces a non-fatal "advisory-not-detected / no crate matched advisory
+    # criteria" note, not an error) because both advisories carry only
+    # `[affected.functions]` entries -- specific function names plus the
+    # version range in which they're unsound -- and no blanket
+    # `[versions].affected` range; cargo-deny does no call-graph analysis, so
+    # it can't tell whether the actual unsound function is reached and
+    # declines to flag the crate purely from its presence in the graph.
+    # Dependabot's SCA (which also can't do call-graph analysis) has no such
+    # restraint and flags both unconditionally -- hence the two still-open
+    # Dependabot alerts (#2, #3) alongside this file. The entries stay below
+    # as the authoritative written reachability record either way: if a
+    # future rustsec/cargo-deny release adds function-reachability matching,
+    # the ignore engages with the right justification already attached
+    # instead of breaking CI.
+    { id = "RUSTSEC-2026-0097", reason = "rand 0.7.3 (GHSA-cq8v-f236-94qc, unsound only for rand::rng()/thread_rng() reused from a custom log::Log impl) enters openkite solely via dioxus-desktop 0.7.10 -> wry ^0.53.5 -> kuchikiki =0.8.8-speedreader (EXACT pin) -> selectors ^0.24 -> phf_codegen ^0.8 (a build-dependency, cfg `kind = build`) -> phf_generator ^0.8 -> rand ^0.7 (normal dep of phf_generator, used internally for PHF table construction, not exposed to or driven by openkite's logger). No compatible bump exists: wry 0.53.5 pins kuchikiki with an exact version requirement so cargo cannot select kuchikiki 0.8.9-speedreader (selectors ^0.32 -> phf 0.11 -> patched rand 0.8.7+); wry >=0.55 drops kuchikiki outright but no stable dioxus-desktop built on it exists yet (newest stable is 0.7.10; 0.8.0-alpha.1/alpha.3 use wry ^0.55.1 but are alpha-only). Re-triage when a stable dioxus-desktop ships on wry >=0.55." },
+    { id = "RUSTSEC-2024-0429", reason = "glib 0.18.5 (GHSA-wrw7-89jp-8q8g) is unsound only in glib::VariantStrIter's Iterator/DoubleEndedIterator impls (next/nth/last/next_back/nth_back); openkite's own code does not call these (verified: no VariantStrIter/glib::Variant usage in crates/). glib 0.18.5 enters via dioxus-desktop 0.7.10 -> tao/wry/muda/tray-icon -> webkit2gtk 2.0.1 -> the gtk-rs 0.18 stack (gtk/gdk/gio/atk/cairo-rs 0.18.x), which the Linux desktop build in .github/workflows/release.yml links into shipped AppImage artifacts, so the crate itself is live runtime code even though the specific unsound methods are not invoked by openkite. No compatible bump exists: wry's newest stable (0.57.1) and both dioxus-desktop 0.8.0-alpha releases still pin gtk ^0.18 / webkit2gtk =2.0.2 (crates.io dependency metadata, checked 2026-10-26); gtk-rs's own 0.19 line moved to glib ^0.22 but wry has not adopted gtk-rs 0.19/0.20. Patched only in glib >=0.20.0. Re-triage when wry drops the gtk ^0.18 pin." },
+]
