@@ -888,6 +888,69 @@ body {
 .table-loading { color: var(--muted); }
 .table-actions { display: flex; justify-content: flex-end; gap: 4px; }
 
+/* --- Overview dashboard (OKT-203) ---
+   The landing surface: the cluster's identity on one line, then the status
+   tiles the cluster client counted. The grid reflows on its own between the
+   tablet and desktop sheet, and the phone sheet stacks it to one column. */
+.overview-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.overview-head h2 {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 2px 0 0;
+}
+.overview-meta {
+  margin: 4px 0 0;
+  color: var(--subtle);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+.stat-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-solid);
+}
+.stat-tile-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--subtle);
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+}
+.stat-tile-value {
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.stat-tile-detail {
+  color: var(--muted);
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+}
+
 /* --- Table primitives --- */
 .table-wrap {
   overflow-x: auto;
@@ -1373,6 +1436,10 @@ body {
      room on a full-width sheet. */
   .kv-row { grid-template-columns: 110px 1fr; }
   .panel { padding: 12px; }
+  /* OKT-203: the overview tiles stack — a half-width tile on a phone reads as
+     a squeezed number rather than a status. */
+  .overview-grid { grid-template-columns: 1fr; }
+  .overview-head { gap: 12px; }
   .toast { bottom: 16px; max-width: calc(100% - 32px); }
   /* OKT-167: mobile rows stack into label/value blocks (inline row positioning overridden). */
   .resource-table .table-header { display: none; }
