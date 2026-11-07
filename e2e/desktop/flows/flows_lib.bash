@@ -104,17 +104,19 @@ assert_rendered() {
 }
 
 assert_pixels_changed() {
-  local before="$1" after="$2" label="$3" threshold="${4:-500}" diff
+  local before="$1" after="$2" label="$3" threshold="${4:-500}" diff count
   diff=$(compare -metric AE "$before" "$after" null: 2>&1 || true)
+  count="${diff%% *}"
   flow_log "$label differing pixels: $diff (threshold: $threshold)"
-  [ -n "$diff" ] && [ "$diff" -gt "$threshold" ]
+  [ -n "$count" ] && [ "$count" -gt "$threshold" ]
 }
 
 assert_pixels_unchanged() {
-  local before="$1" after="$2" label="$3" threshold="${4:-500}" diff
+  local before="$1" after="$2" label="$3" threshold="${4:-500}" diff count
   diff=$(compare -metric AE "$before" "$after" null: 2>&1 || true)
+  count="${diff%% *}"
   flow_log "$label differing pixels: $diff (threshold: $threshold)"
-  [ -n "$diff" ] && [ "$diff" -le "$threshold" ]
+  [ -n "$count" ] && [ "$count" -le "$threshold" ]
 }
 
 assert_disconnected() {
