@@ -387,15 +387,30 @@ async fn overview_summary(
         FixtureState::Ready => {}
     }
 
-    let (pods, nodes, deployments, services) = tokio::join!(
+    let (pods, nodes, deployments, services, daemonsets, statefulsets, replicasets, jobs, cronjobs) = tokio::join!(
         list_items(bridge, "pods"),
         list_items(bridge, "nodes"),
         list_items(bridge, "deployments"),
         list_items(bridge, "services"),
+        list_items(bridge, "daemonsets"),
+        list_items(bridge, "statefulsets"),
+        list_items(bridge, "replicasets"),
+        list_items(bridge, "jobs"),
+        list_items(bridge, "cronjobs"),
     );
 
     let mut error = None;
-    for refusal in [&pods, &nodes, &deployments, &services] {
+    for refusal in [
+        &pods,
+        &nodes,
+        &deployments,
+        &services,
+        &daemonsets,
+        &statefulsets,
+        &replicasets,
+        &jobs,
+        &cronjobs,
+    ] {
         if let Err(message) = refusal {
             error.get_or_insert_with(|| message.clone());
         }
@@ -408,6 +423,11 @@ async fn overview_summary(
     let nodes = nodes.unwrap_or_default();
     let deployments = deployments.unwrap_or_default();
     let services = services.unwrap_or_default();
+    let daemonsets = daemonsets.unwrap_or_default();
+    let statefulsets = statefulsets.unwrap_or_default();
+    let replicasets = replicasets.unwrap_or_default();
+    let jobs = jobs.unwrap_or_default();
+    let cronjobs = cronjobs.unwrap_or_default();
 
     let running = pods.iter().filter(|p| phase(p) == "Running").count();
     let pending = pods.iter().filter(|p| phase(p) == "Pending").count();
@@ -450,6 +470,53 @@ async fn overview_summary(
         TileTone::Warn
     };
 
+    let ready_daemonsets = daemonsets
+        .iter()
+        .filter(|daemonset| daemonset_is_ready(daemonset))
+        .count();
+    let daemonset_tone = if daemonsets.is_empty() {
+        TileTone::Neutral
+    } else if ready_daemonsets == daemonsets.len() {
+        TileTone::Ok
+    } else {
+        TileTone::Warn
+    };
+
+    let ready_statefulsets = statefulsets
+        .iter()
+        .filter(|statefulset| statefulset_is_ready(statefulset))
+        .count();
+    let statefulset_tone = if statefulsets.is_empty() {
+        TileTone::Neutral
+    } else if ready_statefulsets == statefulsets.len() {
+        TileTone::Ok
+    } else {
+        TileTone::Warn
+    };
+
+    let available_replicasets = replicasets
+        .iter()
+        .filter(|replicaset| replicaset_is_available(replicaset))
+        .count();
+    let replicaset_tone = if replicasets.is_empty() {
+        TileTone::Neutral
+    } else if available_replicasets == replicasets.len() {
+        TileTone::Ok
+    } else {
+        TileTone::Warn
+    };
+
+    let (job_active, job_succeeded, job_failed) = job_counts(&jobs);
+    let job_tone = if jobs.is_empty() {
+        TileTone::Neutral
+    } else if job_failed > 0 {
+        TileTone::Bad
+    } else if job_active > 0 {
+        TileTone::Warn
+    } else {
+        TileTone::Ok
+    };
+
     let tiles = vec![
         OverviewTile::new(
             "pods",
@@ -477,6 +544,43 @@ async fn overview_summary(
             "Services",
             services.len().to_string(),
             "in the cluster".to_string(),
+            TileTone::Neutral,
+        ),
+        OverviewTile::new(
+            "daemonsets",
+            "DaemonSets",
+            format!("{ready_daemonsets}/{}", daemonsets.len()),
+            "ready".to_string(),
+            daemonset_tone,
+        ),
+        OverviewTile::new(
+            "statefulsets",
+            "StatefulSets",
+            format!("{ready_statefulsets}/{}", statefulsets.len()),
+            "ready".to_string(),
+            statefulset_tone,
+        ),
+        OverviewTile::new(
+            "replicasets",
+            "ReplicaSets",
+            format!("{available_replicasets}/{}", replicasets.len()),
+            "fully available".to_string(),
+            replicaset_tone,
+        ),
+        OverviewTile::new(
+            "jobs",
+            "Jobs",
+            format!("{job_succeeded}/{}", jobs.len()),
+            format!("{job_active} active · {job_failed} failing"),
+            job_tone,
+        ),
+        // CronJob run health is not tracked on this card — Lens's overview
+        // does not either — so the count is purely informational.
+        OverviewTile::new(
+            "cronjobs",
+            "CronJobs",
+            cronjobs.len().to_string(),
+            "scheduled".to_string(),
             TileTone::Neutral,
         ),
     ];
@@ -542,6 +646,75 @@ fn deployment_is_available(deployment: &serde_json::Value) -> bool {
         .and_then(serde_json::Value::as_u64)
         .unwrap_or(0);
     available >= desired
+}
+
+/// Whether a daemonset's ready pods meet the number it scheduled.
+fn daemonset_is_ready(daemonset: &serde_json::Value) -> bool {
+    let desired = daemonset
+        .get("status")
+        .and_then(|status| status.get("desiredNumberScheduled"))
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0);
+    let ready = daemonset
+        .get("status")
+        .and_then(|status| status.get("numberReady"))
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0);
+    ready >= desired
+}
+
+/// Whether a statefulset's ready replicas meet the desired count.
+fn statefulset_is_ready(statefulset: &serde_json::Value) -> bool {
+    let desired = statefulset
+        .get("spec")
+        .and_then(|spec| spec.get("replicas"))
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(1);
+    let ready = statefulset
+        .get("status")
+        .and_then(|status| status.get("readyReplicas"))
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0);
+    ready >= desired
+}
+
+/// Whether a replicaset's available replicas meet the desired count — the
+/// same bar a Deployment's own ReplicaSet is held to.
+fn replicaset_is_available(replicaset: &serde_json::Value) -> bool {
+    let desired = replicaset
+        .get("spec")
+        .and_then(|spec| spec.get("replicas"))
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(1);
+    let available = replicaset
+        .get("status")
+        .and_then(|status| status.get("availableReplicas"))
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0);
+    available >= desired
+}
+
+/// A job list's active/succeeded/failed pod counts, summed across jobs.
+fn job_counts(jobs: &[serde_json::Value]) -> (i64, i64, i64) {
+    let mut active = 0i64;
+    let mut succeeded = 0i64;
+    let mut failed = 0i64;
+    for job in jobs {
+        let status = job.get("status");
+        active += status
+            .and_then(|status| status.get("active"))
+            .and_then(serde_json::Value::as_i64)
+            .unwrap_or(0);
+        succeeded += status
+            .and_then(|status| status.get("succeeded"))
+            .and_then(serde_json::Value::as_i64)
+            .unwrap_or(0);
+        failed += status
+            .and_then(|status| status.get("failed"))
+            .and_then(serde_json::Value::as_i64)
+            .unwrap_or(0);
+    }
+    (active, succeeded, failed)
 }
 
 /// The pods a `list pods` answer carries.
