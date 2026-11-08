@@ -118,6 +118,8 @@ PAL_STD=$(pixel_stddev "$ART/02-palette.png")
 log "palette screenshot stddev=$PAL_STD"
 # Palette overlay changes the pixels measurably (different layout + backdrop).
 DIFF=$(compare -metric AE "$ART/01-shell.png" "$ART/02-palette.png" null: 2>&1 || true)
+# Strip any non-numeric suffixes (compare sometimes outputs "1024 (0.001)")
+DIFF=$(echo "$DIFF" | grep -oE '^[0-9]+' || echo "0")
 log "shell-vs-palette differing pixels: $DIFF"
 [ -n "$DIFF" ] && [ "$DIFF" -gt 500 ] || fail "palette did not change the screen"
 
@@ -126,6 +128,8 @@ xdotool key --clearmodifiers Escape
 sleep 2
 import -window "$WINDOW_ID" "$ART/03-closed.png" 2>/dev/null || fail "screenshot 3 failed"
 CLOSE_DIFF=$(compare -metric AE "$ART/01-shell.png" "$ART/03-closed.png" null: 2>&1 || true)
+# Strip any non-numeric suffixes (compare sometimes outputs "1024 (0.001)")
+CLOSE_DIFF=$(echo "$CLOSE_DIFF" | grep -oE '^[0-9]+' || echo "0")
 log "shell-vs-closed differing pixels: $CLOSE_DIFF"
 
 log "PASS"

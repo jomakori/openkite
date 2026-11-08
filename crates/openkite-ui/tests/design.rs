@@ -714,6 +714,7 @@ const NAMESPACE_BAR_RSX: &str = include_str!("../src/components/namespace_bar.rs
 const DOCK_RSX: &str = include_str!("../src/components/dock.rs");
 const APP_CARD_RSX: &str = include_str!("../src/components/app_card.rs");
 const POD_DETAIL_RSX: &str = include_str!("../src/components/pod_detail.rs");
+const OVERVIEW_RSX: &str = include_str!("../src/components/overview.rs");
 
 /// Every rsx source file the crate renders. Order is for stable error
 /// messages — does not affect semantics.
@@ -760,6 +761,10 @@ const RSX_SOURCES: &[(&str, &str)] = &[
     (
         "crates/openkite-ui/src/components/pod_detail.rs",
         POD_DETAIL_RSX,
+    ),
+    (
+        "crates/openkite-ui/src/components/overview.rs",
+        OVERVIEW_RSX,
     ),
 ];
 

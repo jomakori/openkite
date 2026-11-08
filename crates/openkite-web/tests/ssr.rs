@@ -107,27 +107,30 @@ fn render_body_renders_the_shared_sidebar_model() {
 
 #[test]
 fn render_body_paints_a_connected_snapshot() {
-    let body = render_body(&connected());
+    let body = render_body(&connected().with_overview(overview_of("in-process", "in-cluster")));
     assert!(
         body.contains("in-cluster · Connected"),
         "status footer: {body}"
     );
     assert!(body.contains("class=\"pill success\""), "pill: {body}");
-    assert!(body.contains(">Running<"), "pill label: {body}");
-    assert!(body.contains(">in-process<"), "gateway kind: {body}");
+    assert!(body.contains(">Ready<"), "pill label: {body}");
+    assert!(body.contains("gateway in-process"), "gateway kind: {body}");
     assert!(body.contains(">regcred<"), "secret row: {body}");
     assert!(
         body.contains("class=\"resource-name\""),
         "secret row markup: {body}"
     );
-    let server_side = render_body(&Snapshot {
-        capabilities: Capabilities::server_side(),
-        connected: true,
-        context: Some("kubeconfig".into()),
-        ..Snapshot::default()
-    });
+    let server_side = render_body(
+        &Snapshot {
+            capabilities: Capabilities::server_side(),
+            connected: true,
+            context: Some("kubeconfig".into()),
+            ..Snapshot::default()
+        }
+        .with_overview(overview_of("server-side", "kubeconfig")),
+    );
     assert!(
-        server_side.contains(">server-side<"),
+        server_side.contains("gateway server-side"),
         "gateway kind: {server_side}"
     );
     assert!(
@@ -144,8 +147,10 @@ fn render_body_paints_a_connected_snapshot() {
 fn render_body_paints_a_disconnected_snapshot() {
     let body = render_body(&snapshot());
     assert!(body.contains("no cluster · Disconnected"), "footer: {body}");
-    assert!(body.contains("class=\"pill danger\""), "pill: {body}");
-    assert!(body.contains(">Failed<"), "pill label: {body}");
+    // No overview summary is carried, so the overview is empty (muted pill),
+    // not failed: a refusal would have to be set to paint the error state.
+    assert!(body.contains("class=\"pill muted\""), "pill: {body}");
+    assert!(body.contains(">Unknown<"), "pill label: {body}");
     assert!(
         body.contains("No secrets in the gateway"),
         "empty secrets surface: {body}"
@@ -272,6 +277,22 @@ fn route_snapshot(route: &str) -> Snapshot {
     Snapshot {
         route: route.to_string(),
         ..Snapshot::default()
+    }
+}
+
+/// The overview summary a connected host carries: its gateway kind and context.
+fn overview_of(gateway: &str, context: &str) -> openkite_ui::components::overview::OverviewSummary {
+    openkite_ui::components::overview::OverviewSummary {
+        context: context.into(),
+        gateway: gateway.into(),
+        connection: "Connected".into(),
+        tiles: vec![openkite_ui::components::overview::OverviewTile::new(
+            "pods",
+            "Pods",
+            "1/1",
+            "running of all pods",
+            openkite_ui::components::overview::TileTone::Neutral,
+        )],
     }
 }
 

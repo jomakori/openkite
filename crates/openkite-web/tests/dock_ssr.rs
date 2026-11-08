@@ -22,6 +22,7 @@ fn snapshot() -> Snapshot {
         workloads: Default::default(),
         error: None,
         busy: false,
+        ..Snapshot::default()
     }
 }
 
