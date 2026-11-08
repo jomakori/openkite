@@ -26,6 +26,44 @@ fn summary() -> OverviewSummary {
                 TileTone::Warn,
             ),
             OverviewTile::new("nodes", "Nodes", "3/3", "ready", TileTone::Ok),
+            OverviewTile::new(
+                "deployments",
+                "Deployments",
+                "5/5",
+                "fully available",
+                TileTone::Ok,
+            ),
+            OverviewTile::new(
+                "services",
+                "Services",
+                "8",
+                "across all namespaces",
+                TileTone::Neutral,
+            ),
+            // The five workload cards OKT-208 adds, alongside the pre-existing four.
+            OverviewTile::new("daemonsets", "DaemonSets", "2/2", "ready", TileTone::Ok),
+            OverviewTile::new(
+                "statefulsets",
+                "StatefulSets",
+                "1/2",
+                "ready",
+                TileTone::Warn,
+            ),
+            OverviewTile::new(
+                "replicasets",
+                "ReplicaSets",
+                "5/5",
+                "fully available",
+                TileTone::Ok,
+            ),
+            OverviewTile::new(
+                "jobs",
+                "Jobs",
+                "3/4",
+                "1 active · 0 failing",
+                TileTone::Warn,
+            ),
+            OverviewTile::new("cronjobs", "CronJobs", "6", "scheduled", TileTone::Neutral),
         ],
     }
 }
@@ -56,7 +94,7 @@ fn the_ready_state_paints_one_tile_per_summary_tile() {
     let html = support::mount_html(ready, || {});
     assert!(html.contains("data-surface=\"overview\""), "{html}");
     assert!(html.contains("data-state=\"ready\""), "{html}");
-    assert_eq!(html.matches("class=\"stat-tile\"").count(), 2, "{html}");
+    assert_eq!(html.matches("class=\"stat-tile\"").count(), 9, "{html}");
     assert!(html.contains("data-tile=\"pods\""), "{html}");
     assert!(html.contains("40/42"), "{html}");
     assert!(
@@ -64,6 +102,32 @@ fn the_ready_state_paints_one_tile_per_summary_tile() {
         "{html}"
     );
     assert!(!html.contains("table-state"), "{html}");
+}
+
+/// The five OKT-208 workload tiles each paint their own key, value and tone.
+#[test]
+fn the_ready_state_paints_the_five_workload_cards() {
+    let html = support::mount_html(ready, || {});
+    for (key, value, tone) in [
+        ("daemonsets", "2/2", "ok"),
+        ("statefulsets", "1/2", "warn"),
+        ("replicasets", "5/5", "ok"),
+        ("jobs", "3/4", "warn"),
+        ("cronjobs", "6", "neutral"),
+    ] {
+        assert!(
+            html.contains(&format!("data-tile=\"{key}\"")),
+            "missing tile {key}: {html}"
+        );
+        assert!(
+            html.contains(value),
+            "missing value {value} for {key}: {html}"
+        );
+        assert!(
+            html.contains(&format!("data-tone=\"{tone}\"")),
+            "missing tone {tone} for {key}: {html}"
+        );
+    }
 }
 
 #[test]
