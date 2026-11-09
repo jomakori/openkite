@@ -40,6 +40,24 @@ const VIEWPORTS = [
   { slug: '390x844', width: 390, height: 844 },
 ];
 
+// Surfaces that only tell the truth in a non-default state. The workloads
+// table renders its bulk bar in an empty state until rows are ticked, so the
+// shot ticks two boxes and waits for the bar to report them.
+const PRIMERS = {
+  workloads: async () => {
+    await evaluate(`(() => {
+      const boxes = [...document.querySelectorAll('.row-check')];
+      if (boxes.length < 2) throw new Error('expected row checkboxes, found ' + boxes.length);
+      boxes[0].click();
+      boxes[1].click();
+      return true;
+    })()`);
+    await waitForExpression(
+      `document.querySelectorAll('.table-row.checked').length === 2 && document.querySelector('.bulk-bar.active') !== null`,
+    );
+  },
+};
+
 const chromium = process.env.OPENKITE_BROWSER;
 const hostBin = process.env.OPENKITE_WEB_BIN;
 const webRoot = process.env.OPENKITE_WEB_ROOT;
@@ -198,6 +216,8 @@ try {
         console.log(`snapshot ${name}`);
       }
       if (snapshotDir) continue;
+      await PRIMERS[target.slug]?.();
+      if (PRIMERS[target.slug]) await delay(200);
       const { data } = await command('Page.captureScreenshot', {
         format: 'png',
         captureBeyondViewport: false,
