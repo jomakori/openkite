@@ -1,22 +1,30 @@
-//! The bottom dock: a tab strip, a dropdown tab manager and the active
-//! terminal or log surface.
+//! The bottom dock: one or two panes of tabs, a toolbar, a dropdown tab
+//! manager and the active terminal or log surface.
 //!
-//! One tab is the reusable temporary one a pod selection owns; the rest are
-//! permanent. The rules live in [`crate::dock`]; this module renders them and
-//! forwards every mutation to [`crate::runtime`] so the state outlives the
-//! component's own re-renders.
+//! One tab per pane is the reusable temporary one a pod selection owns; the
+//! rest are permanent. The rules live in [`crate::dock`]; this module renders
+//! them and forwards every mutation to [`crate::runtime`] so the state
+//! outlives the component's own re-renders.
+//!
+//! Single-pane keeps the dock's original shape: one bar holding the strip, the
+//! layout controls and the tab manager, over one body. Splitting moves each
+//! pane's strip into that pane, so both panes have their own tabs and their own
+//! active tab. Swapping reverses which pane is painted first — the panes are
+//! keyed by their slot, so the reorder moves the mounted pane instead of
+//! remounting it and a terminal keeps its session.
 
 use dioxus::prelude::*;
 
 use crate::components::logs::LogsView;
 use crate::components::terminal::TerminalView;
-use crate::dock::{DockState, DockTabKind};
+use crate::dock::{DockState, DockTabKind, PaneSlot};
 use crate::runtime::{
-    activate_dock_tab, close_all_dock_tabs, close_dock_tab, close_other_dock_tabs,
-    promote_dock_tab, set_dock_height, DOCK, DOCK_HEIGHT, SELECTED_POD,
+    activate_dock_tab, close_all_dock_tabs, close_dock_tab, close_other_dock_tabs, focus_dock_pane,
+    promote_dock_tab, set_dock_height, split_dock, swap_dock, unsplit_dock, DOCK, DOCK_HEIGHT,
+    SELECTED_POD,
 };
 
-/// A tab as the strip and the manager render it.
+/// A tab as a pane's strip and the manager render it.
 struct TabRow {
     id: String,
     label: String,
@@ -24,23 +32,138 @@ struct TabRow {
     temporary: bool,
 }
 
-fn tab_rows(state: &DockState) -> Vec<TabRow> {
+/// One pane as the view paints it.
+struct PaneRow {
+    slot: PaneSlot,
+    tabs: Vec<TabRow>,
+    focus: bool,
+    kind: Option<DockTabKind>,
+    empty: bool,
+}
+
+fn pane_rows(state: &DockState) -> Vec<PaneRow> {
     state
-        .tabs
-        .iter()
-        .map(|tab| TabRow {
-            id: tab.id.clone(),
-            label: tab.label(),
-            active: state.active.as_deref() == Some(tab.id.as_str()),
-            temporary: tab.temporary,
+        .panes()
+        .into_iter()
+        .map(|pane| {
+            let tabs: Vec<TabRow> = pane
+                .tabs
+                .iter()
+                .map(|tab| TabRow {
+                    id: tab.id.clone(),
+                    label: tab.label(),
+                    active: pane.active == Some(tab.id.as_str()),
+                    temporary: tab.temporary,
+                })
+                .collect();
+            let kind = pane
+                .active
+                .and_then(|id| pane.tabs.iter().find(|tab| tab.id == id))
+                .map(|tab| tab.kind);
+            PaneRow {
+                slot: pane.slot,
+                empty: tabs.is_empty(),
+                tabs,
+                focus: pane.focused,
+                kind,
+            }
         })
         .collect()
+}
+
+/// One pane's tab strip.
+fn strip_markup(pane: &PaneRow) -> Element {
+    let label = format!("Dock pane {} tabs", pane.slot.key().to_uppercase());
+    let rows = &pane.tabs;
+    rsx! {
+        div { class: "dock-tabs", role: "tablist", aria_label: "{label}",
+            for row in rows.iter() {
+                {
+                    let select = row.id.clone();
+                    let promote = row.id.clone();
+                    let close_id = row.id.clone();
+                    rsx! {
+                        div {
+                            key: "{row.id}",
+                            class: if row.active { "dock-tab active" } else { "dock-tab" },
+                            role: "tab",
+                            "data-dock-tab": "{row.id}",
+                            "data-temporary": if row.temporary { Some("1") } else { None },
+                            "aria-selected": if row.active { "true" } else { "false" },
+                            tabindex: "0",
+                            title: if row.temporary { "Temporary tab — double-click to keep it" } else { "Permanent tab" },
+                            onclick: move |_| activate_dock_tab(&select),
+                            ondoubleclick: move |_| promote_dock_tab(&promote),
+                            if row.temporary {
+                                span { class: "dot" }
+                            }
+                            span { class: "dock-tab-label", "{row.label}" }
+                            button {
+                                class: "dock-tab-close",
+                                r#type: "button",
+                                aria_label: "Close {row.label}",
+                                onclick: move |event| {
+                                    event.stop_propagation();
+                                    close_dock_tab(&close_id);
+                                },
+                                "×"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// One pane: its strip (while split) and the surface its active tab names.
+///
+/// Keyed by slot, not by position, so [`swap`](crate::dock::swap) reorders the
+/// mounted pane instead of tearing it down.
+fn pane_markup(pane: &PaneRow, split: bool) -> Element {
+    let slot = pane.slot;
+    let key = slot.key();
+    let label = format!("Dock pane {}", slot.key().to_uppercase());
+    let empty = pane.empty;
+    let focused = if pane.focus { "true" } else { "false" };
+    let kind = pane.kind;
+    let strip = strip_markup(pane);
+
+    rsx! {
+        div {
+            key: "{key}",
+            class: "dock-pane",
+            "data-pane": "{key}",
+            "data-focused": "{focused}",
+            role: "group",
+            aria_label: "{label}",
+            tabindex: "0",
+            onfocus: move |_| focus_dock_pane(slot),
+            onpointerdown: move |_| focus_dock_pane(slot),
+
+            if split {
+                div { class: "dock-pane-bar", {strip} }
+            }
+
+            div { class: "dock-body",
+                if empty && split {
+                    p { class: "dock-pane-empty",
+                        "Empty pane — pick a pod or open a terminal to fill it."
+                    }
+                } else if kind == Some(DockTabKind::Terminal) {
+                    TerminalView {}
+                } else if kind == Some(DockTabKind::Logs) {
+                    LogsView {}
+                }
+            }
+        }
+    }
 }
 
 /// The bottom dock. Renders nothing at all while it has no tab.
 #[component]
 pub fn DockView() -> Element {
-    // A pod selection opens — or replaces — the dock's one temporary tab.
+    // A pod selection opens — or replaces — the focused pane's temporary tab.
     use_effect(move || {
         let selected = SELECTED_POD.read().clone();
         if let Some(pod) = selected {
@@ -53,24 +176,28 @@ pub fn DockView() -> Element {
     let mut manager_open = use_signal(|| false);
     let mut drag_origin = use_signal(|| None::<(f64, u32)>);
 
-    if state.tabs.is_empty() {
+    if !state.is_open() {
         return rsx! {};
     }
 
-    let rows = tab_rows(&state);
-    let tab_count = rows.len();
+    let split = state.is_split();
+    let panes = pane_rows(&state);
+    let tab_count: usize = panes.iter().map(|pane| pane.tabs.len()).sum();
     let active = state.active.clone();
     let active_for_others = active.clone();
-    let active_kind = state
-        .active
-        .as_deref()
-        .and_then(|id| state.tab(id))
-        .map(|tab| tab.kind);
+    let layout = if split { "split" } else { "single" };
+    let focus_key = state.focused().key();
+    let toggle_label = if split { "Unsplit" } else { "Split" };
+    let toggle_name = if split { "Unsplit dock" } else { "Split dock" };
+    let toggle_action = if split { "unsplit" } else { "split" };
+    let single_strip = panes.first().map(strip_markup);
 
     rsx! {
         section {
             class: "dock",
             "data-dock": "open",
+            "data-dock-layout": "{layout}",
+            "data-dock-focus": "{focus_key}",
             "data-dock-height": "{height}",
             style: "--dock-height: {height}px;",
 
@@ -100,42 +227,37 @@ pub fn DockView() -> Element {
             }
 
             div { class: "dock-bar",
-                div { class: "dock-tabs", role: "tablist", aria_label: "Dock tabs",
-                    for row in rows.iter() {
-                        {
-                            let select = row.id.clone();
-                            let promote = row.id.clone();
-                            let close_id = row.id.clone();
-                            rsx! {
-                                div {
-                                    key: "{row.id}",
-                                    class: if row.active { "dock-tab active" } else { "dock-tab" },
-                                    role: "tab",
-                                    "data-dock-tab": "{row.id}",
-                                    "data-temporary": if row.temporary { Some("1") } else { None },
-                                    "aria-selected": if row.active { "true" } else { "false" },
-                                    tabindex: "0",
-                                    title: if row.temporary { "Temporary tab — double-click to keep it" } else { "Permanent tab" },
-                                    onclick: move |_| activate_dock_tab(&select),
-                                    ondoubleclick: move |_| promote_dock_tab(&promote),
-                                    if row.temporary {
-                                        span { class: "dot" }
-                                    }
-                                    span { class: "dock-tab-label", "{row.label}" }
-                                    button {
-                                        class: "dock-tab-close",
-                                        r#type: "button",
-                                        aria_label: "Close {row.label}",
-                                        onclick: move |event| {
-                                            event.stop_propagation();
-                                            close_dock_tab(&close_id);
-                                        },
-                                        "×"
-                                    }
-                                }
+                div { class: "dock-layout",
+                    button {
+                        class: "dock-layout-btn",
+                        r#type: "button",
+                        "data-dock-action": "{toggle_action}",
+                        aria_label: "{toggle_name}",
+                        onclick: move |_| {
+                            if split {
+                                unsplit_dock();
+                            } else {
+                                split_dock();
                             }
-                        }
+                        },
+                        "{toggle_label}"
                     }
+                    button {
+                        class: "dock-layout-btn",
+                        r#type: "button",
+                        "data-dock-action": "swap",
+                        aria_label: "Swap panes",
+                        // Focusable and announced while single-pane (nothing to
+                        // swap yet), so the control never disappears from the
+                        // keyboard path; the model's `swap` is a no-op there.
+                        "aria-disabled": if split { "false" } else { "true" },
+                        title: if split { "Swap the panes" } else { "Split the dock first" },
+                        onclick: move |_| swap_dock(),
+                        "Swap"
+                    }
+                }
+                if let Some(strip) = single_strip {
+                    {strip}
                 }
                 div { class: "dock-manager",
                     button {
@@ -154,24 +276,26 @@ pub fn DockView() -> Element {
                         class: if manager_open() { "dock-menu open" } else { "dock-menu" },
                         role: "menu",
                         aria_label: "Open tabs",
-                        for row in rows.iter() {
-                            {
-                                let switch = row.id.clone();
-                                let close_id = row.id.clone();
-                                rsx! {
-                                    div { key: "{row.id}", class: "dock-menu-row",
-                                        button {
-                                            class: "dock-menu-switch",
-                                            r#type: "button",
-                                            onclick: move |_| activate_dock_tab(&switch),
-                                            "{row.label}"
-                                        }
-                                        button {
-                                            class: "dock-menu-close",
-                                            r#type: "button",
-                                            aria_label: "Close {row.label}",
-                                            onclick: move |_| close_dock_tab(&close_id),
-                                            "×"
+                        for pane in panes.iter() {
+                            for row in pane.tabs.iter() {
+                                {
+                                    let switch = row.id.clone();
+                                    let close_id = row.id.clone();
+                                    rsx! {
+                                        div { key: "{row.id}", class: "dock-menu-row",
+                                            button {
+                                                class: "dock-menu-switch",
+                                                r#type: "button",
+                                                onclick: move |_| activate_dock_tab(&switch),
+                                                "{row.label}"
+                                            }
+                                            button {
+                                                class: "dock-menu-close",
+                                                r#type: "button",
+                                                aria_label: "Close {row.label}",
+                                                onclick: move |_| close_dock_tab(&close_id),
+                                                "×"
+                                            }
                                         }
                                     }
                                 }
@@ -200,11 +324,9 @@ pub fn DockView() -> Element {
                 }
             }
 
-            div { class: "dock-body",
-                if active_kind == Some(DockTabKind::Terminal) {
-                    TerminalView {}
-                } else if active_kind == Some(DockTabKind::Logs) {
-                    LogsView {}
+            div { class: "dock-panes",
+                for pane in panes.iter() {
+                    { pane_markup(pane, split) }
                 }
             }
         }
