@@ -1578,6 +1578,10 @@ body {
   }
   .log-scrim.show { display: block; }
   .bottom-nav { display: block; }
+  /* OKT-207: the dock is one pane here whatever the split says; widening
+     restores the split because the hidden pane stays mounted. The boundary
+     matches `dock::SPLIT_MIN_WIDTH`, which the unit tests pin. */
+  .dock[data-dock-layout="split"] .dock-pane:not([data-focused="true"]) { display: none; }
 }
 
 /* The bar is a below-768px affordance only. */
@@ -1920,6 +1924,7 @@ body {
   .dock-menu-switch:hover { background: var(--surface); }
   .dock-menu-close:hover { color: var(--fg); background: var(--surface); }
   .dock-menu-action:hover:not(:disabled) { color: var(--fg); box-shadow: var(--shadow-rest); }
+  .dock-layout-btn:hover:not(:disabled):not([aria-disabled="true"]) { color: var(--fg); box-shadow: var(--shadow-rest); }
 }
 
 /* The drag grip: a thin strip along the dock's top edge. */
@@ -2100,6 +2105,70 @@ body {
   padding: 10px 12px;
   background: var(--terminal-bg);
 }
+
+/* Split dock (OKT-207): side-by-side panes, each with its own strip, its own
+   active tab and its own body. A single-pane dock renders no pane strip, so
+   its look is unchanged. */
+.dock-panes {
+  display: flex;
+  align-items: stretch;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.dock-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+}
+.dock-pane + .dock-pane { border-left: 1px solid var(--border); }
+.dock-pane:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+.dock-pane-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--border);
+}
+/* The toolbar's target: a hairline under the focused pane's strip. */
+.dock-pane[data-focused="true"] .dock-pane-bar { box-shadow: inset 0 -1px 0 var(--accent); }
+
+.dock-pane-empty {
+  margin: 0;
+  font-size: 12px;
+  color: var(--subtle);
+}
+
+/* Dock toolbar controls (OKT-207). Native buttons, so Tab + Enter/Space reach
+   Split, Unsplit and Swap like any other control on the page. */
+.dock-layout {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.dock-layout-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.dock-layout-btn:disabled,
+.dock-layout-btn[aria-disabled="true"] { opacity: 0.5; cursor: default; }
+.dock-layout-btn[data-dock-action="unsplit"] { border-color: var(--accent); }
 
 
 /* ========================================================================
