@@ -24,7 +24,10 @@ if pr != '':
     if base == '':
         fail('No release tag is an ancestor of this branch. Run: git fetch --tags')
 
+    # Helm cannot install the namespace it releases into: without this flag the
+    # release fails on a first deploy and every preview PR goes red.
     flags = [
+        '--create-namespace',
         '--take-ownership',
         '--set=appName=openkite',
         '--set=openkite.namespaceOverride=' + namespace,
