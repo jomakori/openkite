@@ -17,6 +17,8 @@
 use dioxus::prelude::*;
 
 use openkite_api::capability::Capabilities;
+use openkite_api::pod::pick_default_container;
+use openkite_ui::components::logs::LogsView;
 use openkite_ui::components::namespace_bar::selection_matches;
 use openkite_ui::components::overview::OverviewDashboard;
 use openkite_ui::components::palette::{CommandPalette, PaletteHost, PaletteKeybind};
@@ -26,7 +28,10 @@ use openkite_ui::components::route_views::RouteView;
 use openkite_ui::components::shell::{AppShell, ClusterInfo, ShellIcon, TopBarAction};
 use openkite_ui::components::switcher::{ClusterSwitcher, SwitcherKeybind};
 use openkite_ui::plugin_api::RegistrationStore;
-use openkite_ui::runtime::{push_mode, set_push_mode, PushMode, NAMESPACE_SELECTION};
+use openkite_ui::runtime::{
+    push_mode, set_push_mode, PushMode, LOGS_BUFFER, LOGS_CONTAINER, NAMESPACE_SELECTION,
+    SELECTED_POD,
+};
 use openkite_ui::shell::{sidebar_model, status_bar_model, ShellState};
 
 use crate::account_menu::AccountMenu;
@@ -83,6 +88,66 @@ pub fn App(props: AppProps) -> Element {
     use_hook(move || {
         if let Some(identity) = restored.clone() {
             openkite_ui::runtime::select_resource(ResourceDetail::from_ref(identity));
+        }
+    });
+
+    // The log panel reads the console's selection globals, the way the desktop's
+    // does, so `/logs` seeds them from the snapshot once per mount: the SSR pass
+    // and the hydrating client then paint the same pod and the same lines. Seeded
+    // in a hook, not in the render, so a snapshot refresh cannot throw away lines
+    // the tail has appended since (OKT-189).
+    let sealed_logs = props.snapshot.logs.clone();
+    let sealed_route = route.clone();
+    use_hook(move || {
+        if sealed_route != "/logs" {
+            return;
+        }
+        *SELECTED_POD.write() = sealed_logs.pod.clone();
+        let container = sealed_logs
+            .pod
+            .as_ref()
+            .and_then(|pod| pick_default_container(&pod.container_names()));
+        *LOGS_CONTAINER.write() = container.unwrap_or_default();
+        let mut buffer = LOGS_BUFFER.write();
+        buffer.clear();
+        for line in sealed_logs.lines.iter() {
+            buffer.push(line.clone());
+        }
+    });
+
+    // The panel tails: the browser host has no push transport, so `/logs` re-reads
+    // the pod's log on the same interval the page polls with, and the feed keeps
+    // only the lines the stream added — the SSR lines are already painted.
+    let tail_route = route.clone();
+    let tail_pane = props.snapshot.logs.clone();
+    use_future(move || {
+        let route = tail_route.clone();
+        let pane = tail_pane.clone();
+        async move {
+            if route != "/logs" {
+                return;
+            }
+            let Some(pod) = pane.pod.clone() else {
+                return;
+            };
+            let mut feed = crate::logs::LogFeed::seeded(pane.lines.len());
+            loop {
+                let container = LOGS_CONTAINER.cloned();
+                // A refusal mid-stream keeps the lines already painted: the panel
+                // says nothing about a failed read, the next poll retries.
+                if let Ok(Some(read)) =
+                    crate::client::fetch_logs(&pod, Some(container.as_str())).await
+                {
+                    let fresh = feed.merge(read);
+                    if !fresh.is_empty() {
+                        let mut buffer = LOGS_BUFFER.write();
+                        for line in fresh {
+                            buffer.push(line);
+                        }
+                    }
+                }
+                poll_interval().await;
+            }
         }
     });
 
@@ -248,6 +313,7 @@ pub fn App(props: AppProps) -> Element {
                 error: gateway_error.clone(),
                 content: match route.as_str() {
                     "/workloads" => Some(workload_surface(&snapshot)),
+                    "/logs" => Some(logs_surface(&snapshot)),
                     // Declared, not invented: this host has not wired them.
                     "/cluster" | "/config" => None,
                     _ => Some(rsx! {
@@ -330,6 +396,42 @@ fn workload_surface(snapshot: &Snapshot) -> Element {
                 status,
                 empty_message: Some("No pods in the gateway's scope".to_string()),
             }
+        }
+    }
+}
+
+/// The `/logs` body: the shared panel mounted on the pod this console is aimed
+/// at, or the refusal the log read carried.
+///
+/// The panel is `openkite_ui::components::logs::LogsView` — the same component
+/// the desktop mounts, with its own `.log-panel` markup and level tokens. This
+/// host only supplies the pod and the lines; an unreadable log paints the
+/// panel's error line inside the same shell rather than an empty body (G4).
+fn logs_surface(snapshot: &Snapshot) -> Element {
+    let pane = &snapshot.logs;
+    if let Some(error) = pane.error.clone() {
+        return rsx! {
+            div { "data-surface": "logs", "data-state": "error",
+                div { class: "log-panel",
+                    div { class: "log-body",
+                        span { class: "log-level error", "{error}" }
+                    }
+                }
+            }
+        };
+    }
+    let state = if pane.pod.is_some() {
+        if pane.lines.is_empty() {
+            "empty"
+        } else {
+            "ready"
+        }
+    } else {
+        "empty"
+    };
+    rsx! {
+        div { "data-surface": "logs", "data-state": state,
+            LogsView {}
         }
     }
 }

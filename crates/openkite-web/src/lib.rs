@@ -21,6 +21,7 @@
 pub mod account_menu;
 pub mod app;
 pub mod client;
+pub mod logs;
 pub mod overlay_menu;
 pub mod ssr;
 

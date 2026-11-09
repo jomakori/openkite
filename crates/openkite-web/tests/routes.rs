@@ -488,6 +488,7 @@ async fn the_host_resolves_the_route_it_was_asked_for() {
         ("/cluster", "/cluster", "Nodes"),
         ("/workloads", "/workloads", "Pods"),
         ("/config", "/config", "ConfigMaps"),
+        ("/logs", "/logs", "Logs"),
     ] {
         let (status, body) = get_body(app.clone(), path).await;
         assert_eq!(status, StatusCode::OK, "{path}");
@@ -499,7 +500,10 @@ async fn the_host_resolves_the_route_it_was_asked_for() {
             body.contains(&format!("data-page=\"{page}\"")),
             "{path} must be titled {page}: {body}"
         );
-        if route != "/" {
+        // `/logs` is a console route without a sidebar entry (OKT-189): the
+        // panel is reached by address and by the workload rows, not by a nav
+        // item the sidebar does not carry.
+        if route != "/" && route != "/logs" {
             assert!(
                 body.contains("class=\"nav-item active\""),
                 "{path} must mark its sidebar entry: {body}"
@@ -515,12 +519,7 @@ async fn an_unknown_path_falls_back_to_the_home_route() {
     let dir = temp_root();
     let app = app(Arc::new(Bridge::new()), dir.path());
 
-    for path in [
-        "/nonsense",
-        "/logs",
-        "/terminal",
-        "/workloads/pods/probe-pod",
-    ] {
+    for path in ["/nonsense", "/terminal", "/workloads/pods/probe-pod"] {
         let (status, body) = get_body(app.clone(), path).await;
         assert_eq!(status, StatusCode::OK, "{path}");
         assert!(
@@ -743,6 +742,117 @@ async fn unsubscribe_op_removes_it() {
     assert_eq!(
         body["result"]["unsubscribed"], false,
         "a second cancel is a no-op: {body}"
+    );
+}
+
+/// `/logs` paints the console's own log panel: the same `.log-panel` component
+/// the desktop mounts, filled from the cluster's log endpoint rather than from a
+/// fixture, so the lines on the panel are the pod's log and not a canned body.
+#[tokio::test]
+async fn the_logs_route_paints_the_shared_panel_from_the_clusters_log() {
+    let dir = temp_root();
+    let app = app(
+        Arc::new(Bridge::connected(fake_api_client().await)),
+        dir.path(),
+    );
+    let (status, body) = get_body(app, "/logs").await;
+    assert_eq!(status, StatusCode::OK);
+
+    for rendered in [
+        "data-route=\"/logs\"",
+        "data-page=\"Logs\"",
+        "data-surface=\"logs\"",
+        "data-state=\"ready\"",
+        // The shared component's own chrome, not a second log view.
+        "class=\"log-panel\"",
+        "class=\"log-body\"",
+        "class=\"log-line\"",
+        // Level colouring by the desktop's classes.
+        "class=\"log-level warn\"",
+        "class=\"log-level error\"",
+        // A line the cluster's log endpoint answered with.
+        "upstream refused",
+    ] {
+        assert!(
+            body.contains(rendered),
+            "the logs route must render {rendered}: {body}"
+        );
+    }
+    assert!(
+        !body.contains("data-page=\"Overview\""),
+        "the logs route is not the home fallback: {body}"
+    );
+}
+
+/// The panel's colouring cannot drift between hosts: both mount the same
+/// stylesheet, so `/logs` carries the token definitions the levels read.
+#[tokio::test]
+async fn the_logs_page_carries_the_shared_log_level_tokens() {
+    let dir = temp_root();
+    let app = app(Arc::new(Bridge::new()), dir.path());
+    let (status, body) = get_body(app, "/logs").await;
+    assert_eq!(status, StatusCode::OK);
+    for token in [
+        "--log-info:",
+        "--log-method:",
+        "--log-error:",
+        ".log-level.warn",
+        ".log-level.error",
+    ] {
+        assert!(
+            body.contains(token),
+            "the logs page must carry the shared token {token}: {body}"
+        );
+    }
+}
+
+/// The log a refused read cannot paint is stated, not left as an empty panel:
+/// a host with no cluster says so inside the same shell.
+#[tokio::test]
+async fn the_logs_route_states_a_refused_log_read() {
+    let dir = temp_root();
+    let app = app(Arc::new(Bridge::new()), dir.path());
+    let (status, body) = get_body(app, "/logs").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        body.contains("data-state=\"error\""),
+        "a host with no cluster states the refusal: {body}"
+    );
+    assert!(
+        body.contains("class=\"log-panel\""),
+        "the refusal paints inside the panel shell: {body}"
+    );
+}
+
+/// A real stream, not a fixture: the log endpoint the panel reads grows between
+/// reads, and each read answers the panel's line shape (`lines` as a list).
+#[tokio::test]
+async fn the_log_endpoint_streams_new_lines_into_the_panel() {
+    let dir = temp_root();
+    let app = app(
+        Arc::new(Bridge::connected(fake_api_client().await)),
+        dir.path(),
+    );
+    let path = "/api/logs?pod=probe-pod&ns=default";
+
+    let (status, first) = get_body(app.clone(), path).await;
+    assert_eq!(status, StatusCode::OK);
+    let first: Value = serde_json::from_str(&first).expect("logs pane envelope");
+    assert_eq!(first["pod"]["name"], "probe-pod", "{first}");
+    let first_lines = first["lines"].as_array().expect("lines as a list").len();
+    assert!(first_lines >= 4, "the tail is read whole: {first}");
+
+    let (status, second) = get_body(app, path).await;
+    assert_eq!(status, StatusCode::OK);
+    let second: Value = serde_json::from_str(&second).expect("logs pane envelope");
+    let second_lines = second["lines"].as_array().expect("lines as a list").len();
+    assert!(
+        second_lines > first_lines,
+        "the stream appends between reads: {first_lines} then {second_lines}"
+    );
+    assert!(
+        second["lines"].to_string().contains("stream tick"),
+        "the panel receives the lines the stream appended: {second}"
     );
 }
 
