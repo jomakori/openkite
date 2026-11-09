@@ -14,6 +14,7 @@ same-origin `fetch` POST to `/openkite`, served by the bridge runtime
   "name": "argocd",
   "version": "0.1.0",
   "entry": "main.js",
+  "style": "style.css",
   "description": "ArgoCD dashboard",
   "author": "you"
 }
@@ -22,6 +23,52 @@ same-origin `fetch` POST to `/openkite`, served by the bridge runtime
 - `name`: `[a-zA-Z0-9-_]` — also the per-plugin key for registrations.
 - `entry`: relative `.js` file inside the plugin dir (validated: no `..`, no
   absolute paths).
+- `style`: optional relative `.css` file inside the plugin dir (same `..`/
+  absolute-path validation as `entry`). Rewritten at load time — see
+  "CSS isolation" below.
+
+## CSS isolation
+
+A plugin's `style` is rewritten before it ever reaches the page: every
+selector is scoped so it can only match inside that plugin's own subtree,
+under `[data-plugin="<name>"]`. The host sets that attribute on the plugin's
+root DOM node (the sidebar section, the status item, the routed mount node),
+so a plugin only needs to style its own markup — it never needs to add the
+attribute itself.
+
+**What a plugin's CSS can reach:**
+
+- Plain selectors and comma-separated selector lists are rewritten as
+  descendants of the plugin root, e.g. `.panel { color: red }` becomes
+  `[data-plugin="argocd"] .panel { color: red }`. Two plugins declaring the
+  same class never collide — each is scoped under its own attribute.
+- `:root` is mapped onto the plugin root itself, so custom properties
+  (`--accent: …`) apply only within that plugin's subtree, not globally.
+- `@media`, `@supports` and `@container` are kept as-is; the rules nested
+  inside them are scoped the same way as top-level rules.
+
+**What a plugin's CSS cannot reach, and is rejected outright (the plugin's
+nav entry is disabled with the stated reason, never a silent no-op or a
+thrown error in the shell):**
+
+- `@font-face` and `@keyframes` (`-webkit-`/`-moz-` prefixed too) — both
+  declare *names* that are global by the CSS spec; nesting the rule under an
+  attribute selector does not scope the name itself, so two plugins could
+  still collide on a font family or animation name. Rather than claim an
+  isolation it cannot deliver, the rewriter refuses these at-rules. If a
+  plugin needs a custom font or animation, give it a name namespaced to the
+  plugin (e.g. `argocd-spin`) and accept that it is a global resource.
+- `@import` — it reaches outside the plugin's own declared files, which the
+  manifest's `entry`/`style` path validation already forbids elsewhere.
+- Any selector whose first simple selector is `html` or `body` — no
+  attribute scope can make `[data-plugin="x"] html` or `[data-plugin="x"]
+  body` match anything, since neither element is ever a descendant of the
+  plugin's own root.
+
+A plugin whose `style` fails to load (missing file) or fails to scope (one
+of the rejected shapes above) is disabled with that reason surfaced in the
+host's plugin diagnostics; the rest of the shell, and every other plugin,
+keeps working.
 
 ## Registration API
 
