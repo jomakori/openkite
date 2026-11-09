@@ -9,11 +9,12 @@
 
 use std::net::SocketAddr;
 use std::path::Path;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
 use axum::body::Body;
-use axum::http::{Request, StatusCode};
+use axum::http::{header::CONTENT_TYPE, Request, StatusCode};
 use axum::routing::get;
 use axum::{Json, Router};
 use kube::Client;
@@ -31,6 +32,17 @@ static RENDER_TURN: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 /// The pod list a fake API server answers with.
 pub const POD_NAME: &str = "probe-pod";
 pub const POD_NAMESPACE: &str = "default";
+
+/// The pod's log as the fake API's `/log` endpoint holds it. The lines start
+/// with their level because that is what `level_class` reads, and the panel
+/// colours by it.
+pub const LOG_TEXT: &str = "INFO console boots\nWARN cache cold, warming\nERROR upstream refused\n";
+
+/// How many lines the fake API's log stream has appended. Each read of the log
+/// endpoint appends one more line, so a test can tell a live stream from a
+/// static fixture: the second read of the same pod carries a line the first
+/// did not.
+static LOG_TICKS: AtomicUsize = AtomicUsize::new(0);
 
 /// A client pointed at a closed port, so every kube call fails without a
 /// cluster to talk to. The rustls provider must be installed before the client
@@ -135,6 +147,8 @@ fn fake_api_router() -> Router {
         .route("/apis", get(api_groups))
         .route("/api/v1/pods", get(pod_list))
         .route("/api/v1/namespaces/{ns}/pods", get(pod_list))
+        .route("/api/v1/namespaces/{ns}/pods/{name}", get(pod_get))
+        .route("/api/v1/namespaces/{ns}/pods/{name}/log", get(pod_log))
         .fallback(|| async { (StatusCode::NOT_FOUND, "not found") })
 }
 
@@ -167,24 +181,52 @@ async fn core_resources() -> Json<Value> {
     }))
 }
 
+/// One pod by name, so an address that names its pod resolves the way the
+/// cluster resolves it.
+async fn pod_get(
+    axum::extract::Path((_ns, name)): axum::extract::Path<(String, String)>,
+) -> impl axum::response::IntoResponse {
+    if name == POD_NAME {
+        (StatusCode::OK, Json(pod_value()))
+    } else {
+        (StatusCode::NOT_FOUND, Json(serde_json::json!({
+            "kind": "Status", "status": "Failure", "reason": "NotFound",
+            "message": format!("pods \"{name}\" not found"), "code": 404,
+        })))
+    }
+}
+
+/// The pod's log: the standing lines plus everything the stream has appended,
+/// as `text/plain` the way kube answers a log read.
+async fn pod_log() -> impl axum::response::IntoResponse {
+    let tick = LOG_TICKS.fetch_add(1, Ordering::SeqCst);
+    let mut body = String::from(LOG_TEXT);
+    for n in 0..=tick {
+        body.push_str(&format!("INFO stream tick {n}\n"));
+    }
+    ([(CONTENT_TYPE, "text/plain")], body)
+}
+
+fn pod_value() -> Value {
+    json!({
+        "kind": "Pod",
+        "apiVersion": "v1",
+        "metadata": {
+            "name": POD_NAME,
+            "namespace": POD_NAMESPACE,
+            "resourceVersion": "1",
+        },
+        "spec": {"containers": [{"name": "app", "image": "nginx"}]},
+        "status": {"phase": "Running"},
+    })
+}
+
 async fn pod_list() -> Json<Value> {
     Json(json!({
         "kind": "PodList",
         "apiVersion": "v1",
         "metadata": {"resourceVersion": "1"},
-        "items": [
-            {
-                "kind": "Pod",
-                "apiVersion": "v1",
-                "metadata": {
-                    "name": POD_NAME,
-                    "namespace": POD_NAMESPACE,
-                    "resourceVersion": "1",
-                },
-                "spec": {"containers": [{"name": "app", "image": "nginx"}]},
-                "status": {"phase": "Running"},
-            },
-        ],
+        "items": [pod_value()],
     }))
 }
 

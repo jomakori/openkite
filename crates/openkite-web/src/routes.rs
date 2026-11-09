@@ -72,6 +72,7 @@ pub fn router(bridge: SharedBridge, web_root: &Path) -> Router {
         .route("/openkite/events", get(events_get))
         .route("/openkite-spike", post(spike_post))
         .route("/api/gateway", post(gateway_post))
+        .route("/api/logs", get(logs_get))
         .fallback_service(assets)
         .with_state(state)
 }
@@ -187,6 +188,15 @@ async fn ssr_root(
     let snapshot = ssr_snapshot(&state.bridge, &route, fixture)
         .await
         .with_selection(selection);
+    // The log panel's lines are read where the route paints them, not on every
+    // page: a log read is the pod's whole tail, so other routes do not pay for
+    // it (OKT-189).
+    let snapshot = if route == "/logs" {
+        let pane = log_pane(&state.bridge, fixture, query.as_deref()).await;
+        snapshot.with_logs(pane)
+    } else {
+        snapshot
+    };
     let page = ssr::render_page(
         &snapshot,
         &ssr::RenderOptions::hydrating(state.bundle.client_url()),
@@ -290,6 +300,129 @@ fn query_param<'a>(query: Option<&'a str>, key: &str) -> Option<&'a str> {
         let (raw_key, value) = pair.split_once('=').unwrap_or((pair, ""));
         (raw_key == key).then_some(value)
     })
+}
+
+/// The log panel's data endpoint: the pod's log as the panel paints it.
+///
+/// The browser host has no push transport, so the panel polls this the way it
+/// polls `/api/gateway`, and the server answers with the whole tail each time.
+/// The client keeps only the lines it has not painted (`crate::logs::LogFeed`),
+/// which is what keeps a repeated read from duplicating the panel's body.
+async fn logs_get(State(state): State<HostState>, RawQuery(query): RawQuery) -> Response {
+    let fixture = if state.bridge.client().is_some() {
+        crate::fixture::FixtureState::Ready
+    } else {
+        crate::fixture::FixtureState::from_query(query_param(query.as_deref(), "fixture"))
+    };
+    Json(log_pane(&state.bridge, fixture, query.as_deref()).await).into_response()
+}
+
+/// The `/logs` panel's state: the pod it reads and the lines the cluster's log
+/// endpoint answered with.
+///
+/// The address chooses the pod (`?pod=&ns=&container=`), which is what makes a
+/// deep link to one pod's logs work; a bare `/logs` reads the first pod the
+/// cluster lists, so the route paints a real stream rather than an empty panel.
+/// A refusal is carried as the pane's error: an unreadable log is not an empty
+/// one (G4).
+async fn log_pane(
+    bridge: &Bridge,
+    fixture: crate::fixture::FixtureState,
+    query: Option<&str>,
+) -> ssr::LogsPane {
+    use crate::fixture::FixtureState;
+    match fixture {
+        FixtureState::Loading => return ssr::LogsPane::default(),
+        FixtureState::Empty => return ssr::LogsPane::default(),
+        FixtureState::Error => {
+            return ssr::LogsPane {
+                error: Some(crate::fixture::FIXTURE_ERROR.to_string()),
+                ..ssr::LogsPane::default()
+            }
+        }
+        FixtureState::Ready => {}
+    }
+    let Some(client) = bridge.client() else {
+        return ssr::LogsPane {
+            error: Some("this host has no cluster connection to read logs from".to_string()),
+            ..ssr::LogsPane::default()
+        };
+    };
+    let pod = match log_target(&client, query).await {
+        Ok(pod) => pod,
+        Err(error) => {
+            return ssr::LogsPane {
+                error: Some(error),
+                ..ssr::LogsPane::default()
+            }
+        }
+    };
+    let object = openkite_host::gateway::pod_object(&pod);
+    let container = query
+        .and_then(|query| query_param(Some(query), "container"))
+        .filter(|name| !name.is_empty())
+        .map(str::to_string)
+        .or_else(|| openkite_api::pod::pick_default_container(&object.container_names()));
+    let name = object.name.clone();
+    let namespace = object.namespace.clone().unwrap_or_default();
+    match bridge
+        .execute(
+            "console",
+            ApiRequest::Logs {
+                name,
+                ns: namespace,
+                container,
+            },
+        )
+        .await
+    {
+        ApiResponse::Ok { result } => match result.as_str() {
+            Some(text) => ssr::LogsPane {
+                pod: Some(object),
+                lines: crate::logs::lines_from_text(text),
+                error: None,
+            },
+            None => ssr::LogsPane {
+                error: Some("the log endpoint answered with no text".to_string()),
+                ..ssr::LogsPane::default()
+            },
+        },
+        ApiResponse::Error { error } => ssr::LogsPane {
+            pod: Some(object),
+            error: Some(error),
+            ..ssr::LogsPane::default()
+        },
+    }
+}
+
+/// The pod the log panel reads: the one the address names, else the first the
+/// cluster lists (sorted, so a bare `/logs` picks the same pod every time).
+async fn log_target(client: &kube::Client, query: Option<&str>) -> Result<Pod, String> {
+    let wanted = query.and_then(|query| query_param(Some(query), "pod"));
+    let namespace = query
+        .and_then(|query| query_param(Some(query), "ns"))
+        .filter(|ns| !ns.is_empty());
+    if let Some(name) = wanted.filter(|name| !name.is_empty()) {
+        return match namespace {
+            Some(ns) => kube::Api::<Pod>::namespaced(client.clone(), &ns).get(name).await,
+            None => kube::Api::<Pod>::all(client.clone()).get(name).await,
+        }
+        .map_err(|err| format!("get pod {name}: {err}"));
+    }
+    let mut pods = kube::Api::<Pod>::all(client.clone())
+        .list(&Default::default())
+        .await
+        .map_err(|err| format!("list pods: {err}"))?
+        .items;
+    pods.sort_by_key(|pod| {
+        (
+            pod.metadata.namespace.clone().unwrap_or_default(),
+            pod.metadata.name.clone().unwrap_or_default(),
+        )
+    });
+    pods.into_iter()
+        .next()
+        .ok_or_else(|| "the cluster has no pods to read logs from".to_string())
 }
 
 /// The `/workloads` table: the cluster's pods, the fixture's answer, or the

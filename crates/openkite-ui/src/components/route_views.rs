@@ -257,6 +257,17 @@ fn route_copy(route: &str) -> RouteCopy {
             actions: CONFIG_ACTIONS,
             declares: &[],
         },
+        // The log panel is a route of its own now (OKT-189): the same panel the
+        // desktop mounts, so the copy names it and the host supplies the stream.
+        // It declares nothing — every host with cluster read access serves it.
+        "/logs" => RouteCopy {
+            title: "Logs",
+            sub: "Container logs of the pod this console is aimed at, tailed live.",
+            empty: "No pod selected: pick a workload to read its container logs.",
+            filter_placeholder: "Filter lines…",
+            actions: &[],
+            declares: &[],
+        },
         // A route the chrome does not own (a plugin path reaching the wildcard)
         // still gets a head, an empty body and the declarations, never a blank.
         // The plugin route declares the one thing it needs of its host — a
@@ -324,7 +335,13 @@ fn route_path(route: &str) -> String {
 /// The route a request path resolves to: the path the chrome owns, else `/`.
 pub fn resolve_route(route: &str, sections: &[ShellSection]) -> String {
     let route = route_path(route);
-    let primary = matches!(route.as_str(), "/" | "/cluster" | "/workloads" | "/config");
+    // `/logs` is the console's own route as of OKT-189: the shared log panel is
+    // a surface of the console, not a host-only dock, so both hosts resolve it
+    // without the navigation needing an entry for it.
+    let primary = matches!(
+        route.as_str(),
+        "/" | "/cluster" | "/workloads" | "/config" | "/logs"
+    );
     let navigable = sections
         .iter()
         .any(|section| section.items.iter().any(|item| item.route == route));

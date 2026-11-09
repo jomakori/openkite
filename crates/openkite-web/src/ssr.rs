@@ -56,6 +56,10 @@ pub struct Snapshot {
     /// The table the `/workloads` route paints, or why the host could not list.
     #[serde(default)]
     pub workloads: WorkloadsTable,
+    /// The log panel the `/logs` route paints: the pod it reads and the lines
+    /// the cluster's log endpoint streamed for this render.
+    #[serde(default)]
+    pub logs: LogsPane,
     /// The gateway's refusal for the surfaces this snapshot fills, when it had
     /// one. Carried so a surface can paint its error state from the DOM (G4)
     /// instead of the host swallowing the failure and painting "empty".
@@ -129,6 +133,27 @@ pub struct WorkloadsTable {
     pub loading: bool,
 }
 
+/// The log panel the `/logs` route paints, in the console's own vocabulary.
+///
+/// `pod` is what the panel points at (the workload the request named, else the
+/// host's selected pod); `lines` is what the cluster's log endpoint streamed
+/// when the host rendered. Both ride the snapshot so the SSR pass paints real
+/// lines before any JavaScript runs, and the client keeps tailing from the same
+/// place instead of starting from an empty panel (OKT-189).
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct LogsPane {
+    /// The pod whose logs the panel reads.
+    #[serde(default)]
+    pub pod: Option<openkite_api::pod::PodObject>,
+    /// The lines the log endpoint returned for this render, oldest first.
+    #[serde(default)]
+    pub lines: Vec<String>,
+    /// The gateway's refusal for the log read, when it had one. A refusal is
+    /// not an empty log: the panel paints the two differently.
+    #[serde(default)]
+    pub error: Option<String>,
+}
+
 /// The route a snapshot with no address of its own lands on.
 fn home_route() -> String {
     "/".to_string()
@@ -144,6 +169,7 @@ impl Default for Snapshot {
             selection: None,
             route: home_route(),
             workloads: WorkloadsTable::default(),
+            logs: LogsPane::default(),
             error: None,
             busy: false,
             overview: openkite_ui::components::overview::OverviewSummary::default(),
@@ -175,6 +201,7 @@ impl Snapshot {
             selection: None,
             route: home_route(),
             workloads: WorkloadsTable::default(),
+            logs: LogsPane::default(),
             error,
             busy: false,
             overview: openkite_ui::components::overview::OverviewSummary::default(),
@@ -220,6 +247,12 @@ impl Snapshot {
     /// The same snapshot, carrying the table the workloads route paints.
     pub fn with_workloads(mut self, workloads: WorkloadsTable) -> Self {
         self.workloads = workloads;
+        self
+    }
+
+    /// The same snapshot, carrying the log panel the `/logs` route paints.
+    pub fn with_logs(mut self, logs: LogsPane) -> Self {
+        self.logs = logs;
         self
     }
 
