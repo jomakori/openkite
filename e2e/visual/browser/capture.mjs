@@ -46,7 +46,7 @@ const VIEWPORTS = [
 const PRIMERS = {
   workloads: async () => {
     await evaluate(`(() => {
-      const boxes = [...document.querySelectorAll('.row-check')];
+      const boxes = [...document.querySelectorAll('.table-row:not(.table-header) .row-check')];
       if (boxes.length < 2) throw new Error('expected row checkboxes, found ' + boxes.length);
       boxes[0].click();
       boxes[1].click();
