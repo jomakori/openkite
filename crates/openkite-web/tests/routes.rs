@@ -627,30 +627,63 @@ async fn the_workloads_page_embeds_a_snapshot_the_client_boots_from() {
     );
 }
 
+/// A host with no cluster credential still paints rows for `?fixture=ready`
+/// (OKT-210): the preview host that the browser visual gate captures has no
+/// client, so `workload_table` used to fall through to the bridge and paint
+/// the error surface instead — the bulk-selection bar could never appear in a
+/// screenshot. `?fixture=empty` must still paint the empty state, so the demo
+/// rows do not leak into the state the fixture asked for.
+#[tokio::test]
+async fn fixture_ready_paints_demo_rows_and_fixture_empty_stays_empty() {
+    let dir = temp_root();
+    let app = app(Arc::new(Bridge::new()), dir.path());
+
+    let (status, body) = get_body(app.clone(), "/workloads?fixture=ready").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        body.contains("data-state=\"ready\""),
+        "fixture=ready must paint the ready state: {body}"
+    );
+    let snapshot: Snapshot =
+        serde_json::from_str(embedded_snapshot(&body)).expect("the embedded snapshot parses");
+    assert!(
+        !snapshot.workloads.rows.is_empty(),
+        "fixture=ready must carry demo rows: {body}"
+    );
+
+    let (status, body) = get_body(app, "/workloads?fixture=empty").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        body.contains("data-state=\"empty\""),
+        "fixture=empty must still paint the empty state: {body}"
+    );
+}
+
 /// A gateway that cannot answer is stated on the route, never left blank.
 #[tokio::test]
 async fn a_refused_gateway_is_stated_on_the_workloads_route() {
     let dir = temp_root();
-    for bridge in [
-        Arc::new(Bridge::new()),
+    // Only a bridge with a client that then refuses the read is "refused"
+    // here: a bridge with no client at all is the no-cluster-credential case
+    // (OKT-210), which now paints demo rows instead of an error.
+    let app = app(
         Arc::new(Bridge::connected(unreachable_client())),
-    ] {
-        let app = app(bridge, dir.path());
-        let (status, body) = get_body(app, "/workloads").await;
-        assert_eq!(status, StatusCode::OK);
-        assert!(
-            body.contains("class=\"table-state table-error\""),
-            "the route must state the refusal: {body}"
-        );
-        assert!(
-            body.contains("The gateway could not list pods:"),
-            "the gateway's own words reach the page: {body}"
-        );
-        assert!(
-            !body.contains("class=\"resource-table\""),
-            "a refused gateway paints no table, blank or otherwise: {body}"
-        );
-    }
+        dir.path(),
+    );
+    let (status, body) = get_body(app, "/workloads").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        body.contains("class=\"table-state table-error\""),
+        "the route must state the refusal: {body}"
+    );
+    assert!(
+        body.contains("The gateway could not list pods:"),
+        "the gateway's own words reach the page: {body}"
+    );
+    assert!(
+        !body.contains("class=\"resource-table\""),
+        "a refused gateway paints no table, blank or otherwise: {body}"
+    );
 }
 
 /// The client's own refresh carries the table: what it swaps in comes from

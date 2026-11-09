@@ -73,6 +73,133 @@ fn fixture_secret_object() -> SecretObject {
     }
 }
 
+/// Demo pods for a host with no cluster credential (OKT-210): enough variety
+/// (phases, ready/restart counts, nodes, QoS classes, namespaces) that
+/// `/workloads` with `?fixture=ready` (the unset default) paints rows instead
+/// of an empty table. Parsed through the same `pods` + `pod_row` path a real
+/// cluster answer takes, so the row shape matches exactly.
+pub fn demo_pod_list() -> serde_json::Value {
+    serde_json::json!({
+        "items": [
+            {
+                "apiVersion": "v1",
+                "kind": "Pod",
+                "metadata": {
+                    "name": "web-7d9f6c9b8-4mjkq",
+                    "namespace": "default",
+                    "creationTimestamp": "2024-11-01T09:00:00Z",
+                    "ownerReferences": [
+                        {"apiVersion": "apps/v1", "kind": "ReplicaSet", "name": "web-7d9f6c9b8", "uid": "demo-1", "controller": true}
+                    ]
+                },
+                "spec": {
+                    "containers": [{"name": "web", "image": "web:1.4.2"}],
+                    "nodeName": "gke-pool-1-9f3a"
+                },
+                "status": {
+                    "phase": "Running",
+                    "qosClass": "Guaranteed",
+                    "containerStatuses": [
+                        {"name": "web", "image": "web:1.4.2", "imageID": "", "ready": true, "restartCount": 0, "state": {"running": {"startedAt": "2024-11-01T09:00:05Z"}}}
+                    ]
+                }
+            },
+            {
+                "apiVersion": "v1",
+                "kind": "Pod",
+                "metadata": {
+                    "name": "web-7d9f6c9b8-9plrz",
+                    "namespace": "default",
+                    "creationTimestamp": "2024-11-01T09:00:00Z",
+                    "ownerReferences": [
+                        {"apiVersion": "apps/v1", "kind": "ReplicaSet", "name": "web-7d9f6c9b8", "uid": "demo-1", "controller": true}
+                    ]
+                },
+                "spec": {
+                    "containers": [
+                        {"name": "web", "image": "web:1.4.2"},
+                        {"name": "sidecar", "image": "envoy:1.29"}
+                    ],
+                    "nodeName": "gke-pool-1-9f3a"
+                },
+                "status": {
+                    "phase": "Running",
+                    "qosClass": "Burstable",
+                    "containerStatuses": [
+                        {"name": "web", "image": "web:1.4.2", "imageID": "", "ready": true, "restartCount": 1, "state": {"running": {"startedAt": "2024-11-02T03:00:00Z"}}},
+                        {"name": "sidecar", "image": "envoy:1.29", "imageID": "", "ready": false, "restartCount": 4, "state": {"waiting": {"reason": "ContainerCreating"}}}
+                    ]
+                }
+            },
+            {
+                "apiVersion": "v1",
+                "kind": "Pod",
+                "metadata": {
+                    "name": "checkout-api-0",
+                    "namespace": "default",
+                    "creationTimestamp": "2024-11-05T12:30:00Z",
+                    "ownerReferences": [
+                        {"apiVersion": "apps/v1", "kind": "StatefulSet", "name": "checkout-api", "uid": "demo-2", "controller": true}
+                    ]
+                },
+                "spec": {
+                    "containers": [{"name": "checkout-api", "image": "checkout-api:2.0.0"}]
+                },
+                "status": {
+                    "phase": "Pending",
+                    "qosClass": "BestEffort"
+                }
+            },
+            {
+                "apiVersion": "v1",
+                "kind": "Pod",
+                "metadata": {
+                    "name": "cache-6b7f9c5d4-klmno",
+                    "namespace": "openkite",
+                    "creationTimestamp": "2024-10-20T18:00:00Z",
+                    "ownerReferences": [
+                        {"apiVersion": "apps/v1", "kind": "ReplicaSet", "name": "cache-6b7f9c5d4", "uid": "demo-3", "controller": true}
+                    ]
+                },
+                "spec": {
+                    "containers": [{"name": "cache", "image": "redis:7.2"}],
+                    "nodeName": "gke-pool-2-7c1e"
+                },
+                "status": {
+                    "phase": "Running",
+                    "qosClass": "Burstable",
+                    "containerStatuses": [
+                        {"name": "cache", "image": "redis:7.2", "imageID": "", "ready": false, "restartCount": 12, "state": {"waiting": {"reason": "CrashLoopBackOff"}}}
+                    ]
+                }
+            },
+            {
+                "apiVersion": "v1",
+                "kind": "Pod",
+                "metadata": {
+                    "name": "metrics-server-0",
+                    "namespace": "openkite",
+                    "creationTimestamp": "2024-09-15T07:45:00Z",
+                    "ownerReferences": [
+                        {"apiVersion": "apps/v1", "kind": "StatefulSet", "name": "metrics-server", "uid": "demo-4", "controller": true}
+                    ]
+                },
+                "spec": {
+                    "containers": [{"name": "metrics-server", "image": "metrics-server:0.7.1"}],
+                    "nodeName": "gke-pool-2-7c1e"
+                },
+                "status": {
+                    "phase": "Running",
+                    "qosClass": "Guaranteed",
+                    "containerStatuses": [
+                        {"name": "metrics-server", "image": "metrics-server:0.7.1", "imageID": "", "ready": true, "restartCount": 0, "state": {"running": {"startedAt": "2024-09-15T07:45:10Z"}}}
+                    ]
+                }
+            }
+        ]
+    })
+}
+
 /// A fixture gateway serving demo data when no cluster is available.
 pub struct FixtureGateway {
     state: FixtureState,

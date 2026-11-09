@@ -1591,10 +1591,6 @@ body {
     justify-content: flex-start;
     padding: 0 16px;
   }
-  .row-check {
-    width: 20px;
-    height: 20px;
-  }
   .bottom-nav { display: block; }
   /* OKT-207: the dock is one pane here whatever the split says; widening
      restores the split because the hidden pane stays mounted. The boundary
@@ -2335,4 +2331,40 @@ body {
 .table-row:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
+}
+
+/* Touch: the checkbox keeps its 20px mark but the input box is the 44px target.
+   This has to sit after the base rule — an earlier media block loses on order,
+   not on specificity. */
+@media (max-width: 767px) {
+  .row-check {
+    position: relative;
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    appearance: none;
+    background: none;
+  }
+  .row-check::before {
+    content: "";
+    width: 20px;
+    height: 20px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    background: var(--surface-solid);
+  }
+  .row-check:checked::before {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .row-check:checked::after {
+    content: "";
+    position: absolute;
+    width: 9px;
+    height: 5px;
+    border-left: 2px solid var(--surface-solid);
+    border-bottom: 2px solid var(--surface-solid);
+    transform: translateY(-2px) rotate(-45deg);
+  }
 }

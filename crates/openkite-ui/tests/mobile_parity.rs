@@ -190,10 +190,13 @@ fn the_sheet_stylesheet_keeps_the_mockup_geometry() {
     );
     assert!(rule(STYLESHEET, ".log-scrim").contains("display: none"));
     // The sheet itself: fixed above the bar, translated off-screen until open.
+    // Every ≤767px block joined: the sheet's rules are split across more than
+    // one of them, and "whichever block came last" is not a stable anchor.
     let mobile = STYLESHEET
-        .rsplit("max-width: 767px")
-        .next()
-        .expect("the mobile block");
+        .split("@media (max-width: 767px) {")
+        .skip(1)
+        .collect::<Vec<_>>()
+        .join("\n");
     for expected in [
         ".log-sheet {",
         ".log-sheet.open {",
