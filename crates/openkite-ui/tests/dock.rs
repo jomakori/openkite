@@ -658,6 +658,21 @@ fn the_stylesheet_collapses_at_the_boundary_the_model_pins() {
     assert_eq!(SPLIT_MIN_WIDTH, 768.0, "767 is the last collapsed width");
 }
 
+#[test]
+fn close_others_keeps_the_focused_panes_tab() {
+    // Pane A is empty, so its `active` is `None`; the manager must still offer
+    // "Close others", because the focused pane has a tab to keep.
+    let html = mount(|state| {
+        split(state);
+        state.focus_pane(PaneSlot::B);
+        open_terminal(state, pod("web-1"));
+    });
+    assert!(
+        !html.contains(" disabled"),
+        "close others is live when the focused pane has a tab: {html}"
+    );
+}
+
 // --- OKT-207: rendered panes ----------------------------------------------
 
 /// The markup of one pane: from its `data-pane` marker to the next one.
@@ -810,5 +825,42 @@ fn the_single_pane_dock_keeps_its_original_bar() {
     assert!(
         html[bar..panes].contains("data-dock-tab"),
         "the single strip lives in the dock bar: {html}"
+    );
+}
+
+#[test]
+fn the_single_pane_is_not_an_extra_tab_stop() {
+    let single = mount(|state| {
+        open_terminal(state, pod("web-1"));
+    });
+    assert_eq!(
+        single.matches("class=\"dock-pane\"").count(),
+        1,
+        "got: {single}"
+    );
+    // A pane you can focus is a split pane's affordance: the single pane is
+    // already the only pane, so it adds no stop to the page's tab order.
+    let at = single.find("class=\"dock-pane\"").expect("pane is painted");
+    let tag = single[at..].split('>').next().unwrap_or_default();
+    assert!(
+        !tag.contains("tabindex"),
+        "single pane is not focusable: {tag}"
+    );
+    assert!(
+        !tag.contains("data-focused"),
+        "and carries no focus ring: {tag}"
+    );
+
+    let split_html = mount(|state| {
+        open_terminal(state, pod("web-1"));
+        split(state);
+    });
+    assert!(
+        split_html.contains("data-pane=\"a\" data-focused=\"true\""),
+        "a split pane is focusable and stamped with its focus: {split_html}"
+    );
+    assert!(
+        split_html.contains("role=\"group\" aria-label=\"Dock pane A\" tabindex=\"0\""),
+        "and is a labelled, focusable group: {split_html}"
     );
 }

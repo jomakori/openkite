@@ -126,6 +126,9 @@ fn pane_markup(pane: &PaneRow, split: bool) -> Element {
     let label = format!("Dock pane {}", slot.key().to_uppercase());
     let empty = pane.empty;
     let focused = if pane.focus { "true" } else { "false" };
+    // The focus stamp is a split affordance: with one pane there is no target
+    // to pick, so the single dock carries no focus ring and no extra stop.
+    let focused_attr = split.then_some(focused);
     let kind = pane.kind;
     let strip = strip_markup(pane);
 
@@ -134,12 +137,22 @@ fn pane_markup(pane: &PaneRow, split: bool) -> Element {
             key: "{key}",
             class: "dock-pane",
             "data-pane": "{key}",
-            "data-focused": "{focused}",
+            "data-focused": focused_attr,
             role: "group",
             aria_label: "{label}",
-            tabindex: "0",
-            onfocus: move |_| focus_dock_pane(slot),
-            onpointerdown: move |_| focus_dock_pane(slot),
+            // Only a split has a target to pick: the single pane is the only
+            // pane, so it is already focused and needs no tab stop of its own.
+            tabindex: split.then_some("0"),
+            onfocus: move |_| {
+                if split {
+                    focus_dock_pane(slot);
+                }
+            },
+            onpointerdown: move |_| {
+                if split {
+                    focus_dock_pane(slot);
+                }
+            },
 
             if split {
                 div { class: "dock-pane-bar", {strip} }
@@ -183,7 +196,9 @@ pub fn DockView() -> Element {
     let split = state.is_split();
     let panes = pane_rows(&state);
     let tab_count: usize = panes.iter().map(|pane| pane.tabs.len()).sum();
-    let active = state.active.clone();
+    // The tab the manager's "Close others" keeps: the focused pane's, since
+    // pane A's `active` is only the dock's tab while the focus is there.
+    let active = state.pane_active(state.focused()).map(str::to_string);
     let active_for_others = active.clone();
     let layout = if split { "split" } else { "single" };
     let focus_key = state.focused().key();
