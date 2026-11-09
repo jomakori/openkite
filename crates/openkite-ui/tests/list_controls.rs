@@ -226,3 +226,50 @@ fn escape_closes_the_picker_and_returns_focus_to_its_trigger() {
         "the trigger is a plain button, so Enter/Space activate it: {html}"
     );
 }
+
+/// The picker's DOM id feeds the refocus script and must survive a second
+/// render unchanged, or server and client disagree and the empty result can
+/// hide behind a "ready" panel.
+#[test]
+fn the_picker_id_is_derived_from_the_columns_not_a_render_counter() {
+    let _turn = session_lock();
+    let first = support::mount_html(picker_open, || {});
+    let second = support::mount_html(picker_open, || {});
+    let id = |html: &str| {
+        html.split("id=\"column-picker-")
+            .nth(1)
+            .and_then(|rest| rest.split('"').next())
+            .map(str::to_string)
+    };
+    assert_eq!(
+        id(&first),
+        id(&second),
+        "two renders of the same columns must mint the same id"
+    );
+}
+
+/// An empty result is an empty surface: the panel carries that state so the
+/// state gates read "empty" rather than the "ready" its toolbar would imply.
+#[test]
+fn an_empty_result_paints_the_empty_state_on_the_panel() {
+    let _turn = session_lock();
+    fn empty_table() -> Element {
+        rsx! {
+            ResourceTable {
+                columns: columns(),
+                rows: Vec::<ResourceRow>::new(),
+                empty_message: Some("No pods in the gateway's scope".to_string()),
+            }
+        }
+    }
+    let html = support::mount_html(empty_table, reset);
+    assert!(html.contains("data-state=\"empty\""), "got: {html}");
+    assert!(
+        !html.contains("data-state=\"ready\""),
+        "an empty table must not paint ready: {html}"
+    );
+    assert!(
+        html.contains("No pods"),
+        "the empty message survives the state change: {html}"
+    );
+}

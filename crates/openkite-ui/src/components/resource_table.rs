@@ -304,9 +304,13 @@ pub fn ResourceTable(
             let message = empty_message
                 .clone()
                 .unwrap_or_else(|| "No resources".to_string());
+            // The panel paints the state the table is actually in: the surface
+            // above reads the first `data-state` node, so a hardcoded "ready"
+            // would hide an empty result behind a ready panel.
+            let state = if view.is_empty() { "empty" } else { "ready" };
 
             rsx! {
-                div { class: "panel", "data-state": "ready",
+                div { class: "panel", "data-state": state,
                     div { class: "table-wrap",
                         div { class: "resource-table",
                             div { class: "table-toolbar",

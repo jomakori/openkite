@@ -126,11 +126,20 @@ pub fn restore_focus_script(id: &str) -> String {
     format!("document.getElementById('{id}')?.querySelector('.column-picker-trigger')?.focus();")
 }
 
-/// Per-mount id for the picker root, so the refocus script has a stable target.
-fn next_picker_id() -> String {
-    static SEQ: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-    let n = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    format!("column-picker-{n}")
+/// DOM id for the picker root, derived from the column set so the server and
+/// the client mint the same value: the refocus script needs a stable target,
+/// and SSR output must stay byte-identical across runs.
+fn picker_id(columns: &[ColumnDef]) -> String {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for column in columns {
+        for byte in column.key.as_bytes() {
+            hash ^= u64::from(*byte);
+            hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+        hash ^= u64::from(b'/');
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    format!("column-picker-{hash:x}")
 }
 
 /// Toolbar control that toggles table columns; the choice is session-scoped
@@ -146,7 +155,7 @@ pub fn ColumnPicker(
     prefs: Signal<ColumnPrefs>,
     #[props(default = false)] initial_open: bool,
 ) -> Element {
-    let id = use_hook(next_picker_id);
+    let id = picker_id(&columns);
     let mut open = use_signal(|| initial_open);
     let mut refocus = use_signal(|| false);
     let mut prefs = prefs;
