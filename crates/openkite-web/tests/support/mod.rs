@@ -189,10 +189,13 @@ async fn pod_get(
     if name == POD_NAME {
         (StatusCode::OK, Json(pod_value()))
     } else {
-        (StatusCode::NOT_FOUND, Json(serde_json::json!({
-            "kind": "Status", "status": "Failure", "reason": "NotFound",
-            "message": format!("pods \"{name}\" not found"), "code": 404,
-        })))
+        (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({
+                "kind": "Status", "status": "Failure", "reason": "NotFound",
+                "message": format!("pods \"{name}\" not found"), "code": 404,
+            })),
+        )
     }
 }
 

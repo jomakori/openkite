@@ -404,7 +404,11 @@ async fn log_target(client: &kube::Client, query: Option<&str>) -> Result<Pod, S
         .filter(|ns| !ns.is_empty());
     if let Some(name) = wanted.filter(|name| !name.is_empty()) {
         return match namespace {
-            Some(ns) => kube::Api::<Pod>::namespaced(client.clone(), &ns).get(name).await,
+            Some(ns) => {
+                kube::Api::<Pod>::namespaced(client.clone(), &ns)
+                    .get(name)
+                    .await
+            }
             None => kube::Api::<Pod>::all(client.clone()).get(name).await,
         }
         .map_err(|err| format!("get pod {name}: {err}"));

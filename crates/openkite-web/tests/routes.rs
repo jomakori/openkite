@@ -519,11 +519,7 @@ async fn an_unknown_path_falls_back_to_the_home_route() {
     let dir = temp_root();
     let app = app(Arc::new(Bridge::new()), dir.path());
 
-    for path in [
-        "/nonsense",
-        "/terminal",
-        "/workloads/pods/probe-pod",
-    ] {
+    for path in ["/nonsense", "/terminal", "/workloads/pods/probe-pod"] {
         let (status, body) = get_body(app.clone(), path).await;
         assert_eq!(status, StatusCode::OK, "{path}");
         assert!(
@@ -843,19 +839,13 @@ async fn the_log_endpoint_streams_new_lines_into_the_panel() {
     assert_eq!(status, StatusCode::OK);
     let first: Value = serde_json::from_str(&first).expect("logs pane envelope");
     assert_eq!(first["pod"]["name"], "probe-pod", "{first}");
-    let first_lines = first["lines"]
-        .as_array()
-        .expect("lines as a list")
-        .len();
+    let first_lines = first["lines"].as_array().expect("lines as a list").len();
     assert!(first_lines >= 4, "the tail is read whole: {first}");
 
     let (status, second) = get_body(app, path).await;
     assert_eq!(status, StatusCode::OK);
     let second: Value = serde_json::from_str(&second).expect("logs pane envelope");
-    let second_lines = second["lines"]
-        .as_array()
-        .expect("lines as a list")
-        .len();
+    let second_lines = second["lines"].as_array().expect("lines as a list").len();
     assert!(
         second_lines > first_lines,
         "the stream appends between reads: {first_lines} then {second_lines}"

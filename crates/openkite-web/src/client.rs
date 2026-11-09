@@ -98,15 +98,9 @@ pub async fn fetch_logs(
         Some(window) => window,
         None => return Ok(None),
     };
-    let mut url = format!(
-        "/api/logs?pod={}",
-        js_sys::encode_uri_component(&pod.name)
-    );
+    let mut url = format!("/api/logs?pod={}", js_sys::encode_uri_component(&pod.name));
     if let Some(namespace) = pod.namespace.as_deref() {
-        url.push_str(&format!(
-            "&ns={}",
-            js_sys::encode_uri_component(namespace)
-        ));
+        url.push_str(&format!("&ns={}", js_sys::encode_uri_component(namespace)));
     }
     if let Some(container) = container {
         url.push_str(&format!(
