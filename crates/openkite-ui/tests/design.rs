@@ -508,7 +508,10 @@ fn the_contract_derives_a_plausible_set_from_the_reference() {
         "class derivation returned {} names — the parser is broken, not the mockup",
         classes.len()
     );
-    for known in ["panel", "nav-item", "log-panel", "resource-table"] {
+    // Probes for the CSS parser, not for the product: pick classes the current
+    // reference styles. `.log-panel` became `.log-body` when the mockup split
+    // the log surfaces, so naming it here would only prove the mockup moved.
+    for known in ["panel", "nav-item", "log-body", "resource-table"] {
         assert!(
             classes.contains(known),
             "class derivation missed `.{known}`, which the mockup styles"

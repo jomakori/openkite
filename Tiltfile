@@ -25,13 +25,14 @@ if pr != '':
         fail('No release tag is an ancestor of this branch. Run: git fetch --tags')
 
     # Helm cannot install the namespace it releases into: without this flag the
-    # release fails on a first deploy and every preview PR goes red.
+    # release fails on a first deploy and every preview PR goes red. The chart
+    # also renders a Namespace for createNamespace=true, which then collides
+    # with Helm's copy, so the flag below is the only creator.
     flags = [
         '--create-namespace',
         '--take-ownership',
         '--set=appName=openkite',
         '--set=openkite.namespaceOverride=' + namespace,
-        '--set=openkite.createNamespace=true',
         '--set=openkite.enable_domain=true',
         '--set=openkite.enable_staging=false',
         '--set=openkite.environments.production.tag=' + base,
