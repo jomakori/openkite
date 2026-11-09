@@ -13,6 +13,8 @@ use std::ops::Range;
 use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 
+use crate::components::column_picker::{column_prefs, ColumnPicker};
+use crate::components::filter_bar::{filter_rows, FacetSelection, FilterBar};
 use crate::components::namespace_bar::selection_matches;
 use crate::components::status_badge::{StatusKind, StatusPill};
 
@@ -186,6 +188,11 @@ impl Cell {
 pub struct ResourceRow {
     pub id: String,
     pub namespace: Option<String>,
+    /// The resource kind this row represents, when the list knows it. Rows
+    /// mixing kinds (a workloads view) can be filtered by it; rows that do not
+    /// carry one never match a kind facet.
+    #[serde(default)]
+    pub kind: Option<String>,
     pub cells: Vec<Cell>,
 }
 
@@ -259,6 +266,11 @@ pub fn ResourceTable(
 ) -> Element {
     let sort = use_signal(|| None::<(usize, SortDirection)>);
     let mut query = use_signal(String::new);
+    // Health/kind facets for this table; the filter bar writes it, the row
+    // pipeline below reads it.
+    let facets = use_signal(FacetSelection::default);
+    // Column visibility: seeded from the session store, updated by the picker.
+    let prefs = use_signal(column_prefs);
 
     // Every branch carries `data-state`, so the state a surface is in can be
     // read from the DOM rather than inferred from a screenshot (G4).
@@ -271,23 +283,34 @@ pub fn ResourceTable(
         },
         TableStatus::Ready => {
             let selected: Vec<String> = crate::runtime::NAMESPACE_SELECTION.read().clone();
-            let mut view: Vec<ResourceRow> = namespace_filter(&rows, &selected)
+            // Namespace scoping is shared with the namespace strip; health/kind
+            // facets are this table's own. One pipeline, in toolbar order:
+            // scope → facets → text query → sort.
+            let scoped: Vec<ResourceRow> = namespace_filter(&rows, &selected);
+            let active: FacetSelection = facets.read().clone();
+            let mut view: Vec<ResourceRow> = filter_rows(&scoped, &active)
                 .into_iter()
                 .filter(|row| matches_query(&row.search_text(), &query()))
                 .collect();
             if let Some((column, direction)) = sort() {
                 sort_by_key(&mut view, |row| row.cells[column].sort.clone(), direction);
             }
-
-            if view.is_empty() {
-                let message = empty_message.unwrap_or_else(|| "No resources".to_string());
-                return rsx! {
-                    div { class: "table-state table-empty", "data-state": "empty", "{message}" }
-                };
+            // Column visibility is session state; `visible` holds indices into
+            // `columns`, so a hidden column keeps its sort index and its width.
+            let mut visible = prefs.read().visible_indices(&columns);
+            if visible.is_empty() {
+                visible = (0..columns.len()).collect();
             }
+            let message = empty_message
+                .clone()
+                .unwrap_or_else(|| "No resources".to_string());
+            // The panel paints the state the table is actually in: the surface
+            // above reads the first `data-state` node, so a hardcoded "ready"
+            // would hide an empty result behind a ready panel.
+            let state = if view.is_empty() { "empty" } else { "ready" };
 
             rsx! {
-                div { class: "panel", "data-state": "ready",
+                div { class: "panel", "data-state": state,
                     div { class: "table-wrap",
                         div { class: "resource-table",
                             div { class: "table-toolbar",
@@ -299,19 +322,26 @@ pub fn ResourceTable(
                                         oninput: move |event| query.set(event.value()),
                                     }
                                 }
+                                ColumnPicker { columns: columns.clone(), prefs }
                             }
-                            div { class: "table-header table-row",
-                                for (i, column) in columns.iter().enumerate() {
-                                    { header_cell(i, column, sort) }
+                            FilterBar { rows: rows.clone(), scoped: scoped.clone(), selection: facets }
+                            if view.is_empty() {
+                                div { class: "table-state table-empty", "data-state": "empty", "{message}" }
+                            } else {
+                                div { class: "table-header table-row",
+                                    for i in visible.iter().copied() {
+                                        { header_cell(i, &columns[i], sort) }
+                                    }
                                 }
-                            }
-                            TableBody {
-                                view,
-                                columns: columns.clone(),
-                                row_actions: row_actions.clone(),
-                                on_row_click,
-                                selected_row: selected_row.clone(),
-                                height,
+                                TableBody {
+                                    view,
+                                    columns: columns.clone(),
+                                    visible: visible.clone(),
+                                    row_actions: row_actions.clone(),
+                                    on_row_click,
+                                    selected_row: selected_row.clone(),
+                                    height,
+                                }
                             }
                         }
                     }
@@ -353,12 +383,22 @@ fn header_cell(
     }
 }
 
+/// Column geometry shared by every row in a body: widths and labels in table
+/// order, plus the indices the column picker has left visible.
+struct RowLayout<'a> {
+    widths: &'a [Option<u32>],
+    labels: &'a [String],
+    visible: &'a [usize],
+}
+
 /// The scrollable, virtualized body of the table. Holds scroll state so that
 /// scrolling re-renders only the visible window, never the full sorted list.
 #[component]
 fn TableBody(
     view: Vec<ResourceRow>,
     columns: Vec<ColumnDef>,
+    /// Indices of the columns the picker has left visible, in table order.
+    visible: Vec<usize>,
     row_actions: Option<RowActions>,
     on_row_click: Option<EventHandler<ResourceRow>>,
     selected_row: Option<String>,
@@ -373,6 +413,11 @@ fn TableBody(
     let total_height = total as f64 * ROW_HEIGHT;
     let widths: Vec<Option<u32>> = columns.iter().map(|column| column.width).collect();
     let labels: Vec<String> = columns.iter().map(|column| column.label.clone()).collect();
+    let layout = RowLayout {
+        widths: &widths,
+        labels: &labels,
+        visible: &visible,
+    };
 
     rsx! {
         div {
@@ -385,8 +430,7 @@ fn TableBody(
                         render_table_row(
                             row,
                             (start + offset) as f64 * ROW_HEIGHT,
-                            &widths,
-                            &labels,
+                            &layout,
                             row_actions.clone(),
                             on_row_click,
                             selected_row.clone(),
@@ -402,8 +446,7 @@ fn TableBody(
 fn render_table_row(
     row: &ResourceRow,
     top: f64,
-    widths: &[Option<u32>],
-    labels: &[String],
+    layout: &RowLayout<'_>,
     row_actions: Option<RowActions>,
     on_row_click: Option<EventHandler<ResourceRow>>,
     selected_row: Option<String>,
@@ -430,13 +473,13 @@ fn render_table_row(
                     h.call(row_for_click.clone());
                 }
             },
-            for (i, cell) in row.cells.iter().enumerate() {
+            for i in layout.visible.iter().copied() {
                 {
                     render_table_cell(
-                        cell,
+                        &row.cells[i],
                         i,
-                        widths.get(i).copied().flatten(),
-                        labels.get(i).map(String::as_str),
+                        layout.widths.get(i).copied().flatten(),
+                        layout.labels.get(i).map(String::as_str),
                     )
                 }
             }
@@ -716,6 +759,7 @@ mod tests {
         let row = ResourceRow {
             id: "1".into(),
             namespace: Some("default".into()),
+            kind: None,
             cells: vec![
                 Cell::text("nginx"),
                 Cell::status("Running", StatusKind::Running),

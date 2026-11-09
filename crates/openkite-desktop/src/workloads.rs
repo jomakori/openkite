@@ -280,6 +280,7 @@ pub fn pod_row(pod: &Pod) -> ResourceRow {
     ResourceRow {
         id: object_id(namespace.as_deref(), &name),
         namespace,
+        kind: Some("Pod".to_string()),
         cells: vec![
             Cell::text(name),
             pod_health_dots(pod),
@@ -362,6 +363,7 @@ pub fn node_row(node: &k8s_openapi::api::core::v1::Node) -> ResourceRow {
     ResourceRow {
         id: name.clone(),
         namespace: None,
+        kind: Some("Node".to_string()),
         cells: vec![
             Cell::text(name),
             Cell::text(roles),
@@ -488,6 +490,7 @@ pub fn deployment_row(d: &Deployment) -> ResourceRow {
     ResourceRow {
         id: object_id(namespace.as_deref(), &name),
         namespace,
+        kind: Some("Deployment".to_string()),
         cells: vec![
             Cell::text(name),
             ready_cell(ready, desired),
@@ -537,6 +540,7 @@ pub fn stateful_set_row(s: &StatefulSet) -> ResourceRow {
     ResourceRow {
         id: object_id(namespace.as_deref(), &name),
         namespace,
+        kind: Some("StatefulSet".to_string()),
         cells: vec![
             Cell::text(name),
             ready_cell(ready, desired),
@@ -601,6 +605,7 @@ pub fn daemon_set_row(ds: &DaemonSet) -> ResourceRow {
     ResourceRow {
         id: object_id(namespace.as_deref(), &name),
         namespace,
+        kind: Some("DaemonSet".to_string()),
         cells: vec![
             Cell::text(name),
             ready_cell(ready, desired),
@@ -645,6 +650,7 @@ pub fn replica_set_row(rs: &ReplicaSet) -> ResourceRow {
     ResourceRow {
         id: object_id(namespace.as_deref(), &name),
         namespace,
+        kind: Some("ReplicaSet".to_string()),
         cells: vec![
             Cell::text(name),
             Cell::number(ready.to_string(), ready as f64),
@@ -710,6 +716,7 @@ pub fn job_row(job: &Job) -> ResourceRow {
     ResourceRow {
         id: object_id(namespace.as_deref(), &name),
         namespace,
+        kind: Some("Job".to_string()),
         cells: vec![
             Cell::text(name),
             Cell::number(format!("{succeeded}/{completions}"), succeeded as f64),
@@ -763,6 +770,7 @@ pub fn cron_job_row(cj: &CronJob) -> ResourceRow {
     ResourceRow {
         id: object_id(namespace.as_deref(), &name),
         namespace,
+        kind: Some("CronJob".to_string()),
         cells: vec![
             Cell::text(name),
             Cell::text(schedule),
@@ -804,6 +812,7 @@ pub fn secret_row(secret: &Secret) -> ResourceRow {
     ResourceRow {
         id: object_id(namespace.as_deref(), &name),
         namespace,
+        kind: Some("Secret".to_string()),
         cells: vec![
             Cell::text(name),
             Cell::text(kind_label),

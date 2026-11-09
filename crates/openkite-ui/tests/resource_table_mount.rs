@@ -32,6 +32,7 @@ fn row(id: &str, namespace: Option<&str>, cells: Vec<Cell>) -> ResourceRow {
     ResourceRow {
         id: id.into(),
         namespace: namespace.map(str::to_string),
+        kind: None,
         cells,
     }
 }
@@ -188,8 +189,8 @@ fn populated_table_renders_headers_rows_and_actions() {
     assert!(html.contains("Running"), "got: {html}");
     assert!(html.contains("Pending"), "got: {html}");
     assert!(
-        !html.contains("class=\"chip"),
-        "the table must not paint its own namespace chips: {html}"
+        !html.contains("class=\"ns-bar"),
+        "the namespace strip stays the shell's job: {html}"
     );
     assert!(
         html.contains("table-filter"),
