@@ -1591,9 +1591,37 @@ body {
     justify-content: flex-start;
     padding: 0 16px;
   }
+  /* The checkbox keeps its 20px look but claims a 44px tap target: the input
+     box is the target, the drawn square is the mark. */
   .row-check {
+    position: relative;
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    appearance: none;
+    background: none;
+  }
+  .row-check::before {
+    content: "";
     width: 20px;
     height: 20px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    background: var(--surface-solid);
+  }
+  .row-check:checked::before {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .row-check:checked::after {
+    content: "";
+    position: absolute;
+    width: 9px;
+    height: 5px;
+    border-left: 2px solid var(--surface-solid);
+    border-bottom: 2px solid var(--surface-solid);
+    transform: translateY(-2px) rotate(-45deg);
   }
   .bottom-nav { display: block; }
   /* OKT-207: the dock is one pane here whatever the split says; widening
