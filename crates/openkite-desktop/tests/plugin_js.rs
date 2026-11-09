@@ -2,7 +2,7 @@
 
 use openkite::plugin_js::{
     coalesce, collect_bundles, discover_plugins, load_manifest, load_source, scan_and_reconcile,
-    JsBundle, JsPluginRegistry, PluginAction, PluginChange, PluginManifest,
+    scope_css, JsBundle, JsPluginRegistry, PluginAction, PluginChange, PluginManifest,
 };
 use std::fs;
 use tempfile::tempdir;
@@ -12,6 +12,7 @@ fn manifest(name: &str, version: &str) -> PluginManifest {
         name: name.into(),
         version: version.into(),
         entry: "main.js".into(),
+        style: None,
         description: String::new(),
         author: String::new(),
         sidebar: Vec::new(),
@@ -27,6 +28,21 @@ fn write_plugin(dir: &std::path::Path, name: &str, version: &str) {
     )
     .unwrap();
     fs::write(d.join("main.js"), "// noop").unwrap();
+}
+
+/// Like `write_plugin`, but also declares and writes a `style.css`.
+fn write_plugin_with_style(dir: &std::path::Path, name: &str, version: &str, css: &str) {
+    let d = dir.join(name);
+    fs::create_dir_all(&d).unwrap();
+    fs::write(
+        d.join("manifest.json"),
+        format!(
+            r#"{{"name":"{name}","version":"{version}","entry":"main.js","style":"style.css"}}"#
+        ),
+    )
+    .unwrap();
+    fs::write(d.join("main.js"), "// noop").unwrap();
+    fs::write(d.join("style.css"), css).unwrap();
 }
 
 #[test]
@@ -271,6 +287,7 @@ fn load_source_reads_bundle_text() {
     let bundle = JsBundle {
         name: "a".into(),
         entry: dir.path().join("a").join("main.js"),
+        style: None,
     };
     assert_eq!(load_source(&bundle).unwrap(), "// noop");
 }
@@ -280,6 +297,125 @@ fn load_source_reports_missing_entry() {
     let bundle = JsBundle {
         name: "a".into(),
         entry: std::path::PathBuf::from("/nonexistent/a/main.js"),
+        style: None,
     };
     assert!(load_source(&bundle).unwrap_err().contains("read"));
+}
+
+// --- CSS isolation -------------------------------------------------------
+//
+// `scope_css_scopes_a_plain_selector_under_the_plugin_root` is the isolation
+// proof: it fails the moment `scope_rules`/`scope_selector_list` stop
+// prefixing selectors with the plugin's `[data-plugin="…"]` root, which is
+// exactly what "no scoping" looks like. `two_plugins_declaring_same_class_
+// get_distinct_scoped_rules` is the collision proof: it fails if two
+// plugins' same-named class ever renders identically (i.e. unscoped).
+
+#[test]
+fn scope_css_scopes_a_plain_selector_under_the_plugin_root() {
+    let out = scope_css(".panel { color: red; }", "plugin-a").unwrap();
+    assert!(out.contains("[data-plugin=\"plugin-a\"] .panel"));
+    assert!(!out.trim_start().starts_with(".panel"));
+}
+
+#[test]
+fn scope_css_scopes_a_comma_separated_selector_list() {
+    let out = scope_css(".panel, .widget { color: red; }", "plugin-a").unwrap();
+    assert!(out.contains("[data-plugin=\"plugin-a\"] .panel"));
+    assert!(out.contains("[data-plugin=\"plugin-a\"] .widget"));
+}
+
+#[test]
+fn two_plugins_declaring_same_class_get_distinct_scoped_rules() {
+    let a = scope_css(".panel { color: red; }", "plugin-a").unwrap();
+    let b = scope_css(".panel { color: blue; }", "plugin-b").unwrap();
+    assert_ne!(a, b);
+    assert!(a.contains("[data-plugin=\"plugin-a\"] .panel"));
+    assert!(b.contains("[data-plugin=\"plugin-b\"] .panel"));
+    assert!(!a.contains("plugin-b"));
+    assert!(!b.contains("plugin-a"));
+}
+
+#[test]
+fn scope_css_recurses_into_media_supports_and_container_queries() {
+    let out = scope_css(
+        "@media (min-width: 600px) { .panel { color: red; } }",
+        "plugin-a",
+    )
+    .unwrap();
+    assert!(out.contains("@media (min-width: 600px)"));
+    assert!(out.contains("[data-plugin=\"plugin-a\"] .panel"));
+
+    let out = scope_css(
+        "@supports (display: grid) { .panel { display: grid; } }",
+        "plugin-a",
+    )
+    .unwrap();
+    assert!(out.contains("@supports"));
+    assert!(out.contains("[data-plugin=\"plugin-a\"] .panel"));
+
+    let out = scope_css(
+        "@container (min-width: 200px) { .panel { color: red; } }",
+        "plugin-a",
+    )
+    .unwrap();
+    assert!(out.contains("@container"));
+    assert!(out.contains("[data-plugin=\"plugin-a\"] .panel"));
+}
+
+#[test]
+fn scope_css_maps_root_custom_properties_onto_the_plugin_root() {
+    let out = scope_css(":root { --accent: red; }", "plugin-a").unwrap();
+    assert!(out.contains("[data-plugin=\"plugin-a\"] {"));
+}
+
+#[test]
+fn scope_css_rejects_font_face_and_keyframes_with_a_reason() {
+    let err = scope_css(
+        "@font-face { font-family: X; src: url(x.woff); }",
+        "plugin-a",
+    )
+    .unwrap_err();
+    assert!(err.contains("font-face"));
+    assert!(err.contains("global"));
+
+    let err = scope_css("@keyframes spin { from { opacity: 0; } }", "plugin-a").unwrap_err();
+    assert!(err.contains("keyframes"));
+    assert!(err.contains("global"));
+}
+
+#[test]
+fn scope_css_rejects_import_and_host_document_selectors() {
+    assert!(scope_css("@import \"other.css\";", "plugin-a")
+        .unwrap_err()
+        .contains("@import"));
+    assert!(scope_css("body { margin: 0; }", "plugin-a")
+        .unwrap_err()
+        .contains("host document"));
+}
+
+#[test]
+fn collect_bundles_scopes_a_plugins_declared_style() {
+    let dir = tempdir().unwrap();
+    write_plugin_with_style(dir.path(), "a", "0.1.0", ".panel { color: red; }");
+
+    let (bundles, errors) = collect_bundles(dir.path(), |_| true);
+    assert!(errors.is_empty());
+    assert_eq!(bundles.len(), 1);
+    let style = bundles[0].style.as_ref().expect("style present");
+    assert!(style.contains("[data-plugin=\"a\"] .panel"));
+}
+
+#[test]
+fn collect_bundles_disables_plugin_whose_css_cannot_be_scoped_but_keeps_siblings() {
+    let dir = tempdir().unwrap();
+    write_plugin_with_style(dir.path(), "bad", "0.1.0", "@import \"evil.css\";");
+    write_plugin(dir.path(), "good", "0.1.0");
+
+    let (bundles, errors) = collect_bundles(dir.path(), |_| true);
+    assert_eq!(bundles.len(), 1);
+    assert_eq!(bundles[0].name, "good");
+    assert!(errors
+        .iter()
+        .any(|e| e.contains("bad") && e.contains("disabled")));
 }

@@ -264,6 +264,23 @@ fn AppShell() -> Element {
     use_effect(move || {
         if EVALUATED_JS_PLUGINS.set(()).is_ok() {
             for bundle in js_plugins() {
+                // The bundle's stylesheet is already scoped to
+                // `[data-plugin="<name>"]` (see `plugin_js::scope_css`); inject
+                // it as its own <style> tag before the bundle evaluates, so a
+                // plugin's first paint is never unstyled.
+                if let Some(style) = &bundle.style {
+                    let style_source = format!(
+                        r#"(function() {{
+                          var tag = document.createElement('style');
+                          tag.setAttribute('data-plugin-style', {name_json});
+                          tag.textContent = {css_json};
+                          document.head.appendChild(tag);
+                        }})();"#,
+                        name_json = serde_json::to_string(&bundle.name).unwrap_or_default(),
+                        css_json = serde_json::to_string(style).unwrap_or_default(),
+                    );
+                    document::eval(&style_source);
+                }
                 match crate::plugin_js::load_source(&bundle) {
                     Ok(source) => {
                         tracing::info!(plugin = %bundle.name, "evaluating js plugin bundle");

@@ -146,3 +146,28 @@ Runtime shape (`src/bridge.rs`):
   `Api<Pod>` (the `Log` marker is pod-only). `exec` is deferred (PTY later).
 - Mounting into the shell (`use_asset_handler` + eval bootstrap) is the
   OKT-31 remainder; until then the bridge runs headless in tests.
+
+## CSS isolation — scoping, not sandboxing (decision 2026-11-09)
+
+Plugins share the app's JS context (Headlamp model); their CSS shared the
+same global stylesheet scope too, so a plugin's `<style>` rules could leak
+into the host or into another plugin, and host classes could leak back into
+plugin markup. `docs/plugin-api.md` said nothing about styling.
+
+Decision: a small, dependency-free rewriter in `plugin_js.rs`
+(`scope_css`/`scope_rules`) rewrites a plugin's declared `style` at load
+time, prefixing every selector with `[data-plugin="<name>"]` so it can only
+match inside that plugin's own subtree. No CSS parser crate added — the
+workspace has none and the shapes plugins actually emit (selector lists,
+`:root`, `@media`/`@supports`/`@container`) are small enough for a
+hand-rolled, depth-aware splitter.
+
+Rejected rather than fake-scoped: `@font-face` and `@keyframes` (names are
+global by spec — nesting under an attribute selector does not scope the
+*name*, so two plugins could still collide on a font or animation), `@import`
+(reaches outside the plugin's own files), and any selector targeting
+`html`/`body` (no attribute scope can reach the document root). These
+return `Err(reason)` from `scope_css`, never a panic; `collect_bundles`
+turns that into the same disabled-with-reason treatment as a broken
+manifest, so one plugin's unscopable CSS never blocks its siblings or
+crashes the shell.

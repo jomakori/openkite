@@ -31,6 +31,11 @@ pub struct PluginManifest {
     pub version: String,
     /// JS entry point, relative to the plugin dir (must end in `.js`).
     pub entry: String,
+    /// Optional stylesheet, relative to the plugin dir (must end in
+    /// `.css`). Scoped to the plugin's own subtree at load time — see
+    /// `scope_css` and the isolation contract in `docs/plugin-api.md`.
+    #[serde(default)]
+    pub style: Option<String>,
     #[serde(default)]
     pub description: String,
     #[serde(default)]
@@ -82,6 +87,16 @@ impl PluginManifest {
                 "entry '{}' must be relative and inside the plugin dir",
                 self.entry
             ));
+        }
+        if let Some(style) = &self.style {
+            if !style.ends_with(".css") {
+                return Err(format!("style '{style}' must be a .css file"));
+            }
+            if Path::new(style).is_absolute() || style.split(['/', '\\']).any(|c| c == "..") {
+                return Err(format!(
+                    "style '{style}' must be relative and inside the plugin dir"
+                ));
+            }
         }
         Ok(())
     }
@@ -327,35 +342,300 @@ pub fn watch_plugins(
     Ok(watcher)
 }
 
-/// An eval-ready JS plugin bundle: plugin name + entry-file path.
+/// An eval-ready JS plugin bundle: plugin name, entry-file path, and its
+/// already-scoped stylesheet (if the manifest declares one).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JsBundle {
     pub name: String,
     pub entry: PathBuf,
+    /// CSS rewritten by [`scope_css`] so every selector is scoped under
+    /// `[data-plugin="<name>"]`. `None` when the manifest has no `style`.
+    pub style: Option<String>,
 }
 
 /// Discover plugins under `root` and keep the enabled ones' bundles.
 ///
 /// Broken siblings never block discovery: manifests that fail validation
-/// surface in `errors`; the enabled predicate runs on the parsed name.
+/// surface in `errors`; the enabled predicate runs on the parsed name. A
+/// plugin whose `style` fails to load or to scope (see [`scope_css`]) is
+/// dropped from the bundle list with its reason appended to `errors` too —
+/// the same disabled-with-reason treatment as a broken manifest, never a
+/// panic, and it never blocks its siblings.
 pub fn collect_bundles(
     root: &Path,
     enabled: impl Fn(&str) -> bool,
 ) -> (Vec<JsBundle>, Vec<String>) {
-    let (discovered, errors) = discover_plugins(root);
-    let bundles = discovered
-        .into_iter()
-        .filter(|(name, _)| enabled(name))
-        .map(|(name, manifest)| JsBundle {
-            entry: root.join(&name).join(&manifest.entry),
-            name,
-        })
-        .collect();
+    let (discovered, mut errors) = discover_plugins(root);
+    let mut bundles = Vec::new();
+    for (name, manifest) in discovered {
+        if !enabled(&name) {
+            continue;
+        }
+        let plugin_dir = root.join(&name);
+        match load_scoped_style(&plugin_dir, &manifest) {
+            Ok(style) => bundles.push(JsBundle {
+                entry: plugin_dir.join(&manifest.entry),
+                name,
+                style,
+            }),
+            Err(reason) => errors.push(format!("plugin '{name}' disabled: {reason}")),
+        }
+    }
     (bundles, errors)
+}
+
+/// Load and scope a plugin's declared `style` file, if any.
+fn load_scoped_style(
+    plugin_dir: &Path,
+    manifest: &PluginManifest,
+) -> Result<Option<String>, String> {
+    let Some(style) = &manifest.style else {
+        return Ok(None);
+    };
+    let path = plugin_dir.join(style);
+    let text = fs::read_to_string(&path).map_err(|e| format!("read {}: {e}", path.display()))?;
+    scope_css(&text, &manifest.name).map(Some)
 }
 
 /// Read a bundle's source text for eval.
 pub fn load_source(bundle: &JsBundle) -> Result<String, String> {
     fs::read_to_string(&bundle.entry)
         .map_err(|err| format!("read {}: {err}", bundle.entry.display()))
+}
+
+/// Rewrite a plugin's CSS so every selector is scoped under its
+/// `[data-plugin="<name>"]` root — the isolation contract documented in
+/// `docs/plugin-api.md`. Dependency-free: no CSS parser crate, just enough
+/// hand-rolled splitting to find selectors and at-rule bodies.
+///
+/// Handled: plain selectors and comma-separated selector lists (prefixed
+/// with the plugin root as a descendant), `:root` (mapped onto the plugin
+/// root itself, so a plugin's custom properties apply only to its own
+/// subtree), and `@media`/`@supports`/`@container` (the prelude is kept
+/// verbatim, the rules nested inside are scoped recursively).
+///
+/// Rejected — returned as `Err(reason)`, never a panic, so the caller can
+/// disable the plugin's CSS with that reason instead of pretending it is
+/// isolated: `@font-face` and `@keyframes` (their names are global by spec;
+/// nesting the rule under an attribute selector does not scope them, so two
+/// plugins could still collide on a font or animation name — this rewriter
+/// refuses rather than claim an isolation it cannot deliver), `@import`
+/// (reaches outside the plugin's own files), and any selector whose first
+/// simple selector is `html`/`body` (no attribute scope can make
+/// `[data-plugin="x"] html` match anything).
+pub fn scope_css(css: &str, plugin: &str) -> Result<String, String> {
+    let root = format!("[data-plugin=\"{plugin}\"]");
+    scope_rules(&strip_css_comments(css), &root, plugin)
+}
+
+/// Strip `/* ... */` comments (string-unaware: plugin CSS is not expected to
+/// carry `*/` inside a string literal, and stripping comments first keeps
+/// the brace scanner below simple).
+fn strip_css_comments(css: &str) -> String {
+    let mut out = String::with_capacity(css.len());
+    let mut chars = css.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '/' && chars.peek() == Some(&'*') {
+            chars.next();
+            while let Some(c) = chars.next() {
+                if c == '*' && chars.peek() == Some(&'/') {
+                    chars.next();
+                    break;
+                }
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+/// Split `css` into top-level `(prelude, body)` rules, where `body` is the
+/// text between a rule's `{` and matching `}`. Depth-aware over `()`/`[]`
+/// and string quotes, so a prelude like `:not(.a, .b)` or a `url("{")` never
+/// confuses the brace match. A top-level `;` before any `{` (e.g.
+/// `@import "x";`) is rejected rather than silently dropped.
+fn split_rules(css: &str) -> Result<Vec<(String, String)>, String> {
+    let chars: Vec<char> = css.chars().collect();
+    let mut rules = Vec::new();
+    let mut i = 0;
+    while i < chars.len() {
+        while i < chars.len() && chars[i].is_whitespace() {
+            i += 1;
+        }
+        if i >= chars.len() {
+            break;
+        }
+        let start = i;
+        let mut depth = 0i32;
+        let mut quote: Option<char> = None;
+        while i < chars.len() {
+            let c = chars[i];
+            if let Some(q) = quote {
+                if c == q && chars[i - 1] != '\\' {
+                    quote = None;
+                }
+            } else {
+                match c {
+                    '"' | '\'' => quote = Some(c),
+                    '(' | '[' => depth += 1,
+                    ')' | ']' => depth -= 1,
+                    '{' if depth == 0 => break,
+                    ';' if depth == 0 => {
+                        let stmt: String = chars[start..i].iter().collect();
+                        return Err(format!(
+                            "unsupported statement in plugin stylesheet: '{}'",
+                            stmt.trim()
+                        ));
+                    }
+                    _ => {}
+                }
+            }
+            i += 1;
+        }
+        if i >= chars.len() {
+            let rest: String = chars[start..].iter().collect();
+            if rest.trim().is_empty() {
+                break;
+            }
+            return Err(format!("unterminated rule: '{}'", rest.trim()));
+        }
+        let prelude: String = chars[start..i].iter().collect();
+        let body_start = i + 1;
+        let mut body_depth = 1i32;
+        let mut j = body_start;
+        let mut quote: Option<char> = None;
+        while j < chars.len() && body_depth > 0 {
+            let c = chars[j];
+            if let Some(q) = quote {
+                if c == q && chars[j - 1] != '\\' {
+                    quote = None;
+                }
+            } else {
+                match c {
+                    '"' | '\'' => quote = Some(c),
+                    '{' => body_depth += 1,
+                    '}' => body_depth -= 1,
+                    _ => {}
+                }
+            }
+            j += 1;
+        }
+        if body_depth != 0 {
+            return Err(format!("unterminated block for '{}'", prelude.trim()));
+        }
+        let body: String = chars[body_start..j - 1].iter().collect();
+        rules.push((prelude.trim().to_string(), body));
+        i = j;
+    }
+    Ok(rules)
+}
+
+/// Scope every rule in `css`, recursing into the rule-container at-rules.
+fn scope_rules(css: &str, root: &str, plugin: &str) -> Result<String, String> {
+    let mut out = String::new();
+    for (prelude, body) in split_rules(css)? {
+        if let Some(rest) = prelude.strip_prefix('@') {
+            let (keyword, params) = split_at_rule(rest);
+            match keyword.to_ascii_lowercase().as_str() {
+                "media" | "supports" | "container" => {
+                    let inner = scope_rules(&body, root, plugin)?;
+                    out.push_str(&format!("@{keyword} {params} {{\n{inner}}}\n"));
+                }
+                "font-face" => {
+                    return Err(format!(
+                        "@font-face is global and cannot be scoped to plugin '{plugin}'s subtree"
+                    ));
+                }
+                "keyframes" | "-webkit-keyframes" | "-moz-keyframes" => {
+                    return Err(format!(
+                        "@{keyword} names are global and cannot be scoped to plugin '{plugin}'s subtree"
+                    ));
+                }
+                "import" => {
+                    return Err(format!(
+                        "@import reaches outside plugin '{plugin}'s own files and is not supported"
+                    ));
+                }
+                other => {
+                    return Err(format!(
+                        "unsupported at-rule '@{other}' in plugin '{plugin}'s stylesheet"
+                    ));
+                }
+            }
+        } else {
+            let selector = scope_selector_list(&prelude, root, plugin)?;
+            out.push_str(&format!("{selector} {{{body}}}\n"));
+        }
+    }
+    Ok(out)
+}
+
+/// Split an at-rule prelude (after the `@`) into its keyword and the rest
+/// (the part between the keyword and the `{`), e.g. `media (min-width: 1px)`
+/// → `("media", "(min-width: 1px)")`.
+fn split_at_rule(s: &str) -> (&str, &str) {
+    match s.find(|c: char| c.is_whitespace() || c == '(') {
+        Some(idx) => (&s[..idx], s[idx..].trim()),
+        None => (s, ""),
+    }
+}
+
+/// Scope a comma-separated selector list under `root`.
+fn scope_selector_list(selector_list: &str, root: &str, plugin: &str) -> Result<String, String> {
+    let mut scoped = Vec::new();
+    for part in split_top_level_commas(selector_list) {
+        let sel = part.trim();
+        if sel.is_empty() {
+            continue;
+        }
+        if sel == ":root" {
+            scoped.push(root.to_string());
+            continue;
+        }
+        let first = sel
+            .split(|c: char| c.is_whitespace() || c == '>' || c == '+' || c == '~')
+            .next()
+            .unwrap_or("")
+            .trim_start_matches('*');
+        let targets_host = |tag: &str| {
+            let lower = first.to_ascii_lowercase();
+            let tag_lower = tag.to_ascii_lowercase();
+            lower == tag_lower
+                || lower.starts_with(&format!("{tag_lower}."))
+                || lower.starts_with(&format!("{tag_lower}#"))
+                || lower.starts_with(&format!("{tag_lower}:"))
+        };
+        if targets_host("html") || targets_host("body") {
+            return Err(format!(
+                "selector '{sel}' in plugin '{plugin}'s stylesheet targets the host document; no plugin scope can reach it"
+            ));
+        }
+        scoped.push(format!("{root} {sel}"));
+    }
+    Ok(scoped.join(", "))
+}
+
+/// Split a selector list on top-level commas (depth-aware over `()`/`[]`, so
+/// `:not(.a, .b)` is not mistaken for two selectors).
+fn split_top_level_commas(s: &str) -> Vec<String> {
+    let mut parts = Vec::new();
+    let mut depth = 0i32;
+    let mut current = String::new();
+    for c in s.chars() {
+        match c {
+            '(' | '[' => {
+                depth += 1;
+                current.push(c);
+            }
+            ')' | ']' => {
+                depth -= 1;
+                current.push(c);
+            }
+            ',' if depth == 0 => parts.push(std::mem::take(&mut current)),
+            _ => current.push(c),
+        }
+    }
+    parts.push(current);
+    parts
 }
