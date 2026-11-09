@@ -465,6 +465,25 @@ async fn workload_table(
         }
         FixtureState::Ready => {}
     }
+    if bridge.client().is_none() {
+        // No cluster credential to answer from (OKT-210): demo rows, built
+        // through the same `pods` + `pod_row` path a real cluster answer
+        // takes, so a preview host's table is not an empty shell forever.
+        return match pods(&crate::fixture::demo_pod_list()) {
+            Ok(pods) => ssr::WorkloadsTable {
+                columns,
+                rows: pods.iter().map(openkite::workloads::pod_row).collect(),
+                error: None,
+                loading: false,
+            },
+            Err(error) => ssr::WorkloadsTable {
+                columns,
+                rows: Vec::new(),
+                error: Some(error),
+                loading: false,
+            },
+        };
+    }
     let request = ApiRequest::List {
         kind: "pods".to_string(),
         ns: None,
