@@ -133,19 +133,18 @@ pub fn App(props: AppProps) -> Element {
             let mut feed = crate::logs::LogFeed::seeded(pane.lines.len());
             loop {
                 let container = LOGS_CONTAINER.cloned();
-                match crate::client::fetch_logs(&pod, Some(container.as_str())).await {
-                    Ok(Some(read)) => {
-                        let fresh = feed.merge(read);
-                        if !fresh.is_empty() {
-                            let mut buffer = LOGS_BUFFER.write();
-                            for line in fresh {
-                                buffer.push(line);
-                            }
+                // A refusal mid-stream keeps the lines already painted: the panel
+                // says nothing about a failed read, the next poll retries.
+                if let Ok(Some(read)) =
+                    crate::client::fetch_logs(&pod, Some(container.as_str())).await
+                {
+                    let fresh = feed.merge(read);
+                    if !fresh.is_empty() {
+                        let mut buffer = LOGS_BUFFER.write();
+                        for line in fresh {
+                            buffer.push(line);
                         }
                     }
-                    // A refusal mid-stream keeps the lines already painted: the
-                    // panel says nothing about a failed read, the next poll retries.
-                    Ok(None) | Err(_) => {}
                 }
                 poll_interval().await;
             }
