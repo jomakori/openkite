@@ -29,6 +29,7 @@ its values match the tokens in `DESIGN.md`, and its states (below) render.
 | 8 | Resource detail side pane | `:540-569` → `:746-808` | `.inspector` `.inspector-header` `.inspector-title` `.inspector-eyebrow` `.inspector-tabs` `.tab-btn` `.tab-btn.active` `.inspector-body` `.kv-list` `.kv-row` `.inspector-actions` | `surface`, `border`, `fg`, `muted`, `subtle`, `accent`, `shadow-hover`, `r-md` | T18 | classes shipped |
 | 9 | Toast (cross-cutting) | `:570` → `:837-855` | `.toast` `.toast.show` | `fg`, `shadow-hover`, `r-md` | all write surfaces | classes shipped |
 | 10 | Pull-to-refresh indicator | *(JS-injected)* → `:808-827` | `.pull-indicator` | `surface-solid`, `border`, `fg`, `shadow-hover`, `r-pill` | T9, T11 | classes shipped |
+| 11 | Bulk-selection bar | *(no reference)* | `.bulk-bar` `.bulk-bar.active` `.bulk-bar-count` `.bulk-bar-reason` `.bulk-bar-actions` `.bulk-bar .btn` `.table-select` `.table-select-head` `.row-check` `.table-row.checked` | `surface-solid`, `border`, `fg`, `muted`, `accent`, `danger`, `r-pill`, `r-sm` | P3-6 | **new design** — the mockup has no multi-select; bar keeps the toolbar's chip height and a reserved row so the table never reflows |
 
 ## Per-surface notes
 
