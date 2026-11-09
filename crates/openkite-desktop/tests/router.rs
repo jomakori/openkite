@@ -183,10 +183,12 @@ fn both_hosts_derive_the_shared_console_view_from_the_address() {
             "{path}"
         );
     }
-    // /logs and /terminal are the desktop's own surfaces: the browser's model
-    // does not carry them, so there the same address is the landing route.
-    for host_only in ["/logs", "/terminal"] {
-        assert_eq!(console_route(host_only, &desktop), host_only);
-        assert_eq!(console_route(host_only, &browser), "/");
-    }
+    // /logs is a route both hosts now carry — the browser paints the same
+    // panel — so the same address is the same console view on each.
+    assert_eq!(console_route("/logs", &desktop), "/logs");
+    assert_eq!(console_route("/logs", &browser), "/logs");
+    // /terminal stays the desktop's own surface: the browser's model does not
+    // carry it, so there the same address is the landing route.
+    assert_eq!(console_route("/terminal", &desktop), "/terminal");
+    assert_eq!(console_route("/terminal", &browser), "/");
 }
