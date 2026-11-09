@@ -65,6 +65,8 @@ list is `REQUIRED_CLASSES` in `crates/openkite-ui/tests/design.rs`.
 | `.search-field` | Inline-icon search input (44px) |
 | `.pill` + `.success` / `.warn` / `.danger` / `.muted` | Status badges (6px dot + label) |
 | `.table-wrap`, `.resource-table`, `.table-header` | Tabular content + horizontal-scroll wrapper |
+| `.table-select` + `.table-select-head` + `.row-check` + `.table-row.checked` | Selection column (44px target, tri-state header) and the checked row state |
+| `.bulk-bar` (+ `.active`/`.bulk-bar-count`/`.bulk-bar-reason`/`.bulk-bar-actions`) | Bulk-action bar; always mounted at a fixed height so checking a row never reflows the table |
 | `.resource-name` (+ `.icon`), `.health-dots` + `.dot` | Icon + mono-font name cell; inline-cell semantic dots |
 | `.log-panel` (+ `.log-header`/`.log-handle`/`.log-body`/`.log-line`/`.log-time`/`.log-level`/`.log-method`/`.log-msg`/`.log-paused`) | Opaque terminal anchor (`var(--terminal-bg)`) |
 | `.inspector` (+ `.inspector-header`/`.inspector-title`/`.inspector-eyebrow`/`.inspector-body`/`.inspector-actions`) + `.kv-list`/`.kv-row` | Slide-over panel (420px, right-anchored) |

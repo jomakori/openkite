@@ -8,8 +8,11 @@
 #![allow(non_snake_case)]
 
 use std::cmp::Ordering;
+use std::collections::HashSet;
 use std::ops::Range;
+use std::rc::Rc;
 
+use dioxus::html::{Key, ModifiersInteraction};
 use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -240,6 +243,304 @@ pub struct RowActions {
     pub on_scale: Option<EventHandler<String>>,
 }
 
+/// Reason the bulk bar shows while nothing is selected. Exported so hosts and
+/// tests quote the same sentence instead of inventing a second one.
+pub const BULK_EMPTY_REASON: &str = "Select at least one row to run a bulk action.";
+
+/// Multi-row selection state for the resource table.
+///
+/// One model per table. Rows never carry their own checked flag, so the
+/// selection has a single source of truth and survives virtualization: a row
+/// scrolled out of the window keeps its pick.
+///
+/// Every read that drives the UI (`count_in` / `all_in` / `some_in` /
+/// `selected_in`) is evaluated against the ids the table is showing *right
+/// now*, so a pick made under one filter can never be silently counted — or
+/// acted on — under another.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct SelectionModel {
+    selected: HashSet<String>,
+    /// Row the last single-row toggle landed on; the origin of shift ranges.
+    anchor: Option<String>,
+}
+
+impl SelectionModel {
+    /// Empty selection.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Seed a selection (SSR parity, restored views).
+    pub fn from_ids(ids: impl IntoIterator<Item = String>) -> Self {
+        Self {
+            selected: ids.into_iter().collect(),
+            anchor: None,
+        }
+    }
+
+    /// True when nothing at all is selected.
+    pub fn is_empty(&self) -> bool {
+        self.selected.is_empty()
+    }
+
+    /// Total picks, including rows the current filter hides.
+    pub fn count(&self) -> usize {
+        self.selected.len()
+    }
+
+    /// Whether `id` is selected.
+    pub fn contains(&self, id: &str) -> bool {
+        self.selected.contains(id)
+    }
+
+    /// All picks, sorted — deterministic for tests and bulk payloads.
+    pub fn ids(&self) -> Vec<String> {
+        let mut ids: Vec<String> = self.selected.iter().cloned().collect();
+        ids.sort();
+        ids
+    }
+
+    /// Flip one row and make it the anchor of a following shift range.
+    pub fn toggle(&mut self, id: &str) {
+        if !self.selected.remove(id) {
+            self.selected.insert(id.to_string());
+        }
+        self.anchor = Some(id.to_string());
+    }
+
+    /// Shift-range: select everything between the anchor and `id` inside
+    /// `order`. With no anchor, or rows outside the current view, this is a
+    /// plain toggle. The anchor stays put so a second shift-click re-ranges.
+    pub fn extend_to(&mut self, id: &str, order: &[String]) {
+        let Some(anchor) = self.anchor.clone() else {
+            return self.toggle(id);
+        };
+        let from = order.iter().position(|row| *row == anchor);
+        let to = order.iter().position(|row| *row == id);
+        let (Some(from), Some(to)) = (from, to) else {
+            return self.toggle(id);
+        };
+        let (lo, hi) = if from <= to { (from, to) } else { (to, from) };
+        for row in &order[lo..=hi] {
+            self.selected.insert(row.clone());
+        }
+    }
+
+    /// Select every row of the current result set. Rows outside `order` are
+    /// left alone, so "select all" never reaches past the active filter.
+    pub fn select_all(&mut self, order: &[String]) {
+        for id in order {
+            self.selected.insert(id.clone());
+        }
+        self.anchor = order.last().cloned();
+    }
+
+    /// Deselect every row of the current result set.
+    pub fn clear_all(&mut self, order: &[String]) {
+        for id in order {
+            self.selected.remove(id);
+        }
+        if self
+            .anchor
+            .as_ref()
+            .is_some_and(|anchor| !self.selected.contains(anchor))
+        {
+            self.anchor = None;
+        }
+    }
+
+    /// Drop the whole selection (Escape, filter change).
+    pub fn clear(&mut self) {
+        self.selected.clear();
+        self.anchor = None;
+    }
+
+    /// Picks that are inside `order` — what the bar reports.
+    pub fn count_in(&self, order: &[String]) -> usize {
+        order
+            .iter()
+            .filter(|id| self.selected.contains(id.as_str()))
+            .count()
+    }
+
+    /// Whether every row of `order` is checked (false for an empty view).
+    pub fn all_in(&self, order: &[String]) -> bool {
+        !order.is_empty() && order.iter().all(|id| self.selected.contains(id.as_str()))
+    }
+
+    /// Whether any row of `order` is checked.
+    pub fn some_in(&self, order: &[String]) -> bool {
+        order.iter().any(|id| self.selected.contains(id.as_str()))
+    }
+
+    /// Picks inside `order`, in view order — the payload of a bulk action.
+    pub fn selected_in(&self, order: &[String]) -> Vec<String> {
+        order
+            .iter()
+            .filter(|id| self.selected.contains(id.as_str()))
+            .cloned()
+            .collect()
+    }
+}
+
+/// What a keydown means for the selection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SelectionKey {
+    /// Check/uncheck the focused row.
+    Toggle,
+    /// Extend from the anchor to the focused row.
+    Extend,
+    /// Drop the whole selection.
+    Clear,
+    /// Not a selection key.
+    Ignore,
+}
+
+/// Map a keydown to a selection intent.
+///
+/// Pure on purpose: the keyboard contract (space/x toggles, shift+either
+/// extends, Escape clears) is testable without a DOM.
+pub fn selection_key(key: &str, shift: bool) -> SelectionKey {
+    match key.to_ascii_lowercase().as_str() {
+        "escape" => SelectionKey::Clear,
+        " " | "spacebar" | "x" => {
+            if shift {
+                SelectionKey::Extend
+            } else {
+                SelectionKey::Toggle
+            }
+        }
+        _ => SelectionKey::Ignore,
+    }
+}
+
+/// A bulk action offered by the host for the current selection.
+#[derive(Clone, PartialEq)]
+pub struct BulkAction {
+    pub id: &'static str,
+    pub label: &'static str,
+    /// Renders with the danger treatment (destructive).
+    pub danger: bool,
+    /// `None` renders the button disabled: the host has nothing to run.
+    pub on_run: Option<EventHandler<Vec<String>>>,
+}
+
+impl BulkAction {
+    /// A destructive action wired to `on_run`.
+    pub fn danger(
+        id: &'static str,
+        label: &'static str,
+        on_run: Option<EventHandler<Vec<String>>>,
+    ) -> Self {
+        Self {
+            id,
+            label,
+            danger: true,
+            on_run,
+        }
+    }
+
+    /// A non-destructive action wired to `on_run`.
+    pub fn new(
+        id: &'static str,
+        label: &'static str,
+        on_run: Option<EventHandler<Vec<String>>>,
+    ) -> Self {
+        Self {
+            id,
+            label,
+            danger: false,
+            on_run,
+        }
+    }
+}
+
+/// Heights the bulk bar occupies. The bar is always mounted at this height so
+/// checking a row never reflows the table underneath it.
+pub const BULK_BAR_HEIGHT: f64 = 52.0;
+
+/// Live bulk-selection bar: how many rows are picked, what can be done with
+/// them, and a way out.
+///
+/// Rendered even with nothing selected — the bar's space is reserved, and the
+/// actions carry a disabled state plus the reason, instead of the bar popping
+/// in and shoving the rows down.
+#[component]
+pub fn BulkSelectionBar(
+    /// Rows selected inside the current view.
+    count: usize,
+    #[props(default)] actions: Vec<BulkAction>,
+    /// Selected ids handed to an action.
+    #[props(default)]
+    selected: Vec<String>,
+    /// Override for [`BULK_EMPTY_REASON`].
+    #[props(default)]
+    reason: Option<String>,
+    #[props(default)] on_clear: Option<EventHandler<()>>,
+) -> Element {
+    let reason = reason.unwrap_or_else(|| BULK_EMPTY_REASON.to_string());
+    let idle = count == 0;
+    rsx! {
+        div {
+            class: if idle { "bulk-bar" } else { "bulk-bar active" },
+            "data-active": if idle { "false" } else { "true" },
+            role: "toolbar",
+            "aria-label": "Bulk selection",
+            span {
+                class: "bulk-bar-count",
+                "aria-live": "polite",
+                "{count} selected"
+            }
+            if idle {
+                span { class: "bulk-bar-reason", "{reason}" }
+            }
+            div { class: "bulk-bar-actions",
+                button {
+                    class: "btn btn-secondary",
+                    r#type: "button",
+                    disabled: idle,
+                    title: if idle { reason.clone() } else { String::new() },
+                    onclick: move |_| {
+                        if let Some(handler) = on_clear {
+                            handler.call(());
+                        }
+                    },
+                    "Clear"
+                }
+                for action in actions {
+                    {
+                        let payload = selected.clone();
+                        let unwired = action.on_run.is_none();
+                        let blocked = idle || unwired;
+                        let why = if idle {
+                            reason.clone()
+                        } else if unwired {
+                            "No bulk handler is wired on this host.".to_string()
+                        } else {
+                            String::new()
+                        };
+                        rsx! {
+                            button {
+                                key: "{action.id}",
+                                class: if action.danger { "btn btn-danger" } else { "btn btn-secondary" },
+                                r#type: "button",
+                                disabled: blocked,
+                                title: "{why}",
+                                onclick: move |_| {
+                                    if let Some(handler) = action.on_run {
+                                        handler.call(payload.clone());
+                                    }
+                                },
+                                "{action.label}"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// Flip sort state when a (sortable) column header is clicked.
 fn toggle_sort(mut sort: Signal<Option<(usize, SortDirection)>>, column: usize) {
     let next = match sort() {
@@ -263,6 +564,13 @@ pub fn ResourceTable(
     #[props(default)] row_actions: Option<RowActions>,
     #[props(default)] on_row_click: Option<EventHandler<ResourceRow>>,
     #[props(default = 600.0)] height: f64,
+    /// Bulk actions the host offers for the current selection. With none, the
+    /// bar still renders (space reserved) and states why the actions are off.
+    #[props(default)]
+    bulk_actions: Vec<BulkAction>,
+    /// Initial selection, for SSR parity and restored views.
+    #[props(default)]
+    selected_ids: Vec<String>,
 ) -> Element {
     let sort = use_signal(|| None::<(usize, SortDirection)>);
     let mut query = use_signal(String::new);
@@ -271,6 +579,10 @@ pub fn ResourceTable(
     let facets = use_signal(FacetSelection::default);
     // Column visibility: seeded from the session store, updated by the picker.
     let prefs = use_signal(column_prefs);
+    let mut selection = use_signal({
+        let seed = selected_ids;
+        move || SelectionModel::from_ids(seed)
+    });
 
     // Every branch carries `data-state`, so the state a surface is in can be
     // read from the DOM rather than inferred from a screenshot (G4).
@@ -309,8 +621,26 @@ pub fn ResourceTable(
             // would hide an empty result behind a ready panel.
             let state = if view.is_empty() { "empty" } else { "ready" };
 
+            // The selection is read against the rows on screen, never against
+            // the raw snapshot: the bar can only count — and its actions can
+            // only touch — rows the current filter still shows.
+            let order: Rc<Vec<String>> = Rc::new(view.iter().map(|row| row.id.clone()).collect());
+            let picked = selection.read().selected_in(&order);
+            let all_checked = selection.read().all_in(&order);
+            let order_for_head = order.clone();
+            let mut selection_for_head = selection;
+
             rsx! {
-                div { class: "panel", "data-state": state,
+                div {
+                    class: "panel",
+                    "data-state": state,
+                    onkeydown: move |event: KeyboardEvent| {
+                        if selection_key(&key_name(event.key()), event.modifiers().shift())
+                            == SelectionKey::Clear
+                        {
+                            selection.write().clear();
+                        }
+                    },
                     div { class: "table-wrap",
                         div { class: "resource-table",
                             div { class: "table-toolbar",
@@ -319,16 +649,46 @@ pub fn ResourceTable(
                                         class: "table-filter",
                                         placeholder: "Filter…",
                                         value: "{query}",
-                                        oninput: move |event| query.set(event.value()),
+                                        oninput: move |event| {
+                                            // A filter change re-scopes what "selected"
+                                            // means, so the picks go with it.
+                                            selection.write().clear();
+                                            query.set(event.value());
+                                        },
                                     }
                                 }
                                 ColumnPicker { columns: columns.clone(), prefs }
                             }
                             FilterBar { rows: rows.clone(), scoped: scoped.clone(), selection: facets }
+                            BulkSelectionBar {
+                                count: picked.len(),
+                                selected: picked.clone(),
+                                actions: bulk_actions.clone(),
+                                on_clear: move |_| {
+                                    selection_for_head.write().clear();
+                                },
+                            }
                             if view.is_empty() {
                                 div { class: "table-state table-empty", "data-state": "empty", "{message}" }
                             } else {
                                 div { class: "table-header table-row",
+                                    div { class: "table-cell table-select table-select-head",
+                                        input {
+                                            r#type: "checkbox",
+                                            class: "row-check",
+                                            "aria-label": "Select all rows in this view",
+                                            checked: all_checked,
+                                            onclick: move |event| {
+                                                event.stop_propagation();
+                                                let mut model = selection_for_head.write();
+                                                if model.all_in(&order_for_head) {
+                                                    model.clear_all(&order_for_head);
+                                                } else {
+                                                    model.select_all(&order_for_head);
+                                                }
+                                            },
+                                        }
+                                    }
                                     for i in visible.iter().copied() {
                                         { header_cell(i, &columns[i], sort) }
                                     }
@@ -341,6 +701,8 @@ pub fn ResourceTable(
                                     on_row_click,
                                     selected_row: selected_row.clone(),
                                     height,
+                                    selection: selection_for_head,
+                                    order: order.clone(),
                                 }
                             }
                         }
@@ -403,6 +765,10 @@ fn TableBody(
     on_row_click: Option<EventHandler<ResourceRow>>,
     selected_row: Option<String>,
     height: f64,
+    /// The one selection model, shared by every row and the bulk bar.
+    selection: Signal<SelectionModel>,
+    /// Ids of the rows in the current view, in view order.
+    order: Rc<Vec<String>>,
 ) -> Element {
     let mut scroll_top = use_signal(|| 0.0f64);
 
@@ -434,6 +800,8 @@ fn TableBody(
                             row_actions.clone(),
                             on_row_click,
                             selected_row.clone(),
+                            selection,
+                            order.clone(),
                         )
                     }
                 }
@@ -442,7 +810,17 @@ fn TableBody(
     }
 }
 
+/// Keys a row answers to, as the strings [`selection_key`] understands.
+fn key_name(key: Key) -> String {
+    match key {
+        Key::Character(text) => text.to_string(),
+        Key::Escape => "escape".to_string(),
+        _ => String::new(),
+    }
+}
+
 /// Render a single virtualized table row (absolute-positioned).
+#[allow(clippy::too_many_arguments)]
 fn render_table_row(
     row: &ResourceRow,
     top: f64,
@@ -450,6 +828,8 @@ fn render_table_row(
     row_actions: Option<RowActions>,
     on_row_click: Option<EventHandler<ResourceRow>>,
     selected_row: Option<String>,
+    mut selection: Signal<SelectionModel>,
+    order: Rc<Vec<String>>,
 ) -> Element {
     let row_id = row.id.clone();
     let row_for_click = row.clone();
@@ -457,22 +837,60 @@ fn render_table_row(
     // The list keeps its selection: the row the pane is showing stays marked
     // while the pane is open, and the table itself is never remounted.
     let is_selected = selected_row.as_deref() == Some(row.id.as_str());
-    let class = if is_selected {
-        "table-row selected"
-    } else {
-        "table-row"
+    let checked = selection.read().contains(&row_id);
+    let class = match (is_selected, checked) {
+        (true, true) => "table-row selected checked",
+        (true, false) => "table-row selected",
+        (false, true) => "table-row checked",
+        (false, false) => "table-row",
     };
+    let id_for_key = row_id.clone();
+    let id_for_check = row_id.clone();
+    let order_for_key = order;
     rsx! {
         div {
             key: "{row_id}",
             class: "{class}",
             "aria-selected": "{is_selected}",
+            "aria-checked": "{checked}",
+            "data-row-id": "{row_id}",
+            "data-checked": "{checked}",
+            role: "row",
+            tabindex: "0",
             style: "position: absolute; top: {top}px; height: {ROW_HEIGHT}px; left: 0; right: 0;",
             onclick: move |_| {
                 if let Some(h) = handler {
                     h.call(row_for_click.clone());
                 }
             },
+            onkeydown: move |event: KeyboardEvent| {
+                let intent = selection_key(&key_name(event.key()), event.modifiers().shift());
+                if intent == SelectionKey::Ignore {
+                    return;
+                }
+                event.prevent_default();
+                match intent {
+                    SelectionKey::Clear => selection.write().clear(),
+                    SelectionKey::Toggle => selection.write().toggle(&id_for_key),
+                    SelectionKey::Extend => {
+                        selection.write().extend_to(&id_for_key, &order_for_key)
+                    }
+                    SelectionKey::Ignore => {}
+                }
+            },
+            div { class: "table-cell table-select",
+                input {
+                    r#type: "checkbox",
+                    class: "row-check",
+                    "aria-label": "Select {row_id}",
+                    checked: checked,
+                    onclick: move |event| {
+                        // Ticking a box must not also open the detail pane.
+                        event.stop_propagation();
+                        selection.write().toggle(&id_for_check);
+                    },
+                }
+            }
             for i in layout.visible.iter().copied() {
                 {
                     render_table_cell(

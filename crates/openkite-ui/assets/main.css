@@ -1577,6 +1577,24 @@ body {
     -webkit-backdrop-filter: blur(2px);
   }
   .log-scrim.show { display: block; }
+  /* Bulk bar + row checkboxes: the strip wraps, the checkbox stays inline. */
+  .bulk-bar {
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    padding: 6px 12px;
+  }
+  .bulk-bar-actions { margin-left: 0; }
+  .table-select,
+  .table-select-head {
+    width: auto;
+    flex: 0 0 auto;
+    justify-content: flex-start;
+    padding: 0 16px;
+  }
+  .row-check {
+    width: 20px;
+    height: 20px;
+  }
   .bottom-nav { display: block; }
   /* OKT-207: the dock is one pane here whatever the split says; widening
      restores the split because the hidden pane stays mounted. The boundary
@@ -2243,3 +2261,78 @@ body {
   .dock-menu-action { min-height: 44px; }
 }
 
+
+/* --- Bulk selection bar ---
+   Always mounted at a fixed height: ticking a row fills the bar in place, it
+   never pushes the table down. */
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  min-height: 52px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  overflow: hidden;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.bulk-bar.active {
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  border-bottom-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  color: var(--fg);
+}
+.bulk-bar-count {
+  color: var(--fg);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.bulk-bar-reason {
+  color: var(--subtle);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bulk-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+/* The bar's buttons sit inside a 52px strip, not in a form: keep them compact
+   but never below the 44px touch floor. */
+.bulk-bar .btn {
+  font-size: 12px;
+  padding: 0 12px;
+}
+.table-select {
+  flex: 0 0 40px;
+  width: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.table-select-head {
+  flex: 0 0 40px;
+  width: 40px;
+}
+.row-check {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.table-row.checked {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.table-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
