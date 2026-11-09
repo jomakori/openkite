@@ -146,17 +146,57 @@ ref openkite-console.css sha256 cd9061b4b42fc17ed573cec0ea41af5992228edfcdd7f935
 ref openkite-console.html sha256 612f8ca629a7365bd5642217d60c84e79b409e1587f18c78bb2e2d613c57aff4
 
 # Reference selectors the app does not ship, and why.
-# NOTE: the following ref-only entries predate this re-vendor and may no longer match the new mockup; flagged for review, not removed.
 ref-only .cell-value the mockup's td wrapper that right-aligns values in the mobile card layout; the repo table renders .table-cell directly
 ref-only .node the mockup's Node-column value text (fg); the repo inventory has no Node column and wraps every value in .table-cell
 ref-only .svg-defs the mockup's inline icon-sprite container; the repo embeds icons per component
-ref-only .paused only ever a modifier on .log-panel, see .log-panel.paused below
-ref-only .log-title mockup log-header chrome; the repo's dock owns its own header (.dock-tab/.dock-menu)
-ref-only .log-pod mockup log-header chrome (pod name); the dock header carries the target instead
-ref-only .log-actions mockup log-header chrome (icon cluster); the repo's dock toolbar carries those actions
-ref-only .log-panel.open the mockup's mobile drawer transform; the repo log panel is a dock surface and is never translated off-canvas
-ref-only .log-panel.paused the repo expresses pause by rendering .log-paused (components/logs.rs) rather than styling a base+state pair
 ref-only .bottom-tab.argo.active the Argo destination tab is plugin-owned (OKA, surface 6 out of scope); the repo ships .bottom-tab.active
+
+# Cluster overview: the mockup's capacity-meter/event-feed panel (surface 11); overview.rs renders .stat-tile counts only
+ref-only .stat-grid mockup's overview stat-card grid; overview.rs renders its own .overview-grid of .stat-tile cells instead
+ref-only .stat-card mockup's overview stat card; overview.rs has no card wrapper, only .stat-tile
+ref-only .stat-label mockup's stat-card label row; overview.rs uses .stat-tile-label instead
+ref-only .stat-value mockup's stat-card value row; overview.rs uses .stat-tile-value instead
+ref-only .overview-cols mockup's two-column overview layout; overview.rs renders a single .overview-grid, no meter/event column
+ref-only .panel-title mockup's meter/event panel heading; overview.rs has no equivalent panel title
+ref-only .meter-list mockup's capacity-meter list; overview.rs has no meter markup
+ref-only .meter-head mockup's per-meter label row; overview.rs has no meter markup
+ref-only .meter-track mockup's meter background track; overview.rs has no meter markup
+ref-only .meter-fill mockup's meter fill bar; overview.rs has no meter markup
+ref-only .mono mockup's monospace helper used inside the meter/event rows; overview.rs has no meter or event-feed markup to apply it to
+ref-only .event-list mockup's cluster-event feed list; overview.rs has no event-feed markup
+ref-only .event-text mockup's event-feed row text; overview.rs has no event-feed markup
+ref-only .event-age mockup's event-feed relative-age column; overview.rs has no event-feed markup
+
+# Breadcrumb cluster switcher: not part of surface 2 (topbar + breadcrumbs); shell.rs renders .crumb items only
+ref-only .crumb-cluster mockup's cluster-switch breadcrumb button; shell.rs renders .crumb/.crumb-hide items only, no cluster switcher chip
+ref-only .crumb-trail mockup's wrapper around the crumb buttons; shell.rs's .breadcrumbs renders .crumb items directly, no trail wrapper
+ref-only .crumb-cluster.active state pair of the unshipped .crumb-cluster above
+
+# Dock toolbar/tabs chrome: dock.rs ships its own toolbar and tab vocabulary instead
+ref-only .dock-act mockup's dock toolbar icon button; dock.rs's toolbar uses .dock-layout-btn and .dock-manager-btn instead
+ref-only .dock-actions wrapper around the mockup's .dock-act buttons; dock.rs has no equivalent wrapper
+ref-only .dock-note mockup's inline notice banner under the dock bar; dock.rs has no equivalent banner
+ref-only .dock-open mockup's body-level class driving the push-content layout; dock.rs tracks open/closed via a data-dock attribute, not a body class
+ref-only .dock-toggle mockup's dock open/close handle button; dock.rs's dock visibility is driven by its own state, not this class
+ref-only .dock-toggle[aria-pressed] state pair of the unshipped .dock-toggle above
+ref-only .dock-act[aria-pressed] state pair of the unshipped .dock-act above
+ref-only .dock-note.show state pair of the unshipped .dock-note above
+ref-only .dock.open the repo expresses the dock's open state via the data-dock="open" attribute (components/dock.rs) rather than an .open class toggle
+ref-only .edge-grip mockup's mobile edge-swipe affordance for the dock; dock.rs has no equivalent gesture hint
+ref-only .hl mockup's clickable log-line highlight; the repo's log viewer has no highlight-on-click interaction
+ref-only .hl-mode mockup's log-highlight-mode toggle; the repo's log viewer has no highlight-on-click interaction
+ref-only .opening mockup's dock-pane open transition hook; dock.rs has no equivalent animation class
+ref-only .pinned mockup's pinned-tab indicator; dock.rs has no tab-pinning feature
+ref-only .tab-label mockup's dock-tab label wrapper; dock.rs's tab label is .dock-tab-label, a different class
+ref-only .tab-main mockup's dock-tab clickable body; dock.rs has no equivalent wrapper around its tab contents
+ref-only .temp mockup's temporary-tab style hook; dock.rs expresses the same state via the [data-temporary] attribute instead
+
+# Terminal pane (surface 19): no terminal route; terminal.rs renders xterm.js directly and does not use this markup
+ref-only .term mockup's terminal container
+ref-only .term-out mockup's terminal output pane
+ref-only .term-prompt mockup's terminal input row
+ref-only .term-ps mockup's terminal prompt-symbol span
+ref-only .cmd mockup's terminal command-echo styling
 ```
 
 Re-deriving after a mockup change:
