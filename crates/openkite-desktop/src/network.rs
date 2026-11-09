@@ -414,6 +414,7 @@ pub fn config_map_row(cm: &ConfigMap) -> ResourceRow {
     ResourceRow {
         id: object_id(namespace.as_deref(), &name),
         namespace,
+        kind: Some("ConfigMap".to_string()),
         cells: vec![
             Cell::text(name),
             Cell::text(data_preview),
@@ -434,6 +435,7 @@ pub fn secret_row(secret: &Secret) -> ResourceRow {
     ResourceRow {
         id: object_id(namespace.as_deref(), &name),
         namespace,
+        kind: Some("Secret".to_string()),
         cells: vec![
             Cell::text(name),
             Cell::text(type_),
@@ -462,6 +464,7 @@ pub fn service_row(service: &Service) -> ResourceRow {
     ResourceRow {
         id: object_id(namespace.as_deref(), &name),
         namespace,
+        kind: Some("Service".to_string()),
         cells: vec![
             Cell::text(name),
             Cell::text(summary.type_),
@@ -490,6 +493,7 @@ pub fn ingress_row(ingress: &Ingress) -> ResourceRow {
     ResourceRow {
         id: object_id(namespace.as_deref(), &name),
         namespace,
+        kind: Some("Ingress".to_string()),
         cells: vec![
             Cell::text(name),
             Cell::text(class),
