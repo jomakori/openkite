@@ -422,7 +422,10 @@ pub fn collect_bundles(
                 name,
                 style,
             }),
-            Err(reason) => errors.push(PluginLoadError::new(name, reason)),
+            // The shell shows `reason` verbatim next to the plugin name, so the
+            // reason has to say what happened to the plugin, not just what was
+            // wrong with its sheet.
+            Err(reason) => errors.push(PluginLoadError::new(name, format!("disabled: {reason}"))),
         }
     }
     // A plugin the user switched off is not a failure: it never loads, and the
