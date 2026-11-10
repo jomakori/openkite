@@ -16,6 +16,7 @@ pub mod components;
 pub mod design;
 pub mod dock;
 pub mod fuzzy;
+pub mod parity;
 pub mod plugin_api;
 pub mod plugin_css;
 pub mod runtime;

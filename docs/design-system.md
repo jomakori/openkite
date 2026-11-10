@@ -65,6 +65,8 @@ list is `REQUIRED_CLASSES` in `crates/openkite-ui/tests/design.rs`.
 | `.search-field` | Inline-icon search input (44px) |
 | `.pill` + `.success` / `.warn` / `.danger` / `.muted` | Status badges (6px dot + label) |
 | `.table-wrap`, `.resource-table`, `.table-header` | Tabular content + horizontal-scroll wrapper |
+| `.table-select` + `.table-select-head` + `.row-check` + `.table-row.checked` | Selection column (44px target, tri-state header) and the checked row state |
+| `.bulk-bar` (+ `.active`/`.bulk-bar-count`/`.bulk-bar-reason`/`.bulk-bar-actions`) | Bulk-action bar; always mounted at a fixed height so checking a row never reflows the table |
 | `.resource-name` (+ `.icon`), `.health-dots` + `.dot` | Icon + mono-font name cell; inline-cell semantic dots |
 | `.log-panel` (+ `.log-header`/`.log-handle`/`.log-body`/`.log-line`/`.log-time`/`.log-level`/`.log-method`/`.log-msg`/`.log-paused`) | Opaque terminal anchor (`var(--terminal-bg)`) |
 | `.inspector` (+ `.inspector-header`/`.inspector-title`/`.inspector-eyebrow`/`.inspector-body`/`.inspector-actions`) + `.kv-list`/`.kv-row` | Slide-over panel (420px, right-anchored) |
@@ -120,6 +122,8 @@ screen needs.
 | Namespace search (`.ns-search`) | tap opens the inline field | the same tap; the field spans the full width **above** the strip |
 | Chip strip (`.chip-row`) | scroll, snapped | `scroll-snap-type: x mandatory` + `scroll-snap-stop: always` — a chip never rests half-visible |
 | Dock resize (`.dock-resize`) | `pointerdown`/`move`/`up` drag | the same pointer drag, on a 22px grab strip (`touch-action: none`) |
+| Bottom bar (`.bottom-nav` → `.bottom-tabs` → `.bottom-tab`) | n/a | a cell per destination (glyph + label) plus the Logs toggle and the drawer's Menu tab on one non-wrapping row; ≥44px wide |
+| Log sheet (`.log-sheet` ← `.log-panel`) | the dock's log panel | the same panel parked below the bar; the bar's Logs tab or the `.log-handle` opens it, a downward drag past `resolve_sheet_drag`'s threshold (a quarter of the sheet, floored at 44px, capped at 96px) or the scrim dismisses it |
 | Side pane drawer toggle (`.menu-toggle` → `.sidebar.open`) | click opens the drawer | the same tap; `.sidebar-backdrop.show` is the tap-to-dismiss scrim |
 | Side pane (`.inspector`) | a second click replaces the pane in place | the same tap; ≤767px the pane is a full-width sheet dismissed by the scrim |
 | Side pane resize (`.inspector-resize`) | `pointerdown` drag on the pane's left edge | the same pointer drag (`touch-action: none`); ≤767px the handle is not rendered |
@@ -138,10 +142,12 @@ the sheet stylesheet and the documented path.
   `.source-icon`, `.card-meta`, `.card-swipe-actions`) — OKT-47 (ArgoCD plugin)
   *consumes* the card primitives core ships with OKT-169; it adds none of its
   own.
-- **Mobile bottom-nav** (`.bottom-nav`, `.bottom-tab`) and pull-to-refresh
-  (`.pull-indicator` is wired in `crates/openkite-ui/src/components/shell.rs:384`
-  with a `data-pull` state; the touch gesture tickets own its behaviour) —
-  the mobile surface tickets (T9/T11/T16).
+- **Mobile pull-to-refresh** (`.pull-indicator` is wired in
+  `crates/openkite-ui/src/components/shell.rs:384` with a `data-pull` state; the
+  touch gesture tickets own its behaviour) — T16. The mobile bottom bar
+  (`.bottom-nav`) and the ≤767px log sheet landed with OKT-197 (T9/T11): the bar
+  renders from the same sidebar model as a cell per destination plus Logs and
+  Menu, and the sheet is the dock's `.log-panel` with a drag handle.
 - **Icon sprite** (32 inline `<symbol>` SVGs from the reference mockup) — OKT-47
   alongside the first consumer.
 

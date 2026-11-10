@@ -21,6 +21,8 @@ import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 
+import { waitForDevTools } from './devtools.mjs';
+
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 
 // Graded surfaces; overlays and desktop-only routes stay out of scope.
@@ -38,10 +40,53 @@ const VIEWPORTS = [
   { slug: '390x844', width: 390, height: 844 },
 ];
 
+// Surfaces that only tell the truth in a non-default state. The workloads
+// table renders its bulk bar in an empty state until rows are ticked, so the
+// shot ticks two boxes and waits for the bar to report them.
+const PRIMERS = {
+  workloads: async () => {
+    await evaluate(`(() => {
+      const boxes = [...document.querySelectorAll('.table-row:not(.table-header) .row-check')];
+      if (boxes.length < 2) throw new Error('expected row checkboxes, found ' + boxes.length);
+      boxes[0].click();
+      boxes[1].click();
+      return true;
+    })()`);
+    await waitForExpression(
+      `document.querySelectorAll('.table-row.checked').length === 2 && document.querySelector('.bulk-bar.active') !== null`,
+    );
+  },
+};
+
 const chromium = process.env.OPENKITE_BROWSER;
 const hostBin = process.env.OPENKITE_WEB_BIN;
 const webRoot = process.env.OPENKITE_WEB_ROOT;
 const outDir = path.resolve(process.argv[2] ?? path.join(scriptDir, 'baselines'));
+
+// Gate G3 (`e2e/parity`): with SNAPSHOT_DIR set this run also dumps the shared
+// parity snapshot — computed classes and token values, not pixels — for every
+// core route at one viewport, the desktop window's frame. The extractor is the
+// same file the desktop hook evaluates, so the two sides cannot drift.
+const snapshotDir = process.env.SNAPSHOT_DIR ? path.resolve(process.env.SNAPSHOT_DIR) : null;
+const snapshotScriptPath = path.join(
+  scriptDir,
+  '..',
+  '..',
+  '..',
+  'crates',
+  'openkite-ui',
+  'assets',
+  'parity-snapshot.js',
+);
+const snapshotViewport = parseSnapshotViewport(process.env.SNAPSHOT_VIEWPORT ?? '800x600');
+
+function parseSnapshotViewport(value) {
+  const match = /^(\d+)x(\d+)$/.exec(value.trim());
+  if (!match) {
+    throw new Error(`SNAPSHOT_VIEWPORT must look like 800x600, got: ${value}`);
+  }
+  return { slug: value.trim(), width: Number(match[1]), height: Number(match[2]) };
+}
 
 function fail(message) {
   console.error(`FAIL: ${message}`);
@@ -75,6 +120,11 @@ try {
 
 await rm(outDir, { recursive: true, force: true });
 await mkdir(outDir, { recursive: true });
+if (snapshotDir) {
+  if (!existsSync(snapshotScriptPath)) fail(`parity extractor missing: ${snapshotScriptPath}`);
+  await mkdir(snapshotDir, { recursive: true });
+}
+const snapshotSource = snapshotDir ? await readFile(snapshotScriptPath, 'utf8') : null;
 
 const hostPort = await freePort();
 const hostAddr = `127.0.0.1:${hostPort}`;
@@ -125,7 +175,12 @@ try {
   browser.on('error', (error) => errors.push(`browser spawn failed: ${error.message}`));
 
   await waitForHost(baseUrl, serverProcess, serverLog);
-  const chromeEndpoint = await waitForDevTools(profileDir, browser, browserLog);
+  const { endpoint: chromeEndpoint, source: devtoolsSource } = await waitForDevTools({
+    profileDir,
+    child: browser,
+    logs: browserLog,
+  });
+  console.log(`DevTools endpoint ${chromeEndpoint} (announced by the browser's ${devtoolsSource})`);
   const version = await waitForJson(`${chromeEndpoint}/json/version`, browser, browserLog);
   console.log(`Browser: ${version.Browser}`);
   const tabs = await waitForJson(`${chromeEndpoint}/json/list`, browser, browserLog);
@@ -138,7 +193,8 @@ try {
   await command('Page.enable');
 
   const captured = [];
-  for (const viewport of VIEWPORTS) {
+  const viewports = snapshotDir ? [snapshotViewport] : VIEWPORTS;
+  for (const viewport of viewports) {
     await command('Emulation.setDeviceMetricsOverride', {
       width: viewport.width,
       height: viewport.height,
@@ -152,6 +208,16 @@ try {
       await waitForHydration();
       // Let layout settle one frame after hydration mounts.
       await delay(300);
+      if (snapshotSource) {
+        const json = await evaluate(snapshotSource);
+        const name = `${target.slug}.web.json`;
+        await writeFile(path.join(snapshotDir, name), `${json}\n`);
+        captured.push(name);
+        console.log(`snapshot ${name}`);
+      }
+      if (snapshotDir) continue;
+      await PRIMERS[target.slug]?.();
+      if (PRIMERS[target.slug]) await delay(200);
       const { data } = await command('Page.captureScreenshot', {
         format: 'png',
         captureBeyondViewport: false,
@@ -164,7 +230,11 @@ try {
   }
 
   assert.equal(errors.length, 0, errors.join('\n'));
-  console.log(`PASS: captured ${captured.length} hydrated-client baselines in ${outDir}`);
+  console.log(
+    snapshotDir
+      ? `PASS: wrote ${captured.length} parity snapshots to ${snapshotDir}`
+      : `PASS: captured ${captured.length} hydrated-client baselines in ${outDir}`,
+  );
 } catch (error) {
   console.error(`FAIL: ${error instanceof Error ? error.stack : String(error)}`);
   console.error(`server log (tail): ${serverLog.join('').slice(-4000)}`);
@@ -304,39 +374,6 @@ async function waitForJson(url, child, logs) {
     await delay(100);
   }
   throw new Error(`Chromium DevTools endpoint did not become ready at ${url}: ${logs.join('').slice(-2000)}`);
-}
-
-// Chrome writes the port it chose to `DevToolsActivePort` once the endpoint is
-// up: asking for port 0 and reading the marker back avoids racing a port we
-// picked ourselves. Both loopback families are probed, since which one Chrome
-// binds to is its call.
-async function waitForDevTools(profileDir, child, logs) {
-  const marker = path.join(profileDir, 'DevToolsActivePort');
-  const end = Date.now() + 20000;
-  const tail = () => logs.join('').slice(-2000);
-  let candidates = [];
-  while (Date.now() < end) {
-    if (child.exitCode !== null) throw new Error(`Chromium exited (${child.exitCode}) before DevTools came up: ${tail()}`);
-    if (candidates.length === 0) {
-      try {
-        const port = Number((await readFile(marker, 'utf8')).split('\n')[0].trim());
-        if (Number.isInteger(port) && port > 0) candidates = [`http://127.0.0.1:${port}`, `http://[::1]:${port}`];
-      } catch {
-        /* marker not written yet */
-      }
-    }
-    for (const base of candidates) {
-      try {
-        const response = await fetch(`${base}/json/version`, { signal: AbortSignal.timeout(500) });
-        if (response.ok) return base;
-      } catch {
-        /* try the other loopback family */
-      }
-    }
-    await delay(100);
-  }
-  if (candidates.length === 0) throw new Error(`Chromium never wrote ${marker}: ${tail()}`);
-  throw new Error(`Chromium DevTools did not answer on ${candidates.join(' or ')}: ${tail()}`);
 }
 
 async function freePort() {

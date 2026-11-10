@@ -1,0 +1,112 @@
+/* The overlay menu primitive's own sheet, injected by the browser host next to
+ * the shared console stylesheet (`crates/openkite-web/src/ssr.rs`).
+ *
+ * Scoped on purpose (D3): plugins share the DOM with the host, so every
+ * selector here is anchored to `[data-overlay-menu]` and no rule may escape
+ * that prefix. `crates/openkite-web/tests/overlay_menu.rs` enforces both the
+ * prefix and the class vocabulary.
+ *
+ * Tokens are the shared console's: this sheet adds no colours of its own. */
+
+[data-overlay-menu].overlay-menu-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: transparent;
+}
+
+[data-overlay-menu].overlay-menu {
+  position: fixed;
+  z-index: 201;
+  display: flex;
+  flex-direction: column;
+  min-width: 232px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  padding: 6px;
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-hover);
+  box-sizing: border-box;
+}
+
+/* Measured, then placed: the panel is invisible for the one frame between the
+ * browser's measurement and this element's own position. */
+[data-overlay-menu].overlay-menu[data-positioned="false"] {
+  visibility: hidden;
+}
+
+[data-overlay-menu].overlay-menu:focus {
+  outline: none;
+}
+
+[data-overlay-menu].overlay-menu:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+[data-overlay-menu] .overlay-menu-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
+[data-overlay-menu] .overlay-menu-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-overlay-menu] .overlay-menu-detail {
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-overlay-menu] .overlay-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  color: var(--fg);
+  background: transparent;
+  border: none;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+[data-overlay-menu] .overlay-menu-item:hover {
+  background: var(--bg);
+}
+
+[data-overlay-menu] .overlay-menu-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+[data-overlay-menu] .overlay-menu-item:disabled,
+[data-overlay-menu] .overlay-menu-item[aria-disabled="true"] {
+  color: var(--subtle);
+  cursor: not-allowed;
+}
+
+[data-overlay-menu] .overlay-menu-item:disabled:hover,
+[data-overlay-menu] .overlay-menu-item[aria-disabled="true"]:hover {
+  background: transparent;
+}

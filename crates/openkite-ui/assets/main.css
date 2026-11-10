@@ -38,6 +38,7 @@
   --brand: #0d9488;            /* kite mark teal */
   --argo: #ef7b4d;             /* Argo CD orange (per-plugin accent zone) */
   --on-accent: #070e16;        /* text on bright fills */
+  --on-strong: #ffffff;        /* text on a strong fill: --fg, --accent, --danger */
   --log-info: #98c379;         /* log level + method tags on the terminal anchor */
   --log-method: #61afef;
   --log-error: #e06c75;
@@ -322,7 +323,11 @@ body {
 }
 .bottom-tabs {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* One cell per tab the model renders — the destinations, the Logs toggle
+     and the drawer's Menu tab — so the bar never wraps or overflows when a
+     host's sidebar model carries a different number of routes. */
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(44px, 1fr);
   height: 100%;
 }
 .bottom-tab {
@@ -332,6 +337,7 @@ body {
   justify-content: center;
   gap: 3px;
   width: 100%;
+  min-width: 44px;
   min-height: 66px;
   font: inherit;
   font-size: 10px;
@@ -344,6 +350,11 @@ body {
   box-sizing: border-box;
 }
 .bottom-tab.active { color: var(--fg); }
+/* The mockup's tab glyph: 19px, muted until its tab is the current one; the
+   Argo CD tab keeps the plugin's own accent when active. */
+.bottom-tab .icon { width: 19px; height: 19px; color: var(--muted); }
+.bottom-tab.active .icon { color: var(--accent); }
+.bottom-tab.argo.active .icon { color: var(--argo); }
 
 .not-found { text-align: center; padding: 48px; color: var(--subtle); }
 
@@ -623,7 +634,7 @@ body {
 .pager button.active {
   background: var(--fg);
   border-color: var(--fg);
-  color: #fff;
+  color: var(--on-strong);
 }
 .tag-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
 .tag {
@@ -702,7 +713,7 @@ body {
 
 .btn-primary {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-strong);
   border-color: var(--accent);
 }
 @media (hover: hover) and (pointer: fine) {
@@ -736,7 +747,7 @@ body {
 }
 .chip.active {
   background: var(--fg);
-  color: #fff;
+  color: var(--on-strong);
   border-color: var(--fg);
 }
 /* A chip in the strip keeps its natural width and snaps to the leading edge. */
@@ -777,6 +788,18 @@ body {
   padding: 0 0 0 8px;
 }
 .search-field input::placeholder { color: var(--subtle); }
+/* Touch floor (OKT-194): the field is a target too, not only the box drawn
+   around it. At 767px and below a text input fills the row it sits in, so a
+   finger lands on the control rather than the border beside it. */
+@media (max-width: 767px) {
+  .search-field {
+    min-height: 46px;
+  }
+  .search-field input,
+  .field-input {
+    min-height: 44px;
+  }
+}
 .search-field:focus-within { border-color: var(--accent); }
 
 .field-input {
@@ -874,7 +897,129 @@ body {
   text-align: center;
 }
 .table-error { color: var(--danger); }
+/* A pending read reads as muted, not as a result: the state is its own look. */
+.table-loading { color: var(--muted); }
 .table-actions { display: flex; justify-content: flex-end; gap: 4px; }
+
+/* --- List controls (OKT-204)
+   The list's two live controls: a facet bar under the search field and a column
+   picker at the toolbar's right edge. Chips, buttons and the field are the
+   shared primitives; only the layout and the picker panel are new. */
+.list-filters {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.facet { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.facet-label {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.075em;
+  color: var(--subtle);
+}
+.facet .chip-row { flex: 0 1 auto; }
+.facet-count {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+.facet-clear { margin-left: auto; }
+.column-picker { position: relative; margin-left: auto; }
+.column-picker-panel {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 30;
+  display: flex; flex-direction: column; gap: 2px;
+  min-width: 180px;
+  padding: 8px;
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-hover);
+}
+.column-picker-option {
+  display: flex; align-items: center; gap: 8px;
+  min-height: 32px;
+  padding: 0 8px;
+  border-radius: var(--r-sm);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--fg);
+  cursor: pointer;
+}
+.column-picker-option input { accent-color: var(--accent); }
+
+@media (hover: hover) and (pointer: fine) {
+  .column-picker-option:hover { background: var(--surface); }
+}
+
+/* A finger gets a full 44px row, same as the dock menus. */
+@media (pointer: coarse) {
+  .column-picker-option { min-height: 44px; }
+}
+
+/* --- Overview dashboard (OKT-203) ---
+   The landing surface: the cluster's identity on one line, then the status
+   tiles the cluster client counted. The grid reflows on its own between the
+   tablet and desktop sheet, and the phone sheet stacks it to one column. */
+.overview-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.overview-head h2 {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 2px 0 0;
+}
+.overview-meta {
+  margin: 4px 0 0;
+  color: var(--subtle);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+.stat-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-solid);
+}
+.stat-tile-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--subtle);
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+}
+.stat-tile-value {
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.stat-tile-detail {
+  color: var(--muted);
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+}
 
 /* --- Table primitives --- */
 .table-wrap {
@@ -926,7 +1071,57 @@ body {
   font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
   color: var(--term-bright-white);
 }
-.log-handle { padding: 4px 12px; cursor: pointer; user-select: none; }
+.log-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.log-pod {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: color-mix(in srgb, var(--terminal-fg) 50%, transparent);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.log-actions { margin-left: auto; display: flex; gap: 6px; }
+/* Thumb-sized, and quiet enough to sit inside the terminal header. */
+.log-actions .icon-btn {
+  width: 44px; height: 44px;
+  min-width: 44px; min-height: 44px;
+  background: transparent;
+  border-color: color-mix(in srgb, var(--terminal-fg) 12%, transparent);
+  color: var(--terminal-fg);
+  box-shadow: none;
+}
+.log-handle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+  font: inherit;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: color-mix(in srgb, var(--terminal-fg) 55%, transparent);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--terminal-fg) 12%, transparent);
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+/* The grip: the sheet's drag affordance, drawn above its label. */
+.log-handle::before {
+  content: "";
+  width: 36px;
+  height: 4px;
+  border-radius: var(--r-pill);
+  background: currentColor;
+}
+/* The ≤767px log sheet and its scrim: the desktop dock already carries the
+   logs, so both are below-768px affordances only. */
+.log-sheet { display: none; }
+.log-scrim { display: none; }
 .log-body { flex: 1; overflow: auto; padding: 6px 12px; }
 .log-line { display: flex; gap: 8px; align-items: baseline; }
 .log-time { color: var(--term-bright-black); flex-shrink: 0; }
@@ -1024,6 +1219,36 @@ body {
   color: var(--subtle);
 }
 .inspector-body { flex: 1; overflow: auto; padding: 16px; }
+/* Inspector tab strip: sits between the header and the scrollable body and
+   speaks the dock tab language (muted at rest, fg + accent underline when
+   active) so the two tab surfaces read as one system. */
+.inspector-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 16px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+}
+.inspector-tabs::-webkit-scrollbar { display: none; }
+.tab-btn {
+  flex: 0 1 auto;
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.tab-btn.active {
+  color: var(--fg);
+  border-bottom-color: var(--accent);
+}
+@media (hover: hover) and (pointer: fine) {
+  .tab-btn:hover { color: var(--fg); }
+}
 .kv-list { display: flex; flex-direction: column; gap: 8px; }
 .kv-row { display: grid; grid-template-columns: 130px 1fr; gap: 8px; align-items: baseline; }
 .kv-row dt { color: var(--subtle); font-size: 12px; margin: 0; }
@@ -1051,7 +1276,7 @@ body {
   min-width: 220px; max-width: 340px;
   padding: 10px 16px;
   background: var(--fg);
-  color: #fff;
+  color: var(--on-strong);
   border-radius: var(--r-md);
   box-shadow: var(--shadow-hover);
   font-size: 13px;
@@ -1281,6 +1506,10 @@ body {
      room on a full-width sheet. */
   .kv-row { grid-template-columns: 110px 1fr; }
   .panel { padding: 12px; }
+  /* OKT-203: the overview tiles stack — a half-width tile on a phone reads as
+     a squeezed number rather than a status. */
+  .overview-grid { grid-template-columns: 1fr; }
+  .overview-head { gap: 12px; }
   .toast { bottom: 16px; max-width: calc(100% - 32px); }
   /* OKT-167: mobile rows stack into label/value blocks (inline row positioning overridden). */
   .resource-table .table-header { display: none; }
@@ -1322,7 +1551,64 @@ body {
   }
   .table-cell[data-label="Name"] { padding-top: 14px; }
   .resource-name { justify-content: flex-end; }
+  /* The log sheet: the mockup's fixed bottom sheet, parked below the bar
+     until the Logs tab (or its handle) opens it. `.log-sheet` keeps the
+     desktop dock's log panel out of this treatment. */
+  .log-sheet {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: 78px;
+    height: min(58vh, 430px);
+    max-height: none;
+    z-index: 60;
+    margin-top: 0;
+    transform: translateY(calc(100% + 78px));
+    /* Parked off-screen is also unfocusable: visibility keeps a closed sheet's
+       controls out of the tab order, and the delayed step lets the slide
+       finish before it hides. */
+    visibility: hidden;
+    transition:
+      transform 0.28s ease,
+      visibility 0.28s;
+    display: flex;
+    flex-direction: column;
+  }
+  .log-sheet.open {
+    transform: translateY(0);
+    visibility: visible;
+  }
+  .log-handle { display: flex; }
+  .log-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 59;
+    padding: 0;
+    background: color-mix(in oklab, var(--bg) 55%, transparent);
+    border: 0;
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+  }
+  .log-scrim.show { display: block; }
+  /* Bulk bar + row checkboxes: the strip wraps, the checkbox stays inline. */
+  .bulk-bar {
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    padding: 6px 12px;
+  }
+  .bulk-bar-actions { margin-left: 0; }
+  .table-select,
+  .table-select-head {
+    width: auto;
+    flex: 0 0 auto;
+    justify-content: flex-start;
+    padding: 0 16px;
+  }
   .bottom-nav { display: block; }
+  /* OKT-207: the dock is one pane here whatever the split says; widening
+     restores the split because the hidden pane stays mounted. The boundary
+     matches `dock::SPLIT_MIN_WIDTH`, which the unit tests pin. */
+  .dock[data-dock-layout="split"] .dock-pane:not([data-focused="true"]) { display: none; }
 }
 
 /* The bar is a below-768px affordance only. */
@@ -1622,7 +1908,7 @@ body {
 /* Danger button — same shape as .btn-primary but with --danger. */
 .btn-danger {
   background: var(--danger);
-  color: #fff;
+  color: var(--on-strong);
   border-color: var(--danger);
 }
 @media (hover: hover) and (pointer: fine) {
@@ -1665,6 +1951,7 @@ body {
   .dock-menu-switch:hover { background: var(--surface); }
   .dock-menu-close:hover { color: var(--fg); background: var(--surface); }
   .dock-menu-action:hover:not(:disabled) { color: var(--fg); box-shadow: var(--shadow-rest); }
+  .dock-layout-btn:hover:not(:disabled):not([aria-disabled="true"]) { color: var(--fg); box-shadow: var(--shadow-rest); }
 }
 
 /* The drag grip: a thin strip along the dock's top edge. */
@@ -1846,6 +2133,70 @@ body {
   background: var(--terminal-bg);
 }
 
+/* Split dock (OKT-207): side-by-side panes, each with its own strip, its own
+   active tab and its own body. A single-pane dock renders no pane strip, so
+   its look is unchanged. */
+.dock-panes {
+  display: flex;
+  align-items: stretch;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.dock-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+}
+.dock-pane + .dock-pane { border-left: 1px solid var(--border); }
+.dock-pane:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+.dock-pane-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--border);
+}
+/* The toolbar's target: a hairline under the focused pane's strip. */
+.dock-pane[data-focused="true"] .dock-pane-bar { box-shadow: inset 0 -1px 0 var(--accent); }
+
+.dock-pane-empty {
+  margin: 0;
+  font-size: 12px;
+  color: var(--subtle);
+}
+
+/* Dock toolbar controls (OKT-207). Native buttons, so Tab + Enter/Space reach
+   Split, Unsplit and Swap like any other control on the page. */
+.dock-layout {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.dock-layout-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.dock-layout-btn:disabled,
+.dock-layout-btn[aria-disabled="true"] { opacity: 0.5; cursor: default; }
+.dock-layout-btn[data-dock-action="unsplit"] { border-color: var(--accent); }
+
 
 /* ========================================================================
    Touch (OKT-173) — every desktop affordance keeps a path on a touch screen.
@@ -1875,6 +2226,12 @@ body {
    dropdown tab manager becomes a bottom sheet. */
 @media (pointer: coarse) {
   .dock-tab {
+    min-height: 44px;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  .tab-btn {
     min-height: 44px;
     -webkit-user-select: none;
     user-select: none;
@@ -1913,3 +2270,114 @@ body {
   .dock-menu-action { min-height: 44px; }
 }
 
+
+/* --- Bulk selection bar ---
+   Always mounted at a fixed height: ticking a row fills the bar in place, it
+   never pushes the table down. */
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  min-height: 52px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  overflow: hidden;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.bulk-bar.active {
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  border-bottom-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  color: var(--fg);
+}
+.bulk-bar-count {
+  color: var(--fg);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.bulk-bar-reason {
+  color: var(--subtle);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bulk-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+/* The bar's buttons sit inside a 52px strip, not in a form: keep them compact
+   but never below the 44px touch floor. */
+.bulk-bar .btn {
+  font-size: 12px;
+  padding: 0 12px;
+}
+.table-select {
+  flex: 0 0 40px;
+  width: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.table-select-head {
+  flex: 0 0 40px;
+  width: 40px;
+}
+.row-check {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.table-row.checked {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.table-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Touch: the checkbox keeps its 20px mark but the input box is the 44px target.
+   This has to sit after the base rule — an earlier media block loses on order,
+   not on specificity. */
+@media (max-width: 767px) {
+  .row-check {
+    position: relative;
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    appearance: none;
+    background: none;
+  }
+  .row-check::before {
+    content: "";
+    width: 20px;
+    height: 20px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    background: var(--surface-solid);
+  }
+  .row-check:checked::before {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .row-check:checked::after {
+    content: "";
+    position: absolute;
+    width: 9px;
+    height: 5px;
+    border-left: 2px solid var(--surface-solid);
+    border-bottom: 2px solid var(--surface-solid);
+    transform: translateY(-2px) rotate(-45deg);
+  }
+}

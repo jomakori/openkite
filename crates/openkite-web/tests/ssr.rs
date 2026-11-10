@@ -23,6 +23,11 @@ fn snapshot() -> Snapshot {
     Snapshot::default()
 }
 
+/// A client URL of the shape the host passes: the versioned path the asset
+/// route answers. The render itself does not care which version it is — the
+/// host's own test (`tests/assets.rs`) pins that it is the bundle's hash.
+const TEST_CLIENT_URL: &str = "/assets/bundle/0123456789abcdef/openkite-web-client.js";
+
 /// A connected host carrying data, so the surfaces render with rows in them
 /// (capability flags on, a cluster context, one secret in scope).
 fn connected() -> Snapshot {
@@ -102,27 +107,30 @@ fn render_body_renders_the_shared_sidebar_model() {
 
 #[test]
 fn render_body_paints_a_connected_snapshot() {
-    let body = render_body(&connected());
+    let body = render_body(&connected().with_overview(overview_of("in-process", "in-cluster")));
     assert!(
         body.contains("in-cluster · Connected"),
         "status footer: {body}"
     );
     assert!(body.contains("class=\"pill success\""), "pill: {body}");
-    assert!(body.contains(">Running<"), "pill label: {body}");
-    assert!(body.contains(">in-process<"), "gateway kind: {body}");
+    assert!(body.contains(">Ready<"), "pill label: {body}");
+    assert!(body.contains("gateway in-process"), "gateway kind: {body}");
     assert!(body.contains(">regcred<"), "secret row: {body}");
     assert!(
         body.contains("class=\"resource-name\""),
         "secret row markup: {body}"
     );
-    let server_side = render_body(&Snapshot {
-        capabilities: Capabilities::server_side(),
-        connected: true,
-        context: Some("kubeconfig".into()),
-        ..Snapshot::default()
-    });
+    let server_side = render_body(
+        &Snapshot {
+            capabilities: Capabilities::server_side(),
+            connected: true,
+            context: Some("kubeconfig".into()),
+            ..Snapshot::default()
+        }
+        .with_overview(overview_of("server-side", "kubeconfig")),
+    );
     assert!(
-        server_side.contains(">server-side<"),
+        server_side.contains("gateway server-side"),
         "gateway kind: {server_side}"
     );
     assert!(
@@ -139,8 +147,10 @@ fn render_body_paints_a_connected_snapshot() {
 fn render_body_paints_a_disconnected_snapshot() {
     let body = render_body(&snapshot());
     assert!(body.contains("no cluster · Disconnected"), "footer: {body}");
-    assert!(body.contains("class=\"pill danger\""), "pill: {body}");
-    assert!(body.contains(">Failed<"), "pill label: {body}");
+    // No overview summary is carried, so the overview is empty (muted pill),
+    // not failed: a refusal would have to be set to paint the error state.
+    assert!(body.contains("class=\"pill muted\""), "pill: {body}");
+    assert!(body.contains(">Unknown<"), "pill label: {body}");
     assert!(
         body.contains("No secrets in the gateway"),
         "empty secrets surface: {body}"
@@ -211,7 +221,7 @@ fn ssr_only_page_omits_the_wasm_client_bootstrap() {
 
 #[test]
 fn hydrating_page_embeds_the_snapshot_and_client_import() {
-    let page = render_page(&snapshot(), &RenderOptions::hydrating());
+    let page = render_page(&snapshot(), &RenderOptions::hydrating(TEST_CLIENT_URL));
     assert!(page.contains("<!doctype html>"), "page: {page}");
     assert!(
         page.contains("initial_dioxus_hydration_data="),
@@ -222,14 +232,22 @@ fn hydrating_page_embeds_the_snapshot_and_client_import() {
         "hydrating page must embed the snapshot JSON: {page}"
     );
     assert!(
-        page.contains("/openkite-web-client.js"),
-        "hydrating page must point at the wasm client bundle: {page}"
+        page.contains(&format!("import init from \"{TEST_CLIENT_URL}\";")),
+        "hydrating page must import the versioned client bundle: {page}"
+    );
+    assert!(
+        !page.contains("import init from \"/openkite-web-client.js\";"),
+        "the page must not import the bundle unversioned — a cached copy of that \
+         URL can be paired with any build's HTML (OKT-195): {page}"
     );
 }
 
 #[test]
 fn every_page_declares_the_vendored_typefaces() {
-    for options in [RenderOptions::ssr_only(), RenderOptions::hydrating()] {
+    for options in [
+        RenderOptions::ssr_only(),
+        RenderOptions::hydrating(TEST_CLIENT_URL),
+    ] {
         let page = render_page(&snapshot(), &options);
         for face in openkite_ui::assets::FACES {
             assert!(
@@ -259,6 +277,22 @@ fn route_snapshot(route: &str) -> Snapshot {
     Snapshot {
         route: route.to_string(),
         ..Snapshot::default()
+    }
+}
+
+/// The overview summary a connected host carries: its gateway kind and context.
+fn overview_of(gateway: &str, context: &str) -> openkite_ui::components::overview::OverviewSummary {
+    openkite_ui::components::overview::OverviewSummary {
+        context: context.into(),
+        gateway: gateway.into(),
+        connection: "Connected".into(),
+        tiles: vec![openkite_ui::components::overview::OverviewTile::new(
+            "pods",
+            "Pods",
+            "1/1",
+            "running of all pods",
+            openkite_ui::components::overview::TileTone::Neutral,
+        )],
     }
 }
 
@@ -298,6 +332,7 @@ fn workloads_snapshot() -> Snapshot {
             columns: openkite::workloads::pod_columns(),
             rows: vec![web_pod_row()],
             error: None,
+            loading: false,
         },
         ..Snapshot::default()
     }
@@ -386,6 +421,7 @@ fn a_refused_gateway_is_stated_not_left_blank() {
             columns: openkite::workloads::pod_columns(),
             rows: Vec::new(),
             error: Some("no cluster connected".into()),
+            loading: false,
         },
         ..Snapshot::default()
     };
@@ -420,7 +456,7 @@ fn the_workloads_snapshot_still_hydrates() {
     let parsed: Snapshot = serde_json::from_str(&json).expect("the client boots from this JSON");
     assert_eq!(parsed, snapshot, "the snapshot must round-trip");
 
-    let page = render_page(&snapshot, &RenderOptions::hydrating());
+    let page = render_page(&snapshot, &RenderOptions::hydrating(TEST_CLIENT_URL));
     let client: Snapshot =
         serde_json::from_str(embedded_snapshot(&page)).expect("the embedded JSON parses");
     assert_eq!(client.route, "/workloads");
@@ -512,15 +548,33 @@ async fn snapshot_lists_gateway_secret_refs_and_preserves_empty_state() {
         "empty namespaces: {body}"
     );
 
+    // A gateway that refuses to list is not a gateway with no secrets: the
+    // refusal is kept and the panel paints its error state instead of an empty
+    // scope (OKT-194 G4).
     let disconnected = Snapshot::from_gateway(&ref_gateway(None), false, None).await;
     assert!(disconnected.secrets.is_empty());
-    assert!(render_body(&disconnected).contains("data-empty=\"secrets\""));
+    assert!(
+        disconnected.error.is_some(),
+        "the refusal rides the snapshot"
+    );
+    let body = render_body(&disconnected);
+    assert!(
+        body.contains("data-state=\"error\""),
+        "refused secrets surface: {body}"
+    );
+    assert!(
+        !body.contains("data-empty=\"secrets\""),
+        "a refusal is not an empty scope: {body}"
+    );
 }
 
 #[test]
 fn every_page_carries_the_shell_stylesheet() {
     let wrapped = format!("<style>{}</style>", openkite_ui::MAIN_CSS);
-    for options in [RenderOptions::ssr_only(), RenderOptions::hydrating()] {
+    for options in [
+        RenderOptions::ssr_only(),
+        RenderOptions::hydrating(TEST_CLIENT_URL),
+    ] {
         let page = render_page(&snapshot(), &options);
         assert!(
             page.contains(&wrapped),
@@ -531,7 +585,10 @@ fn every_page_carries_the_shell_stylesheet() {
 
 #[test]
 fn rendered_page_defines_the_openkite_bridge() {
-    for options in [RenderOptions::ssr_only(), RenderOptions::hydrating()] {
+    for options in [
+        RenderOptions::ssr_only(),
+        RenderOptions::hydrating(TEST_CLIENT_URL),
+    ] {
         let page = render_page(&snapshot(), &options);
         assert!(
             page.contains("window.openkite"),

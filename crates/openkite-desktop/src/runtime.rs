@@ -279,6 +279,7 @@ mod tests {
             set_js_plugins(vec![crate::plugin_js::JsBundle {
                 name: "demo".into(),
                 entry: std::path::PathBuf::from("/tmp/demo.js"),
+                style: None,
             }]);
             let bundles = js_plugins();
             assert_eq!(bundles.len(), 1);

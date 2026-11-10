@@ -111,6 +111,42 @@ pub fn should_show_paused_hint(following: bool, at_bottom: bool) -> bool {
     !following || !at_bottom
 }
 
+/// The follow-tail rule behind the log panel, kept out of the markup so both
+/// hosts drive the same transitions and a test can assert them without a
+/// browser: following by default, paused the moment the reader scrolls away
+/// from the bottom, resumed the moment the view is back at the bottom.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FollowTail {
+    following: bool,
+}
+
+impl Default for FollowTail {
+    fn default() -> Self {
+        Self { following: true }
+    }
+}
+
+impl FollowTail {
+    /// Whether new lines should be followed (the panel scrolls to the tail).
+    pub fn following(&self) -> bool {
+        self.following
+    }
+
+    /// Set the rule directly — the panel's own pause control and the initial
+    /// state the viewer restores. Returns whether the rule changed.
+    pub fn set_following(&mut self, following: bool) -> bool {
+        let changed = self.following != following;
+        self.following = following;
+        changed
+    }
+
+    /// Apply a scroll observation: at the bottom follows, anywhere else pauses.
+    /// Returns whether the rule changed, so a host can skip redundant work.
+    pub fn on_scroll(&mut self, at_bottom: bool) -> bool {
+        self.set_following(at_bottom)
+    }
+}
+
 /// Map a log line's first whitespace-delimited token to a CSS class. Empty
 /// when no recognised level is found (the viewer wraps the line as info).
 pub fn level_class(line: &str) -> &'static str {
@@ -231,6 +267,42 @@ mod tests {
     #[test]
     fn state_label_falls_back_to_unknown() {
         assert_eq!(state_label(false, None, None, None), "Unknown");
+    }
+
+    #[test]
+    fn follow_tail_follows_by_default() {
+        let tail = FollowTail::default();
+        assert!(tail.following());
+    }
+
+    #[test]
+    fn follow_tail_pauses_when_the_reader_scrolls_up() {
+        let mut tail = FollowTail::default();
+        assert!(tail.on_scroll(false), "scrolling up changes the rule");
+        assert!(!tail.following(), "scroll up pauses following");
+        assert!(!tail.on_scroll(false), "still paused: no change");
+        assert!(!tail.following());
+    }
+
+    #[test]
+    fn follow_tail_resumes_at_the_bottom() {
+        let mut tail = FollowTail::default();
+        tail.on_scroll(false);
+        assert!(
+            tail.on_scroll(true),
+            "scrolling back to the bottom changes the rule"
+        );
+        assert!(tail.following(), "back at the bottom resumes following");
+        assert!(!tail.on_scroll(true), "still at the bottom: no change");
+        assert!(tail.following());
+    }
+
+    #[test]
+    fn follow_tail_set_following_reports_changes() {
+        let mut tail = FollowTail::default();
+        assert!(tail.set_following(false));
+        assert!(!tail.set_following(false));
+        assert!(tail.set_following(true));
     }
 
     #[test]

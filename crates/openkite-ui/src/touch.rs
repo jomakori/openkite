@@ -48,6 +48,47 @@ pub fn keep_tab_toast(label: &str) -> String {
     format!("Keeping {label} — later selections will not replace it.")
 }
 
+/// The shortest drag that dismisses the ≤767px log sheet, whatever its height.
+pub const SHEET_DISMISS_MIN_PX: f64 = 44.0;
+
+/// The longest drag the sheet ever asks for, so a tall sheet still dismisses
+/// with a comfortable flick.
+pub const SHEET_DISMISS_MAX_PX: f64 = 96.0;
+
+/// The floor must sit under the ceiling, or [`resolve_sheet_drag`]'s clamp
+/// panics on the inverted range. Checked at compile time.
+const _: () = assert!(SHEET_DISMISS_MIN_PX <= SHEET_DISMISS_MAX_PX);
+
+/// What a released drag on the sheet's handle resolves to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SheetDrag {
+    /// The drag passed the dismiss threshold: close the sheet.
+    Dismiss,
+    /// Short of the threshold, or upward: the sheet springs back.
+    Snap,
+}
+
+/// Resolve a released drag on the log sheet's handle.
+///
+/// `delta_y` is how far the pointer travelled down from where it grabbed the
+/// handle and `height` the sheet's own height. The threshold is a quarter of
+/// the sheet — the distance a thumb covers on a normal flick — bounded so it
+/// is never shorter than [`SHEET_DISMISS_MIN_PX`] (a one-line sheet still
+/// asks for a deliberate drag) and never longer than [`SHEET_DISMISS_MAX_PX`].
+/// Upward travel always springs back: the handle collapses the sheet, it does
+/// not grow it past `.open`.
+pub fn resolve_sheet_drag(delta_y: f64, height: f64) -> SheetDrag {
+    if delta_y <= 0.0 {
+        return SheetDrag::Snap;
+    }
+    let threshold = (height * 0.25).clamp(SHEET_DISMISS_MIN_PX, SHEET_DISMISS_MAX_PX);
+    if delta_y >= threshold {
+        SheetDrag::Dismiss
+    } else {
+        SheetDrag::Snap
+    }
+}
+
 /// A press in flight: its origin and whether it has already become a scroll.
 ///
 /// The scroll latch is the point. A finger that drifts past the tolerance and

@@ -113,6 +113,8 @@ pub fn install_plugins(sections: Vec<SidebarSection>, routes: HashMap<String, fn
 
 /// App entry: render the router.
 pub fn app() -> Element {
+    // Gate G3 (§`e2e/parity`): a no-op unless OPENKITE_PARITY_SNAPSHOT is set.
+    crate::parity::install();
     rsx! { Router::<Route> {} }
 }
 
@@ -262,6 +264,23 @@ fn AppShell() -> Element {
     use_effect(move || {
         if EVALUATED_JS_PLUGINS.set(()).is_ok() {
             for bundle in js_plugins() {
+                // The bundle's stylesheet is already scoped to
+                // `[data-plugin="<name>"]` (see `plugin_js::scope_css`); inject
+                // it as its own <style> tag before the bundle evaluates, so a
+                // plugin's first paint is never unstyled.
+                if let Some(style) = &bundle.style {
+                    let style_source = format!(
+                        r#"(function() {{
+                          var tag = document.createElement('style');
+                          tag.setAttribute('data-plugin-style', {name_json});
+                          tag.textContent = {css_json};
+                          document.head.appendChild(tag);
+                        }})();"#,
+                        name_json = serde_json::to_string(&bundle.name).unwrap_or_default(),
+                        css_json = serde_json::to_string(style).unwrap_or_default(),
+                    );
+                    document::eval(&style_source);
+                }
                 match crate::plugin_js::load_source(&bundle) {
                     Ok(source) => {
                         tracing::info!(plugin = %bundle.name, "evaluating js plugin bundle");
@@ -335,6 +354,10 @@ fn AppShell() -> Element {
             cluster: cluster_button(),
             status: status_entries(),
             actions,
+            // Gate G3's extractor (`parity-snapshot.js`) looks for this on
+            // both hosts to find the app root; the web host already tags it
+            // (`openkite-web/src/app.rs`), this host was the one missing it.
+            "data-surface": "app",
             on_navigate: Some(EventHandler::new(move |route: String| {
                 nav.push(route_from_path(&route));
             })),
@@ -631,6 +654,11 @@ pub(crate) fn json_response(resp: ApiResponse) -> AssetHttpResponse<Vec<u8>> {
 /// it reads itself, so a host that cannot do something declares it instead of
 /// painting a control that does nothing.
 fn route_view() -> Element {
+    route_view_with(None)
+}
+
+/// The routed shell, with the host's own surface in the outlet when it has one.
+fn route_view_with(content: Option<Element>) -> Element {
     // The address is the source of truth here too: the chrome paints the route
     // the URL resolved to, never a literal this component carries beside it,
     // so it cannot disagree with the shell's active entry or with the browser
@@ -656,6 +684,7 @@ fn route_view() -> Element {
             route: route.to_string(),
             sections: shell_sections(),
             namespaces: crate::runtime::NAMESPACES.read().clone(),
+            content,
             on_action: Some(on_action),
         }
     }
@@ -663,7 +692,10 @@ fn route_view() -> Element {
 
 #[component]
 fn Home() -> Element {
-    route_view()
+    // The landing surface is the live overview dashboard (OKT-203).
+    route_view_with(Some(rsx! {
+        crate::overview::LiveOverview {}
+    }))
 }
 
 #[component]

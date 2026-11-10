@@ -61,25 +61,27 @@ fn with_action(route: &'static str, sections: Vec<ShellSection>, wired: bool) ->
 #[test]
 fn a_request_path_resolves_against_the_crates_route_contract() {
     let sections = browser_sections();
-    for route in ["/", "/cluster", "/workloads", "/config"] {
+    for route in ["/", "/cluster", "/workloads", "/config", "/logs"] {
         assert_eq!(resolve_route(route, &sections), route);
     }
     // The same page for every spelling of the same contract.
     assert_eq!(resolve_route("/workloads/", &sections), "/workloads");
     assert_eq!(resolve_route(" workloads ", &sections), "/workloads");
+    assert_eq!(resolve_route("/logs/", &sections), "/logs");
     // Anything the navigation does not carry falls back to the landing route.
-    for unknown in ["/nonsense", "", "/logs", "/terminal", "/argocd/apps"] {
+    for unknown in ["/nonsense", "", "/terminal", "/argocd/apps"] {
         assert_eq!(resolve_route(unknown, &sections), "/", "{unknown}");
     }
     // The contract is the navigation the host renders, not a table this crate
     // hides: a route the sidebar carries resolves to itself, one it does not
     // falls back. OKT-161 dropped the desktop's host-only Logs/Terminal entries
     // (logs are a panel, the terminal a dock), so its model is the reference's
-    // core sections and carries neither route — exactly like the browser's.
+    // core sections and carries neither route. OKT-189 made the log panel a
+    // route of the console itself, so `/logs` now resolves on both hosts while
+    // the terminal stays a dock the navigation does not carry.
     let desktop = desktop_sections();
-    for route in ["/logs", "/terminal"] {
-        assert_eq!(resolve_route(route, &desktop), "/", "{route}");
-    }
+    assert_eq!(resolve_route("/logs", &desktop), "/logs");
+    assert_eq!(resolve_route("/terminal", &desktop), "/");
 }
 
 #[test]

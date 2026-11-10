@@ -16,6 +16,9 @@
 //! - A pump running on the **Dioxus side** drains the channel and evaluates
 //!   [`PushMessage::to_js`], which invokes `window.openkite._pushState(...)`
 //!   and so the JS handler.
+//! - The browser host has no Dioxus runtime to eval into, so it drains the
+//!   same [`PushMessage`]s from [`sse_subscribe`] instead, over
+//!   `GET /openkite/events` (a browser `EventSource`).
 //!
 //! Two hard constraints, both learned the hard way:
 //!
@@ -44,14 +47,16 @@
 use std::collections::BTreeMap;
 use std::sync::{Mutex, OnceLock};
 
+use serde::Serialize;
 use serde_json::Value;
+use tokio::sync::broadcast;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
 /// One update destined for a single JS subscription.
 ///
 /// Only `PartialEq` (not `Eq`): the payload holds `serde_json::Value`, whose
 /// float representation does not admit a total equality.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct PushMessage {
     /// Subscription id handed out by [`PushRegistry::subscribe`].
     pub sub: u64,
@@ -201,6 +206,37 @@ pub fn is_installed() -> bool {
     PUSH_TX.get().is_some()
 }
 
+/// Broadcast channel SSE listeners drain, independent of the Dioxus-side pump
+/// above: a browser host's SSE handler has no Dioxus runtime to eval a push
+/// into, so it subscribes here instead. Every [`PushMessage`] [`publish`]
+/// builds goes out on both channels; an SSE handler filters this stream down
+/// to its own `sub`.
+static SSE_TX: OnceLock<broadcast::Sender<PushMessage>> = OnceLock::new();
+
+fn sse_tx() -> &'static broadcast::Sender<PushMessage> {
+    SSE_TX.get_or_init(|| broadcast::channel(256).0)
+}
+
+/// A receiver for every [`PushMessage`] published from here on.
+pub fn sse_subscribe() -> broadcast::Receiver<PushMessage> {
+    sse_tx().subscribe()
+}
+
+/// Pull the next message for an SSE listener, skipping a lag gap rather than
+/// erroring: a slow reader drops the revisions it missed and resumes from the
+/// newest rather than tearing the connection down. `None` only on a closed
+/// sender, which does not happen while the process is up (the sender is a
+/// `'static` global).
+pub async fn recv_sse(rx: &mut broadcast::Receiver<PushMessage>) -> Option<PushMessage> {
+    loop {
+        match rx.recv().await {
+            Ok(msg) => return Some(msg),
+            Err(broadcast::error::RecvError::Closed) => return None,
+            Err(broadcast::error::RecvError::Lagged(_)) => continue,
+        }
+    }
+}
+
 /// Narrow a publish's rows to one subscription's namespace and the console's
 /// namespace selection.
 ///
@@ -247,6 +283,10 @@ pub fn publish(kind: &str, ns: Option<&str>, rows: Vec<Value>) -> usize {
             })
             .collect::<Vec<_>>()
     };
+
+    for msg in &messages {
+        let _ = sse_tx().send(msg.clone());
+    }
 
     let Some(tx) = PUSH_TX.get() else {
         return 0;

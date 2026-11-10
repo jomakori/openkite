@@ -31,6 +31,11 @@ pub struct PluginManifest {
     pub version: String,
     /// JS entry point, relative to the plugin dir (must end in `.js`).
     pub entry: String,
+    /// Optional stylesheet, relative to the plugin dir (must end in
+    /// `.css`). Scoped to the plugin's own subtree at load time — see
+    /// `scope_css` and the isolation contract in `docs/plugin-api.md`.
+    #[serde(default)]
+    pub style: Option<String>,
     #[serde(default)]
     pub description: String,
     #[serde(default)]
@@ -82,6 +87,16 @@ impl PluginManifest {
                 "entry '{}' must be relative and inside the plugin dir",
                 self.entry
             ));
+        }
+        if let Some(style) = &self.style {
+            if !style.ends_with(".css") {
+                return Err(format!("style '{style}' must be a .css file"));
+            }
+            if Path::new(style).is_absolute() || style.split(['/', '\\']).any(|c| c == "..") {
+                return Err(format!(
+                    "style '{style}' must be relative and inside the plugin dir"
+                ));
+            }
         }
         Ok(())
     }
@@ -371,42 +386,78 @@ pub fn watch_plugins(
     Ok(watcher)
 }
 
-/// An eval-ready JS plugin bundle: plugin name + entry-file path.
+/// An eval-ready JS plugin bundle: plugin name, entry-file path, and its
+/// already-scoped stylesheet (if the manifest declares one).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JsBundle {
     pub name: String,
     pub entry: PathBuf,
+    /// CSS rewritten by [`scope_css`] so every selector is scoped under
+    /// `[data-plugin="<name>"]`. `None` when the manifest has no `style`.
+    pub style: Option<String>,
 }
 
 /// Discover plugins under `root` and keep the enabled ones' bundles.
 ///
 /// Broken siblings never block discovery: manifests that fail validation
 /// surface in `errors` — each named, so the shell can show the plugin and why
-/// it is unavailable — and the enabled predicate runs on the parsed name.
+/// it is unavailable — and the enabled predicate runs on the parsed name. A
+/// plugin whose `style` fails to load or to scope is dropped with its reason
+/// in `errors` too: the same disabled-with-reason treatment as a broken
+/// manifest, never a panic, and never a block on its siblings.
 pub fn collect_bundles(
     root: &Path,
     enabled: impl Fn(&str) -> bool,
 ) -> (Vec<JsBundle>, Vec<PluginLoadError>) {
-    let (discovered, errors) = discover_plugins(root);
-    let bundles = discovered
-        .into_iter()
-        .filter(|(name, _)| enabled(name))
-        .map(|(name, manifest)| JsBundle {
-            entry: root.join(&name).join(&manifest.entry),
-            name,
-        })
-        .collect();
+    let (discovered, mut errors) = discover_plugins(root);
+    let mut bundles = Vec::new();
+    for (name, manifest) in discovered {
+        if !enabled(&name) {
+            continue;
+        }
+        let plugin_dir = root.join(&name);
+        match load_scoped_style(&plugin_dir, &manifest) {
+            Ok(style) => bundles.push(JsBundle {
+                entry: plugin_dir.join(&manifest.entry),
+                name,
+                style,
+            }),
+            Err(reason) => errors.push(PluginLoadError::new(name, reason)),
+        }
+    }
     // A plugin the user switched off is not a failure: it never loads, and the
     // shell must not advertise it as broken.
-    let errors = errors
-        .into_iter()
-        .filter(|err| enabled(&err.name))
-        .collect();
+    errors.retain(|error| enabled(&error.name));
     (bundles, errors)
+}
+
+/// Load and scope a plugin's declared `style` file, if any.
+fn load_scoped_style(
+    plugin_dir: &Path,
+    manifest: &PluginManifest,
+) -> Result<Option<String>, String> {
+    let Some(style) = &manifest.style else {
+        return Ok(None);
+    };
+    let path = plugin_dir.join(style);
+    let text = fs::read_to_string(&path).map_err(|e| format!("read {}: {e}", path.display()))?;
+    if text.trim().is_empty() {
+        return Ok(None);
+    }
+    scope_css(&text, &manifest.name).map(Some)
 }
 
 /// Read a bundle's source text for eval.
 pub fn load_source(bundle: &JsBundle) -> Result<String, String> {
     fs::read_to_string(&bundle.entry)
         .map_err(|err| format!("read {}: {err}", bundle.entry.display()))
+}
+
+/// Scope a plugin's stylesheet to its own section.
+///
+/// The rewriter lives in `openkite_ui::plugin_css` so the desktop and the web
+/// host isolate plugin CSS with the same rules; this wrapper keeps the
+/// desktop-side call sites reading `(css, plugin)`.
+pub fn scope_css(css: &str, plugin: &str) -> Result<String, String> {
+    openkite_ui::plugin_css::scope_css(plugin, css)
 }

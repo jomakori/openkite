@@ -96,6 +96,7 @@ fn pod_row(id: &str) -> ResourceRow {
     ResourceRow {
         id: id.to_string(),
         namespace: Some("default".to_string()),
+        kind: Some("Pod".to_string()),
         cells: vec![
             Cell::text("checkout-api"),
             Cell::status("Running", StatusKind::Running),

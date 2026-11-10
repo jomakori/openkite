@@ -27,6 +27,7 @@ fn labelled_table() -> Element {
             rows: vec![ResourceRow {
                 id: "nginx-1".into(),
                 namespace: Some("default".into()),
+                kind: None,
                 cells: vec![
                     Cell::text("nginx"),
                     Cell::status("Running", StatusKind::Running),
@@ -52,6 +53,7 @@ fn row_with_namespace(namespace: Option<&str>, cells: Vec<Cell>) -> ResourceRow 
     ResourceRow {
         id: "1".into(),
         namespace: namespace.map(str::to_string),
+        kind: None,
         cells,
     }
 }
@@ -60,6 +62,7 @@ fn ns_row(id: &str, namespace: Option<&str>) -> ResourceRow {
     ResourceRow {
         id: id.into(),
         namespace: namespace.map(str::to_string),
+        kind: None,
         cells: vec![Cell::text(id)],
     }
 }

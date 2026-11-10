@@ -2,10 +2,13 @@
 
 pub mod app_card;
 pub mod code_editor;
+pub mod column_picker;
 pub mod crud_modal;
 pub mod dock;
+pub mod filter_bar;
 pub mod logs;
 pub mod namespace_bar;
+pub mod overview;
 pub mod palette;
 pub mod pod_detail;
 pub mod resource_pane;

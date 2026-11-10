@@ -47,9 +47,9 @@ fn table_with_rows() -> Element {
                 ColumnDef { key: "name".into(), label: "Name".into(), width: None, sortable: false },
             ],
             rows: vec![
-                ResourceRow { id: "a".into(), namespace: Some("default".into()), cells: vec![Cell::text("row-alpha")] },
-                ResourceRow { id: "b".into(), namespace: Some("argocd".into()), cells: vec![Cell::text("row-beta")] },
-                ResourceRow { id: "c".into(), namespace: None, cells: vec![Cell::text("row-gamma")] },
+                ResourceRow { id: "a".into(), namespace: Some("default".into()), kind: None, cells: vec![Cell::text("row-alpha")] },
+                ResourceRow { id: "b".into(), namespace: Some("argocd".into()), kind: None, cells: vec![Cell::text("row-beta")] },
+                ResourceRow { id: "c".into(), namespace: None, kind: None, cells: vec![Cell::text("row-gamma")] },
             ],
             status: TableStatus::Ready,
         }
@@ -255,16 +255,19 @@ fn namespace_filter_matches_the_host_snapshot_semantics() {
         ResourceRow {
             id: "a".into(),
             namespace: Some("default".into()),
+            kind: None,
             cells: vec![Cell::text("a")],
         },
         ResourceRow {
             id: "b".into(),
             namespace: Some("argocd".into()),
+            kind: None,
             cells: vec![Cell::text("b")],
         },
         ResourceRow {
             id: "c".into(),
             namespace: None,
+            kind: None,
             cells: vec![Cell::text("c")],
         },
     ];

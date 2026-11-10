@@ -70,6 +70,25 @@ pub fn identity_label() -> String {
     }
 }
 
+/// The account the top bar's menu names.
+///
+/// This host has no session, so the account is the credential the gateway
+/// reads the cluster with: the kubeconfig context, or the namespace holding the
+/// ServiceAccount. `None` when the identity is unreadable — a console with no
+/// account to name shows no account control rather than a made-up one.
+pub fn account_identity() -> Option<crate::ssr::AccountIdentity> {
+    use openkite_host::identity::ClusterIdentity;
+    match openkite_host::identity::describe() {
+        Ok(ClusterIdentity::Kubeconfig { context }) => {
+            Some(crate::ssr::AccountIdentity::for_context(context))
+        }
+        Ok(ClusterIdentity::ServiceAccount { namespace }) => {
+            Some(crate::ssr::AccountIdentity::for_service_account(namespace))
+        }
+        Err(_) => None,
+    }
+}
+
 /// Bind `addr` and serve until the process stops.
 pub async fn bind_and_serve(
     addr: SocketAddr,

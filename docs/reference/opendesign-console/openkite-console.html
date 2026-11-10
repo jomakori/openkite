@@ -7,7 +7,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>try{var t=localStorage.getItem('openkite-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.dataset.theme=t}catch(e){}</script>
   <link rel="stylesheet" href="openkite-console.css">
+  <link rel="stylesheet" href="openkite-workloads.css">
+  <link rel="stylesheet" href="openkite-charts.css">
 </head>
 <body>
 <svg class="svg-defs" aria-hidden="true">
@@ -30,8 +33,28 @@
   <symbol id="i-repo" viewBox="0 0 24 24"><path d="M6 3v12"/><circle cx="6" cy="18" r="2.2"/><path d="M6 15c3.5 0 5-2.4 12-2.4"/><circle cx="18" cy="15.6" r="2.2"/></symbol>
   <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></symbol>
   <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19 8a7.5 7.5 0 1 0 2 6"/><path d="M19 3v5h-5"/></symbol>
-  <symbol id="i-sync" viewBox="0 0 24 24"><path d="M19 8a7.5 7.5 0 1 0 2 6"/><path d="M19 3v5h-5"/><path d="M5 16a7.5 7.5 0 1 1-2-6"/><path d="M5 21v-5h5"/></symbol>
+  <symbol id="i-sync" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 24 24"><path d="M9 2v5M15 2v5M6 7h12v4a6 6 0 0 1-12 0V7zM12 17v5"/></symbol>
+  <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19l-4 1zM14 7l3 3"/></symbol>
   <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-dock" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 14h18"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M9 4h6l-1 6 3 3H7l3-3-1-6zM12 13v7"/></symbol>
+  <symbol id="i-pin-fill" viewBox="0 0 24 24"><path d="M9 4h6l-1 6 3 3H7l3-3-1-6zM12 13v7" fill="currentColor"/></symbol>
+  <symbol id="i-highlight" viewBox="0 0 24 24"><path d="m4 20 4-1 10-10-3-3L5 16l-1 4z"/><path d="M13 8l3 3M14 20h6"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13M10 11v6M14 11v6"/></symbol>
+  <symbol id="i-scale" viewBox="0 0 24 24"><path d="M4 9V4h5M20 15v5h-5M4 4l6 6M20 20l-6-6"/></symbol>
+  <symbol id="i-split" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/></symbol>
+  <symbol id="i-swap" viewBox="0 0 24 24"><path d="M7 7h12l-3-3M17 17H5l3 3"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
+  <symbol id="i-tree" viewBox="0 0 24 24"><path d="M5 4v15M5 8h3M5 13h3M5 18h3"/><rect x="9" y="5.5" width="11" height="5" rx="1.2"/><rect x="9" y="11" width="11" height="5" rx="1.2"/><rect x="9" y="16.5" width="11" height="3.5" rx="1.2"/></symbol>
+  <symbol id="i-treegrid" viewBox="0 0 24 24"><path d="M4 4.5h16"/><rect x="4" y="8" width="7" height="5" rx="1.2"/><rect x="13" y="8" width="7" height="5" rx="1.2"/><rect x="4" y="15" width="7" height="5" rx="1.2"/><rect x="13" y="15" width="7" height="5" rx="1.2"/></symbol>
+  <symbol id="i-expand-all" viewBox="0 0 24 24"><path d="M7 9l5-5 5 5M7 15l5 5 5-5"/></symbol>
+  <symbol id="i-collapse-all" viewBox="0 0 24 24"><path d="M7 4l5 5 5-5M7 20l5-5 5 5"/></symbol>
+  <symbol id="i-tabs" viewBox="0 0 24 24"><path d="M3 9h18M3 9V6a1 1 0 0 1 1-1h5l2 3M3 9v9a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V9"/></symbol>
   <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
   <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
   <symbol id="i-terminal" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M12 15h5"/></symbol>
@@ -60,66 +83,32 @@
       <span class="brand-word">Open<strong>Kite</strong></span>
     </div>
 
-    <button class="cluster-btn" type="button" data-toast="Cluster menu opens here in the full product">
+    <button class="cluster-btn" id="clusterBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Switch cluster" data-od-id="cluster-switcher">
       <span class="status-line"><span class="dot"></span></span>
-      <span class="cluster-text">prod-us-east-1<small>v1.29.4 · us-east-1</small></span>
+      <span class="cluster-text"><span id="clusterName">prod-us-east-1</span><small id="clusterMeta">v1.29.4 · us-east-1</small></span>
       <svg class="icon"><use href="#i-chevron"/></svg>
     </button>
 
-    <nav class="nav" aria-label="Resource navigation">
-      <div class="nav-section">
-        <div class="nav-title">Cluster</div>
-        <button class="nav-item" type="button" data-disabled data-toast="Overview is part of the full OpenKite product">
-          <svg class="icon"><use href="#i-cluster"/></svg><span>Overview</span>
-        </button>
-        <button class="nav-item" type="button" data-disabled data-toast="Nodes is part of the full OpenKite product">
-          <svg class="icon"><use href="#i-node"/></svg><span>Nodes</span><span class="nav-badge">8</span>
-        </button>
+    <div class="nav-controls" id="navControls" data-od-id="menu-controls">
+      <button class="nav-filter-btn" id="navFilterBtn" type="button" aria-haspopup="menu" aria-expanded="false"><span id="navFilterLabel">All categories</span><svg class="icon dd"><use href="#i-chevron"/></svg></button>
+      <div class="seg-icons" role="group" aria-label="Menu layout">
+        <button class="seg-ic" type="button" data-layout="tree" aria-pressed="true" aria-label="Tree layout" title="Tree"><svg class="icon"><use href="#i-tree"/></svg></button>
+        <button class="seg-ic" type="button" data-layout="grid" aria-pressed="false" aria-label="Tree-grid layout" title="Tree-grid"><svg class="icon"><use href="#i-treegrid"/></svg></button>
       </div>
+    </div>
+    <nav class="nav" id="navTree" aria-label="Resource navigation" data-od-id="sidebar-nav"></nav>
+  <span class="edge-grip" aria-hidden="true"></span>
 
-      <div class="nav-section">
-        <div class="nav-title">Workloads</div>
-        <button class="nav-item active" type="button" data-view="workloads">
-          <svg class="icon"><use href="#i-pods"/></svg><span>Pods</span><span class="nav-badge">124</span>
+    <div class="sidebar-footer" data-od-id="sidebar-account">
+      <div class="foot-row">
+        <button class="profile-btn" id="profileBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Account menu">
+          <span class="avatar sm" aria-hidden="true">EK</span>
+          <span class="profile-text"><b>Emma Kline</b><small>Platform engineer</small></span>
+          <svg class="icon up"><use href="#i-chevron"/></svg>
         </button>
-        <button class="nav-item" type="button" data-disabled data-toast="Deployments is part of the full OpenKite product">
-          <svg class="icon"><use href="#i-deploy"/></svg><span>Deployments</span><span class="nav-badge">37</span>
-        </button>
-        <button class="nav-item" type="button" data-disabled data-toast="Services is part of the full OpenKite product">
-          <svg class="icon"><use href="#i-services"/></svg><span>Services</span><span class="nav-badge">29</span>
-        </button>
+        <button class="icon-btn" id="settingsBtn" type="button" aria-label="Settings" title="Settings"><svg class="icon"><use href="#i-settings"/></svg></button>
       </div>
-
-      <div class="nav-section">
-        <div class="nav-title">Config &amp; Storage</div>
-        <button class="nav-item" type="button" data-disabled data-toast="ConfigMaps is part of the full OpenKite product">
-          <svg class="icon"><use href="#i-config"/></svg><span>ConfigMaps</span><span class="nav-badge">46</span>
-        </button>
-        <button class="nav-item" type="button" data-disabled data-toast="Storage is part of the full OpenKite product">
-          <svg class="icon"><use href="#i-storage"/></svg><span>Storage</span>
-        </button>
-        <button class="nav-item" type="button" data-disabled data-toast="Network is part of the full OpenKite product">
-          <svg class="icon"><use href="#i-network"/></svg><span>Network</span>
-        </button>
-      </div>
-
-      <div class="nav-section argo">
-        <div class="nav-title">Argo CD</div>
-        <button class="nav-item" type="button" data-view="argocd">
-          <svg class="icon"><use href="#i-argo"/></svg><span>Applications</span><span class="nav-badge">18</span>
-        </button>
-        <button class="nav-item" type="button" data-disabled data-toast="Projects is part of the full OpenKite product">
-          <svg class="icon"><use href="#i-projects"/></svg><span>Projects</span><span class="nav-badge">3</span>
-        </button>
-        <button class="nav-item" type="button" data-disabled data-toast="Repositories is part of the full OpenKite product">
-          <svg class="icon"><use href="#i-repo"/></svg><span>Repositories</span><span class="nav-badge">6</span>
-        </button>
-      </div>
-    </nav>
-
-    <div class="sidebar-footer">
-      <span class="version">v0.4.2-alpha</span>
-      <span class="status-line"><span class="dot"></span>Connected</span>
+      <div class="foot-meta"><span class="version">v0.4.2-alpha</span><span class="status-line"><span class="dot"></span><span id="connLabel">Connected</span></span></div>
     </div>
   </aside>
 
@@ -127,190 +116,100 @@
 
   <main class="main" id="main" data-od-id="main-content">
     <header class="topbar" data-od-id="topbar">
-      <button class="icon-btn menu-toggle" id="menuToggle" type="button" aria-label="Open navigation" aria-expanded="false">
+      <button class="icon-btn menu-toggle" id="menuToggle" type="button" aria-label="Open menu" aria-haspopup="true" aria-expanded="false">
         <svg class="icon"><use href="#i-menu"/></svg>
       </button>
+      <button class="icon-btn nav-back" id="navBack" type="button" aria-label="Back" title="Back" hidden><svg class="icon"><use href="#i-arrow"/></svg></button>
       <div class="breadcrumbs" id="breadcrumbs">
-        <span>prod-us-east-1</span>
-        <svg class="icon"><use href="#i-chevron"/></svg>
-        <span id="crumbSection">Workloads</span>
-        <svg class="icon"><use href="#i-chevron"/></svg>
-        <span class="current" id="crumbCurrent">Pods</span>
+        <button class="crumb-cluster" id="crumbCluster" type="button" aria-label="Open cluster overview for prod-us-east-1"><span class="dot"></span><span id="crumbClusterName">prod-us-east-1</span><svg class="icon dd"><use href="#i-chevron"/></svg></button>
+        <span class="crumb-trail" id="crumbTrail">
+          <svg class="icon sep"><use href="#i-chevron"/></svg>
+          <button class="crumb-btn" id="crumbSectionBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Switch category"><span id="crumbSection">Workloads</span><svg class="icon dd"><use href="#i-chevron"/></svg></button>
+          <svg class="icon sep"><use href="#i-chevron"/></svg>
+          <button class="crumb-btn" id="crumbCurrentBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Switch resource"><span class="current" id="crumbCurrent">Pods</span><svg class="icon dd"><use href="#i-chevron"/></svg></button>
+        </span>
       </div>
       <div class="topbar-actions">
-        <button class="icon-btn" type="button" aria-label="Search" data-toast="Command palette opens here">
-          <svg class="icon"><use href="#i-search"/></svg>
-        </button>
-        <button class="icon-btn" id="refreshTop" type="button" aria-label="Refresh resources" data-refresh>
-          <svg class="icon"><use href="#i-refresh"/></svg>
-        </button>
-        <button class="icon-btn" type="button" aria-label="Settings" data-toast="Settings opens here">
-          <svg class="icon"><use href="#i-settings"/></svg>
-        </button>
-        <button class="avatar" type="button" aria-label="User menu" data-toast="User menu opens here">EK</button>
+        <div class="ns-pill" id="nsPill" data-od-id="ns-filter"><button type="button" id="nsPillBtn" aria-haspopup="menu" aria-expanded="false" aria-label="Namespace filter: all namespaces"><svg class="icon"><use href="#i-filter"/></svg><span id="nsPillText">Namespaces</span><span id="nsPillBadge"></span><svg class="icon dd"><use href="#i-chevron"/></svg></button><button type="button" id="nsPillClear" aria-label="Clear namespace filter" title="Clear namespace filter" hidden><svg class="icon"><use href="#i-close"/></svg></button></div>
+        <button class="icon-btn theme-toggle topbar-extra" type="button" data-theme-toggle aria-label="Toggle dark mode" aria-pressed="false" title="Dark mode"><svg class="icon moon"><use href="#i-moon"/></svg><svg class="icon sun"><use href="#i-sun"/></svg></button>
+        
+        
+        <button class="icon-btn search-btn" id="searchOrb" type="button" aria-label="Search. Press slash or Control K" aria-expanded="false" aria-controls="searchSheet" title="Search  ( / )" data-od-id="search-orb"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg></button>
+        
+        
       </div>
     </header>
 
+    <button class="menu-scrim" id="menuScrim" type="button" aria-label="Close menu" hidden></button>
+    <nav class="menu-pop" id="menuPop" aria-label="Main menu" hidden data-od-id="menu-popup"></nav>
+
     <div class="pull-indicator" id="pullIndicator"><span class="spinner"></span>Release to refresh</div>
+
+    <section class="view" id="view-overview" data-od-id="overview-view">
+      <div class="page-head" data-od-id="overview-header">
+        <div>
+          <div class="eyebrow">Cluster</div>
+          <h1>Overview</h1>
+          <p class="page-sub" id="ovSub">prod-us-east-1 · Kubernetes v1.29.4 · 8 nodes across 3 availability zones.</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-secondary" type="button" id="ovCustomize" aria-pressed="false"><svg class="icon"><use href="#i-filter"/></svg><span>Customize</span></button>
+          <button class="btn btn-secondary" type="button" data-refresh><svg class="icon"><use href="#i-refresh"/></svg>Refresh</button>
+        </div>
+      </div>
+      <div id="ovBody" data-od-id="overview-body"></div>
+    </section>
 
     <section class="view active" id="view-workloads" data-od-id="workloads-view">
       <div class="page-head" data-od-id="workloads-header">
         <div>
-          <div class="eyebrow">Workloads</div>
-          <h1>Pods</h1>
-          <p class="page-sub">Live pod inventory across the cluster. Select a row for pod details, or filter by namespace below.</p>
+          <button class="link-back" id="wlBack" type="button" hidden>← Definitions</button>
+          <div class="eyebrow" id="wlEyebrow">Workloads</div>
+          <h1 id="wlTitle">Pods</h1>
+          <p class="page-sub" id="wlSub"></p>
         </div>
         <div class="page-actions">
-          <button class="btn btn-secondary" type="button" data-toast="Terminal attach opens here">
-            <svg class="icon"><use href="#i-terminal"/></svg>Terminal
-          </button>
-          <button class="btn btn-primary" type="button" data-toast="Create Pod flow opens here">
-            <svg class="icon"><use href="#i-plus"/></svg>Create Pod
+          <button class="btn btn-primary" type="button" id="createBtn">
+            <svg class="icon"><use href="#i-plus"/></svg><span id="createLabel">Create Pod</span>
           </button>
         </div>
       </div>
 
+      <div class="sub-tabs" id="subTabs" role="tablist" aria-label="Resource types" hidden></div>
+
       <div class="toolbar" data-od-id="workloads-toolbar">
-        <div class="chip-row" role="group" aria-label="Namespace filter">
-          <button class="chip active" type="button" data-ns="all">All <span class="count">124</span></button>
-          <button class="chip" type="button" data-ns="default">default <span class="count">41</span></button>
-          <button class="chip" type="button" data-ns="kube-system">kube-system <span class="count">28</span></button>
-          <button class="chip" type="button" data-ns="argocd">argocd <span class="count">9</span></button>
-          <button class="chip" type="button" data-ns="monitoring">monitoring <span class="count">22</span></button>
-        </div>
-        <label class="search-field">
-          <svg class="icon"><use href="#i-search"/></svg>
-          <input type="search" placeholder="Filter pods…" id="podSearch" aria-label="Filter pods">
-        </label>
+        <div class="chip-row" id="nsChips" role="group" aria-label="Namespace filter"></div>
+      </div>
+
+      <div class="panel summary-panel" id="wlSummary" data-od-id="usage-summary" data-open="true" hidden></div>
+
+      <div class="bulk-bar" id="bulkBar" data-od-id="bulk-bar" hidden>
+        <span id="bulkCount">0 selected</span>
+        <button class="icon-btn x-clear" type="button" id="bulkClear" aria-label="Clear selection" title="Clear selection"><svg class="icon"><use href="#i-close"/></svg></button>
+        <button class="btn btn-danger" type="button" id="bulkDelete"><svg class="icon"><use href="#i-trash"/></svg>Delete</button>
       </div>
 
       <div class="panel" data-od-id="pod-table-panel">
+        <div class="panel-tools" data-od-id="list-filter-bar">
+          <label class="search-field list-search"><svg class="icon"><use href="#i-search"/></svg><input type="search" placeholder="Filter by name, node, label…" id="podSearch" aria-label="Filter list" autocomplete="off"><span class="fl-badge" id="flBadge" aria-live="polite"></span><button type="button" class="fl-x" id="flClear" aria-label="Clear filter" hidden><svg class="icon"><use href="#i-close"/></svg></button></label>
+          <button class="icon-btn col-btn" id="colBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Choose columns" title="Columns" data-od-id="column-picker"><svg class="icon" aria-hidden="true"><use href="#i-treegrid"/></svg></button>
+          <div class="tree-bar" id="treeBar" role="group" aria-label="Expand or collapse all rows">
+            <button class="icon-btn" type="button" id="expandAll" aria-label="Expand all" title="Expand all"><svg class="icon"><use href="#i-expand-all"/></svg></button>
+            <button class="icon-btn" type="button" id="collapseAll" aria-label="Collapse all" title="Collapse all"><svg class="icon"><use href="#i-collapse-all"/></svg></button>
+          </div>
+        </div>
         <div class="table-wrap">
-          <table class="resource-table">
-            <thead>
-              <tr>
-                <th>Name</th><th>Namespace</th><th>Health</th><th>Restarts</th><th>Controller</th><th>Node</th><th>QoS</th><th>Age</th><th>Status</th>
-              </tr>
-            </thead>
-            <tbody id="podRows">
-              <tr data-ns="default" data-name="checkout-api-7c9f8d6b4f-x2k9m" data-controller="Deployment/checkout-api" data-node="ip-10-0-4-18" data-qos="Burstable" data-age="2d" data-status="Running">
-                <td data-label="Name"><span class="cell-value resource-name"><svg class="icon"><use href="#i-pods"/></svg>checkout-api-7c9f8d6b4f-x2k9m</span></td>
-                <td data-label="Namespace"><span class="cell-value namespace">default</span></td>
-                <td data-label="Health"><span class="cell-value health-dots"><span class="dot ok"></span><span class="dot ok"></span></span></td>
-                <td data-label="Restarts"><span class="cell-value restarts">0</span></td>
-                <td data-label="Controller"><span class="cell-value controller">Deployment/checkout-api</span></td>
-                <td data-label="Node"><span class="cell-value node">ip-10-0-4-18</span></td>
-                <td data-label="QoS"><span class="cell-value qos">Burstable</span></td>
-                <td data-label="Age"><span class="cell-value qos">2d</span></td>
-                <td data-label="Status"><span class="cell-value"><span class="pill success"><span class="dot ok"></span>Running</span></span></td>
-              </tr>
-              <tr data-ns="kube-system" data-name="coredns-5c98db65d4-6mh2p" data-controller="Deployment/coredns" data-node="ip-10-0-4-2" data-qos="Guaranteed" data-age="12d" data-status="Running">
-                <td data-label="Name"><span class="cell-value resource-name"><svg class="icon"><use href="#i-pods"/></svg>coredns-5c98db65d4-6mh2p</span></td>
-                <td data-label="Namespace"><span class="cell-value namespace">kube-system</span></td>
-                <td data-label="Health"><span class="cell-value health-dots"><span class="dot ok"></span><span class="dot ok"></span></span></td>
-                <td data-label="Restarts"><span class="cell-value restarts">0</span></td>
-                <td data-label="Controller"><span class="cell-value controller">Deployment/coredns</span></td>
-                <td data-label="Node"><span class="cell-value node">ip-10-0-4-2</span></td>
-                <td data-label="QoS"><span class="cell-value qos">Guaranteed</span></td>
-                <td data-label="Age"><span class="cell-value qos">12d</span></td>
-                <td data-label="Status"><span class="cell-value"><span class="pill success"><span class="dot ok"></span>Running</span></span></td>
-              </tr>
-              <tr data-ns="monitoring" data-name="prometheus-server-0" data-controller="StatefulSet/prometheus-server" data-node="ip-10-0-5-11" data-qos="Guaranteed" data-age="9d" data-status="Running">
-                <td data-label="Name"><span class="cell-value resource-name"><svg class="icon"><use href="#i-pods"/></svg>prometheus-server-0</span></td>
-                <td data-label="Namespace"><span class="cell-value namespace">monitoring</span></td>
-                <td data-label="Health"><span class="cell-value health-dots"><span class="dot ok"></span><span class="dot ok"></span></span></td>
-                <td data-label="Restarts"><span class="cell-value restarts">0</span></td>
-                <td data-label="Controller"><span class="cell-value controller">StatefulSet/prometheus-server</span></td>
-                <td data-label="Node"><span class="cell-value node">ip-10-0-5-11</span></td>
-                <td data-label="QoS"><span class="cell-value qos">Guaranteed</span></td>
-                <td data-label="Age"><span class="cell-value qos">9d</span></td>
-                <td data-label="Status"><span class="cell-value"><span class="pill success"><span class="dot ok"></span>Running</span></span></td>
-              </tr>
-              <tr data-ns="default" data-name="payments-worker-6b8d9c7f5d-9nq4r" data-controller="Deployment/payments-worker" data-node="ip-10-0-4-19" data-qos="Burstable" data-age="6h" data-status="CrashLoopBackOff">
-                <td data-label="Name"><span class="cell-value resource-name"><svg class="icon"><use href="#i-pods"/></svg>payments-worker-6b8d9c7f5d-9nq4r</span></td>
-                <td data-label="Namespace"><span class="cell-value namespace">default</span></td>
-                <td data-label="Health"><span class="cell-value health-dots"><span class="dot ok"></span><span class="dot err"></span></span></td>
-                <td data-label="Restarts"><span class="cell-value restarts warn">14</span></td>
-                <td data-label="Controller"><span class="cell-value controller">Deployment/payments-worker</span></td>
-                <td data-label="Node"><span class="cell-value node">ip-10-0-4-19</span></td>
-                <td data-label="QoS"><span class="cell-value qos">Burstable</span></td>
-                <td data-label="Age"><span class="cell-value qos">6h</span></td>
-                <td data-label="Status"><span class="cell-value"><span class="pill danger"><span class="dot err"></span>CrashLoopBackOff</span></span></td>
-              </tr>
-              <tr data-ns="argocd" data-name="argocd-repo-server-55b7c44d9c-7b2wm" data-controller="Deployment/argocd-repo-server" data-node="ip-10-0-5-8" data-qos="Guaranteed" data-age="18d" data-status="Running">
-                <td data-label="Name"><span class="cell-value resource-name"><svg class="icon"><use href="#i-pods"/></svg>argocd-repo-server-55b7c44d9c-7b2wm</span></td>
-                <td data-label="Namespace"><span class="cell-value namespace">argocd</span></td>
-                <td data-label="Health"><span class="cell-value health-dots"><span class="dot ok"></span><span class="dot ok"></span></span></td>
-                <td data-label="Restarts"><span class="cell-value restarts">0</span></td>
-                <td data-label="Controller"><span class="cell-value controller">Deployment/argocd-repo-server</span></td>
-                <td data-label="Node"><span class="cell-value node">ip-10-0-5-8</span></td>
-                <td data-label="QoS"><span class="cell-value qos">Guaranteed</span></td>
-                <td data-label="Age"><span class="cell-value qos">18d</span></td>
-                <td data-label="Status"><span class="cell-value"><span class="pill success"><span class="dot ok"></span>Running</span></span></td>
-              </tr>
-              <tr data-ns="default" data-name="nginx-ingress-controller-5d9f8c6b7-x4z1p" data-controller="DaemonSet/nginx-ingress" data-node="ip-10-0-4-12" data-qos="Guaranteed" data-age="4d" data-status="Running">
-                <td data-label="Name"><span class="cell-value resource-name"><svg class="icon"><use href="#i-pods"/></svg>nginx-ingress-controller-5d9f8c6b7-x4z1p</span></td>
-                <td data-label="Namespace"><span class="cell-value namespace">default</span></td>
-                <td data-label="Health"><span class="cell-value health-dots"><span class="dot ok"></span><span class="dot ok"></span></span></td>
-                <td data-label="Restarts"><span class="cell-value restarts">0</span></td>
-                <td data-label="Controller"><span class="cell-value controller">DaemonSet/nginx-ingress</span></td>
-                <td data-label="Node"><span class="cell-value node">ip-10-0-4-12</span></td>
-                <td data-label="QoS"><span class="cell-value qos">Guaranteed</span></td>
-                <td data-label="Age"><span class="cell-value qos">4d</span></td>
-                <td data-label="Status"><span class="cell-value"><span class="pill success"><span class="dot ok"></span>Running</span></span></td>
-              </tr>
-              <tr data-ns="monitoring" data-name="grafana-7f6d4c8b5d-mz8kt" data-controller="Deployment/grafana" data-node="ip-10-0-5-14" data-qos="Burstable" data-age="11d" data-status="Running">
-                <td data-label="Name"><span class="cell-value resource-name"><svg class="icon"><use href="#i-pods"/></svg>grafana-7f6d4c8b5d-mz8kt</span></td>
-                <td data-label="Namespace"><span class="cell-value namespace">monitoring</span></td>
-                <td data-label="Health"><span class="cell-value health-dots"><span class="dot ok"></span><span class="dot ok"></span></span></td>
-                <td data-label="Restarts"><span class="cell-value restarts">0</span></td>
-                <td data-label="Controller"><span class="cell-value controller">Deployment/grafana</span></td>
-                <td data-label="Node"><span class="cell-value node">ip-10-0-5-14</span></td>
-                <td data-label="QoS"><span class="cell-value qos">Burstable</span></td>
-                <td data-label="Age"><span class="cell-value qos">11d</span></td>
-                <td data-label="Status"><span class="cell-value"><span class="pill success"><span class="dot ok"></span>Running</span></span></td>
-              </tr>
-            </tbody>
+          <table class="resource-table" id="wlTable">
+            <thead><tr id="wlHead"></tr></thead>
+            <tbody id="podRows"></tbody>
           </table>
         </div>
+        <div class="empty-state" id="wlEmpty" hidden>No resources match the current filters.</div>
         <div class="panel-footer">
-          <span id="rowCount">Showing 7 of 124 pods</span>
-          <div class="pager" aria-label="Pagination">
-            <button type="button" class="active" data-toast="Page 1">1</button>
-            <button type="button" data-toast="Page 2">2</button>
-            <button type="button" data-toast="Page 3">3</button>
-            <button type="button" data-toast="Next page">›</button>
-          </div>
+          <span id="rowCount"></span>
+          <span class="footer-hint">Select a row for details · ⋮ for actions</span>
         </div>
       </div>
-
-      <section class="log-panel" id="logPanel" data-od-id="log-panel" aria-label="Pod logs">
-        <button class="log-handle" type="button" id="logHandle" aria-expanded="false">Logs</button>
-        <div class="log-header">
-          <div class="log-title">
-            <svg class="icon"><use href="#i-terminal"/></svg>
-            <span>Logs</span>
-            <span class="log-pod">nginx-ingress-controller-5d9f8c6b7-x4z1p</span>
-          </div>
-          <div class="log-actions">
-            <button class="icon-btn" type="button" id="pauseLogs" aria-label="Pause logs" aria-pressed="false">
-              <svg class="icon"><use href="#i-pause"/></svg>
-            </button>
-            <button class="icon-btn" type="button" id="clearLogs" aria-label="Clear logs">
-              <svg class="icon"><use href="#i-clear"/></svg>
-            </button>
-          </div>
-        </div>
-        <div class="log-paused" role="status"><svg class="icon"><use href="#i-pause"/></svg>Log stream paused</div>
-        <div class="log-body" id="logBody">
-          <div class="log-line"><span class="log-time">10:42:07.114</span><span class="log-level">INFO</span><span class="log-method">GET</span><span class="log-msg">/api/v1/orders 200 18.4ms</span></div>
-          <div class="log-line"><span class="log-time">10:42:07.182</span><span class="log-level">INFO</span><span class="log-method">POST</span><span class="log-msg">/api/v1/checkout 201 42.1ms</span></div>
-          <div class="log-line"><span class="log-time">10:42:08.001</span><span class="log-level">INFO</span><span class="log-method">GET</span><span class="log-msg">/healthz 200 1.2ms</span></div>
-          <div class="log-line"><span class="log-time">10:42:08.647</span><span class="log-level warn">WARN</span><span class="log-msg">upstream 10.0.4.22:8080 slow response 312ms</span></div>
-          <div class="log-line"><span class="log-time">10:42:09.204</span><span class="log-level error">ERROR</span><span class="log-method">GET</span><span class="log-msg error">/internal/queue depth exceeded threshold (queue=1024)</span></div>
-          <div class="log-line"><span class="log-time">10:42:09.531</span><span class="log-level">INFO</span><span class="log-method">GET</span><span class="log-msg">/metrics 200 3.9ms</span></div>
-        </div>
-      </section>
     </section>
 
     <section class="view" id="view-argocd" data-od-id="argocd-view">
@@ -318,205 +217,15 @@
         <div>
           <div class="eyebrow">Argo CD</div>
           <h1>Applications</h1>
-          <p class="page-sub">Sync and health across 18 GitOps applications. Swipe a card on touch devices to reveal quick actions.</p>
+          <p class="page-sub" id="argoSub"></p>
         </div>
-        <div class="page-actions">
-          <button class="btn btn-secondary" type="button" data-toast="App list settings open here">
-            <svg class="icon"><use href="#i-filter"/></svg>Filter
-          </button>
-          <button class="btn btn-primary" type="button" data-toast="New Application flow opens here">
-            <svg class="icon"><use href="#i-plus"/></svg>New App
-          </button>
+        <div class="page-actions argo-head-actions">
+          <span class="argo-split"><button class="btn btn-secondary" type="button" id="argoRefreshAll"><svg class="icon"><use href="#i-refresh"/></svg>Refresh all</button><button type="button" class="argo-caret" data-argo-rmenu="all" data-rname="all" aria-haspopup="menu" aria-expanded="false" aria-label="Refresh options for all applications" title="Refresh options"><svg class="icon"><use href="#i-chevron"/></svg></button></span>
+          <button class="btn btn-secondary" type="button" id="argoSyncAll"><svg class="icon"><use href="#i-sync"/></svg>Sync out-of-sync</button>
+          <button class="btn btn-primary" type="button" id="argoNew"><svg class="icon"><use href="#i-plus"/></svg>New App</button>
         </div>
       </div>
-
-      <div class="app-grid" id="appGrid" data-od-id="argocd-grid">
-        <article class="app-card" data-od-id="argocd-card-guestbook" data-app="guestbook">
-          <div class="card-swipe-actions" aria-label="Quick actions">
-            <button type="button" class="sync" data-toast="Syncing guestbook">Sync</button>
-            <button type="button" data-toast="Refreshing guestbook">Refresh</button>
-          </div>
-          <div class="card-main">
-            <div class="card-status synced"></div>
-            <div class="card-body">
-              <button class="card-menu-btn" type="button" aria-label="Open guestbook actions"><svg class="icon"><use href="#i-kebab"/></svg></button>
-              <div class="card-title-row">
-                <span class="source-icon"><svg class="icon"><use href="#i-helm"/></svg></span>
-                <div>
-                  <h2 class="app-name">guestbook</h2>
-                  <p class="app-sub">default / demo-apps</p>
-                </div>
-              </div>
-              <div class="tag-row">
-                <span class="tag">github.com/acme/guestbook</span>
-                <span class="tag">chart 1.4.2</span>
-              </div>
-              <div class="card-footer">
-                <div class="badges">
-                  <span class="pill success"><svg class="icon"><use href="#i-check"/></svg>Synced</span>
-                  <span class="pill success"><svg class="icon"><use href="#i-check"/></svg>Healthy</span>
-                </div>
-                <span class="card-meta"><svg class="icon"><use href="#i-clock"/></svg>2m</span>
-              </div>
-            </div>
-          </div>
-        </article>
-
-        <article class="app-card" data-od-id="argocd-card-rollouts" data-app="canary-rollouts">
-          <div class="card-swipe-actions" aria-label="Quick actions">
-            <button type="button" class="sync" data-toast="Syncing canary-rollouts">Sync</button>
-            <button type="button" data-toast="Refreshing canary-rollouts">Refresh</button>
-          </div>
-          <div class="card-main">
-            <div class="card-status outofsync"></div>
-            <div class="card-body">
-              <button class="card-menu-btn" type="button" aria-label="Open canary-rollouts actions"><svg class="icon"><use href="#i-kebab"/></svg></button>
-              <div class="card-title-row">
-                <span class="source-icon"><svg class="icon"><use href="#i-kustomize"/></svg></span>
-                <div>
-                  <h2 class="app-name">canary-rollouts</h2>
-                  <p class="app-sub">prod / platform</p>
-                </div>
-              </div>
-              <div class="tag-row">
-                <span class="tag">gitlab.com/acme/gitops</span>
-                <span class="tag">kustomize 5.4</span>
-              </div>
-              <div class="card-footer">
-                <div class="badges">
-                  <span class="pill warn"><svg class="icon"><use href="#i-warn"/></svg>OutOfSync</span>
-                  <span class="pill success"><svg class="icon"><use href="#i-check"/></svg>Healthy</span>
-                </div>
-                <span class="card-meta"><svg class="icon"><use href="#i-clock"/></svg>8m</span>
-              </div>
-            </div>
-          </div>
-        </article>
-
-        <article class="app-card" data-od-id="argocd-card-prometheus" data-app="prometheus-stack">
-          <div class="card-swipe-actions" aria-label="Quick actions">
-            <button type="button" class="sync" data-toast="Syncing prometheus-stack">Sync</button>
-            <button type="button" data-toast="Refreshing prometheus-stack">Refresh</button>
-          </div>
-          <div class="card-main">
-            <div class="card-status synced"></div>
-            <div class="card-body">
-              <button class="card-menu-btn" type="button" aria-label="Open prometheus-stack actions"><svg class="icon"><use href="#i-kebab"/></svg></button>
-              <div class="card-title-row">
-                <span class="source-icon"><svg class="icon"><use href="#i-helm"/></svg></span>
-                <div>
-                  <h2 class="app-name">prometheus-stack</h2>
-                  <p class="app-sub">monitoring / infra</p>
-                </div>
-              </div>
-              <div class="tag-row">
-                <span class="tag">github.com/acme/helm-charts</span>
-                <span class="tag">chart 58.2.1</span>
-              </div>
-              <div class="card-footer">
-                <div class="badges">
-                  <span class="pill success"><svg class="icon"><use href="#i-check"/></svg>Synced</span>
-                  <span class="pill success"><svg class="icon"><use href="#i-check"/></svg>Healthy</span>
-                </div>
-                <span class="card-meta"><svg class="icon"><use href="#i-clock"/></svg>1m</span>
-              </div>
-            </div>
-          </div>
-        </article>
-
-        <article class="app-card" data-od-id="argocd-card-certmanager" data-app="cert-manager">
-          <div class="card-swipe-actions" aria-label="Quick actions">
-            <button type="button" class="sync" data-toast="Syncing cert-manager">Sync</button>
-            <button type="button" data-toast="Refreshing cert-manager">Refresh</button>
-          </div>
-          <div class="card-main">
-            <div class="card-status degraded"></div>
-            <div class="card-body">
-              <button class="card-menu-btn" type="button" aria-label="Open cert-manager actions"><svg class="icon"><use href="#i-kebab"/></svg></button>
-              <div class="card-title-row">
-                <span class="source-icon"><svg class="icon"><use href="#i-helm"/></svg></span>
-                <div>
-                  <h2 class="app-name">cert-manager</h2>
-                  <p class="app-sub">security / certs</p>
-                </div>
-              </div>
-              <div class="tag-row">
-                <span class="tag">github.com/cert-manager/cert-manager</span>
-                <span class="tag">chart 1.15.0</span>
-              </div>
-              <div class="card-footer">
-                <div class="badges">
-                  <span class="pill success"><svg class="icon"><use href="#i-check"/></svg>Synced</span>
-                  <span class="pill danger"><svg class="icon"><use href="#i-error"/></svg>Degraded</span>
-                </div>
-                <span class="card-meta"><svg class="icon"><use href="#i-clock"/></svg>34m</span>
-              </div>
-            </div>
-          </div>
-        </article>
-
-        <article class="app-card" data-od-id="argocd-card-nginx" data-app="nginx-ingress">
-          <div class="card-swipe-actions" aria-label="Quick actions">
-            <button type="button" class="sync" data-toast="Syncing nginx-ingress">Sync</button>
-            <button type="button" data-toast="Refreshing nginx-ingress">Refresh</button>
-          </div>
-          <div class="card-main">
-            <div class="card-status progressing"></div>
-            <div class="card-body">
-              <button class="card-menu-btn" type="button" aria-label="Open nginx-ingress actions"><svg class="icon"><use href="#i-kebab"/></svg></button>
-              <div class="card-title-row">
-                <span class="source-icon"><svg class="icon"><use href="#i-kustomize"/></svg></span>
-                <div>
-                  <h2 class="app-name">nginx-ingress</h2>
-                  <p class="app-sub">default / edge</p>
-                </div>
-              </div>
-              <div class="tag-row">
-                <span class="tag">github.com/acme/infra</span>
-                <span class="tag">kustomize 5.4</span>
-              </div>
-              <div class="card-footer">
-                <div class="badges">
-                  <span class="pill success"><svg class="icon"><use href="#i-check"/></svg>Synced</span>
-                  <span class="pill warn"><svg class="icon"><use href="#i-warn"/></svg>Progressing</span>
-                </div>
-                <span class="card-meta"><svg class="icon"><use href="#i-clock"/></svg>12m</span>
-              </div>
-            </div>
-          </div>
-        </article>
-
-        <article class="app-card" data-od-id="argocd-card-postgres" data-app="postgres-cluster">
-          <div class="card-swipe-actions" aria-label="Quick actions">
-            <button type="button" class="sync" data-toast="Syncing postgres-cluster">Sync</button>
-            <button type="button" data-toast="Refreshing postgres-cluster">Refresh</button>
-          </div>
-          <div class="card-main">
-            <div class="card-status synced"></div>
-            <div class="card-body">
-              <button class="card-menu-btn" type="button" aria-label="Open postgres-cluster actions"><svg class="icon"><use href="#i-kebab"/></svg></button>
-              <div class="card-title-row">
-                <span class="source-icon"><svg class="icon"><use href="#i-helm"/></svg></span>
-                <div>
-                  <h2 class="app-name">postgres-cluster</h2>
-                  <p class="app-sub">data / storage</p>
-                </div>
-              </div>
-              <div class="tag-row">
-                <span class="tag">github.com/acme/data-ops</span>
-                <span class="tag">chart 12.8.0</span>
-              </div>
-              <div class="card-footer">
-                <div class="badges">
-                  <span class="pill success"><svg class="icon"><use href="#i-check"/></svg>Synced</span>
-                  <span class="pill success"><svg class="icon"><use href="#i-check"/></svg>Healthy</span>
-                </div>
-                <span class="card-meta"><svg class="icon"><use href="#i-clock"/></svg>3m</span>
-              </div>
-            </div>
-          </div>
-        </article>
-      </div>
+      <div id="argoRoot" data-od-id="argocd-root"></div>
     </section>
   </main>
 
@@ -528,48 +237,87 @@
       <button class="bottom-tab argo" type="button" data-view="argocd">
         <svg class="icon"><use href="#i-argo"/></svg><span>Argo CD</span>
       </button>
-      <button class="bottom-tab" type="button" id="logTab" aria-expanded="false">
-        <svg class="icon"><use href="#i-logs"/></svg><span>Logs</span>
-      </button>
-      <button class="bottom-tab" type="button" id="menuTab" aria-label="Open navigation">
-        <svg class="icon"><use href="#i-menu"/></svg><span>Menu</span>
+      <button class="bottom-tab" type="button" id="dockTab" aria-pressed="false">
+        <svg class="icon"><use href="#i-dock"/></svg><span>Console</span>
       </button>
     </div>
   </nav>
 
+  <button class="dock-handle" id="dockHandle" type="button" aria-pressed="false" aria-label="Show logs and terminal" title="Logs &amp; terminal (Ctrl+`)" data-od-id="dock-handle">
+    <svg class="icon ic-dock"><use href="#i-dock"/></svg><svg class="icon ic-down"><use href="#i-chevron"/></svg><span class="handle-badge" id="dockBadge" hidden></span>
+  </button>
+
+  <section class="dock" id="dock" data-od-id="bottom-dock" aria-label="Logs and terminal" aria-hidden="true">
+    <div class="dock-bar">
+      <div class="dock-tabs" id="dockTabs" role="tablist" aria-label="Open logs and terminals"></div>
+      <button class="icon-btn dock-act" type="button" id="addTab" aria-label="New tab" aria-haspopup="menu" aria-expanded="false" title="New tab"><svg class="icon"><use href="#i-plus"/></svg></button>
+      <span class="dock-sep"></span>
+      <div class="dock-actions">
+        <button class="icon-btn dock-act" type="button" id="splitBtn" aria-pressed="false" aria-label="Split view" title="Split view"><svg class="icon"><use href="#i-split"/></svg></button>
+        <button class="icon-btn dock-act" type="button" id="swapBtn" aria-label="Swap panes" title="Swap panes" hidden><svg class="icon"><use href="#i-swap"/></svg></button>
+        <button class="icon-btn dock-act" type="button" id="dockClose" aria-label="Close dock" title="Close"><svg class="icon"><use href="#i-close"/></svg></button>
+      </div>
+    </div>
+    <div class="dock-stage">
+      <div class="dock-body" id="dockBody"></div>
+      <div class="drop-hint" id="dropHint" aria-hidden="true"></div>
+    </div>
+  </section>
+
   <button class="inspector-scrim" id="inspectorScrim" type="button" aria-label="Close pod details"></button>
   <aside class="inspector" id="inspector" data-od-id="pod-inspector" aria-label="Pod details">
+    <button type="button" class="insp-handle" id="inspHandle" aria-label="Close details. You can also swipe right."><span class="ih-bar" aria-hidden="true"></span></button>
     <div class="inspector-header">
-      <svg class="icon"><use href="#i-pods"/></svg>
-      <h2 id="inspectorName">Pod details</h2>
+      <button class="icon-btn insp-back" type="button" id="inspBack" aria-label="Back" title="Back" hidden><svg class="icon"><use href="#i-arrow"/></svg></button>
+      <div class="inspector-title"><div class="name-row"><button class="copy-name" type="button" id="copyName" aria-label="Copy name" title="Copy name"><svg class="icon"><use href="#i-copy"/></svg></button><h2 id="inspectorName">Details</h2></div><span id="inspectorKind"></span></div>
+      <button class="icon-btn" type="button" id="inspMore" aria-haspopup="menu" aria-expanded="false" aria-label="More actions" title="More actions" hidden><svg class="icon"><use href="#i-kebab"/></svg></button>
       <button class="icon-btn" type="button" id="closeInspector" aria-label="Close pod details">
         <svg class="icon"><use href="#i-close"/></svg>
       </button>
     </div>
-    <div class="inspector-body">
-      <div class="inspector-eyebrow">Resource summary</div>
-      <dl class="kv-list" id="inspectorList">
-        <div class="kv-row"><dt>Namespace</dt><dd id="inspectorNs">default</dd></div>
-        <div class="kv-row"><dt>Controller</dt><dd id="inspectorController">Deployment/checkout-api</dd></div>
-        <div class="kv-row"><dt>Node</dt><dd id="inspectorNode">ip-10-0-4-18</dd></div>
-        <div class="kv-row"><dt>QoS</dt><dd id="inspectorQos">Burstable</dd></div>
-        <div class="kv-row"><dt>Age</dt><dd id="inspectorAge">2d</dd></div>
-        <div class="kv-row"><dt>Status</dt><dd id="inspectorStatus">Running</dd></div>
-      </dl>
-      <div class="inspector-actions">
-        <button class="btn btn-secondary" type="button" data-toast="Logs attached to this pod">
-          <svg class="icon"><use href="#i-logs"/></svg>View Logs
-        </button>
-        <button class="btn btn-primary" type="button" data-toast="Terminal attach opens here">
-          <svg class="icon"><use href="#i-terminal"/></svg>Terminal
-        </button>
+    <div class="inspector-body" id="inspectorBody"></div>
+  </aside>
+
+  <div class="row-menu insp-menu" id="inspMenu" role="menu" aria-label="More actions" hidden></div>
+  <div class="row-menu ref-menu" id="refMenu" role="menu" aria-label="Refresh type" hidden></div>
+  <div class="row-menu col-menu" id="colMenu" role="menu" aria-label="Columns" hidden></div>
+  <div class="row-menu ns-menu" id="nsMenu" role="menu" aria-label="Namespaces" hidden></div>
+  <div class="row-menu crumb-menu" id="crumbMenu" role="menu" aria-label="Breadcrumb options" hidden></div>
+  <div class="row-menu nav-filter-menu" id="navFilterMenu" role="menu" aria-label="Menu categories" hidden></div>
+  <div class="row-menu cluster-menu" id="clusterMenu" role="menu" aria-label="Clusters" hidden></div>
+  <div class="row-menu user-menu" id="userMenu" role="menu" aria-label="Account" hidden></div>
+  <div class="row-menu add-menu" id="addMenu" role="menu" hidden></div>
+  <div class="row-menu" id="rowMenu" role="menu" hidden></div>
+  <div class="dlg-scrim" id="dlgScrim" hidden>
+    <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="dlgTitle" data-od-id="confirm-dialog">
+      <h3 id="dlgTitle"></h3>
+      <div class="dlg-body" id="dlgBody"></div>
+      <div class="dlg-actions">
+        <button class="btn btn-secondary" type="button" id="dlgCancel">Cancel</button>
+        <button class="btn btn-primary" type="button" id="dlgOk">Confirm</button>
       </div>
     </div>
-  </aside>
+  </div>
+
+  <div class="sheet-backdrop" id="sheetBackdrop"></div>
+  <section class="search-sheet" id="searchSheet" role="dialog" aria-label="Search" aria-hidden="true" data-od-id="search-sheet">
+    <div class="sheet-bar">
+      <svg class="icon"><use href="#i-search"/></svg>
+      <input id="sheetInput" type="text" role="combobox" aria-expanded="true" aria-controls="sheetResults" aria-autocomplete="list" placeholder="Search pages, resources, clusters and actions…" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <button type="button" id="sheetClear" aria-label="Clear search"><svg class="icon"><use href="#i-close"/></svg></button>
+      <kbd>Esc</kbd>
+    </div>
+    <div class="chip-row sheet-scopes" id="sheetScopes" role="group" aria-label="Search scope"></div>
+    <div class="sheet-results" id="sheetResults" role="listbox" aria-label="Results"></div>
+    <div class="sheet-foot"><span><kbd>↑</kbd><kbd>↓</kbd> move</span><span><kbd>↵</kbd> open</span><span><kbd>Tab</kbd> scope</span><span><kbd>Ctrl</kbd><kbd>K</kbd> toggle</span></div>
+    <button type="button" class="sheet-grip" id="sheetGrip" aria-label="Close search. You can also swipe up."><span aria-hidden="true"></span></button>
+  </section>
+  <div class="pull-zone" id="pullZone" aria-hidden="true"></div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 </div>
 
+  <script src="openkite-charts.js" defer></script>
   <script src="openkite-console.js" defer></script>
 </body>
 </html>

@@ -53,8 +53,10 @@ runs:
           echo "no native packages requested"
           exit 0
         fi
-        sudo apt-get update
-        sudo apt-get install -y -- "${packages[@]}"
+        # Fail fast on a stalled mirror instead of hanging until the job timeout.
+        apt_opts=(-o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=3)
+        timeout 300 sudo apt-get "${apt_opts[@]}" update
+        timeout 900 sudo apt-get "${apt_opts[@]}" install -y -- "${packages[@]}"
     - uses: Swatinem/rust-cache@v2
       with:
         key: ${{ inputs.cache-key }}

@@ -56,6 +56,67 @@ pub struct Snapshot {
     /// The table the `/workloads` route paints, or why the host could not list.
     #[serde(default)]
     pub workloads: WorkloadsTable,
+    /// The log panel the `/logs` route paints: the pod it reads and the lines
+    /// the cluster's log endpoint streamed for this render.
+    #[serde(default)]
+    pub logs: LogsPane,
+    /// The gateway's refusal for the surfaces this snapshot fills, when it had
+    /// one. Carried so a surface can paint its error state from the DOM (G4)
+    /// instead of the host swallowing the failure and painting "empty".
+    #[serde(default)]
+    pub error: Option<String>,
+    /// Whether the host is still waiting on its gateway for this render. The
+    /// surfaces paint their loading state while it is set.
+    #[serde(default)]
+    pub busy: bool,
+    /// The landing dashboard's numbers, counted by the cluster client. Its
+    /// tiles ride the snapshot so the SSR pass and the hydrating client paint
+    /// the same dashboard.
+    #[serde(default)]
+    pub overview: openkite_ui::components::overview::OverviewSummary,
+    /// The cluster client's refusal for the overview read, when it had one —
+    /// carried separately from [`Self::error`] so a secrets refusal cannot
+    /// paint the dashboard's error state.
+    #[serde(default)]
+    pub overview_error: Option<String>,
+    /// The account the top bar's menu names, when the host has one to name.
+    /// It rides the snapshot so the shell's avatar and the menu built on it
+    /// paint in the SSR pass and hydrate against the same identity.
+    #[serde(default)]
+    pub account: Option<AccountIdentity>,
+}
+
+/// Who the console is looking at the cluster as.
+///
+/// This host has no session and no user list: the account is the credential
+/// the gateway authenticates with, read from the host's own identity
+/// (`openkite_host::identity::describe`). `name` is what the avatar shows
+/// initials for; `detail` is the source, in the words the boot log uses.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct AccountIdentity {
+    /// The kubeconfig context, or the namespace the ServiceAccount runs in.
+    pub name: String,
+    /// What kind of credential that is.
+    pub detail: String,
+}
+
+impl AccountIdentity {
+    /// The account for a kubeconfig context.
+    pub fn for_context(context: impl Into<String>) -> Self {
+        Self {
+            name: context.into(),
+            detail: "kubeconfig context".to_string(),
+        }
+    }
+
+    /// The account for an in-cluster ServiceAccount: the workload lives in
+    /// `namespace`, which is what names it here.
+    pub fn for_service_account(namespace: impl Into<String>) -> Self {
+        Self {
+            name: namespace.into(),
+            detail: "in-cluster ServiceAccount".to_string(),
+        }
+    }
 }
 
 /// The table a route paints, in the console's own column/row vocabulary.
@@ -64,6 +125,31 @@ pub struct WorkloadsTable {
     pub columns: Vec<ColumnDef>,
     pub rows: Vec<ResourceRow>,
     /// The gateway's refusal, when it had one.
+    #[serde(default)]
+    pub error: Option<String>,
+    /// Whether the host is still waiting on the list. A table that is loading
+    /// is not an empty table: the two paint different states.
+    #[serde(default)]
+    pub loading: bool,
+}
+
+/// The log panel the `/logs` route paints, in the console's own vocabulary.
+///
+/// `pod` is what the panel points at (the workload the request named, else the
+/// host's selected pod); `lines` is what the cluster's log endpoint streamed
+/// when the host rendered. Both ride the snapshot so the SSR pass paints real
+/// lines before any JavaScript runs, and the client keeps tailing from the same
+/// place instead of starting from an empty panel (OKT-189).
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct LogsPane {
+    /// The pod whose logs the panel reads.
+    #[serde(default)]
+    pub pod: Option<openkite_api::pod::PodObject>,
+    /// The lines the log endpoint returned for this render, oldest first.
+    #[serde(default)]
+    pub lines: Vec<String>,
+    /// The gateway's refusal for the log read, when it had one. A refusal is
+    /// not an empty log: the panel paints the two differently.
     #[serde(default)]
     pub error: Option<String>,
 }
@@ -83,6 +169,12 @@ impl Default for Snapshot {
             selection: None,
             route: home_route(),
             workloads: WorkloadsTable::default(),
+            logs: LogsPane::default(),
+            error: None,
+            busy: false,
+            overview: openkite_ui::components::overview::OverviewSummary::default(),
+            overview_error: None,
+            account: None,
         }
     }
 }
@@ -95,7 +187,12 @@ impl Snapshot {
         context: Option<String>,
     ) -> Self {
         let capabilities = gateway.capabilities();
-        let secrets = list_secret_refs(gateway).await.unwrap_or_default();
+        // A gateway that cannot list is not a gateway with no secrets: keep the
+        // refusal so the panel paints its error state instead of "empty".
+        let (secrets, error) = match list_secret_refs(gateway).await {
+            Ok(secrets) => (secrets, None),
+            Err(error) => (Vec::new(), Some(error)),
+        };
         Self {
             capabilities,
             connected,
@@ -104,7 +201,34 @@ impl Snapshot {
             selection: None,
             route: home_route(),
             workloads: WorkloadsTable::default(),
+            logs: LogsPane::default(),
+            error,
+            busy: false,
+            overview: openkite_ui::components::overview::OverviewSummary::default(),
+            overview_error: None,
+            account: None,
         }
+    }
+
+    /// The same snapshot, carrying the landing dashboard's summary.
+    pub fn with_overview(
+        mut self,
+        overview: openkite_ui::components::overview::OverviewSummary,
+    ) -> Self {
+        self.overview = overview;
+        self
+    }
+
+    /// The same snapshot, carrying the overview read's refusal.
+    pub fn with_overview_error(mut self, error: Option<String>) -> Self {
+        self.overview_error = error;
+        self
+    }
+
+    /// The same snapshot, marked as still waiting on the gateway.
+    pub fn with_busy(mut self, busy: bool) -> Self {
+        self.busy = busy;
+        self
     }
 
     /// The same snapshot, with the detail pane's selection taken from the
@@ -123,6 +247,18 @@ impl Snapshot {
     /// The same snapshot, carrying the table the workloads route paints.
     pub fn with_workloads(mut self, workloads: WorkloadsTable) -> Self {
         self.workloads = workloads;
+        self
+    }
+
+    /// The same snapshot, carrying the log panel the `/logs` route paints.
+    pub fn with_logs(mut self, logs: LogsPane) -> Self {
+        self.logs = logs;
+        self
+    }
+
+    /// The same snapshot, naming the account the top bar's menu describes.
+    pub fn with_account(mut self, account: AccountIdentity) -> Self {
+        self.account = Some(account);
         self
     }
 }
@@ -181,17 +317,25 @@ pub struct RenderOptions {
 
 #[cfg(all(feature = "ssr", not(target_arch = "wasm32")))]
 impl RenderOptions {
-    pub fn hydrating() -> Self {
+    /// Hydrate against the client bundle at `client_script`.
+    ///
+    /// The caller names the URL because the document and the wasm it boots have
+    /// to be one build: the host passes the versioned
+    /// [`client_url`](crate::assets::Bundle::client_url), and there is
+    /// deliberately no unversioned default to fall back to (OKT-195).
+    pub fn hydrating(client_script: impl Into<String>) -> Self {
         Self {
             hydrate: true,
-            client_script: "/openkite-web-client.js".to_string(),
+            client_script: client_script.into(),
         }
     }
 
+    /// Server-rendered only: no hydration payload and no client import, so the
+    /// page names no bundle at all.
     pub fn ssr_only() -> Self {
         Self {
             hydrate: false,
-            ..Self::hydrating()
+            client_script: String::new(),
         }
     }
 }
@@ -230,6 +374,7 @@ pub fn render_page(snapshot: &Snapshot, options: &RenderOptions) -> String {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OpenKite</title>
 <style>{css}</style>
+<style>{host_css}</style>
 <script>{bridge}</script>
 </head>
 <body>
@@ -238,11 +383,15 @@ pub fn render_page(snapshot: &Snapshot, options: &RenderOptions) -> String {
 </body>
 </html>"#,
         css = openkite_ui::MAIN_CSS,
+        host_css = crate::overlay_menu::CSS,
         bridge = openkite_ui::plugin_api::OPENKITE_BRIDGE_JS,
     )
 }
 
-/// The secret refs the gateway can hand out, or `Err` when it cannot list.
-async fn list_secret_refs(gateway: &Arc<dyn Gateway>) -> Result<Vec<SecretRef>, ()> {
-    gateway.secret_refs().await.map_err(|_| ())
+/// The secret refs the gateway can hand out, or the refusal it answered with.
+async fn list_secret_refs(gateway: &Arc<dyn Gateway>) -> Result<Vec<SecretRef>, String> {
+    gateway
+        .secret_refs()
+        .await
+        .map_err(|error| error.to_string())
 }

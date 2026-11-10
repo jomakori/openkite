@@ -15,6 +15,7 @@ e2e/
 ├─ desktop/      run.sh · flows/{user_flows.bats, flows_lib.bash}
 ├─ visual/       capture.sh · compare.sh · run.sh · baselines/*.png
 │  └─ cluster/   the one-shot in-cluster capture Job (README lives there)
+├─ parity/       run.sh · compare.mjs · selftest.mjs · allowlist.json
 ├─ bridge/       guard.sh · fixtures/{manifest.json, guard.js}
 └─ artifacts/    every suite writes here (the only ignored output path)
 ```
@@ -94,6 +95,25 @@ and by the crate-rendered console still in `docs/media/`.
 in-cluster and
 fetches the media into `docs/media/`. See its [README](visual/cluster/README.md).
 
+### `parity/run.sh <binary> <artifact-dir>` — the G3 cross-host gate
+
+Grades the two hosts against each other on **computed classes and token
+values** per core route (`/`, `/cluster`, `/workloads`, `/config`), not on
+pixels: one extractor (`crates/openkite-ui/assets/parity-snapshot.js`) runs on
+both hosts, `compare.mjs` diffs the two snapshots, and nothing passes except
+through a reviewed entry in `allowlist.json`.
+
+```sh
+OPENKITE_WEB_BIN=../target/debug/openkite-web \
+OPENKITE_WEB_ROOT=../target/web-bundle \
+./parity/run.sh ../target/debug/openkite artifacts/parity
+```
+
+Both hosts are measured at the graded viewport (800x600, the app's default
+window size) so they sit in the same breakpoint band. `selftest.mjs` proves the
+comparator fails on a single-class, single-token or single-property divergence.
+See [parity/README.md](parity/README.md).
+
 ### `bridge/guard.sh <binary> <artifact-dir>`
 
 Installs the test-only plugin in `bridge/fixtures/` into an isolated `$HOME`,
@@ -112,7 +132,7 @@ Every suite writes under `e2e/artifacts/<suite>/` — the single ignored output
 root. The CI jobs
 upload from it: `artifacts/desktop`, `artifacts/flows`, `artifacts/junit`,
 `artifacts/bridge`,
-`artifacts/connected`, `artifacts/visual`.
+`artifacts/connected`, `artifacts/visual`, `artifacts/parity`.
 
 ## Do not build the binary on a review host
 

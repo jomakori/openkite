@@ -258,6 +258,17 @@ fn route_copy(route: &str) -> RouteCopy {
             actions: CONFIG_ACTIONS,
             declares: &[],
         },
+        // The log panel is a route of its own now (OKT-189): the same panel the
+        // desktop mounts, so the copy names it and the host supplies the stream.
+        // It declares nothing — every host with cluster read access serves it.
+        "/logs" => RouteCopy {
+            title: "Logs",
+            sub: "Container logs of the pod this console is aimed at, tailed live.",
+            empty: "No pod selected: pick a workload to read its container logs.",
+            filter_placeholder: "Filter lines…",
+            actions: &[],
+            declares: &[],
+        },
         // A route the chrome does not own (a plugin path reaching the wildcard)
         // still gets a head, an empty body and the declarations, never a blank.
         // The plugin route declares the one thing it needs of its host — a
@@ -325,7 +336,13 @@ fn route_path(route: &str) -> String {
 /// The route a request path resolves to: the path the chrome owns, else `/`.
 pub fn resolve_route(route: &str, sections: &[ShellSection]) -> String {
     let route = route_path(route);
-    let primary = matches!(route.as_str(), "/" | "/cluster" | "/workloads" | "/config");
+    // `/logs` is the console's own route as of OKT-189: the shared log panel is
+    // a surface of the console, not a host-only dock, so both hosts resolve it
+    // without the navigation needing an entry for it.
+    let primary = matches!(
+        route.as_str(),
+        "/" | "/cluster" | "/workloads" | "/config" | "/logs"
+    );
     let navigable = sections
         .iter()
         .any(|section| section.items.iter().any(|item| item.route == route));
@@ -350,6 +367,10 @@ pub fn RouteView(
     #[props(default)] namespaces: Vec<String>,
     #[props(default)] busy: bool,
     #[props(default)] content: Option<Element>,
+    /// The host's gateway refused the route's surface. Rendered only when the
+    /// host supplied no surface of its own, so an error never hides real rows.
+    #[props(default)]
+    error: Option<String>,
     #[props(default)] on_action: Option<EventHandler<String>>,
     // The controls the plugin owning this route declared (v1.1). They sit
     // beside the route's own actions; a control the plugin cannot honour, or
@@ -396,8 +417,18 @@ pub fn RouteView(
             }
             if let Some(content) = content {
                 {content}
+            } else if busy {
+                // The host is fetching this route's surface: the body says so
+                // rather than painting the empty state over a pending read.
+                div { class: "panel", "data-surface": "route", "data-state": "loading",
+                    div { class: "table-state table-loading", "Loading {page.title}…" }
+                }
+            } else if let Some(error) = error {
+                div { class: "panel", "data-surface": "route", "data-state": "error",
+                    div { class: "table-state table-error", "data-error": "1", "{error}" }
+                }
             } else {
-                div { class: "panel", "data-state": "empty",
+                div { class: "panel", "data-surface": "route", "data-state": "empty",
                     div { class: "table-state", "{page.empty}" }
                     div { class: "panel-footer",
                         span { "data-count": "0", "Showing 0 of 0" }

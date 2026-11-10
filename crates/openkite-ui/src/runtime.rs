@@ -273,6 +273,26 @@ pub fn close_all_dock_tabs() {
     DOCK.with_mut(crate::dock::close_all);
 }
 
+/// Split the dock into two panes; pane B starts empty.
+pub fn split_dock() {
+    DOCK.with_mut(crate::dock::split);
+}
+
+/// Back to one pane, keeping the focused pane's tabs.
+pub fn unsplit_dock() {
+    DOCK.with_mut(crate::dock::unsplit);
+}
+
+/// Exchange the panes' positions; each keeps its own tabs and active tab.
+pub fn swap_dock() {
+    DOCK.with_mut(crate::dock::swap);
+}
+
+/// Point the dock toolbar at pane `slot`.
+pub fn focus_dock_pane(slot: crate::dock::PaneSlot) {
+    DOCK.with_mut(|state| state.focus_pane(slot));
+}
+
 /// The resource the CRUD overlay is currently showing, or `None` when the
 /// overlay is closed. Dispatched on by
 /// [`crate::components::crud_modal::CrudOverlay`].
