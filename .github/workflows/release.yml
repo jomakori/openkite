@@ -276,6 +276,28 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: ./.github/scripts/prune-pr-image.sh --sweep
+      - name: Log in to the container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Verify the release tag still resolves
+        env:
+          VERSION: ${{ needs.analyze.outputs.new_release_version }}
+        run: |
+          set -euo pipefail
+          image="ghcr.io/jomakori/openkite"
+          for attempt in 1 2 3 4 5; do
+            if docker buildx imagetools inspect "${image}:v${VERSION}" >/dev/null 2>&1; then
+              echo "v${VERSION} resolves after prune (attempt ${attempt})"
+              exit 0
+            fi
+            echo "attempt ${attempt}: v${VERSION} not resolving yet, retrying"
+            sleep 3
+          done
+          echo "::error::release tag v${VERSION} does not resolve after prune — the image the release published is gone"
+          exit 1
 
   image:
     name: Promote the preview image to the release tag
