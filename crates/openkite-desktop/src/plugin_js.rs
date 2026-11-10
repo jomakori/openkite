@@ -131,9 +131,11 @@ impl PluginLoadError {
         }
     }
 
-    /// Whether the failure text mentions `needle` (the reason, not the name).
+    /// Whether the failure text mentions `needle` — either in the plugin name
+    /// or in the reason, so a caller can ask "is this about plugin X?" and
+    /// "was it the sheet?" with the same call.
     pub fn contains(&self, needle: &str) -> bool {
-        self.reason.contains(needle)
+        self.name.contains(needle) || self.reason.contains(needle)
     }
 }
 
