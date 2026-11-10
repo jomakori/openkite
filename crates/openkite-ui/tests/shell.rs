@@ -26,6 +26,8 @@ fn argocd_registration() -> PluginRegistration {
             color: "green".into(),
         }],
         renderers: Vec::new(),
+        controls: Vec::new(),
+        style: None,
     }
 }
 
@@ -45,6 +47,8 @@ fn istio_registration() -> PluginRegistration {
             color: "red".into(),
         }],
         renderers: Vec::new(),
+        controls: Vec::new(),
+        style: None,
     }
 }
 
@@ -148,6 +152,8 @@ fn minimal_registration_contributes_no_extra_sections() {
                 color: "blue".into(),
             }],
             renderers: Vec::new(),
+            controls: Vec::new(),
+            style: None,
         },
     );
     assert!(plugin_sections(&store).is_empty());
@@ -237,6 +243,7 @@ fn bottom_tabs_never_repeat_a_destination() {
             route: "/workloads".into(),
             plugin: Some("dup".into()),
             badge: None,
+            disabled: None,
         }],
     });
 
@@ -267,6 +274,7 @@ fn bottom_tabs_take_the_destinations_a_shorter_model_has() {
             route: "/cluster".into(),
             plugin: None,
             badge: None,
+            disabled: None,
         }],
     }];
     assert_eq!(bottom_tabs(&one).len(), 1);

@@ -31,7 +31,9 @@ use kube::{Api, Client};
 use serde_json::{json, Value};
 
 use openkite_api::bridge::{ApiRequest, ApiResponse, BridgeRequest};
-use openkite_ui::plugin_api::{RegistrationStore, RouteSpec, SidebarItem, StatusItem};
+use openkite_ui::plugin_api::{
+    PluginControl, RegistrationStore, RouteSpec, SidebarItem, StatusItem,
+};
 
 const NO_CLUSTER: &str = "no cluster connected";
 
@@ -195,6 +197,26 @@ pub fn apply_register(
             let item: StatusItem = serde_json::from_value(payload)
                 .map_err(|err| format!("invalid status item: {err}"))?;
             registration.status.push(item);
+        }
+        // v1.1: the plugin's own stylesheet. Stored as authored — the shell
+        // scopes it to the plugin's section at render time (`plugin_css`), so
+        // nothing unscoped ever reaches the DOM, and a second call replaces
+        // the sheet rather than stacking one.
+        "style" => {
+            let css = payload
+                .get("css")
+                .and_then(Value::as_str)
+                .ok_or_else(|| "style registration needs a 'css' string".to_string())?;
+            registration.style = Some(css.to_string());
+        }
+        // v1.1: a control the plugin's own surface offers.
+        "control" => {
+            let mut control: PluginControl =
+                serde_json::from_value(payload).map_err(|err| format!("invalid control: {err}"))?;
+            // Stamp the owner: the plugin cannot spoof another's attribution,
+            // and the crate can scope the painted button to this plugin.
+            control.plugin = plugin.to_string();
+            registration.controls.push(control);
         }
         other => return Err(format!("unknown registration kind '{other}'")),
     }

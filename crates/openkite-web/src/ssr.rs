@@ -84,6 +84,12 @@ pub struct Snapshot {
     /// paint in the SSR pass and hydrate against the same identity.
     #[serde(default)]
     pub account: Option<AccountIdentity>,
+    /// The plugin registrations the host's shell paints: the live store the
+    /// browser bridge posts into, so the sidebar's plugin sections, their route
+    /// controls and the disabled rows for plugins that could not load are the
+    /// same in the SSR pass and in the hydrating client (OKT-196).
+    #[serde(default)]
+    pub registrations: openkite_ui::plugin_api::RegistrationStore,
 }
 
 /// Who the console is looking at the cluster as.
@@ -175,6 +181,7 @@ impl Default for Snapshot {
             overview: openkite_ui::components::overview::OverviewSummary::default(),
             overview_error: None,
             account: None,
+            registrations: openkite_ui::plugin_api::RegistrationStore::new(),
         }
     }
 }
@@ -207,7 +214,17 @@ impl Snapshot {
             overview: openkite_ui::components::overview::OverviewSummary::default(),
             overview_error: None,
             account: None,
+            registrations: openkite_ui::plugin_api::RegistrationStore::new(),
         }
+    }
+
+    /// The same snapshot, carrying the plugin registrations the shell paints.
+    pub fn with_registrations(
+        mut self,
+        registrations: openkite_ui::plugin_api::RegistrationStore,
+    ) -> Self {
+        self.registrations = registrations;
+        self
     }
 
     /// The same snapshot, carrying the landing dashboard's summary.

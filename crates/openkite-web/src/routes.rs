@@ -173,7 +173,7 @@ async fn ssr_root(
     OriginalUri(uri): OriginalUri,
     RawQuery(query): RawQuery,
 ) -> Response {
-    let route = resolve_route(uri.path(), &sidebar_sections());
+    let route = resolve_route(uri.path(), &sidebar_sections(&state.bridge));
     // `?fixture=` drives the states a surface claims to render (G4). It is read
     // only where there is no cluster credential to disagree with it: a host
     // that has a client answers from the cluster, not from a query string.
@@ -256,6 +256,10 @@ async fn ssr_snapshot(
         ssr::Snapshot::from_gateway(&gateway, connected, context).await
     };
     let snapshot = snapshot.with_route(route).with_busy(fixture.is_loading());
+    // The plugin shell rides every snapshot: the SSR page embeds it and the
+    // client's refresh gets it back, so a plugin registered through the browser
+    // bridge paints the same nav, controls and refused-sheet rows either way.
+    let snapshot = snapshot.with_registrations(host_registrations(bridge));
 
     // The landing dashboard counts what the cluster client can see. Other
     // routes do not pay for those list calls.
@@ -513,8 +517,27 @@ async fn workload_table(
 }
 
 /// The sidebar model the shell renders, so a path resolves against it.
-fn sidebar_sections() -> Vec<openkite_ui::shell::ShellSection> {
-    openkite_ui::shell::sidebar_model(&openkite_ui::plugin_api::RegistrationStore::default())
+fn sidebar_sections(bridge: &Bridge) -> Vec<openkite_ui::shell::ShellSection> {
+    openkite_ui::shell::sidebar_model(&host_registrations(bridge))
+}
+
+/// The plugin registrations the host's shell paints, read from the bridge.
+///
+/// The bridge is the store the browser's `window.openkite` posts into
+/// (`registerSidebar`, `registerRoute`, …), so this is the live set — the same
+/// one the desktop shell mounts — not a fresh empty one. A sheet the crate
+/// refuses to scope is folded into the store's failures here: the plugin keeps
+/// its row in the nav, disabled, with the reason (`docs/plugin-api.md`), which
+/// is what the desktop's loader does when a plugin's style file fails.
+///
+/// The projection is pure — same store in, same registrations out — so the SSR
+/// pass, the gateway response and the hydrating client all paint one shell.
+fn host_registrations(bridge: &Bridge) -> openkite_ui::plugin_api::RegistrationStore {
+    let mut store = bridge.snapshot();
+    for (plugin, reason) in openkite_ui::shell::refused_styles(&store) {
+        store.fail(&plugin, &reason);
+    }
+    store
 }
 
 /// The overview's tiles: counts the cluster client reports, or the fixture's

@@ -80,6 +80,40 @@ plugins should register idempotently (duplicates overwrite).
 | `openkite.registerSidebar(item)` | `{label, icon?, route?}` | Sidebar entry under a plugin section |
 | `openkite.registerRoute(route)` | `{path, title?}` | Routed plugin view; `path` must start with `/` |
 | `openkite.registerStatusItem(item)` | `{label, color?}` | Status-bar widget |
+| `openkite.registerStyles(css)` | `"…css…"` | The plugin's own stylesheet (v1.1) |
+| `openkite.registerControl(control)` | `{label, action, unsupported?}` | Control on the plugin's route head (v1.1) |
+| `openkite.registerRenderer(renderer)` | `{path}` | Routes the plugin's JS paints itself (v1.0) |
+
+### Styles (v1.1)
+
+`registerStyles` takes CSS text, not a `<link>`. The host **scopes** it before
+it reaches the page: every rule gets `[data-plugin="<name>"]` prepended to its
+selectors, so a plugin's sheet cannot touch the console chrome, and two plugins
+shipping `.card` do not collide. `@media`/`@supports`/`@container` blocks
+recurse; comments are stripped. `@import`, `@charset`, `@namespace`,
+`@font-face`, `@keyframes`, `@property` and any `html`/`body` selector are
+rejected with a reason (see the list above), so a plugin never ships CSS the
+host cannot actually isolate.
+
+The same attribute is on the plugin's nav section and on the controls the host
+paints for it, so `[data-plugin="argocd"] .app-card` and a bare `.app-card`
+reach the same elements — both mean "inside this plugin's surface".
+
+### Controls (v1.1)
+
+A control is a button on the plugin's route head — the plugin declares it, the
+host paints it, the plugin owns the action. Wire the plugin's side once:
+
+```js
+openkite.onControl((action) => {
+  if (action === "sync") syncAll();
+});
+```
+
+The host hands each click back as `action`. Declare `unsupported` when the
+plugin cannot honour a control in this environment: the button still renders,
+inert, with the reason as its tooltip — a surface that silently drops what it
+cannot do is worse than one that says so.
 
 ## Cluster API
 

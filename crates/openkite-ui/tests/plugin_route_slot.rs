@@ -23,7 +23,7 @@ use openkite_api::capability::Capabilities;
 use openkite_ui::components::route_views::{
     capability_tag, route_page, PluginRouteView, RouteCapability,
 };
-use openkite_ui::plugin_api::RegistrationStore;
+use openkite_ui::plugin_api::{PluginControl, RegistrationStore};
 use openkite_ui::runtime::set_published_capabilities;
 use openkite_ui::shell::{core_sections, sidebar_model, ShellSection};
 
@@ -208,5 +208,90 @@ fn a_host_with_the_surface_but_no_renderer_keeps_the_declared_empty_body() {
     assert!(
         !html.contains("data-unsupported=\"plugin-route\"") && html.contains("plugin routes: on"),
         "the capability is advertised; only the route's renderer is missing: {html}"
+    );
+}
+
+// --- controls on a plugin route (v1.1) ----------------------------------
+
+/// The controls the argocd surface declares: one live, one it cannot honour.
+fn declared_controls() -> Vec<PluginControl> {
+    vec![
+        PluginControl {
+            label: "Sync".into(),
+            action: "sync".into(),
+            unsupported: None,
+            plugin: "argocd".into(),
+        },
+        PluginControl {
+            label: "Rollback".into(),
+            action: "rollback".into(),
+            unsupported: Some("needs ArgoCD 2.10".into()),
+            plugin: "argocd".into(),
+        },
+    ]
+}
+
+/// A plugin route carrying its declared controls, with a host handler wired.
+fn wired_controls_shell() -> Element {
+    rsx! {
+        PluginRouteView {
+            route: "/argocd/apps".to_string(),
+            sections: desktop_sections(),
+            js_route: Some("/argocd/apps".to_string()),
+            controls: declared_controls(),
+            on_control: move |_action: String| {},
+        }
+    }
+}
+
+/// The same route when the host wired no handler at all.
+fn unwired_controls_shell() -> Element {
+    rsx! {
+        PluginRouteView {
+            route: "/argocd/apps".to_string(),
+            sections: desktop_sections(),
+            js_route: Some("/argocd/apps".to_string()),
+            controls: vec![PluginControl {
+                label: "Sync".into(),
+                action: "sync".into(),
+                unsupported: None,
+                plugin: "argocd".into(),
+            }],
+        }
+    }
+}
+
+#[test]
+fn a_declared_control_is_painted_on_the_route_that_declared_it() {
+    let _host = desktop_host();
+    let html = support::mount_html(wired_controls_shell, || {});
+
+    assert!(
+        html.contains("data-control=\"sync\""),
+        "the wired control renders: {html}"
+    );
+    assert!(
+        html.contains("data-plugin=\"argocd\""),
+        "the control sits in the plugin's own band: {html}"
+    );
+    assert!(
+        html.contains("data-control=\"rollback\"") && html.contains("disabled"),
+        "a control the plugin cannot honour renders inert: {html}"
+    );
+    assert!(html.contains("needs ArgoCD 2.10"), "and says why: {html}");
+}
+
+#[test]
+fn a_control_with_no_host_handler_is_inert_rather_than_absent() {
+    let _host = desktop_host();
+    let html = support::mount_html(unwired_controls_shell, || {});
+
+    assert!(
+        html.contains("data-control=\"sync\""),
+        "the control keeps its place so the surface still reads: {html}"
+    );
+    assert!(
+        html.contains("data-unsupported=\"unwired\""),
+        "and declares why it does nothing: {html}"
     );
 }
