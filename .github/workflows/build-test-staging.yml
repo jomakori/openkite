@@ -328,7 +328,17 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
       - name: Install ImageMagick
-        run: sudo apt-get update && sudo apt-get install -y imagemagick
+        run: |
+          set -euo pipefail
+          if dpkg -s imagemagick >/dev/null 2>&1; then
+            echo "imagemagick already present"
+            exit 0
+          fi
+          apt_opts=(-o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=3)
+          timeout 300 sudo env DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a \
+            apt-get "${apt_opts[@]}" update
+          timeout 900 sudo env DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a \
+            apt-get "${apt_opts[@]}" install -y --no-install-recommends imagemagick
       - name: Test the visual gate with a real image mutation
         run: bash e2e/visual/gate_selftest.sh --require-imagemagick
 
