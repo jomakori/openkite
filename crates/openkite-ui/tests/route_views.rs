@@ -61,16 +61,25 @@ fn with_action(route: &'static str, sections: Vec<ShellSection>, wired: bool) ->
 #[test]
 fn a_request_path_resolves_against_the_crates_route_contract() {
     let sections = browser_sections();
+    // No plugin has registered anything: the resolution is the navigation the
+    // host renders, and nothing else.
+    let empty = RegistrationStore::default();
     for route in ["/", "/cluster", "/workloads", "/config", "/logs"] {
-        assert_eq!(resolve_route(route, &sections), route);
+        assert_eq!(resolve_route(route, &sections, &empty), route);
     }
     // The same page for every spelling of the same contract.
-    assert_eq!(resolve_route("/workloads/", &sections), "/workloads");
-    assert_eq!(resolve_route(" workloads ", &sections), "/workloads");
-    assert_eq!(resolve_route("/logs/", &sections), "/logs");
+    assert_eq!(
+        resolve_route("/workloads/", &sections, &empty),
+        "/workloads"
+    );
+    assert_eq!(
+        resolve_route(" workloads ", &sections, &empty),
+        "/workloads"
+    );
+    assert_eq!(resolve_route("/logs/", &sections, &empty), "/logs");
     // Anything the navigation does not carry falls back to the landing route.
     for unknown in ["/nonsense", "", "/terminal", "/argocd/apps"] {
-        assert_eq!(resolve_route(unknown, &sections), "/", "{unknown}");
+        assert_eq!(resolve_route(unknown, &sections, &empty), "/", "{unknown}");
     }
     // The contract is the navigation the host renders, not a table this crate
     // hides: a route the sidebar carries resolves to itself, one it does not
@@ -80,8 +89,61 @@ fn a_request_path_resolves_against_the_crates_route_contract() {
     // route of the console itself, so `/logs` now resolves on both hosts while
     // the terminal stays a dock the navigation does not carry.
     let desktop = desktop_sections();
-    assert_eq!(resolve_route("/logs", &desktop), "/logs");
-    assert_eq!(resolve_route("/terminal", &desktop), "/");
+    assert_eq!(resolve_route("/logs", &desktop, &empty), "/logs");
+    assert_eq!(resolve_route("/terminal", &desktop, &empty), "/");
+}
+
+/// A path a plugin registered is a console view of its own (OKT-209).
+///
+/// `registerRoute` alone is enough: the deep-linkable detail view a plugin
+/// declares usually has no sidebar entry, and resolving it to `/` would paint
+/// the landing dashboard over a route the plugin owns. The chrome keeps
+/// precedence, so a plugin cannot shadow `/workloads` by registering it.
+#[test]
+fn a_path_a_plugin_registered_resolves_to_itself() {
+    let sections = browser_sections();
+    let mut store = RegistrationStore::default();
+    let registration = openkite_ui::plugin_api::PluginRegistration {
+        routes: vec![openkite_ui::plugin_api::RouteSpec {
+            path: "/argocd/apps".into(),
+            title: "Argo CD Applications".into(),
+        }],
+        ..Default::default()
+    };
+    // A registration is validated by the shared store before it lands, so the
+    // test builds one the way the bridge does rather than by hand.
+    registration.validate().expect("a valid registration");
+    store.upsert("argocd", registration);
+
+    assert_eq!(
+        resolve_route("/argocd/apps", &sections, &store),
+        "/argocd/apps",
+        "a route the plugin registered without a sidebar entry is not navigable"
+    );
+    // The same page for a trailing slash, as for the chrome's own routes.
+    assert_eq!(
+        resolve_route("/argocd/apps/", &sections, &store),
+        "/argocd/apps"
+    );
+    // A path nothing registered still lands on the landing route.
+    assert_eq!(resolve_route("/argocd/other", &sections, &store), "/");
+
+    // The chrome's routes win: a plugin cannot shadow one by registering it.
+    let mut shadow = RegistrationStore::default();
+    shadow.upsert(
+        "shadow",
+        openkite_ui::plugin_api::PluginRegistration {
+            routes: vec![openkite_ui::plugin_api::RouteSpec {
+                path: "/workloads".into(),
+                title: "Not the workload table".into(),
+            }],
+            ..Default::default()
+        },
+    );
+    assert_eq!(
+        resolve_route("/workloads", &sections, &shadow),
+        "/workloads"
+    );
 }
 
 #[test]

@@ -24,7 +24,7 @@
 use dioxus::prelude::*;
 
 use crate::components::namespace_bar::NamespaceBar;
-use crate::plugin_api::PluginControl;
+use crate::plugin_api::{PluginControl, RegistrationStore};
 use crate::runtime::{
     cluster_switch_can_render, mutations_can_render, plugin_route_can_render, terminal_can_render,
 };
@@ -333,8 +333,22 @@ fn route_path(route: &str) -> String {
     }
 }
 
-/// The route a request path resolves to: the path the chrome owns, else `/`.
-pub fn resolve_route(route: &str, sections: &[ShellSection]) -> String {
+/// The route a request path resolves to: the path the chrome owns, a path a
+/// plugin owns, else `/`.
+///
+/// The navigable set is the navigation the host renders *and* the routes its
+/// plugins registered (OKT-209). `registerRoute` alone owns a path: a plugin
+/// that declares a route without a sidebar entry — the common case for a
+/// deep-linkable detail view — is still a console view of its own, and
+/// resolving it to `/` would paint the landing dashboard over it. `sections`
+/// stays an input because the registration store is not the only source: a Rust
+/// SDK route and a sidebar entry both name paths the store's owner map also
+/// carries, and the model is what the shell actually paints.
+pub fn resolve_route(
+    route: &str,
+    sections: &[ShellSection],
+    registrations: &RegistrationStore,
+) -> String {
     let route = route_path(route);
     // `/logs` is the console's own route as of OKT-189: the shared log panel is
     // a surface of the console, not a host-only dock, so both hosts resolve it
@@ -343,10 +357,13 @@ pub fn resolve_route(route: &str, sections: &[ShellSection]) -> String {
         route.as_str(),
         "/" | "/cluster" | "/workloads" | "/config" | "/logs"
     );
+    // A plugin owns the path when it registered it as a route, a renderer or a
+    // sidebar entry — the store's own ownership check, so the two cannot drift.
+    let owned = registrations.owner_of_route(&route).is_some();
     let navigable = sections
         .iter()
         .any(|section| section.items.iter().any(|item| item.route == route));
-    if primary || navigable {
+    if primary || owned || navigable {
         route
     } else {
         "/".to_string()
