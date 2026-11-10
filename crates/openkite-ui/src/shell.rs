@@ -304,6 +304,27 @@ pub fn plugin_styles(store: &RegistrationStore) -> Vec<(String, String)> {
         .collect()
 }
 
+/// The plugins whose registered stylesheet the crate refuses to scope, with the
+/// reason: `(plugin, reason)` in plugin-name order.
+///
+/// [`plugin_styles`] drops a sheet it cannot scope; this names what it dropped,
+/// so a host can keep the plugin's row visible instead — disabled, with the
+/// reason — which is the contract a plugin with an unusable sheet is owed
+/// (`docs/plugin-api.md`). An *empty* sheet is not a refusal: there is nothing
+/// to scope, and a plugin that registers no CSS is not broken.
+pub fn refused_styles(store: &RegistrationStore) -> Vec<(String, String)> {
+    store
+        .all_styles()
+        .into_iter()
+        .filter(|(_, css)| !css.trim().is_empty())
+        .filter_map(|(plugin, css)| {
+            crate::plugin_css::scope_css(plugin, css)
+                .err()
+                .map(|reason| (plugin.to_string(), reason))
+        })
+        .collect()
+}
+
 /// How many destination tabs the ≤767px bar shows. The design's bar is a
 /// four-cell grid and the drawer's Menu tab takes the last cell.
 pub const BOTTOM_TAB_SLOTS: usize = 3;
