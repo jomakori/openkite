@@ -174,7 +174,11 @@ pub use openkite_api::bridge::{ApiRequest, ApiResponse, BridgeRequest};
 /// v1.1 also keeps the load *failures*: a plugin the host could not load has
 /// no registrations, but it does have a place in the navigation — disabled,
 /// with the reason — so the shell tells the truth instead of dropping it.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+///
+/// Serializable because the host shell renders from a copy that rides the web
+/// snapshot: the SSR pass and the hydrating client both paint the same
+/// registrations, so neither can paint a shell the other did not.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RegistrationStore {
     by_plugin: BTreeMap<String, PluginRegistration>,
     failures: BTreeMap<String, String>,

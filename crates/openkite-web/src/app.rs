@@ -27,7 +27,6 @@ use openkite_ui::components::resource_table::{ResourceTable, TableStatus};
 use openkite_ui::components::route_views::RouteView;
 use openkite_ui::components::shell::{AppShell, ClusterInfo, ShellIcon, TopBarAction};
 use openkite_ui::components::switcher::{ClusterSwitcher, SwitcherKeybind};
-use openkite_ui::plugin_api::RegistrationStore;
 use openkite_ui::runtime::{
     push_mode, set_push_mode, PushMode, LOGS_BUFFER, LOGS_CONTAINER, NAMESPACE_SELECTION,
     SELECTED_POD,
@@ -252,9 +251,16 @@ pub fn App(props: AppProps) -> Element {
         connected: snapshot.connected,
         prometheus: None,
     };
-    let registrations = RegistrationStore::default();
+    // The live registrations the host's bridge holds, read off the snapshot so
+    // the SSR pass and the hydrating client paint the same plugin sections,
+    // route controls and disabled rows (OKT-196).
+    let registrations = snapshot.registrations.clone();
     let sections = sidebar_model(&registrations);
     let status_entries = status_bar_model(&shell, &registrations, "", push_mode());
+    // The controls the plugin owning this route declared; a control this host
+    // does not deliver keeps its button, inert with the reason.
+    let controls = registrations.controls_for_route(&route);
+    let plugin_styles = openkite_ui::shell::plugin_styles(&registrations);
 
     // The page has no client router, so a palette navigation is a document
     // load — the same thing a sidebar link does. Everything else the palette
@@ -290,6 +296,10 @@ pub fn App(props: AppProps) -> Element {
             // The top bar paints the avatar from this; the account menu below
             // is built on the trigger it renders.
             identity: account.as_ref().map(|account| account.name.clone()),
+            // The plugins' own sheets, already scoped to their sections: a sheet
+            // the crate refuses never reaches here (it disabled the plugin
+            // instead), so nothing unscoped can touch the chrome.
+            plugin_styles: plugin_styles.clone(),
             "data-surface": "app",
             // The crate's overlays, the same ones the desktop mounts: the
             // palette on this host's single hook (a navigation is a document
@@ -308,6 +318,7 @@ pub fn App(props: AppProps) -> Element {
             RouteView {
                 route: route.clone(),
                 sections,
+                controls: controls.clone(),
                 namespaces,
                 busy: pending() || snapshot.busy,
                 error: gateway_error.clone(),
