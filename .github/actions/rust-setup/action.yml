@@ -53,10 +53,29 @@ runs:
           echo "no native packages requested"
           exit 0
         fi
-        # Fail fast on a stalled mirror instead of hanging until the job timeout.
+        # Skip packages the runner image already ships (e.g. xvfb,
+        # libssl-dev on ubuntu-24.04) so apt only ever fetches what is
+        # genuinely missing instead of re-resolving/re-downloading a set
+        # that is half already installed.
+        missing=()
+        for pkg in "${packages[@]}"; do
+          dpkg -s "$pkg" >/dev/null 2>&1 || missing+=("$pkg")
+        done
+        if [ "${#missing[@]}" -eq 0 ]; then
+          echo "all requested native packages already present: ${packages[*]}"
+          exit 0
+        fi
+        echo "installing missing native packages: ${missing[*]}"
+        # Fail fast on a stalled mirror instead of hanging until the job
+        # timeout, and skip apt's Recommends: they are the bulk of the
+        # webkit/gtk install time and nothing here needs them.
+        # DEBIAN_FRONTEND/NEEDRESTART_MODE stop dpkg postinst hooks
+        # (needrestart) from blocking on a tty prompt.
         apt_opts=(-o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=3)
-        timeout 300 sudo apt-get "${apt_opts[@]}" update
-        timeout 900 sudo apt-get "${apt_opts[@]}" install -y -- "${packages[@]}"
+        timeout 300 sudo env DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a \
+          apt-get "${apt_opts[@]}" update
+        timeout 900 sudo env DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a \
+          apt-get "${apt_opts[@]}" install -y --no-install-recommends -- "${missing[@]}"
     - uses: Swatinem/rust-cache@v2
       with:
         key: ${{ inputs.cache-key }}
