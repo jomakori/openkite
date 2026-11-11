@@ -30,16 +30,37 @@ const PLUGIN: &str = "parity-fixture";
 const ROUTE: &str = "/plugins/parity-fixture";
 const LABEL: &str = "Parity Fixture";
 
-fn fixture_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../e2e/fixtures/plugins")
+/// The installer the parity job calls: `install-plugin.sh <plugins-root> [host]`.
+fn installer() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../e2e/fixtures/install-plugin.sh")
+}
+
+/// Install the fixture the way the job would for this host and read the entry it
+/// staged. The browser host has no bundle loader, so what this test proves is the
+/// registration path — but it feeds that path the *installed* copy, not a second
+/// read of the fixture source tree.
+fn installed_entry() -> String {
+    let root = tempfile::tempdir().expect("plugins root");
+    let output = Command::new("bash")
+        .arg(installer())
+        .arg(root.path())
+        .arg("web")
+        .output()
+        .expect("bash runs install-plugin.sh");
+    assert!(
+        output.status.success(),
+        "install-plugin.sh web failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    std::fs::read_to_string(root.path().join(PLUGIN).join("main.js"))
+        .expect("the installed entry reads")
 }
 
 /// Every POST the fixture's bundle makes, produced by the real bootstrap in
 /// `node`. `None` where no `node` is installed, matching the repo's other
 /// JS-backed checks.
 fn registrations_via_bridge() -> Option<Vec<Value>> {
-    let entry = std::fs::read_to_string(fixture_root().join(PLUGIN).join("main.js"))
-        .expect("the fixture entry reads");
+    let entry = installed_entry();
     let entry = serde_json::to_string(&entry).expect("entry source is a JSON string literal");
     let script = format!(
         r#"

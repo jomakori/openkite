@@ -8,7 +8,15 @@
 //
 // The sidebar label is the text the route head renders as its title (the shell
 // titles a plugin route with the entry that points at it), which is why the two
-// registrations share it.
+// registrations share it — and it is the route's whole painted text on purpose.
+//
+// A bundle cannot own its own markup yet: the bootstrap offers
+// `openkite.registerRouteRenderer(path)`, but the bridge has no `route_renderer`
+// arm (`crates/openkite-host/src/bridge.rs`, its `other =>` catch-all), so the
+// registration is rejected and no `JsRouteMount` is ever created. The fixture
+// therefore contributes registrations only, and both hosts paint the route
+// through the shared crate. `style.css` is scoped and carried by the loader
+// today; its rules match once a host can mount a plugin-painted route.
 (function () {
   var LABEL = "Parity Fixture";
   var ROUTE = "/plugins/parity-fixture";

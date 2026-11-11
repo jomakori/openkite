@@ -24,6 +24,14 @@ titles a plugin route with the sidebar entry that points at it, so the label is
 the only text either host needs to paint — which is what makes the markup
 deterministic.
 
+The bundle registers no renderer because it cannot register one today: the
+bootstrap exposes `openkite.registerRouteRenderer(path)`, but the bridge has no
+`route_renderer` arm (`crates/openkite-host/src/bridge.rs`, its `other =>`
+catch-all) and rejects the registration, so no host ever mounts a
+`JsRouteMount` for the path. The route is therefore painted entirely by the
+shared crate on both hosts, and `style.css` arrives scoped but matches nothing
+until a host can mount a plugin-painted route.
+
 `style.css` is scoped by the loader under `[data-plugin="parity-fixture"]`
 (`crates/openkite-ui/src/plugin_css.rs`), so it cannot leak into the console
 chrome that the gate grades.
@@ -54,31 +62,36 @@ The loader call sites behind those paths:
 
 | Host | Proof | Where |
 |---|---|---|
-| desktop | loader boundary: `collect_bundles` loads the bundle, its scoped stylesheet arrives, and the bundle's real bridge registrations reduce to one sidebar item + one route | `crates/openkite-desktop/tests/parity_fixture.rs` |
-| web | registration boundary: the same registrations through `POST /openkite` paint the nav entry, and the route renders the declared-unsupported `plugin-route` panel | `crates/openkite-web/tests/parity_fixture.rs` |
+| desktop | loader boundary: `install-plugin.sh` stages the bundle, `collect_bundles` loads it, its scoped stylesheet arrives, and the bundle's real bridge registrations reduce to one sidebar item + one route | `crates/openkite-desktop/tests/parity_fixture.rs` |
+| web | registration boundary: the installed bundle's registrations through `POST /openkite` paint the nav entry, and the route renders the declared-unsupported `plugin-route` panel | `crates/openkite-web/tests/parity_fixture.rs` |
 
-The desktop test constructs the host headlessly, so it runs without a display:
+Both tests run without a display, because neither one starts a webview or a
+server: the bundle runs in `node` against the real `OPENKITE_BRIDGE_JS`
+bootstrap, and the registrations it posts are applied by the same
+`apply_register` the hosts use. Both also install the fixture through
+`install-plugin.sh` first, so the script CI is expected to call is itself
+covered rather than assumed.
 
 ```bash
 cargo test -p openkite --no-default-features --test parity_fixture
 cargo test -p openkite-web --test parity_fixture
 ```
 
-Neither test needs a cluster, a browser, or Xvfb: the bundle runs in `node`
-against the real `OPENKITE_BRIDGE_JS` bootstrap, and the registrations it posts
-are applied by the same `apply_register` the hosts use.
-
 ## Adding this route to the gate
 
-Not done here, because it cannot be done on one host alone: the fixture's sidebar
-entry paints on *every* captured route, so installing it into the desktop host
-before the browser host renders the same entry turns every G3 diff red. The next
-change has to land all of:
+Not done here, and not because of a red gate: the fixture's entry is appended
+after the core nav sections (`shell.rs`, `PluginNavSlot` — "never through the
+core list"), the gate grades each contract node on its first match
+(`parity-snapshot.js`, `matches[0]`), and match-count differences are review
+notices rather than deltas (`compare.mjs`). Installing into the desktop host
+alone would therefore leave the four graded routes green while proving nothing,
+because the fixture's own route is in none of the three lists. The next change
+has to land all of:
 
 1. the route in the three lists that hold it — `crates/openkite-ui/src/parity.rs`
    (`ROUTES`), `e2e/visual/browser/capture.mjs`, `e2e/parity/run.sh`;
 2. the fixture installed for both hosts in the `parity` job
-   (`.github/workflows/build-test-staging.yml`);
+   (`.github/workflows/build-test-staging.yml`), through this script;
 3. either a bundle loader for the web host (`collect_bundles` already compiles
    there — `openkite-web` depends on the desktop crate with
    `default-features = false` — so this is wiring, not a new subsystem) or a
