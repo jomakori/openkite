@@ -413,6 +413,25 @@ pub const OPENKITE_BRIDGE_JS: &str = r##"(() => {
 })();
 "##;
 
+/// The one hop between a control the crate painted and the plugin that
+/// declared it: the script that hands `action` back to the plugin's
+/// `openkite.onControl` handler.
+///
+/// Both hosts dispatch through this string — the desktop from its webview, the
+/// browser console from the page's own context — so a control fires the same
+/// way whichever host painted it, and a plugin's handler needs no host-specific
+/// branch. Both arguments are JSON-encoded: an action id is the plugin's own
+/// string, never spliced into the script.
+pub fn control_dispatch_js(plugin: &str, action: &str) -> String {
+    let (plugin, action) = (
+        serde_json::to_string(plugin).unwrap_or_else(|_| "\"\"".to_string()),
+        serde_json::to_string(action).unwrap_or_else(|_| "\"\"".to_string()),
+    );
+    format!(
+        r#"if (window.openkite && typeof window.openkite._control === "function") {{ window.openkite._control({plugin}, {action}); }}"#
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

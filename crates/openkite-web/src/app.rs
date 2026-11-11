@@ -24,7 +24,7 @@ use openkite_ui::components::overview::OverviewDashboard;
 use openkite_ui::components::palette::{CommandPalette, PaletteHost, PaletteKeybind};
 use openkite_ui::components::resource_pane::ResourceDetail;
 use openkite_ui::components::resource_table::{ResourceTable, TableStatus};
-use openkite_ui::components::route_views::RouteView;
+use openkite_ui::components::route_views::{PluginRouteView, RouteView};
 use openkite_ui::components::shell::{AppShell, ClusterInfo, ShellIcon, TopBarAction};
 use openkite_ui::components::switcher::{ClusterSwitcher, SwitcherKeybind};
 use openkite_ui::runtime::{
@@ -260,6 +260,29 @@ pub fn App(props: AppProps) -> Element {
     // The controls the plugin owning this route declared; a control this host
     // does not deliver keeps its button, inert with the reason.
     let controls = registrations.controls_for_route(&route);
+    // The plugin that owns this route answers its controls (OKT-209). The hop
+    // is the crate's `control_dispatch_js` — the same script the desktop evals
+    // in its webview — so a control fires identically on both hosts, and a
+    // plugin's `onControl` handler needs no host-specific branch. `document::eval`
+    // is the page's own eval after hydration and a no-op where there is no
+    // document (the SSR pass), the same mechanism the palette below uses.
+    let plugin_owner = registrations.owner_of_route(&route).map(str::to_string);
+    let on_control = plugin_owner.as_deref().map(|plugin| {
+        let plugin = plugin.to_string();
+        EventHandler::new(move |action: String| {
+            let _ = document::eval(&openkite_ui::plugin_api::control_dispatch_js(
+                &plugin, &action,
+            ));
+        })
+    });
+    // A path a plugin owns is that plugin's route, not the landing page. The
+    // chrome-owned paths keep precedence, the same order both hosts' routers
+    // apply, so a plugin cannot shadow `/workloads` or `/logs`.
+    let plugin_route = plugin_owner.is_some()
+        && !matches!(
+            route.as_str(),
+            "/" | "/cluster" | "/workloads" | "/config" | "/logs"
+        );
     let plugin_styles = openkite_ui::shell::plugin_styles(&registrations);
 
     // The page has no client router, so a palette navigation is a document
@@ -314,7 +337,23 @@ pub fn App(props: AppProps) -> Element {
                 AccountMenu { account, on_refresh: EventHandler::new(on_refresh) }
             }
             // The route chrome the desktop mounts too: each surface below is
-            // that route's body.
+            // that route's body. A path a plugin owns gets the crate's plugin
+            // chrome instead of the landing body (OKT-209) — the same component
+            // the desktop mounts on its wildcard route. The bundle half of that
+            // route rides a host slot this host has no webview to fill, so the
+            // chrome declares the route, paints its controls, and says plainly
+            // that no bundle is mounted rather than pretending one ran.
+            if plugin_route {
+                PluginRouteView {
+                    route: route.clone(),
+                    sections: sections.clone(),
+                    namespaces: namespaces.clone(),
+                    controls: controls.clone(),
+                    on_control,
+                    js_route: None,
+                    evaluator: None,
+                }
+            } else {
             RouteView {
                 route: route.clone(),
                 sections,
@@ -371,6 +410,7 @@ pub fn App(props: AppProps) -> Element {
                     }
                     }),
                 },
+            }
             }
         }
     }

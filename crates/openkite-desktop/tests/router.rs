@@ -102,14 +102,11 @@ fn desktop_sections(terminal: bool) -> Vec<ShellSection> {
     }]
 }
 
-/// The browser's sidebar model: the core sections, terminal excluded.
-fn browser_sections() -> Vec<ShellSection> {
-    sidebar_model(&RegistrationStore::default())
-}
-
 #[test]
 fn the_console_view_route_is_the_address_resolved_against_the_hosts_model() {
     let sections = desktop_sections(true);
+    // No plugin registered anything, so the model is the chrome's alone.
+    let store = RegistrationStore::default();
     // Every route this host's navigation carries resolves to itself, so the
     // chrome, the sidebar's active entry and the breadcrumbs all read the path
     // the address names.
@@ -121,21 +118,30 @@ fn the_console_view_route_is_the_address_resolved_against_the_hosts_model() {
         "/terminal",
         "/config",
     ] {
-        assert_eq!(console_route(route, &sections), route, "{route}");
+        assert_eq!(console_route(route, &sections, &store), route, "{route}");
     }
     // The same console view for every spelling of the same address.
-    assert_eq!(console_route("/workloads/", &sections), "/workloads");
-    assert_eq!(console_route(" workloads ", &sections), "/workloads");
-    assert_eq!(console_route("", &sections), "/");
+    assert_eq!(
+        console_route("/workloads/", &sections, &store),
+        "/workloads"
+    );
+    assert_eq!(
+        console_route(" workloads ", &sections, &store),
+        "/workloads"
+    );
+    assert_eq!(console_route("", &sections, &store), "/");
     // A path the model does not carry is not a console view of its own: it
     // falls back to the landing route, the same fallback the browser host
     // applies to the same address.
     for unknown in ["/nonsense", "/workloads/pods/probe-pod", "/argocd/apps"] {
-        assert_eq!(console_route(unknown, &sections), "/", "{unknown}");
+        assert_eq!(console_route(unknown, &sections, &store), "/", "{unknown}");
     }
     // The terminal entry is host-gated: a host that cannot render one does not
     // carry it, so the address stops resolving to it.
-    assert_eq!(console_route("/terminal", &desktop_sections(false)), "/");
+    assert_eq!(
+        console_route("/terminal", &desktop_sections(false), &store),
+        "/"
+    );
 }
 
 #[test]
@@ -150,11 +156,14 @@ fn the_router_wildcard_is_not_a_second_console_view() {
     );
     // ...but the console view is the one contract's: an address the sidebar
     // model does not carry lands on the landing route here too.
-    assert_eq!(console_route("/argocd/apps", &desktop_sections(true)), "/");
+    let mut store = RegistrationStore::default();
+    assert_eq!(
+        console_route("/argocd/apps", &desktop_sections(true), &store),
+        "/"
+    );
     // Once a plugin registers the route in the model, the same address is a
     // console view of its own — and it is the model that says so, not a table
     // this host writes down beside the crate's.
-    let mut store = RegistrationStore::default();
     store.upsert(
         "argocd",
         PluginRegistration {
@@ -167,28 +176,38 @@ fn the_router_wildcard_is_not_a_second_console_view() {
         },
     );
     let sections = sidebar_model(&store);
-    assert_eq!(console_route("/argocd/apps", &sections), "/argocd/apps");
+    assert_eq!(
+        console_route("/argocd/apps", &sections, &store),
+        "/argocd/apps"
+    );
 }
 
 #[test]
 fn both_hosts_derive_the_shared_console_view_from_the_address() {
     let desktop = desktop_sections(true);
-    let browser = browser_sections();
+    // The browser's sidebar model: the core sections, terminal excluded, in the
+    // same store its request path resolves against.
+    let browser_store = RegistrationStore::default();
+    let browser = sidebar_model(&browser_store);
+    let desktop_store = RegistrationStore::default();
     // The four primary routes are the same console view on both hosts from the
     // same address.
     for path in ["/", "/cluster", "/workloads", "/config"] {
         assert_eq!(
-            console_route(path, &desktop),
-            console_route(path, &browser),
+            console_route(path, &desktop, &desktop_store),
+            console_route(path, &browser, &browser_store),
             "{path}"
         );
     }
     // /logs is a route both hosts now carry — the browser paints the same
     // panel — so the same address is the same console view on each.
-    assert_eq!(console_route("/logs", &desktop), "/logs");
-    assert_eq!(console_route("/logs", &browser), "/logs");
+    assert_eq!(console_route("/logs", &desktop, &desktop_store), "/logs");
+    assert_eq!(console_route("/logs", &browser, &browser_store), "/logs");
     // /terminal stays the desktop's own surface: the browser's model does not
     // carry it, so there the same address is the landing route.
-    assert_eq!(console_route("/terminal", &desktop), "/terminal");
-    assert_eq!(console_route("/terminal", &browser), "/");
+    assert_eq!(
+        console_route("/terminal", &desktop, &desktop_store),
+        "/terminal"
+    );
+    assert_eq!(console_route("/terminal", &browser, &browser_store), "/");
 }

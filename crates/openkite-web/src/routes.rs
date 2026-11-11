@@ -173,7 +173,15 @@ async fn ssr_root(
     OriginalUri(uri): OriginalUri,
     RawQuery(query): RawQuery,
 ) -> Response {
-    let route = resolve_route(uri.path(), &sidebar_sections(&state.bridge));
+    // One read of the live store for both halves of the resolution: the path a
+    // plugin owns is a console view even when it registered no sidebar entry
+    // (OKT-209), and the sidebar model is what the same store paints.
+    let registrations = host_registrations(&state.bridge);
+    let route = resolve_route(
+        uri.path(),
+        &openkite_ui::shell::sidebar_model(&registrations),
+        &registrations,
+    );
     // `?fixture=` drives the states a surface claims to render (G4). It is read
     // only where there is no cluster credential to disagree with it: a host
     // that has a client answers from the cluster, not from a query string.
@@ -514,11 +522,6 @@ async fn workload_table(
             loading: false,
         },
     }
-}
-
-/// The sidebar model the shell renders, so a path resolves against it.
-fn sidebar_sections(bridge: &Bridge) -> Vec<openkite_ui::shell::ShellSection> {
-    openkite_ui::shell::sidebar_model(&host_registrations(bridge))
 }
 
 /// The plugin registrations the host's shell paints, read from the bridge.

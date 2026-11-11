@@ -76,6 +76,10 @@ use openkite_ui::components::shell::{
     AppShell as ShellFrame, ClusterInfo, ShellIcon, TopBarAction,
 };
 use openkite_ui::components::switcher::{ClusterSwitcher, SwitcherKeybind};
+// The resolve step reads the store on both builds, not only where the webview
+// exists: which route a path is comes from the same registrations the shell
+// paints, and `console_route` is the value both the shell and the chrome read.
+use openkite_ui::plugin_api::RegistrationStore;
 
 /// Plugin sidebar sections (static Rust SDK plugins), populated at startup.
 static PLUGIN_SECTIONS: GlobalSignal<Vec<SidebarSection>> = Signal::global(Vec::new);
@@ -165,8 +169,12 @@ fn full_path(path: &[String]) -> String {
 /// a second, host-private view. Keeping the resolution here — not in a table
 /// this host writes down beside the crate's — is what stops the two hosts
 /// drifting.
-pub fn console_route(path: &str, sections: &[crate::shell::ShellSection]) -> String {
-    resolve_route(path, sections)
+pub fn console_route(
+    path: &str,
+    sections: &[crate::shell::ShellSection],
+    registrations: &RegistrationStore,
+) -> String {
+    resolve_route(path, sections, registrations)
 }
 
 /// The core routes. Every primary route mounts the crate's route chrome, so
@@ -304,7 +312,11 @@ fn AppShell() -> Element {
     // the breadcrumbs and the route chrome all read one value, and the two
     // hosts derive the console view from the address rather than from a table
     // each writes down for itself.
-    let current_route = console_route(&use_route::<Route>().to_string(), &shell_sections());
+    let current_route = console_route(
+        &use_route::<Route>().to_string(),
+        &shell_sections(),
+        &REGISTRATIONS.read(),
+    );
 
     // The desktop answers every palette action: it owns the router, the theme
     // store and the OS chrome. The crate registers only the commands whose
@@ -663,7 +675,11 @@ fn route_view_with(content: Option<Element>) -> Element {
     // the URL resolved to, never a literal this component carries beside it,
     // so it cannot disagree with the shell's active entry or with the browser
     // host serving the same address.
-    let route = console_route(&use_route::<Route>().to_string(), &shell_sections());
+    let route = console_route(
+        &use_route::<Route>().to_string(),
+        &shell_sections(),
+        &REGISTRATIONS.read(),
+    );
     let nav = use_navigator();
     let on_action = EventHandler::new(move |action: String| {
         match action.as_str() {
@@ -864,15 +880,13 @@ fn Plugin(path: Vec<String>) -> Element {
 /// The crate paints the button (it owns the chrome) and the plugin owns the
 /// action id; this is the single hop between them — `openkite._control` in the
 /// webview, which forwards to the handler the bundle installed with
-/// `openkite.onControl`. Both arguments are JSON-encoded: a plugin's action id
-/// is its own string, never spliced into the script.
+/// `openkite.onControl`. The script itself is the crate's
+/// ([`openkite_ui::plugin_api::control_dispatch_js`]) so the browser host evals
+/// the identical bytes from its own page context (OKT-209): one hop, one
+/// string, two hosts.
 fn dispatch_control(plugin: &str, action: &str) {
-    let (plugin, action) = (
-        serde_json::to_string(plugin).unwrap_or_else(|_| "\"\"".to_string()),
-        serde_json::to_string(action).unwrap_or_else(|_| "\"\"".to_string()),
-    );
-    let _ = document::eval(&format!(
-        r#"if (window.openkite && typeof window.openkite._control === "function") {{ window.openkite._control({plugin}, {action}); }}"#
+    let _ = document::eval(&openkite_ui::plugin_api::control_dispatch_js(
+        plugin, action,
     ));
 }
 
