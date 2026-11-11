@@ -4191,6 +4191,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "openkite-plugin-host"
+version = "0.0.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "openkite-plugin-sdk"
 version = "0.0.0"
 dependencies = [
@@ -4214,6 +4221,7 @@ dependencies = [
  "dioxus-ssr",
  "opaline",
  "openkite-api",
+ "openkite-plugin-host",
  "serde",
  "serde_json",
  "sha2",
