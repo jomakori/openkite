@@ -200,6 +200,9 @@ jobs:
       - name: Restore the executable bit
         run: chmod +x target/debug/openkite
       - name: Run the user-flow suite
+        # A hang here must report as this step failing, never as the whole job
+        # hitting its timeout (which GitHub records as "cancelled": no verdict).
+        timeout-minutes: 20
         working-directory: e2e
         env:
           BIN: ../target/debug/openkite
@@ -299,6 +302,9 @@ jobs:
           kubectl config current-context
           kubectl get ns | head -5
       - name: Run the connected desktop E2E suite
+        # Same contract as the local suite: a hang fails this step by name
+        # instead of letting the job timeout land in the gate as "cancelled".
+        timeout-minutes: 20
         working-directory: e2e
         env:
           EXPECT_CONNECTED: '1'
@@ -622,12 +628,46 @@ jobs:
         run: |
           set -euo pipefail
           echo "$RESULTS"
-          unhealthy="$(printf '%s' "$RESULTS" | jq -r '
+          # A job result is a verdict only when the job reached one. "cancelled"
+          # means the job hit its timeout or the run was cancelled underneath it,
+          # so it says nothing about the code: name it as such and send the
+          # reader to that job's log instead of reading it as a test failure.
+          jq -r 'to_entries[] | [.key, .value.result] | @tsv' <<<"$RESULTS" |
+            while IFS=$'\t' read -r job result; do
+              case "$result" in
+                success) why="ran to a verdict" ;;
+                skipped) why="not required for this change" ;;
+                failure) why="failed" ;;
+                cancelled) why="no verdict: job timeout or run cancelled" ;;
+                *) why="no verdict: unexpected result" ;;
+              esac
+              printf '%-26s %-10s %s\n' "$job" "$result" "$why"
+            done
+          unhealthy="$(jq -r '
             to_entries[]
             | select(.value.result != "success" and .value.result != "skipped")
-            | "\(.key)=\(.value.result)"')"
+            | .key' <<<"$RESULTS")"
+          failed=""
+          no_verdict=""
+          for job in $unhealthy; do
+            result="$(jq -r --arg job "$job" '.[$job].result' <<<"$RESULTS")"
+            echo "::error title=$job did not pass::result=$result"
+            if [ "$result" = "cancelled" ]; then
+              no_verdict="$no_verdict $job"
+            else
+              failed="$failed $job"
+            fi
+          done
+          if [ -n "$failed" ]; then
+            echo "::error title=Multi-platform build::failed:$failed"
+          fi
+          if [ -n "$no_verdict" ]; then
+            echo "::error title=Multi-platform build::no verdict from:$no_verdict"
+            echo "These jobs hit their timeout or were cancelled with the run, so"
+            echo "they never tested the code. Read their logs: this gate has no"
+            echo "result to judge, and does not report one as a test failure."
+          fi
           if [ -n "$unhealthy" ]; then
-            echo "::error title=Multi-platform build::$(printf '%s' "$unhealthy" | tr '\n' ' ')"
             exit 1
           fi
           echo "every build and end-to-end job succeeded or was skipped"
