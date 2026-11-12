@@ -16,8 +16,21 @@ served as a desktop window and as a browser host from the same crates.
 
 v1 was retired: its crates, end-to-end suites, packaging and release workflows are
 gone, and the repository holds a v2 workspace skeleton instead — six crates
-(`engine`, `api`, `ui`, `desktop`, `web`, `cli`) that the rebuild fills in. Nothing
-runs yet, and CI compiles the empty tree rather than shipping anything.
+(`engine`, `api`, `ui`, `desktop`, `web`, `cli`) that the rebuild fills in.
+
+The browser shell is real but thin: `openkite-web` serves a placeholder page and a
+`/healthz` endpoint, and every release tag builds an arm64 image that the cluster
+runs. Everything else in the workspace is still a stub.
+
+## Running the shell
+
+```bash
+cargo run -p openkite-web          # http://localhost:8080, PORT overrides
+```
+
+Releases are cut by pushing a `v*` tag: the `Release` workflow builds the
+`linux/arm64` image, pushes `ghcr.io/jomakori/openkite:<tag>` (and `:latest`), and
+opens the GitHub release.
 
 ## Documentation
 
