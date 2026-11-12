@@ -7,7 +7,7 @@ shipped code: v1's stylesheet and its tests were retired with the rest of the v1
 ## Sources of record
 
 - `docs/reference/opendesign-console/openkite-console.css` and its sibling sheets
-  (`openkite-charts.css`, `openkite-workloads.css`) — the prototype, vendored byte-identical to the
+  (`docs/reference/opendesign-console/openkite-charts.css`, `docs/reference/opendesign-console/openkite-workloads.css`) — the prototype, vendored byte-identical to the
   live in-cluster design, holding every class name below.
 - `DESIGN.md` — the token set, its reference values and the contrast floor.
 - The rebuild spec — which surfaces are in scope now, which are deferred, and the parity gate.

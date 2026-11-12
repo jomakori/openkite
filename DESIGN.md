@@ -277,7 +277,7 @@ Nothing else gets a radius. A radius outside this set is a defect, not a style.
 
 Each entry names the selectors the console stylesheet must define, unless marked
 *(reference-only)*; the reference anchor for the same shape is the vendored
-`openkite-console.css`. Values come from `colors:` / `rounded:` / `spacing:`
+`docs/reference/opendesign-console/openkite-console.css`. Values come from `colors:` / `rounded:` / `spacing:`
 above, never from a new literal.
 
 - **Buttons** — `.btn` is the base: 44px minimum height, `r-sm`, `surface` fill,
@@ -311,7 +311,7 @@ above, never from a new literal.
   white text, `md` radius, `shadow-hover`. It reads as a system message, which is
   why it is the only light surface that inverts to `fg`.
 - **Argo card / card status / bottom nav** *(reference-only — outside this
-  contract)* — reference `openkite-console.css` `.app-grid`, `.app-card`,
+  contract)* — reference `docs/reference/opendesign-console/openkite-console.css` `.app-grid`, `.app-card`,
   `.card-status` with `synced` / `outofsync` / `degraded` / `progressing`,
   `.card-swipe-actions`, `.tag`, `.source-icon`, and `.bottom-nav` /
   `.bottom-tab`. If they land, the status band and swipe tray must consume the
@@ -369,7 +369,7 @@ the value the console stylesheet must declare for the same name. The `oklch()`
 spelling is kept beside the hex so the derivation is checkable — e.g.
 `--accent: oklch(0.6420 0.1531 257.9)` = `#4d8ce8`.
 
-| Token | reference — `:root` in `openkite-console.css` | console — value to declare |
+| Token | reference — `:root` in `docs/reference/opendesign-console/openkite-console.css` | console — value to declare |
 |---|---|---|
 | `bg` | `--bg` `oklch(0.9755 0.0045 258.3)` | `#f5f7fa` |
 | `surface` | `--surface` `oklch(1 0 0 / 0.85)` | `rgba(255, 255, 255, 0.85)` |
@@ -437,7 +437,7 @@ block.
 
 The console crate's design test is the enforcement point, and it does not exist
 yet: when it lands it must pin the vendored reference by SHA-256, derive the
-class and token vocabulary from `openkite-console.css`, and fail when the
+class and token vocabulary from `docs/reference/opendesign-console/openkite-console.css`, and fail when the
 shipped stylesheet is missing a name from this file or adds a value that is not
 here. The pinned hashes are in `docs/design-surfaces.md` § Reference contract.
 
