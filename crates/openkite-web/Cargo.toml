@@ -1,93 +1,12 @@
 [package]
 name = "openkite-web"
+description = "Browser shell: axum server, server-rendered console, WebSocket delta stream"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+rust-version.workspace = true
 publish = false
-description = "OpenKite web host — server-renders the console and answers its kube bridge over HTTP."
-
-[features]
-default = ["ssr"]
-ssr = ["dep:dioxus-ssr", "dep:ciborium", "dep:base64"]
-hydrate = [
-    "openkite-ui/web",
-    "dep:dioxus-web",
-    "dioxus-web/hydrate",
-    "dep:wasm-bindgen",
-    "dep:wasm-bindgen-futures",
-    "dep:js-sys",
-    "dep:web-sys",
-    "dep:serde-wasm-bindgen",
-]
 
 [dependencies]
-openkite-api = { path = "../openkite-api" }
-openkite-ui = { path = "../openkite-ui" }
-dioxus = "0.7"
-dioxus-core = "0.7"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-tracing = "0.1"
-dioxus-ssr = { version = "0.7", optional = true }
-dioxus-web = { version = "0.7", optional = true }
-serde-wasm-bindgen = { version = "0.6", optional = true }
-base64 = { version = "0.22", optional = true }
-ciborium = { version = "0.2", optional = true }
-wasm-bindgen = { version = "0.2", optional = true }
-wasm-bindgen-futures = { version = "0.4", optional = true }
-js-sys = { version = "0.3", optional = true }
-web-sys = { version = "0.3", optional = true, features = [
-    "Window",
-    "Document",
-    "Element",
-    "Node",
-    "Headers",
-    "Request",
-    "RequestInit",
-    "RequestMode",
-    "Response",
-] }
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-openkite-host = { path = "../openkite-host" }
-openkite = { path = "../openkite-desktop", default-features = false }
-axum = "0.8"
-futures = "0.3"
-async-stream = "0.3"
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "time", "io-util"] }
-tower-http = { version = "0.6", features = ["fs"] }
-# The hydration pair is addressed by the hash of its bytes (OKT-195): the
-# document imports `/assets/bundle/{version}/…`, so the wasm a browser loads
-# belongs to the build that rendered the page.
-sha2 = "0.10"
-kube = "4"
-# The host parses the bridge's `list pods` answer into the typed pods the
-# shared console maps into table rows.
-k8s-openapi = { version = "0.28", features = ["latest"] }
-# The host picks kube's TLS provider from the process, so the provider has to
-# be one this crate can name. `default-features = false` keeps aws-lc-rs out of
-# the image build: rustls panics when a build enables both providers, and this
-# crate uses what kube's own TLS stack is built with.
-rustls = { version = "0.23", default-features = false, features = [
-    "logging",
-    "ring",
-    "std",
-    "tls12",
-] }
-tracing-subscriber = "0.3"
-anyhow = "1"
-
-[[bin]]
-name = "openkite-web"
-path = "src/main.rs"
-required-features = ["ssr"]
-
-[[bin]]
-name = "openkite-web-client"
-path = "src/bin/client.rs"
-required-features = ["hydrate"]
-
-[dev-dependencies]
-http = "1"
-tower = { version = "0.5", features = ["util"] }
-tempfile = "3"
+dioxus.workspace = true
+openkite-ui = { path = "../openkite-ui", version = "0.1.0", features = ["web"] }

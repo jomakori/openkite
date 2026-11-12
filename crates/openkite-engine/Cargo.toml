@@ -1,0 +1,17 @@
+[package]
+name = "openkite-engine"
+description = "Kubernetes collection engine: refcounted interests, informer supervision, row projections, delta frames"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+rust-version.workspace = true
+
+[dependencies]
+kube.workspace = true
+k8s-openapi.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true

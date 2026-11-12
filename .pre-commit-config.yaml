@@ -1,51 +1,26 @@
-# OpenKite pre-commit hooks.
-#
-# Shift-left gate: catches high-frequency failures at commit time so CI
-# only sees the heavy stuff (full-workspace clippy + test + webview build).
-#
-# What's IN scope here:
-#   - cargo fmt --all -- --check            (parse + style, no system deps)
-#   - cargo check -p openkite-plugin-sdk    (type-check the local-lintable
-#                                            crate; no glib/webkit required)
-#   - cargo clippy -p openkite-plugin-sdk -- -D warnings
-#                                            (lint the local-lintable crate)
-#
-# What's OUT of scope (CI-only):
-#   - cargo clippy --workspace --all-targets (the `openkite` binary pulls
-#                                             dioxus-desktop 0.7.10 which
-#                                             requires libwebkit2gtk-4.1-dev,
-#                                             libgtk-3-dev, libglib2.0-dev
-#                                             — not on the dev host. CI's
-#                                             lint-test.yml installs them
-#                                             via `sudo apt-get install`.)
-#   - cargo test --workspace                (same webview-deps reason)
-#   - cargo build --workspace               (same)
-#
-# Install: `pre-commit install`. Update: `pre-commit autoupdate`.
-
+# Local gates for the Rust workspace: format the tree, then type-check and lint
+# the engine crate. The four jobs in .github/workflows/lint-test.yml cover the
+# whole workspace; a hook stays on the engine until another crate carries code.
 repos:
   - repo: local
     hooks:
       - id: cargo-fmt
         name: cargo fmt --all -- --check
-        description: Parse + style every workspace member.
         entry: cargo fmt --all -- --check
         language: system
         pass_filenames: false
         types: [rust]
 
-      - id: cargo-check-plugin-sdk
-        name: cargo check -p openkite-plugin-sdk
-        description: Type-check the only workspace member that lints locally.
-        entry: cargo check -p openkite-plugin-sdk --all-targets
+      - id: cargo-check-engine
+        name: cargo check -p openkite-engine
+        entry: cargo check -p openkite-engine --all-targets
         language: system
         pass_filenames: false
         types: [rust]
 
-      - id: cargo-clippy-plugin-sdk
-        name: cargo clippy -p openkite-plugin-sdk
-        description: Clippy the local-lintable crate under -D warnings.
-        entry: cargo clippy -p openkite-plugin-sdk --all-targets -- -D warnings
+      - id: cargo-clippy-engine
+        name: cargo clippy -p openkite-engine
+        entry: cargo clippy -p openkite-engine --all-targets -- -D warnings
         language: system
         pass_filenames: false
         types: [rust]

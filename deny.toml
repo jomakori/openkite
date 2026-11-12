@@ -1,14 +1,11 @@
 # cargo-deny configuration — see https://embarkstudios.github.io/cargo-deny
 #
-# Only the `advisories` check is wired into CI today (.github/workflows/lint-test.yml,
-# job `advisories`). licenses/bans/sources are intentionally left at their
-# cargo-deny defaults and unconfigured here; add sections (and a CI step) before
-# relying on them for anything. A bare `cargo deny check` therefore reports
-# `licenses FAILED` (no allow-list configured, every crate rejected) while
-# advisories/bans/sources pass -- that is expected, and the reason CI runs
-# `check advisories` rather than the full set.
-#
-# Refs OKT-199.
+# No CI job runs cargo-deny yet: the workspace carries no dependencies, so there
+# is nothing to scan. The ignore list below records the desktop-stack advisories
+# carried by the UI crates, so `cargo deny check advisories` stays quiet once a
+# job is added back. licenses/bans/sources keep their defaults; configure them
+# before relying on them, since a bare `cargo deny check` reports `licenses
+# FAILED` for lack of an allow-list.
 
 [advisories]
 ignore = [

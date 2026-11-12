@@ -1,8 +1,0 @@
-{
-  "name": "parity-fixture",
-  "version": "0.1.0",
-  "entry": "main.js",
-  "style": "style.css",
-  "description": "Deterministic plugin fixture for the G3 cross-host parity gate: one sidebar entry, one route, no cluster data.",
-  "author": "OpenKite CI"
-}

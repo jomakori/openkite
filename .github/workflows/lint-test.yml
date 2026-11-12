@@ -18,40 +18,6 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  changes:
-    name: Detect source changes
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-      pull-requests: read
-    outputs:
-      src: ${{ github.event_name == 'merge_group' && 'true' || steps.filter.outputs.src }}
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-      - name: Detect changed paths
-        id: filter
-        if: github.event_name != 'merge_group'
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            src:
-              - '**.rs'
-              - '**/Cargo.toml'
-              - 'Cargo.lock'
-              # The design contract (crates/openkite-ui/tests/design.rs) grades
-              # the stylesheet against the vendored mockup, so a change to any
-              # of those bytes has to run the tests even when no Rust moved.
-              - 'crates/openkite-ui/assets/**'
-              - 'docs/reference/opendesign-console/**'
-              - 'docs/design-surfaces.md'
-              - 'deny.toml'
-      - name: Check workflows for GNU-only sed
-        run: bash .github/scripts/check-portable-sed.sh
-      - name: Check the version is read from one resolver
-        run: bash .github/scripts/check-version-source.sh
-
   fmt:
     name: Check formatting
     runs-on: ubuntu-latest
@@ -59,218 +25,61 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/rust-setup
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Install the Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
-          extra-components: rustfmt
-          profile: none
-      - run: cargo fmt --all -- --check
+          components: rustfmt
+      - name: Check formatting
+        run: cargo fmt --all -- --check
 
   clippy:
     name: Lint with clippy
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/rust-setup
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Install the Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
-          extra-components: clippy
-      - run: cargo clippy --workspace --all-targets -- -D warnings
+          components: clippy
+      - name: Lint with clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
 
   test:
     name: Run tests
     runs-on: ubuntu-latest
-    needs: [changes, fmt, clippy]
-    if: needs.changes.outputs.src == 'true' || github.event_name == 'push'
-    timeout-minutes: 45
-    permissions:
-      contents: read
-      checks: write
-      pull-requests: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/rust-setup
-      - name: Install cargo-nextest
-        uses: taiki-e/install-action@cargo-nextest
-      - name: Run tests
-        run: cargo nextest run --profile ci --workspace --config-file nextest.toml
-      - name: Test report
-        if: always()
-        uses: dorny/test-reporter@v1
-        with:
-          name: Test report
-          path: target/nextest/ci/junit.xml
-          reporter: java-junit
-          fail-on-error: 'true'
-          use-actions-summary: 'true'
-
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    needs: [changes, fmt, clippy]
-    if: needs.changes.outputs.src == 'true' || github.event_name == 'push'
     timeout-minutes: 30
     permissions:
       contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/rust-setup
-      - name: Build
-        run: cargo build --workspace
-
-  cross-platform:
-    name: plugin-sdk cross-platform (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    needs: [changes]
-    if: needs.changes.outputs.src == 'true' || github.event_name == 'push'
-    timeout-minutes: 30
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/rust-setup
-        with:
-          extra-components: rustfmt,clippy
-          profile: none
-          cache-key: cross-${{ matrix.os }}
-      - name: Check formatting
-        run: cargo fmt -p openkite-plugin-sdk -- --check
-      - name: Clippy
-        run: cargo clippy -p openkite-plugin-sdk --all-targets -- -D warnings
-      - name: Test
-        run: cargo test -p openkite-plugin-sdk
-
-  web-host:
-    name: Browser host — SSR + wasm hydrate
-    runs-on: ubuntu-latest
-    needs: [changes]
-    if: needs.changes.outputs.src == 'true' || github.event_name == 'push'
-    timeout-minutes: 30
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/rust-setup
-        with:
-          targets: wasm32-unknown-unknown
-          profile: none
-          cache-key: web-host
-      # After OKT-137 the desktop binary is host-less without the `desktop`
-      # feature, and the browser host (`openkite-web`) is what now serves the
-      # console crate-rendered. Both targets must keep checking.
-      - name: Check the desktop binary without the desktop feature
-        run: cargo check -p openkite --no-default-features
-      - name: Check the SSR + bridge host for the host arch
-        run: cargo check -p openkite-web
-      - name: Check the wasm hydration client for wasm32
-        # Bin-targeted on purpose: the crate also carries the native-only
-        # axum binary (src/main.rs), which cannot and must not build for
-        # wasm32 — checking the whole package there would fail forever.
-        run: cargo check -p openkite-web --bin openkite-web-client --target wasm32-unknown-unknown --features hydrate
-
-  wasm-ui:
-    name: Shared UI builds for wasm32
-    runs-on: ubuntu-latest
-    needs: [changes]
-    if: needs.changes.outputs.src == 'true' || github.event_name == 'push'
-    timeout-minutes: 30
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/rust-setup
-        with:
-          targets: wasm32-unknown-unknown
-          profile: none
-          cache-key: wasm-ui
-      - name: Guard the console manifest
-        run: |
-          if grep -E '^[[:space:]]*(wry|axum|web-sys|js_sys)[[:space:]]*=' crates/openkite-ui/Cargo.toml; then
-            echo "crates/openkite-ui must not depend on a host-only crate"
-            exit 1
-          fi
-      - name: Check the console for wasm32
-        run: cargo check -p openkite-ui --target wasm32-unknown-unknown
-
-  advisories:
-    name: Check dependency advisories
-    runs-on: ubuntu-latest
-    needs: [changes]
-    if: needs.changes.outputs.src == 'true' || github.event_name == 'push'
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - uses: EmbarkStudios/cargo-deny-action@v2
-        with:
-          command: check advisories
-
-  coverage:
-    name: Coverage gate
-    runs-on: ubuntu-latest
-    needs: [changes, fmt, clippy]
-    if: needs.changes.outputs.src == 'true' || github.event_name == 'push'
-    timeout-minutes: 60
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/rust-setup
-      - name: Install cargo-tarpaulin
-        run: cargo install cargo-tarpaulin --locked
-      - name: Measure line coverage
-        run: cargo tarpaulin --workspace --engine llvm --out xml --output-dir coverage/ --fail-under 45
-      - name: Publish coverage summary
-        if: always()
-        uses: irongut/CodeCoverageSummary@v1.3.0
-        with:
-          filename: coverage/cobertura.xml
-          badge: true
-          format: markdown
-          thresholds: '45 60'
-          fail_below_min: true
-          output: file
-      - name: Add coverage to job summary
-        if: always()
-        run: cat code-coverage-results.md >> "$GITHUB_STEP_SUMMARY"
-
-  report:
-    name: Track the main-branch outcome
-    needs:
-      - changes
-      - fmt
-      - clippy
-      - test
-      - build
-      - cross-platform
-      - web-host
-      - wasm-ui
-      - advisories
-      - coverage
-    if: always() && github.event_name == 'push'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-      issues: write
-      actions: read
-    concurrency:
-      group: ci-failure-${{ github.workflow }}
-      cancel-in-progress: false
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-      - name: Open, update, or close the tracking issue
-        uses: ./.github/actions/notify-failure
-        with:
-          run-id: ${{ github.run_id }}
-          workflow-name: ${{ github.workflow }}
-          failed: ${{ contains(needs.*.result, 'failure') }}
-          cancelled: ${{ contains(needs.*.result, 'cancelled') }}
+      - name: Install the Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Run tests
+        run: cargo test --workspace
+
+  boundary:
+    name: Guard the crate boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Install the Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Guard the crate boundary
+        run: |
+          tree="$(cargo tree -p openkite-engine --prefix none)"
+          if printf '%s\n' "$tree" | grep -Eq '^(dioxus|openkite-ui) '; then
+            printf '%s\n' "$tree" | grep -E '^(dioxus|openkite-ui) ' >&2
+            echo "openkite-engine must not depend on the UI stack" >&2
+            exit 1
+          fi

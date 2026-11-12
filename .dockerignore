@@ -1,4 +1,0 @@
-# Keep the build context small for the root Dockerfile (PR preview image).
-.git
-target
-**/node_modules
