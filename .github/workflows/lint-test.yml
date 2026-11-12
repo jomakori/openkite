@@ -1,0 +1,85 @@
+name: lint-test
+
+on:
+  pull_request:
+  merge_group:
+  push:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  fmt:
+    name: Check formatting
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Install the Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+  clippy:
+    name: Lint with clippy
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Install the Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Lint with clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+  test:
+    name: Run tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Install the Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Run tests
+        run: cargo test --workspace
+
+  boundary:
+    name: Guard the crate boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Install the Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Guard the crate boundary
+        run: |
+          tree="$(cargo tree -p openkite-engine --prefix none)"
+          if printf '%s\n' "$tree" | grep -Eq '^(dioxus|openkite-ui) '; then
+            printf '%s\n' "$tree" | grep -E '^(dioxus|openkite-ui) ' >&2
+            echo "openkite-engine must not depend on the UI stack" >&2
+            exit 1
+          fi

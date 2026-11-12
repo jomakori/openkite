@@ -1,0 +1,12 @@
+[package]
+name = "openkite-web"
+description = "Browser shell: axum server, server-rendered console, WebSocket delta stream"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+dioxus.workspace = true
+openkite-ui = { path = "../openkite-ui", version = "0.1.0", features = ["web"] }

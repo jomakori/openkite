@@ -1,0 +1,12 @@
+[package]
+name = "openkite-desktop"
+description = "Desktop shell: native webview hosting the console over the in-process channel"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+dioxus.workspace = true
+openkite-ui = { path = "../openkite-ui", version = "0.1.0", features = ["desktop"] }

@@ -1,0 +1,26 @@
+# Local gates for the Rust workspace: format the tree, then type-check and lint
+# the engine crate. The four jobs in .github/workflows/lint-test.yml cover the
+# whole workspace; a hook stays on the engine until another crate carries code.
+repos:
+  - repo: local
+    hooks:
+      - id: cargo-fmt
+        name: cargo fmt --all -- --check
+        entry: cargo fmt --all -- --check
+        language: system
+        pass_filenames: false
+        types: [rust]
+
+      - id: cargo-check-engine
+        name: cargo check -p openkite-engine
+        entry: cargo check -p openkite-engine --all-targets
+        language: system
+        pass_filenames: false
+        types: [rust]
+
+      - id: cargo-clippy-engine
+        name: cargo clippy -p openkite-engine
+        entry: cargo clippy -p openkite-engine --all-targets -- -D warnings
+        language: system
+        pass_filenames: false
+        types: [rust]

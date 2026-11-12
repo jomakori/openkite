@@ -1,0 +1,11 @@
+[package]
+name = "openkite-cli"
+description = "Command-line entry point over the engine, for headless and scripted use"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+rust-version.workspace = true
+
+[dependencies]
+openkite-engine = { path = "../openkite-engine", version = "0.1.0" }

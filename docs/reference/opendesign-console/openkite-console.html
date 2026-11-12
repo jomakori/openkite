@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenKite — Kubernetes Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>try{var t=localStorage.getItem('openkite-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.dataset.theme=t}catch(e){}</script>
+  <link rel="stylesheet" href="openkite-console.css">
+  <link rel="stylesheet" href="openkite-workloads.css">
+  <link rel="stylesheet" href="openkite-charts.css">
+</head>
+<body>
+<svg class="svg-defs" aria-hidden="true">
+  <symbol id="i-kite" viewBox="0 0 32 32">
+    <path d="M16 3l11.5 10L16 28 4.5 13 16 3z" fill="var(--brand)"/>
+    <path d="M12.2 15 16 13l6-4.8M12.9 20 16 13l6.3 5.2" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M16 28v4M11.5 29.2 16 33l4.5-3.8" fill="none" stroke="var(--brand)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+  <symbol id="i-cluster" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2.6"/><circle cx="5" cy="18" r="2.6"/><circle cx="19" cy="18" r="2.6"/><path d="M12 7.6v4.2M12 11.8 6.6 15.2M12 11.8l5.4 3.4"/></symbol>
+  <symbol id="i-workloads" viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1.3"/><rect x="14" y="4" width="6" height="6" rx="1.3"/><rect x="4" y="14" width="6" height="6" rx="1.3"/><rect x="14" y="14" width="6" height="6" rx="1.3"/></symbol>
+  <symbol id="i-pods" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></symbol>
+  <symbol id="i-deploy" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M12 9v6M9 13l3-3 3 3"/></symbol>
+  <symbol id="i-services" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="12" cy="18" r="2"/><path d="M8 6h8M6 8v8M18 8v8M10 18h4"/></symbol>
+  <symbol id="i-config" viewBox="0 0 24 24"><path d="M5 6h14M5 12h14M5 18h14"/><circle cx="9" cy="6" r="2.4"/><circle cx="15" cy="12" r="2.4"/><circle cx="8" cy="18" r="2.4"/></symbol>
+  <symbol id="i-storage" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="7" ry="2.6"/><path d="M5 5v7c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6V5M5 12v7c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6v-7"/></symbol>
+  <symbol id="i-network" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.3 2.2 3.5 5.1 3.5 8.5s-1.2 6.3-3.5 8.5c-2.3-2.2-3.5-5.1-3.5-8.5S9.7 5.7 12 3.5z"/></symbol>
+  <symbol id="i-argo" viewBox="0 0 24 24"><path d="M12 3 21 8v8l-9 5-9-5V8l9-5z"/><path d="M8 9h8M12 9v6M9.5 12l2.5-2.5 2.5 2.5"/></symbol>
+  <symbol id="i-apps" viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1.3"/><rect x="14" y="4" width="6" height="6" rx="1.3"/><rect x="4" y="14" width="6" height="6" rx="1.3"/><rect x="14" y="14" width="6" height="6" rx="1.3"/></symbol>
+  <symbol id="i-projects" viewBox="0 0 24 24"><path d="M4 6.5h6l2 2h8v9H4v-11z"/></symbol>
+  <symbol id="i-repo" viewBox="0 0 24 24"><path d="M6 3v12"/><circle cx="6" cy="18" r="2.2"/><path d="M6 15c3.5 0 5-2.4 12-2.4"/><circle cx="18" cy="15.6" r="2.2"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19 8a7.5 7.5 0 1 0 2 6"/><path d="M19 3v5h-5"/></symbol>
+  <symbol id="i-sync" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 24 24"><path d="M9 2v5M15 2v5M6 7h12v4a6 6 0 0 1-12 0V7zM12 17v5"/></symbol>
+  <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19l-4 1zM14 7l3 3"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-dock" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 14h18"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M9 4h6l-1 6 3 3H7l3-3-1-6zM12 13v7"/></symbol>
+  <symbol id="i-pin-fill" viewBox="0 0 24 24"><path d="M9 4h6l-1 6 3 3H7l3-3-1-6zM12 13v7" fill="currentColor"/></symbol>
+  <symbol id="i-highlight" viewBox="0 0 24 24"><path d="m4 20 4-1 10-10-3-3L5 16l-1 4z"/><path d="M13 8l3 3M14 20h6"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13M10 11v6M14 11v6"/></symbol>
+  <symbol id="i-scale" viewBox="0 0 24 24"><path d="M4 9V4h5M20 15v5h-5M4 4l6 6M20 20l-6-6"/></symbol>
+  <symbol id="i-split" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/></symbol>
+  <symbol id="i-swap" viewBox="0 0 24 24"><path d="M7 7h12l-3-3M17 17H5l3 3"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
+  <symbol id="i-tree" viewBox="0 0 24 24"><path d="M5 4v15M5 8h3M5 13h3M5 18h3"/><rect x="9" y="5.5" width="11" height="5" rx="1.2"/><rect x="9" y="11" width="11" height="5" rx="1.2"/><rect x="9" y="16.5" width="11" height="3.5" rx="1.2"/></symbol>
+  <symbol id="i-treegrid" viewBox="0 0 24 24"><path d="M4 4.5h16"/><rect x="4" y="8" width="7" height="5" rx="1.2"/><rect x="13" y="8" width="7" height="5" rx="1.2"/><rect x="4" y="15" width="7" height="5" rx="1.2"/><rect x="13" y="15" width="7" height="5" rx="1.2"/></symbol>
+  <symbol id="i-expand-all" viewBox="0 0 24 24"><path d="M7 9l5-5 5 5M7 15l5 5 5-5"/></symbol>
+  <symbol id="i-collapse-all" viewBox="0 0 24 24"><path d="M7 4l5 5 5-5M7 20l5-5 5 5"/></symbol>
+  <symbol id="i-tabs" viewBox="0 0 24 24"><path d="M3 9h18M3 9V6a1 1 0 0 1 1-1h5l2 3M3 9v9a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V9"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-terminal" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M12 15h5"/></symbol>
+  <symbol id="i-logs" viewBox="0 0 24 24"><path d="M5 6h14M5 10h14M5 14h14M5 18h9"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="i-kebab" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 6v12M16 6v12"/></symbol>
+  <symbol id="i-clear" viewBox="0 0 24 24"><path d="M5 7h14M9 7V4h6v3M8 10v10h8V10M10 13v4M14 13v4"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3V2.8h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1z"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5.5 20c.8-3.3 3.1-5 6.5-5s5.7 1.7 6.5 5"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M14 7l5 5-5 5"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4.5 4.5L19 7"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 4 3.5 19h17L12 4z"/><path d="M12 9v4M12 16.4v.1"/></symbol>
+  <symbol id="i-error" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 8v5M12 16v.1"/></symbol>
+  <symbol id="i-helm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.5"/><path d="M12 4.5v15M4.5 12h15M6.7 6.7l10.6 10.6M17.3 6.7 6.7 17.3"/><circle cx="12" cy="12" r="2.2"/></symbol>
+  <symbol id="i-kustomize" viewBox="0 0 24 24"><path d="M7 4v16M7 12l11-8M7 12l11 8"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.5 2"/></symbol>
+  <symbol id="i-node" viewBox="0 0 24 24"><path d="m12 3 7 4v9l-7 4-7-4V7l7-4z"/><path d="m5 7.5 7 4 7-4M12 11.5V20"/></symbol>
+</svg>
+
+<div class="app" data-od-id="openkite-app">
+  <aside class="sidebar" id="sidebar" data-od-id="sidebar">
+    <div class="brand" data-od-id="sidebar-brand">
+      <span class="brand-mark"><svg class="icon" style="width:30px;height:30px"><use href="#i-kite"/></svg></span>
+      <span class="brand-word">Open<strong>Kite</strong></span>
+    </div>
+
+    <button class="cluster-btn" id="clusterBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Switch cluster" data-od-id="cluster-switcher">
+      <span class="status-line"><span class="dot"></span></span>
+      <span class="cluster-text"><span id="clusterName">prod-us-east-1</span><small id="clusterMeta">v1.29.4 · us-east-1</small></span>
+      <svg class="icon"><use href="#i-chevron"/></svg>
+    </button>
+
+    <div class="nav-controls" id="navControls" data-od-id="menu-controls">
+      <button class="nav-filter-btn" id="navFilterBtn" type="button" aria-haspopup="menu" aria-expanded="false"><span id="navFilterLabel">All categories</span><svg class="icon dd"><use href="#i-chevron"/></svg></button>
+      <div class="seg-icons" role="group" aria-label="Menu layout">
+        <button class="seg-ic" type="button" data-layout="tree" aria-pressed="true" aria-label="Tree layout" title="Tree"><svg class="icon"><use href="#i-tree"/></svg></button>
+        <button class="seg-ic" type="button" data-layout="grid" aria-pressed="false" aria-label="Tree-grid layout" title="Tree-grid"><svg class="icon"><use href="#i-treegrid"/></svg></button>
+      </div>
+    </div>
+    <nav class="nav" id="navTree" aria-label="Resource navigation" data-od-id="sidebar-nav"></nav>
+  <span class="edge-grip" aria-hidden="true"></span>
+
+    <div class="sidebar-footer" data-od-id="sidebar-account">
+      <div class="foot-row">
+        <button class="profile-btn" id="profileBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Account menu">
+          <span class="avatar sm" aria-hidden="true">EK</span>
+          <span class="profile-text"><b>Emma Kline</b><small>Platform engineer</small></span>
+          <svg class="icon up"><use href="#i-chevron"/></svg>
+        </button>
+        <button class="icon-btn" id="settingsBtn" type="button" aria-label="Settings" title="Settings"><svg class="icon"><use href="#i-settings"/></svg></button>
+      </div>
+      <div class="foot-meta"><span class="version">v0.4.2-alpha</span><span class="status-line"><span class="dot"></span><span id="connLabel">Connected</span></span></div>
+    </div>
+  </aside>
+
+  <button class="sidebar-backdrop" id="sidebarBackdrop" type="button" aria-label="Close navigation"></button>
+
+  <main class="main" id="main" data-od-id="main-content">
+    <header class="topbar" data-od-id="topbar">
+      <button class="icon-btn menu-toggle" id="menuToggle" type="button" aria-label="Open menu" aria-haspopup="true" aria-expanded="false">
+        <svg class="icon"><use href="#i-menu"/></svg>
+      </button>
+      <button class="icon-btn nav-back" id="navBack" type="button" aria-label="Back" title="Back" hidden><svg class="icon"><use href="#i-arrow"/></svg></button>
+      <div class="breadcrumbs" id="breadcrumbs">
+        <button class="crumb-cluster" id="crumbCluster" type="button" aria-label="Open cluster overview for prod-us-east-1"><span class="dot"></span><span id="crumbClusterName">prod-us-east-1</span><svg class="icon dd"><use href="#i-chevron"/></svg></button>
+        <span class="crumb-trail" id="crumbTrail">
+          <svg class="icon sep"><use href="#i-chevron"/></svg>
+          <button class="crumb-btn" id="crumbSectionBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Switch category"><span id="crumbSection">Workloads</span><svg class="icon dd"><use href="#i-chevron"/></svg></button>
+          <svg class="icon sep"><use href="#i-chevron"/></svg>
+          <button class="crumb-btn" id="crumbCurrentBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Switch resource"><span class="current" id="crumbCurrent">Pods</span><svg class="icon dd"><use href="#i-chevron"/></svg></button>
+        </span>
+      </div>
+      <div class="topbar-actions">
+        <div class="ns-pill" id="nsPill" data-od-id="ns-filter"><button type="button" id="nsPillBtn" aria-haspopup="menu" aria-expanded="false" aria-label="Namespace filter: all namespaces"><svg class="icon"><use href="#i-filter"/></svg><span id="nsPillText">Namespaces</span><span id="nsPillBadge"></span><svg class="icon dd"><use href="#i-chevron"/></svg></button><button type="button" id="nsPillClear" aria-label="Clear namespace filter" title="Clear namespace filter" hidden><svg class="icon"><use href="#i-close"/></svg></button></div>
+        <button class="icon-btn theme-toggle topbar-extra" type="button" data-theme-toggle aria-label="Toggle dark mode" aria-pressed="false" title="Dark mode"><svg class="icon moon"><use href="#i-moon"/></svg><svg class="icon sun"><use href="#i-sun"/></svg></button>
+        
+        
+        <button class="icon-btn search-btn" id="searchOrb" type="button" aria-label="Search. Press slash or Control K" aria-expanded="false" aria-controls="searchSheet" title="Search  ( / )" data-od-id="search-orb"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg></button>
+        
+        
+      </div>
+    </header>
+
+    <button class="menu-scrim" id="menuScrim" type="button" aria-label="Close menu" hidden></button>
+    <nav class="menu-pop" id="menuPop" aria-label="Main menu" hidden data-od-id="menu-popup"></nav>
+
+    <div class="pull-indicator" id="pullIndicator"><span class="spinner"></span>Release to refresh</div>
+
+    <section class="view" id="view-overview" data-od-id="overview-view">
+      <div class="page-head" data-od-id="overview-header">
+        <div>
+          <div class="eyebrow">Cluster</div>
+          <h1>Overview</h1>
+          <p class="page-sub" id="ovSub">prod-us-east-1 · Kubernetes v1.29.4 · 8 nodes across 3 availability zones.</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-secondary" type="button" id="ovCustomize" aria-pressed="false"><svg class="icon"><use href="#i-filter"/></svg><span>Customize</span></button>
+          <button class="btn btn-secondary" type="button" data-refresh><svg class="icon"><use href="#i-refresh"/></svg>Refresh</button>
+        </div>
+      </div>
+      <div id="ovBody" data-od-id="overview-body"></div>
+    </section>
+
+    <section class="view active" id="view-workloads" data-od-id="workloads-view">
+      <div class="page-head" data-od-id="workloads-header">
+        <div>
+          <button class="link-back" id="wlBack" type="button" hidden>← Definitions</button>
+          <div class="eyebrow" id="wlEyebrow">Workloads</div>
+          <h1 id="wlTitle">Pods</h1>
+          <p class="page-sub" id="wlSub"></p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-primary" type="button" id="createBtn">
+            <svg class="icon"><use href="#i-plus"/></svg><span id="createLabel">Create Pod</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="sub-tabs" id="subTabs" role="tablist" aria-label="Resource types" hidden></div>
+
+      <div class="toolbar" data-od-id="workloads-toolbar">
+        <div class="chip-row" id="nsChips" role="group" aria-label="Namespace filter"></div>
+      </div>
+
+      <div class="panel summary-panel" id="wlSummary" data-od-id="usage-summary" data-open="true" hidden></div>
+
+      <div class="bulk-bar" id="bulkBar" data-od-id="bulk-bar" hidden>
+        <span id="bulkCount">0 selected</span>
+        <button class="icon-btn x-clear" type="button" id="bulkClear" aria-label="Clear selection" title="Clear selection"><svg class="icon"><use href="#i-close"/></svg></button>
+        <button class="btn btn-danger" type="button" id="bulkDelete"><svg class="icon"><use href="#i-trash"/></svg>Delete</button>
+      </div>
+
+      <div class="panel" data-od-id="pod-table-panel">
+        <div class="panel-tools" data-od-id="list-filter-bar">
+          <label class="search-field list-search"><svg class="icon"><use href="#i-search"/></svg><input type="search" placeholder="Filter by name, node, label…" id="podSearch" aria-label="Filter list" autocomplete="off"><span class="fl-badge" id="flBadge" aria-live="polite"></span><button type="button" class="fl-x" id="flClear" aria-label="Clear filter" hidden><svg class="icon"><use href="#i-close"/></svg></button></label>
+          <button class="icon-btn col-btn" id="colBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Choose columns" title="Columns" data-od-id="column-picker"><svg class="icon" aria-hidden="true"><use href="#i-treegrid"/></svg></button>
+          <div class="tree-bar" id="treeBar" role="group" aria-label="Expand or collapse all rows">
+            <button class="icon-btn" type="button" id="expandAll" aria-label="Expand all" title="Expand all"><svg class="icon"><use href="#i-expand-all"/></svg></button>
+            <button class="icon-btn" type="button" id="collapseAll" aria-label="Collapse all" title="Collapse all"><svg class="icon"><use href="#i-collapse-all"/></svg></button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="resource-table" id="wlTable">
+            <thead><tr id="wlHead"></tr></thead>
+            <tbody id="podRows"></tbody>
+          </table>
+        </div>
+        <div class="empty-state" id="wlEmpty" hidden>No resources match the current filters.</div>
+        <div class="panel-footer">
+          <span id="rowCount"></span>
+          <span class="footer-hint">Select a row for details · ⋮ for actions</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="view" id="view-argocd" data-od-id="argocd-view">
+      <div class="page-head" data-od-id="argocd-header">
+        <div>
+          <div class="eyebrow">Argo CD</div>
+          <h1>Applications</h1>
+          <p class="page-sub" id="argoSub"></p>
+        </div>
+        <div class="page-actions argo-head-actions">
+          <span class="argo-split"><button class="btn btn-secondary" type="button" id="argoRefreshAll"><svg class="icon"><use href="#i-refresh"/></svg>Refresh all</button><button type="button" class="argo-caret" data-argo-rmenu="all" data-rname="all" aria-haspopup="menu" aria-expanded="false" aria-label="Refresh options for all applications" title="Refresh options"><svg class="icon"><use href="#i-chevron"/></svg></button></span>
+          <button class="btn btn-secondary" type="button" id="argoSyncAll"><svg class="icon"><use href="#i-sync"/></svg>Sync out-of-sync</button>
+          <button class="btn btn-primary" type="button" id="argoNew"><svg class="icon"><use href="#i-plus"/></svg>New App</button>
+        </div>
+      </div>
+      <div id="argoRoot" data-od-id="argocd-root"></div>
+    </section>
+  </main>
+
+  <nav class="bottom-nav" aria-label="Mobile navigation" data-od-id="mobile-nav">
+    <div class="bottom-tabs">
+      <button class="bottom-tab active" type="button" data-view="workloads">
+        <svg class="icon"><use href="#i-workloads"/></svg><span>Workloads</span>
+      </button>
+      <button class="bottom-tab argo" type="button" data-view="argocd">
+        <svg class="icon"><use href="#i-argo"/></svg><span>Argo CD</span>
+      </button>
+      <button class="bottom-tab" type="button" id="dockTab" aria-pressed="false">
+        <svg class="icon"><use href="#i-dock"/></svg><span>Console</span>
+      </button>
+    </div>
+  </nav>
+
+  <button class="dock-handle" id="dockHandle" type="button" aria-pressed="false" aria-label="Show logs and terminal" title="Logs &amp; terminal (Ctrl+`)" data-od-id="dock-handle">
+    <svg class="icon ic-dock"><use href="#i-dock"/></svg><svg class="icon ic-down"><use href="#i-chevron"/></svg><span class="handle-badge" id="dockBadge" hidden></span>
+  </button>
+
+  <section class="dock" id="dock" data-od-id="bottom-dock" aria-label="Logs and terminal" aria-hidden="true">
+    <div class="dock-bar">
+      <div class="dock-tabs" id="dockTabs" role="tablist" aria-label="Open logs and terminals"></div>
+      <button class="icon-btn dock-act" type="button" id="addTab" aria-label="New tab" aria-haspopup="menu" aria-expanded="false" title="New tab"><svg class="icon"><use href="#i-plus"/></svg></button>
+      <span class="dock-sep"></span>
+      <div class="dock-actions">
+        <button class="icon-btn dock-act" type="button" id="splitBtn" aria-pressed="false" aria-label="Split view" title="Split view"><svg class="icon"><use href="#i-split"/></svg></button>
+        <button class="icon-btn dock-act" type="button" id="swapBtn" aria-label="Swap panes" title="Swap panes" hidden><svg class="icon"><use href="#i-swap"/></svg></button>
+        <button class="icon-btn dock-act" type="button" id="dockClose" aria-label="Close dock" title="Close"><svg class="icon"><use href="#i-close"/></svg></button>
+      </div>
+    </div>
+    <div class="dock-stage">
+      <div class="dock-body" id="dockBody"></div>
+      <div class="drop-hint" id="dropHint" aria-hidden="true"></div>
+    </div>
+  </section>
+
+  <button class="inspector-scrim" id="inspectorScrim" type="button" aria-label="Close pod details"></button>
+  <aside class="inspector" id="inspector" data-od-id="pod-inspector" aria-label="Pod details">
+    <button type="button" class="insp-handle" id="inspHandle" aria-label="Close details. You can also swipe right."><span class="ih-bar" aria-hidden="true"></span></button>
+    <div class="inspector-header">
+      <button class="icon-btn insp-back" type="button" id="inspBack" aria-label="Back" title="Back" hidden><svg class="icon"><use href="#i-arrow"/></svg></button>
+      <div class="inspector-title"><div class="name-row"><button class="copy-name" type="button" id="copyName" aria-label="Copy name" title="Copy name"><svg class="icon"><use href="#i-copy"/></svg></button><h2 id="inspectorName">Details</h2></div><span id="inspectorKind"></span></div>
+      <button class="icon-btn" type="button" id="inspMore" aria-haspopup="menu" aria-expanded="false" aria-label="More actions" title="More actions" hidden><svg class="icon"><use href="#i-kebab"/></svg></button>
+      <button class="icon-btn" type="button" id="closeInspector" aria-label="Close pod details">
+        <svg class="icon"><use href="#i-close"/></svg>
+      </button>
+    </div>
+    <div class="inspector-body" id="inspectorBody"></div>
+  </aside>
+
+  <div class="row-menu insp-menu" id="inspMenu" role="menu" aria-label="More actions" hidden></div>
+  <div class="row-menu ref-menu" id="refMenu" role="menu" aria-label="Refresh type" hidden></div>
+  <div class="row-menu col-menu" id="colMenu" role="menu" aria-label="Columns" hidden></div>
+  <div class="row-menu ns-menu" id="nsMenu" role="menu" aria-label="Namespaces" hidden></div>
+  <div class="row-menu crumb-menu" id="crumbMenu" role="menu" aria-label="Breadcrumb options" hidden></div>
+  <div class="row-menu nav-filter-menu" id="navFilterMenu" role="menu" aria-label="Menu categories" hidden></div>
+  <div class="row-menu cluster-menu" id="clusterMenu" role="menu" aria-label="Clusters" hidden></div>
+  <div class="row-menu user-menu" id="userMenu" role="menu" aria-label="Account" hidden></div>
+  <div class="row-menu add-menu" id="addMenu" role="menu" hidden></div>
+  <div class="row-menu" id="rowMenu" role="menu" hidden></div>
+  <div class="dlg-scrim" id="dlgScrim" hidden>
+    <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="dlgTitle" data-od-id="confirm-dialog">
+      <h3 id="dlgTitle"></h3>
+      <div class="dlg-body" id="dlgBody"></div>
+      <div class="dlg-actions">
+        <button class="btn btn-secondary" type="button" id="dlgCancel">Cancel</button>
+        <button class="btn btn-primary" type="button" id="dlgOk">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="sheet-backdrop" id="sheetBackdrop"></div>
+  <section class="search-sheet" id="searchSheet" role="dialog" aria-label="Search" aria-hidden="true" data-od-id="search-sheet">
+    <div class="sheet-bar">
+      <svg class="icon"><use href="#i-search"/></svg>
+      <input id="sheetInput" type="text" role="combobox" aria-expanded="true" aria-controls="sheetResults" aria-autocomplete="list" placeholder="Search pages, resources, clusters and actions…" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <button type="button" id="sheetClear" aria-label="Clear search"><svg class="icon"><use href="#i-close"/></svg></button>
+      <kbd>Esc</kbd>
+    </div>
+    <div class="chip-row sheet-scopes" id="sheetScopes" role="group" aria-label="Search scope"></div>
+    <div class="sheet-results" id="sheetResults" role="listbox" aria-label="Results"></div>
+    <div class="sheet-foot"><span><kbd>↑</kbd><kbd>↓</kbd> move</span><span><kbd>↵</kbd> open</span><span><kbd>Tab</kbd> scope</span><span><kbd>Ctrl</kbd><kbd>K</kbd> toggle</span></div>
+    <button type="button" class="sheet-grip" id="sheetGrip" aria-label="Close search. You can also swipe up."><span aria-hidden="true"></span></button>
+  </section>
+  <div class="pull-zone" id="pullZone" aria-hidden="true"></div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</div>
+
+  <script src="openkite-charts.js" defer></script>
+  <script src="openkite-console.js" defer></script>
+</body>
+</html>
