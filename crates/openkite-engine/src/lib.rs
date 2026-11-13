@@ -1,13 +1,18 @@
 //! Collection engine: what to watch, what to keep, and the deltas leaving it.
 pub mod auth;
+pub mod catalogue;
 pub mod context;
+pub mod discovery;
 pub mod error;
 pub mod kubeconfig;
+
+use std::sync::Arc;
 
 use kube::config::{Config, Kubeconfig};
 use kube::Client;
 
 use crate::auth::AuthKind;
+use crate::catalogue::{CatalogueCache, CatalogueSnapshot};
 use crate::context::ContextSwitcher;
 use crate::error::EngineError;
 
@@ -19,6 +24,7 @@ pub struct Engine {
     client: Client,
     context: String,
     auth: AuthKind,
+    catalogue: CatalogueCache,
 }
 
 impl Engine {
@@ -31,6 +37,7 @@ impl Engine {
                 client,
                 context: IN_CLUSTER_CONTEXT.to_owned(),
                 auth: AuthKind::InCluster,
+                catalogue: CatalogueCache::new(),
             });
         }
 
@@ -44,6 +51,7 @@ impl Engine {
             client,
             context: name,
             auth,
+            catalogue: CatalogueCache::new(),
         })
     }
 
@@ -60,6 +68,18 @@ impl Engine {
     /// The credential mechanism the context uses.
     pub fn auth_kind(&self) -> &AuthKind {
         &self.auth
+    }
+
+    /// The served API surface for this context, refetched when the cached copy is stale.
+    pub async fn catalogue(&self) -> Result<Arc<CatalogueSnapshot>, EngineError> {
+        self.catalogue
+            .get_or_refresh(&self.context, &self.client)
+            .await
+    }
+
+    /// Drop the cached API surface so the next `catalogue` call fetches again.
+    pub async fn invalidate_catalogue(&self) {
+        self.catalogue.invalidate(&self.context).await;
     }
 }
 

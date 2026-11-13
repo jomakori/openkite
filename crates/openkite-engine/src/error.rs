@@ -42,6 +42,10 @@ pub enum EngineError {
     /// Building the kube client from a resolved config failed.
     #[error("client build error: {0}")]
     ClientBuild(#[from] kube::Error),
+
+    /// Fetching the served API surface from the cluster failed.
+    #[error("discovery error: {0}")]
+    Discovery(#[source] kube::Error),
 }
 
 impl EngineError {
