@@ -4001,6 +4001,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "openkite-engine-testkit"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "http-body-util",
+ "k8s-openapi",
+ "kube",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tower",
+]
+
+[[package]]
 name = "openkite-ui"
 version = "0.1.0"
 dependencies = [
