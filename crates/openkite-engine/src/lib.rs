@@ -7,6 +7,7 @@ pub mod error;
 pub mod informer;
 pub mod interest;
 pub mod kubeconfig;
+pub mod projection;
 
 use std::sync::Arc;
 
