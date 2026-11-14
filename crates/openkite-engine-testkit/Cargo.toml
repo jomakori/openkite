@@ -9,6 +9,7 @@ rust-version.workspace = true
 
 [dependencies]
 axum.workspace = true
+futures-util.workspace = true
 http-body-util.workspace = true
 kube.workspace = true
 k8s-openapi.workspace = true
@@ -18,4 +19,5 @@ tokio.workspace = true
 tower.workspace = true
 
 [dev-dependencies]
+futures-util.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "time", "io-util"] }

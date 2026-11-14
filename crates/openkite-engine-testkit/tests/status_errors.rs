@@ -43,18 +43,17 @@ async fn an_unsupported_accept_header_is_a_415_status() {
 }
 
 #[tokio::test]
-async fn a_watch_request_is_a_501_status() {
+async fn a_watch_request_streams_instead_of_refusing() {
     let (server, _) = common::with_pods(1).await;
 
     let response = common::raw_get(
         server.base_url(),
-        "/api/v1/pods?watch=true",
+        "/api/v1/pods?watch=true&timeoutSeconds=1",
         "application/json",
     )
     .await
     .expect("raw request");
 
-    assert!(response.starts_with("HTTP/1.1 501"), "response: {response}");
-    assert!(response.contains("NotImplemented"));
+    assert!(response.starts_with("HTTP/1.1 200"), "response: {response}");
     server.shutdown().await;
 }

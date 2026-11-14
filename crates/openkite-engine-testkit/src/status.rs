@@ -29,17 +29,25 @@ pub(crate) fn not_found(group: &str, version: &str, plural: &str) -> Response {
     (StatusCode::NOT_FOUND, Json(body)).into_response()
 }
 
-/// A 501 `Status` for a watch request; watch is served by its own slice.
-pub(crate) fn watch_not_served() -> Response {
-    let body = json!({
+/// A 410 `Status` for a watch resuming from a resourceVersion the log no longer reaches.
+pub(crate) fn expired(plural: &str, resource_version: &str) -> Response {
+    (
+        StatusCode::GONE,
+        Json(expired_body(plural, resource_version)),
+    )
+        .into_response()
+}
+
+/// The body of that 410, shared with the watch stream's `ERROR` event.
+pub(crate) fn expired_body(plural: &str, resource_version: &str) -> serde_json::Value {
+    json!({
         "kind": "Status",
         "apiVersion": "v1",
         "status": "Failure",
-        "message": "watch is not served by this fake apiserver slice",
-        "reason": "NotImplemented",
-        "code": 501,
-    });
-    (StatusCode::NOT_IMPLEMENTED, Json(body)).into_response()
+        "message": format!("too old resource version: {resource_version} ({plural})"),
+        "reason": "Expired",
+        "code": 410,
+    })
 }
 
 /// A 415 `Status` for an `Accept` header the server cannot satisfy.
