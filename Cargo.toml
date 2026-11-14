@@ -12,6 +12,7 @@ rust-version = "1.90"
 # Exact pins: an upstream minor move is a deliberate commit, not a silent drift.
 [workspace.dependencies]
 axum = "=0.8.9"
+futures-util = "=0.3.34"
 dioxus = "=0.7.10"
 http-body-util = "=0.1.5"
 kube = { version = "=5.0.0", features = ["client", "runtime", "derive", "oidc", "ws", "rustls-tls"] }

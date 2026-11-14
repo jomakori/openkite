@@ -5,6 +5,7 @@ mod status;
 mod store;
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use axum::http::Uri;
 use kube::{Client, Config};
@@ -13,6 +14,17 @@ use serde_json::Value;
 use tokio::{net::TcpListener, sync::oneshot, task::JoinHandle};
 
 pub use store::Gvk;
+
+/// A change fed into the store, and the watch type it surfaces as.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Event {
+    /// An object that did not exist before.
+    Added,
+    /// An object already in the store.
+    Modified,
+    /// An object to remove.
+    Deleted,
+}
 
 /// Describes one Kubernetes kind served by the fake apiserver.
 #[derive(Clone, Debug)]
@@ -112,6 +124,7 @@ impl Scenario {
 /// A running fake apiserver bound to a local port.
 pub struct FakeApiserver {
     base_url: String,
+    store: Arc<store::Store>,
     shutdown: Option<oneshot::Sender<()>>,
     join: Option<JoinHandle<()>>,
 }
@@ -119,8 +132,8 @@ pub struct FakeApiserver {
 impl FakeApiserver {
     /// Starts the fake apiserver on `127.0.0.1:0`, seeded from `scenario`.
     pub async fn start(scenario: Scenario) -> Self {
-        let store = store::Store::new(scenario);
-        let app = routes::router(store);
+        let store = Arc::new(store::Store::new(scenario));
+        let app = routes::router(Arc::clone(&store));
         let listener = TcpListener::bind("127.0.0.1:0")
             .await
             .expect("bind local port");
@@ -136,9 +149,20 @@ impl FakeApiserver {
         });
         Self {
             base_url: format!("http://{addr}"),
+            store,
             shutdown: Some(tx),
             join: Some(join),
         }
+    }
+
+    /// Applies a change and feeds it to every open watch on that resource.
+    pub fn apply(&self, def: &ResourceDef, event: Event, object: Value) {
+        self.store.apply(&def.gvk(), event, object);
+    }
+
+    /// The resourceVersion a resume would ask for: the newest one applied.
+    pub fn resource_version(&self) -> String {
+        self.store.resource_version()
     }
 
     /// The base URL the fake apiserver is listening on.

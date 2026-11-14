@@ -1,23 +1,28 @@
 //! HTTP surface of the fake apiserver.
 
+use std::collections::VecDeque;
+use std::convert::Infallible;
 use std::sync::Arc;
+use std::time::Duration;
 
+use axum::body::{Body, Bytes};
 use axum::extract::{Path, Query, State};
 use axum::http::{header, HeaderMap};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
+use futures_util::stream;
 use serde::Deserialize;
 use serde_json::{json, Value};
+use tokio::time::Instant;
 
 use crate::discovery;
 use crate::status;
-use crate::store::{list_meta, Store};
-use crate::ResourceDef;
+use crate::store::{list_meta, Store, WatchRecord};
+use crate::{Event, ResourceDef};
 
-/// Builds the router serving discovery, list and Status responses.
-pub(crate) fn router(store: Store) -> Router {
-    let state = Arc::new(store);
+/// Builds the router serving discovery, list, watch and Status responses.
+pub(crate) fn router(store: Arc<Store>) -> Router {
     Router::new()
         .route("/api", get(api_root))
         .route("/apis", get(apis_root))
@@ -33,7 +38,7 @@ pub(crate) fn router(store: Store) -> Router {
             "/apis/{group}/{version}/namespaces/{namespace}/{plural}",
             get(list_group_namespaced),
         )
-        .with_state(state)
+        .with_state(store)
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -46,6 +51,12 @@ pub(crate) struct ListQuery {
     #[serde(rename = "labelSelector")]
     label_selector: Option<String>,
     watch: Option<bool>,
+    #[serde(rename = "resourceVersion")]
+    resource_version: Option<String>,
+    #[serde(rename = "timeoutSeconds")]
+    timeout_seconds: Option<u64>,
+    #[serde(rename = "allowWatchBookmarks")]
+    allow_watch_bookmarks: Option<bool>,
 }
 
 async fn api_root(State(store): State<Arc<Store>>, headers: HeaderMap) -> Response {
@@ -161,7 +172,7 @@ fn list(
         }
     }
     if query.watch == Some(true) {
-        return status::watch_not_served();
+        return watch(store, def, namespace, query);
     }
 
     let mut items: Vec<Value> = store
@@ -190,6 +201,150 @@ fn list(
         "items": items,
     });
     Json(body).into_response()
+}
+
+/// Serves the watch stream: logged events newer than the client's resourceVersion, then live ones.
+fn watch(store: &Store, def: &ResourceDef, namespace: Option<&str>, query: &ListQuery) -> Response {
+    let from = query
+        .resource_version
+        .as_deref()
+        .and_then(|value| value.parse::<u64>().ok())
+        .unwrap_or(0);
+    if store.is_stale(from) {
+        return status::expired(&def.plural, &store.resource_version());
+    }
+
+    let filter = Filter {
+        def: def.clone(),
+        namespace: namespace.map(str::to_owned),
+        field_selector: query.field_selector.clone(),
+        label_selector: query.label_selector.clone(),
+    };
+    let replay = if from == 0 {
+        Vec::new()
+    } else {
+        store.replay(&def.gvk(), from)
+    };
+    let last_seen = replay.last().map_or(from, |record| record.resource_version);
+    let state = WatchState {
+        replay: replay.into(),
+        events: store.subscribe(),
+        last_seen,
+        deadline: Instant::now() + Duration::from_secs(query.timeout_seconds.unwrap_or(30)),
+        bookmarks: query.allow_watch_bookmarks.unwrap_or(true),
+        bookmarked: false,
+        closed: false,
+        filter,
+        current: store.resource_version(),
+    };
+
+    let stream = stream::unfold(state, |mut state| async move {
+        loop {
+            if state.closed {
+                return None;
+            }
+            if let Some(record) = state.replay.pop_front() {
+                if state.filter.matches(&record.object) {
+                    state.last_seen = record.resource_version;
+                    return Some((Ok::<Bytes, Infallible>(record.line()), state));
+                }
+                continue;
+            }
+            tokio::select! {
+                received = state.events.recv() => match received {
+                    Ok(record) if record.resource_version <= state.last_seen => continue,
+                    Ok(record) => {
+                        if !state.filter.matches(&record.object) {
+                            continue;
+                        }
+                        state.last_seen = record.resource_version;
+                        return Some((Ok(record.line()), state));
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                        state.closed = true;
+                        return Some((Ok(error_line(&state.filter.def.plural, &state.current)), state));
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => return None,
+                },
+                _ = tokio::time::sleep_until(state.deadline) => {
+                    state.closed = true;
+                    if state.bookmarks && !state.bookmarked {
+                        state.bookmarked = true;
+                        let line = bookmark_line(&state.filter.def, &state.current);
+                        return Some((Ok(line), state));
+                    }
+                    return None;
+                }
+            }
+        }
+    });
+
+    Response::builder()
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from_stream(stream))
+        .expect("watch response")
+}
+
+struct WatchState {
+    replay: VecDeque<WatchRecord>,
+    events: tokio::sync::broadcast::Receiver<WatchRecord>,
+    last_seen: u64,
+    deadline: Instant,
+    bookmarks: bool,
+    bookmarked: bool,
+    closed: bool,
+    filter: Filter,
+    current: String,
+}
+
+#[derive(Clone)]
+struct Filter {
+    def: ResourceDef,
+    namespace: Option<String>,
+    field_selector: Option<String>,
+    label_selector: Option<String>,
+}
+
+impl Filter {
+    fn matches(&self, object: &Value) -> bool {
+        matches_scope(object, &self.def, self.namespace.as_deref())
+            && matches_field_selector(object, self.field_selector.as_deref())
+            && matches_label_selector(object, self.label_selector.as_deref())
+    }
+}
+
+impl WatchRecord {
+    fn line(&self) -> Bytes {
+        let body = json!({
+            "type": match self.event {
+                Event::Added => "ADDED",
+                Event::Modified => "MODIFIED",
+                Event::Deleted => "DELETED",
+            },
+            "object": self.object,
+        });
+        Bytes::from(format!("{body}\n"))
+    }
+}
+
+fn bookmark_line(def: &ResourceDef, resource_version: &str) -> Bytes {
+    let body = json!({
+        "type": "BOOKMARK",
+        "object": {
+            "apiVersion": api_version(&def.group, &def.version),
+            "kind": def.kind,
+            "metadata": { "resourceVersion": resource_version },
+        },
+    });
+    Bytes::from(format!("{body}\n"))
+}
+
+fn error_line(plural: &str, resource_version: &str) -> Bytes {
+    let body = json!({
+        "type": "ERROR",
+        "object": status::expired_body(plural, resource_version),
+    });
+    Bytes::from(format!("{body}\n"))
 }
 
 fn matches_scope(item: &Value, def: &ResourceDef, namespace: Option<&str>) -> bool {
