@@ -4,6 +4,8 @@ pub mod catalogue;
 pub mod context;
 pub mod discovery;
 pub mod error;
+pub mod informer;
+pub mod interest;
 pub mod kubeconfig;
 
 use std::sync::Arc;
