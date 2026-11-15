@@ -23,10 +23,7 @@
 
 ## Related Links
 
-<!-- Deploy preview, Plane ticket, related PRs -->
-
-- Deploy preview:
-  <!-- Previews prove the change, staging proves the build, prod proves the release. -->
+<!-- Deploy Plane ticket, related PRs -->
 - Plane ticket:
 - Related PRs:
 
