@@ -190,6 +190,35 @@ async fn exit_code_row(client: Client) -> (Option<i32>, Option<i32>) {
 
 /// Stdin EOF row: `cat` only finishes once the server is told stdin closed.
 async fn stdin_eof_row(client: Client) -> (Option<i32>, Option<i32>) {
+    // Baseline first. It used to sit after our own assertions, so in every failing run it never
+    // executed at all -- the row could then only blame our driver, with no proof kubectl itself
+    // reaches EOF on this fixture. Run it before we open a session, and say what it returned.
+    let theirs = kubectl_with_stdin(
+        &[
+            "exec",
+            "-i",
+            POD,
+            "-n",
+            NAMESPACE,
+            "--",
+            "sh",
+            "-c",
+            "cat > /dev/null && echo eof",
+        ],
+        b"probe\n",
+    )
+    .await;
+    let their_text = String::from_utf8_lossy(&theirs.stdout).to_string();
+    let their_exit = theirs.status.code();
+    println!(
+        "  [conformance] kubectl baseline: exit={their_exit:?} out={their_text:?} err={:?}",
+        String::from_utf8_lossy(&theirs.stderr)
+    );
+    assert!(
+        their_text.contains("eof"),
+        "kubectl baseline did not reach EOF either: {their_text:?}"
+    );
+
     let mut session = tokio::time::timeout(
         ROW_DEADLINE,
         PodExecSession::open(
@@ -234,30 +263,6 @@ async fn stdin_eof_row(client: Client) -> (Option<i32>, Option<i32>) {
         .expect("wait for stdin-eof session");
     let ours = exit_code(exit);
     assert_eq!(ours, Some(0), "`cat > /dev/null && echo eof` should exit 0");
-
-    // Same command through kubectl: write the same probe, then drop the piped stdin so the CLI
-    // sees the same end-of-input and forwards it.
-    let theirs = kubectl_with_stdin(
-        &[
-            "exec",
-            "-i",
-            POD,
-            "-n",
-            NAMESPACE,
-            "--",
-            "sh",
-            "-c",
-            "cat > /dev/null && echo eof",
-        ],
-        b"probe\n",
-    )
-    .await;
-    let their_text = String::from_utf8_lossy(&theirs.stdout).to_string();
-    let their_exit = theirs.status.code();
-    assert!(
-        their_text.contains("eof"),
-        "kubectl baseline did not reach EOF either: {their_text:?}"
-    );
 
     assert_eq!(
         ours, their_exit,
@@ -413,20 +418,27 @@ async fn kubectl(args: &[&str]) -> Output {
 async fn kubectl_with_stdin(args: &[&str], input: &[u8]) -> Output {
     let owned: Vec<String> = args.iter().map(|arg| (*arg).to_owned()).collect();
     let input = input.to_vec();
-    tokio::task::spawn_blocking(move || {
-        let mut child = Command::new("kubectl")
-            .args(&owned)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .expect("spawn kubectl with piped stdin");
-        {
-            let mut stdin = child.stdin.take().expect("piped stdin handle");
-            stdin.write_all(&input).expect("write to kubectl stdin");
-        } // Dropping the handle closes stdin, which is the EOF signal.
-        child.wait_with_output().expect("wait for kubectl")
-    })
+    // Bounded: this runs before our own session now, and an unbounded `wait_with_output` would
+    // silently convert a stuck kubectl into the same anonymous 600s deadline the rows were
+    // changed to avoid.
+    tokio::time::timeout(
+        ROW_DEADLINE,
+        tokio::task::spawn_blocking(move || {
+            let mut child = Command::new("kubectl")
+                .args(&owned)
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .expect("spawn kubectl with piped stdin");
+            {
+                let mut stdin = child.stdin.take().expect("piped stdin handle");
+                stdin.write_all(&input).expect("write to kubectl stdin");
+            } // Dropping the handle closes stdin, which is the EOF signal.
+            child.wait_with_output().expect("wait for kubectl")
+        }),
+    )
     .await
+    .expect("kubectl baseline must finish within ROW_DEADLINE")
     .expect("kubectl task panicked")
 }
