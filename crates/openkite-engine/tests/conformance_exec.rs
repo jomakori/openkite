@@ -203,7 +203,7 @@ async fn stdin_eof_row(client: Client) -> (Option<i32>, Option<i32>) {
             "--",
             "sh",
             "-c",
-            "cat > /dev/null && echo eof",
+            "cat && echo eof",
         ],
         b"probe\n",
     )
@@ -215,15 +215,15 @@ async fn stdin_eof_row(client: Client) -> (Option<i32>, Option<i32>) {
         String::from_utf8_lossy(&theirs.stderr)
     );
     assert!(
-        their_text.contains("eof"),
-        "kubectl baseline did not reach EOF either: {their_text:?}"
+        their_text.contains("probe") && their_text.contains("eof"),
+        "kubectl baseline did not echo stdin and reach EOF: {their_text:?}"
     );
 
     let mut session = tokio::time::timeout(
         ROW_DEADLINE,
         PodExecSession::open(
             client,
-            PodExecRequest::new(NAMESPACE, POD, ["sh", "-c", "cat > /dev/null && echo eof"]),
+            PodExecRequest::new(NAMESPACE, POD, ["sh", "-c", "cat && echo eof"]),
         ),
     )
     .await
@@ -254,15 +254,19 @@ async fn stdin_eof_row(client: Client) -> (Option<i32>, Option<i32>) {
     // remote never saw EOF" from "it finished and we failed to observe it".
     println!("  [conformance] stdin_eof drained: {text:?}");
     assert!(
+        text.contains("probe"),
+        "stdin bytes never reached the pod, so the EOF question cannot even be asked; output was {text:?}"
+    );
+    assert!(
         text.contains("eof"),
-        "closing stdin did not let the remote command reach EOF; output was {text:?}"
+        "stdin arrived but closing it did not let the remote command reach EOF; output was {text:?}"
     );
     let exit = tokio::time::timeout(ROW_DEADLINE, session.wait())
         .await
         .expect("stdin-eof session must exit within ROW_DEADLINE")
         .expect("wait for stdin-eof session");
     let ours = exit_code(exit);
-    assert_eq!(ours, Some(0), "`cat > /dev/null && echo eof` should exit 0");
+    assert_eq!(ours, Some(0), "`cat && echo eof` should exit 0");
 
     assert_eq!(
         ours, their_exit,
