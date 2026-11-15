@@ -121,3 +121,34 @@ jobs:
             libjavascriptcoregtk-4.1-dev
       - name: Check the desktop shell
         run: cargo check -p openkite-desktop --all-targets
+
+  exec-conformance:
+    name: Exec conformance against a kind cluster
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    env:
+      KIND_VERSION: v0.33.0
+      KUBECTL_VERSION: v1.37.2
+      KIND_CLUSTER: openkite-conformance
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Install the Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install kind and kubectl
+        run: |
+          curl -fsSLo kind "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-amd64"
+          sudo install -m 0755 kind /usr/local/bin/kind
+          curl -fsSLo kubectl "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+          sudo install -m 0755 kubectl /usr/local/bin/kubectl
+          kubectl version --client
+      - name: Create the kind cluster
+        run: kind create cluster --name "${KIND_CLUSTER}" --wait 180s
+      - name: Confirm the cluster answers
+        run: kubectl cluster-info
+      - name: Build the conformance test
+        run: cargo test -p openkite-engine --test conformance_exec --no-run
+      - name: Diff exec behaviour against kubectl
+        run: cargo test -p openkite-engine --test conformance_exec -- --ignored --nocapture
