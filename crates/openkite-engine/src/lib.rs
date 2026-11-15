@@ -6,6 +6,7 @@ pub mod context;
 pub mod discovery;
 pub mod error;
 pub mod exec;
+pub mod governor;
 pub mod informer;
 pub mod interest;
 pub mod kubeconfig;
