@@ -220,16 +220,20 @@ async fn stdin_eof_row(client: Client) -> (Option<i32>, Option<i32>) {
     );
 
     let text = drain_stdout(&session, Some("eof"), ROW_DEADLINE).await;
+    // Report the drain before waiting on the exit: `wait()` is the call that can hang, and
+    // asserting on it first threw away the one piece of evidence that distinguishes "the
+    // remote never saw EOF" from "it finished and we failed to observe it".
+    println!("  [conformance] stdin_eof drained: {text:?}");
+    assert!(
+        text.contains("eof"),
+        "closing stdin did not let the remote command reach EOF; output was {text:?}"
+    );
     let exit = tokio::time::timeout(ROW_DEADLINE, session.wait())
         .await
         .expect("stdin-eof session must exit within ROW_DEADLINE")
         .expect("wait for stdin-eof session");
     let ours = exit_code(exit);
     assert_eq!(ours, Some(0), "`cat > /dev/null && echo eof` should exit 0");
-    assert!(
-        text.contains("eof"),
-        "closing stdin did not let the remote command reach EOF; output was {text:?}"
-    );
 
     // Same command through kubectl: write the same probe, then drop the piped stdin so the CLI
     // sees the same end-of-input and forwards it.
