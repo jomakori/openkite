@@ -48,14 +48,24 @@ async fn exec_conformance_matches_kubectl() {
 
 /// Runs the three rows against one fixture pod and prints a comparison line per row.
 async fn run() {
+    // Each step is named as it starts: the whole test's deadline is a blunt instrument, so a
+    // silent hang has to localise to a line rather than to "somewhere in here".
+    println!("[conformance] require_kubectl");
     require_kubectl().await;
+
+    println!("[conformance] create_fixture");
     create_fixture().await;
 
+    println!("[conformance] kube client");
     let client = Client::try_default()
         .await
         .expect("kube client from the environment");
+
+    println!("[conformance] row exit_code");
     let exit_code = exit_code_row(client.clone()).await;
+    println!("[conformance] row stdin_eof");
     let stdin_eof = stdin_eof_row(client.clone()).await;
+    println!("[conformance] row resize");
     let resize = resize_row(client).await;
 
     println!("\nexec conformance: ours vs kubectl");
@@ -180,11 +190,15 @@ async fn exit_code_row(client: Client) -> (Option<i32>, Option<i32>) {
 
 /// Stdin EOF row: `cat` only finishes once the server is told stdin closed.
 async fn stdin_eof_row(client: Client) -> (Option<i32>, Option<i32>) {
-    let mut session = PodExecSession::open(
-        client,
-        PodExecRequest::new(NAMESPACE, POD, ["sh", "-c", "cat > /dev/null && echo eof"]),
+    let mut session = tokio::time::timeout(
+        ROW_DEADLINE,
+        PodExecSession::open(
+            client,
+            PodExecRequest::new(NAMESPACE, POD, ["sh", "-c", "cat > /dev/null && echo eof"]),
+        ),
     )
     .await
+    .expect("stdin-eof session must open within ROW_DEADLINE")
     .expect("open stdin-eof exec session");
 
     session
@@ -206,7 +220,10 @@ async fn stdin_eof_row(client: Client) -> (Option<i32>, Option<i32>) {
     );
 
     let text = drain_stdout(&session, Some("eof"), ROW_DEADLINE).await;
-    let exit = session.wait().await.expect("wait for stdin-eof session");
+    let exit = tokio::time::timeout(ROW_DEADLINE, session.wait())
+        .await
+        .expect("stdin-eof session must exit within ROW_DEADLINE")
+        .expect("wait for stdin-eof session");
     let ours = exit_code(exit);
     assert_eq!(ours, Some(0), "`cat > /dev/null && echo eof` should exit 0");
     assert!(
@@ -259,8 +276,9 @@ async fn resize_row(client: Client) -> String {
         ],
     )
     .tty(true);
-    let mut session = PodExecSession::open(client, request)
+    let mut session = tokio::time::timeout(ROW_DEADLINE, PodExecSession::open(client, request))
         .await
+        .expect("tty session must open within ROW_DEADLINE")
         .expect("open tty exec session");
 
     let first = resized_size(&mut session, 133, 41).await;
@@ -269,7 +287,10 @@ async fn resize_row(client: Client) -> String {
     assert_eq!(first, "41 133", "remote pty did not adopt the first size");
     assert_eq!(second, "33 97", "remote pty did not adopt the second size");
 
-    let exit = session.wait().await.expect("wait for tty session");
+    let exit = tokio::time::timeout(ROW_DEADLINE, session.wait())
+        .await
+        .expect("tty session must exit within ROW_DEADLINE")
+        .expect("wait for tty session");
     assert_eq!(
         exit_code(exit),
         Some(0),
@@ -316,13 +337,21 @@ async fn resized_size(session: &mut PodExecSession, width: u16, height: u16) -> 
 
 /// Opens a session, drains it, and returns how the command ended.
 async fn execute(client: Client, command: &[&str]) -> Result<ExecExit, DriverError> {
-    let session = PodExecSession::open(
-        client,
-        PodExecRequest::new(NAMESPACE, POD, command.to_vec()),
+    // Both awaits are bounded: the session must answer within a row, or the test only learns
+    // that it died from the outer deadline, with no idea which call refused to return.
+    let session = tokio::time::timeout(
+        ROW_DEADLINE,
+        PodExecSession::open(
+            client,
+            PodExecRequest::new(NAMESPACE, POD, command.to_vec()),
+        ),
     )
-    .await?;
+    .await
+    .expect("exec session must open within ROW_DEADLINE")?;
     drain_stdout(&session, None, ROW_DEADLINE).await;
-    session.wait().await
+    tokio::time::timeout(ROW_DEADLINE, session.wait())
+        .await
+        .expect("exec session must report an exit within ROW_DEADLINE")
 }
 
 fn exit_code(exit: ExecExit) -> Option<i32> {
