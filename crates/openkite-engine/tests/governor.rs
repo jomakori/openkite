@@ -23,34 +23,43 @@ fn snapshot_matches_registry_state_under_churn() {
     let pinned = interest(0, InterestClass::Pinned);
     let visible = interest(1, InterestClass::Visible);
     let probe = interest(2, InterestClass::Probe);
+    let spare = interest(3, InterestClass::Visible);
 
     assert_eq!(governor.acquire(&pinned), Admission::Admitted);
     assert_eq!(governor.acquire(&visible), Admission::Admitted);
     assert_eq!(governor.acquire(&probe), Admission::Admitted);
+    assert_eq!(governor.acquire(&spare), Admission::Admitted);
     // Second acquire on the same key bumps the refcount, not a new watch.
     governor.acquire(&visible);
 
     governor.set_state(&probe, InformerState::Parked);
     governor.release(&pinned);
+    governor.release(&spare);
 
     let snapshot = governor.snapshot();
     assert_eq!(
         governor.state(&pinned),
-        Some(InformerState::Parked),
-        "releasing the only holder parks the watch immediately"
+        Some(InformerState::Running),
+        "pinned never parks on release"
     );
     assert_eq!(governor.state(&visible), Some(InformerState::Running));
     assert_eq!(governor.state(&probe), Some(InformerState::Parked));
-
-    assert_eq!(snapshot.watches_running, 1, "only `visible` is running");
     assert_eq!(
-        snapshot.watches_parked, 2,
-        "`pinned` and `probe` are parked"
+        governor.state(&spare),
+        Some(InformerState::Parked),
+        "releasing the only holder parks the watch"
     );
-    assert_eq!(snapshot.running_by_class.visible, 1);
-    assert_eq!(snapshot.parked_by_class.pinned, 1);
+
+    assert_eq!(
+        snapshot.watches_running, 2,
+        "`pinned` and `visible` are running"
+    );
+    assert_eq!(snapshot.watches_parked, 2, "`probe` and `spare` are parked");
+    assert_eq!(snapshot.running_by_class.pinned, 1);
+    assert_eq!(snapshot.parked_by_class.pinned, 0);
+    assert_eq!(snapshot.parked_by_class.visible, 1);
     assert_eq!(snapshot.parked_by_class.probe, 1);
-    assert_eq!(governor.count(), 3, "three distinct interests are tracked");
+    assert_eq!(governor.count(), 4, "four distinct interests are tracked");
 }
 
 #[test]
