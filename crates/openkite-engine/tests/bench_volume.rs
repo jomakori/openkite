@@ -210,6 +210,9 @@ fn build_scenario(
         })
         .collect();
     let mut scenario = Scenario::new();
+    for def in &defs {
+        scenario = scenario.with_resource(def.clone());
+    }
     for pod in pods {
         scenario = scenario.add(&defs[0], pod.clone());
     }
@@ -229,7 +232,7 @@ async fn count_objects_via_store(server: &FakeApiserver, defs: &[ResourceDef]) -
             version: def.version.clone(),
             kind: def.kind.clone(),
         };
-        let resource = ApiResource::from_gvk(&gvk);
+        let resource = ApiResource::from_gvk_with_plural(&gvk, &def.plural);
         let api: Api<DynamicObject> = Api::all_with(client.clone(), &resource);
         let list = api
             .list(&ListParams::default())
