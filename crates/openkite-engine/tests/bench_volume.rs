@@ -234,11 +234,24 @@ async fn count_objects_via_store(server: &FakeApiserver, defs: &[ResourceDef]) -
         };
         let resource = ApiResource::from_gvk_with_plural(&gvk, &def.plural);
         let api: Api<DynamicObject> = Api::all_with(client.clone(), &resource);
-        let list = api
-            .list(&ListParams::default())
-            .await
-            .unwrap_or_else(|err| panic!("list {} via fake apiserver: {err}", def.kind));
-        total += list.items.len();
+        let mut params = ListParams::default();
+        loop {
+            let list = api
+                .list(&params)
+                .await
+                .unwrap_or_else(|err| panic!("list {} via fake apiserver: {err}", def.kind));
+            let page_len = list.items.len();
+            total += page_len;
+            if page_len == 0 {
+                break;
+            }
+            match list.metadata.continue_.as_deref() {
+                Some(token) if !token.is_empty() => {
+                    params = ListParams::default().continue_token(token);
+                }
+                _ => break,
+            }
+        }
     }
     total
 }
