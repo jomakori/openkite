@@ -158,11 +158,10 @@ mod tests {
         let reader = BufReader::new(reader);
         let stream = ExecStream::spawn(reader, ExecChannel::Stdout, 4);
 
-        tokio::spawn(async move {
-            for i in 0..20u8 {
-                let _ = writer.write_all(&[i]).await;
-            }
-        });
+        // More bytes than several CHUNK_SIZE reads: one frame per read, so the ring
+        // overflows even when the producer never yields between writes.
+        let payload = vec![7u8; 8 * CHUNK_SIZE];
+        writer.write_all(&payload).await.unwrap();
 
         sleep(Duration::from_millis(100)).await;
 
