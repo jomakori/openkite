@@ -5,10 +5,14 @@ pub mod coalesce;
 pub mod context;
 pub mod discovery;
 pub mod error;
+pub mod exec;
 pub mod informer;
 pub mod interest;
 pub mod kubeconfig;
+pub mod logs;
+pub mod portforward;
 pub mod projection;
+pub mod ring;
 
 use std::sync::Arc;
 
