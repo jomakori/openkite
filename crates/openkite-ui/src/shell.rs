@@ -105,7 +105,13 @@ pub struct AppShellProps {
 /// The shell frame: fixed sidebar and topbar around the routed page body.
 #[allow(non_snake_case)]
 pub fn AppShell(props: AppShellProps) -> Element {
-    let AppShellProps { counts, active_path, cluster, connection, children } = props;
+    let AppShellProps {
+        counts,
+        active_path,
+        cluster,
+        connection,
+        children,
+    } = props;
     let groups: Vec<NavGroup> = build_nav(CATALOGUE, VIEWS);
     let trail: Vec<&'static str> = match entry_for_path(&groups, &active_path) {
         Some((group, entry)) => vec![group.title, entry.label],

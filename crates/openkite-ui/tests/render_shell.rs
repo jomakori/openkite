@@ -21,7 +21,10 @@ fn render(active: &str, counts: Counts) -> String {
 
 #[test]
 fn shell_renders_every_surface_anchor() {
-    let html = render("/workloads/pods", Counts::new().with("pods", 12).with("secrets", 3));
+    let html = render(
+        "/workloads/pods",
+        Counts::new().with("pods", 12).with("secrets", 3),
+    );
 
     for anchor in [
         "class=\"app\"",
@@ -51,7 +54,11 @@ fn shell_renders_one_nav_row_per_catalogue_kind() {
     let html = render("/overview", Counts::new());
     for kind in CATALOGUE {
         assert!(
-            html.contains(&format!("class=\"nav-item\" href=\"/{}/{}\"", kind.group.to_lowercase().replace(' ', "-"), kind.key)),
+            html.contains(&format!(
+                "class=\"nav-item\" href=\"/{}/{}\"",
+                kind.group.to_lowercase().replace(' ', "-"),
+                kind.key
+            )),
             "missing nav row for {}",
             kind.key
         );
@@ -64,14 +71,21 @@ fn badges_come_from_counts_not_from_rows() {
     let html = render("/workloads/pods", counts);
     assert!(html.contains(">12<"), "pod badge missing");
     assert!(html.contains(">3<"), "secret badge missing");
-    assert!(html.contains(">0<"), "kinds without a frame must render zero");
+    assert!(
+        html.contains(">0<"),
+        "kinds without a frame must render zero"
+    );
 }
 
 #[test]
 fn counts_frame_alone_keeps_nav_complete() {
     // A shell fed only counts must still show every kind and route.
     let html = render("/overview", Counts::new().with("pods", 7));
-    assert!(coverage_gaps(CATALOGUE, &openkite_ui::build_nav(CATALOGUE, openkite_ui::VIEWS)).is_empty());
+    assert!(coverage_gaps(
+        CATALOGUE,
+        &openkite_ui::build_nav(CATALOGUE, openkite_ui::VIEWS)
+    )
+    .is_empty());
     for kind in CATALOGUE {
         assert!(html.contains(kind.label), "missing label {}", kind.label);
     }
@@ -80,7 +94,10 @@ fn counts_frame_alone_keeps_nav_complete() {
 #[test]
 fn active_route_is_marked_and_breadcrumbs_follow_it() {
     let html = render("/workloads/pods", Counts::new());
-    assert!(html.contains("aria-current=\"page\""), "active row not marked");
+    assert!(
+        html.contains("aria-current=\"page\""),
+        "active row not marked"
+    );
     assert!(html.contains(">Pods<"), "breadcrumb leaf missing");
     assert!(html.contains(">Workloads<"), "breadcrumb section missing");
 }

@@ -49,17 +49,23 @@ fn main() {
 
     let css = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/console.css"))
         .unwrap()
-        .replace("url(\"/assets/fonts/", &format!("url(\"file://{}/assets/fonts/", env!("CARGO_MANIFEST_DIR")));
-    let sprite = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icons.svg")).unwrap();
+        .replace(
+            "url(\"/assets/fonts/",
+            &format!("url(\"file://{}/assets/fonts/", env!("CARGO_MANIFEST_DIR")),
+        );
+    let sprite =
+        std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icons.svg")).unwrap();
     // Non-web asset URLs resolve to the crate directory; point the sprite refs in-document.
     let crate_dir = env!("CARGO_MANIFEST_DIR");
     body = body.replace(&format!("{crate_dir}/assets/icons.svg#"), "#");
     body = body.replace(&format!("{crate_dir}#"), "#");
 
     let html = format!(
-        "<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\"><title>OpenKite shell</title><style>{css}</style></head>\n<body>{sprite}\n{body}</body></html>\n"
+        "<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>OpenKite shell</title><style>{css}</style></head>\n<body>{sprite}\n{body}</body></html>\n"
     );
-    let out = std::env::args().nth(1).unwrap_or_else(|| "shell.html".to_string());
+    let out = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| "shell.html".to_string());
     std::fs::write(&out, html).unwrap();
     println!("wrote {out}");
 }
