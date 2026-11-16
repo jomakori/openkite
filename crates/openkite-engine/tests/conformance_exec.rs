@@ -203,7 +203,7 @@ async fn stdin_eof_row(client: Client) -> (Option<i32>, Option<i32>) {
             "--",
             "sh",
             "-c",
-            "cat && echo eof",
+            "cat && echo eof && touch /tmp/okt_eof_done_kubectl",
         ],
         b"probe\n",
     )
@@ -219,11 +219,21 @@ async fn stdin_eof_row(client: Client) -> (Option<i32>, Option<i32>) {
         "kubectl baseline did not echo stdin and reach EOF: {their_text:?}"
     );
 
+    // Taken before `open` below moves `client`: the marker probe needs its own handle.
+    let probe_client = client.clone();
     let mut session = tokio::time::timeout(
         ROW_DEADLINE,
         PodExecSession::open(
             client,
-            PodExecRequest::new(NAMESPACE, POD, ["sh", "-c", "cat && echo eof"]),
+            PodExecRequest::new(
+                NAMESPACE,
+                POD,
+                [
+                    "sh",
+                    "-c",
+                    "cat && echo eof && touch /tmp/okt_eof_done_ours",
+                ],
+            ),
         ),
     )
     .await
@@ -257,6 +267,36 @@ async fn stdin_eof_row(client: Client) -> (Option<i32>, Option<i32>) {
         text.contains("probe"),
         "stdin bytes never reached the pod, so the EOF question cannot even be asked; output was {text:?}"
     );
+
+    // Did the REMOTE ever see EOF? The marker is written only after `cat` exits, so it answers
+    // that independently of anything our client observed on its socket:
+    //   MARKER_OURS=yes -> the server processed the close and our read path lost the output
+    //   MARKER_OURS=no  -> the close never reached the server at all
+    let marker = tokio::time::timeout(
+        ROW_DEADLINE,
+        PodExecSession::open(
+            probe_client,
+            PodExecRequest::new(
+                NAMESPACE,
+                POD,
+                [
+                    "sh",
+                    "-c",
+                    "test -f /tmp/okt_eof_done_kubectl && echo MARKER_KUBECTL=yes \
+                     || echo MARKER_KUBECTL=no; \
+                     test -f /tmp/okt_eof_done_ours && echo MARKER_OURS=yes \
+                     || echo MARKER_OURS=no",
+                ],
+            ),
+        ),
+    )
+    .await
+    .expect("eof-marker session must open within ROW_DEADLINE")
+    .expect("open eof-marker exec session");
+    let marker_text = drain_stdout(&marker, Some("MARKER_OURS"), ROW_DEADLINE).await;
+    println!("  [conformance] remote EOF markers: {marker_text:?}");
+    let _ = tokio::time::timeout(ROW_DEADLINE, marker.wait()).await;
+
     assert!(
         text.contains("eof"),
         "stdin arrived but closing it did not let the remote command reach EOF; output was {text:?}"
