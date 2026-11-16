@@ -251,6 +251,15 @@ pub struct NavGroup {
     pub entries: Vec<NavEntry>,
 }
 
+/// Sprite symbol id for a catalogue kind, falling back to the generic resource icon.
+pub fn icon_for(key: &str) -> &'static str {
+    CATALOGUE
+        .iter()
+        .find(|kind| kind.key == key)
+        .map(|kind| kind.icon)
+        .unwrap_or("cube")
+}
+
 /// Lower-case, dash-separated form of a group title, used as the first path segment.
 pub fn group_slug(group: &str) -> String {
     let slug: String = group
