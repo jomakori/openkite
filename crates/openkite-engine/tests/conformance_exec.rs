@@ -244,7 +244,7 @@ async fn stdin_eof_row(client: Client) -> (Option<i32>, Option<i32>) {
         .write_stdin(b"probe\n")
         .await
         .expect("write to stdin while it is open");
-    session.close_stdin();
+    session.close_stdin().await;
     assert!(
         !session.stdin_is_open(),
         "close_stdin left the session's stdin open"
