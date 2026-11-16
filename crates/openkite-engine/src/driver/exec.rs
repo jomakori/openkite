@@ -2,7 +2,7 @@
 //!
 //! The kube API hands back an [`AttachedProcess`] whose stream halves are decoupled from
 //! the WebSocket: stdout/stderr are readers this driver hands to [`ExecStream`], stdin is a
-//! writer whose *drop* is what tells the server stdin reached EOF, and terminal sizes are
+//! writer whose *shutdown* is what tells the server stdin reached EOF, and terminal sizes are
 //! sent on their own mpsc channel. The driver therefore owns four pieces of state, and the
 //! three lifecycle events the caller needs — stdin EOF, terminal resize, session end with an
 //! exit status — map onto them one-for-one instead of onto a single socket handle.
@@ -194,10 +194,14 @@ impl PodExecSession {
 
     /// Closes stdin only, so the pod sees EOF while the session keeps producing output.
     ///
-    /// Dropping the writer half is exactly the signal kube forwards to the server as a
-    /// stdin close, which is why this must not tear down the rest of the session.
-    pub fn close_stdin(&mut self) {
-        self.stdin = None;
+    /// kube forwards the EOF by polling this writer's `shutdown()`: its pump wraps the
+    /// matching read half in a `ReaderStream` and closes the remote stdin when that stream
+    /// ends. Dropping the writer does not end it — tokio's `WriteHalf` has no `Drop` impl and
+    /// `simplex()` shares one stream between both halves — so the shutdown has to be explicit.
+    pub async fn close_stdin(&mut self) {
+        if let Some(mut stdin) = self.stdin.take() {
+            let _ = AsyncWriteExt::shutdown(stdin.as_mut()).await;
+        }
     }
 
     /// Sends a terminal size update; the session must have been opened with `tty`.
@@ -223,6 +227,9 @@ impl PodExecSession {
     /// # Errors
     /// [`DriverError::ExecSessionFailed`] when the session's background task failed.
     pub async fn wait(mut self) -> Result<ExecExit, DriverError> {
+        // A stdin left open would keep the remote command waiting forever for input.
+        self.close_stdin().await;
+
         let joined = match self.process.take() {
             Some(process) => process
                 .join()
