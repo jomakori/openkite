@@ -2680,3 +2680,12 @@ pre.yaml .y-d{color:color-mix(in oklab,var(--terminal-fg) 55%, transparent)}
 .overview-meta{margin:0;color:var(--muted);font-size:12px}
 .overview-head .btn{margin-left:auto}
 .meter{display:flex;flex-direction:column;gap:4px;min-width:120px;flex:1}
+
+/* log dock: level colours, pane head extras and the pod picker */
+.log-level.debug{color:rgba(255,255,255,0.45)}
+.log-level.trace{color:rgba(255,255,255,0.32)}
+.dpane-ctr{color:rgba(255,255,255,0.42);font-size:11px}
+.dpane-note{margin-left:auto;padding:0 10px;font-size:11px;color:rgba(255,255,255,0.45);text-transform:lowercase}
+.dpane[data-paused="true"] .dpane-note{color:var(--warn)}
+.dock-picker{max-width:220px;min-height:28px;background:var(--surface-solid);color:var(--muted);border:1px solid rgba(255,255,255,0.12);border-radius:var(--r-sm);font-family:var(--font-mono);font-size:11px}
+.log-body.paused .log-line{opacity:0.55}

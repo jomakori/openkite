@@ -10,6 +10,8 @@ pub use shell::{AppShell, AppShellProps, Connection, Counts};
 
 pub mod inspector;
 pub mod inspector_view;
+pub mod logs;
+pub mod logs_view;
 pub mod overview;
 pub mod overview_view;
 pub mod table;
@@ -21,6 +23,8 @@ pub use inspector::{
     Gauge, InspectorData, InspectorState, Manifest, QuickAction, ResourceLink, SchemaNode, Tab,
 };
 pub use inspector_view::{Inspector, InspectorProps};
+pub use logs::{DockAction, Level, LogDock, LogLine, LogPane, PodChoice};
+pub use logs_view::{Dock, DockProps};
 pub use overview::{
     BoardAction, CapacityGauge, Interest, Lane, NodeRow, OverviewData, OverviewLayout, ProblemRow,
     Size, WidgetId,
