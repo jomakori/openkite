@@ -12,6 +12,7 @@ fn render(active: &str, counts: Counts) -> String {
             active_path: active.to_string(),
             cluster: "prod-east".to_string(),
             connection: Connection::Live,
+            on_settings: None,
             children: rsx! { div { class: "page-body-stub", "page" } },
         },
     );
@@ -100,4 +101,23 @@ fn active_route_is_marked_and_breadcrumbs_follow_it() {
     );
     assert!(html.contains(">Pods<"), "breadcrumb leaf missing");
     assert!(html.contains(">Workloads<"), "breadcrumb section missing");
+}
+
+#[test]
+fn the_gear_is_the_last_control_in_the_topbar() {
+    let html = render("/workloads/pods", Counts::new());
+    let actions = html
+        .split(r#"class="topbar-actions""#)
+        .nth(1)
+        .expect("the topbar has an action cluster");
+    let cluster = &actions[..actions.find("</div>").unwrap_or(actions.len())];
+    let gear = cluster
+        .find(r#"data-action="settings""#)
+        .expect("a settings button");
+    let search = cluster
+        .find(r#"aria-label="Search""#)
+        .expect("the search button");
+    assert!(gear > search, "settings sits right of search: {cluster}");
+    assert!(cluster.contains(r#"aria-label="Settings""#), "{cluster}");
+    assert!(cluster.contains("#i-settings"), "{cluster}");
 }

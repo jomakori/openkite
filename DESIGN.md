@@ -238,6 +238,17 @@ surfaces above are built for, and the default.
   theme's family instead of falling back to neutral grey.
 - **The terminal stays dark.** The log dock is the one opaque surface and keeps
   its own palette under every preset, light ones included.
+- **The picker is one list, not two grids.** All 24 presets sit in a single
+  alphabetical list, the way a desktop theme switcher reads: a 3px accent rail,
+  four palette dots (canvas, raised surface, ink, accent), the name, a `D`/`L`
+  chip when the preset fills that slot, and its appearance. Pinning light or
+  dark dims and disables the other half rather than hiding it, so the list
+  never changes shape under the user.
+- **Settings is a pane on the right, not a window.** The sheet opens against the
+  right edge at `min(420px, 100vw)`, full height, with its own scrolling body,
+  so the table it configures stays visible beside it and a theme can be judged
+  against real rows. The gear that opens it is the last control in the topbar's
+  right cluster.
 
 ## Typography
 

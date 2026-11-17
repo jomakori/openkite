@@ -64,6 +64,18 @@ impl Preference {
         }
     }
 
+    /// Whether a theme of this appearance belongs to the slot being chosen.
+    ///
+    /// Under `System` both slots are live, so every preset is pickable; pinning one appearance
+    /// narrows the list to the presets that slot can hold.
+    pub fn accepts(self, appearance: Appearance) -> bool {
+        match self {
+            Self::System => true,
+            Self::Light => appearance == Appearance::Light,
+            Self::Dark => appearance == Appearance::Dark,
+        }
+    }
+
     /// The appearance to paint, given what the platform reports.
     pub fn resolve(self, system: Appearance) -> Appearance {
         match self {

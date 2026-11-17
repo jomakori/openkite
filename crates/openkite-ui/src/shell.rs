@@ -104,6 +104,9 @@ pub struct AppShellProps {
     pub active_path: String,
     pub cluster: String,
     pub connection: Connection,
+    /// Opens the settings pane; the shell owns whether it is showing.
+    #[props(default)]
+    pub on_settings: Option<EventHandler<()>>,
     pub children: Element,
 }
 
@@ -116,7 +119,9 @@ pub fn AppShell(props: AppShellProps) -> Element {
         cluster,
         connection,
         children,
+        ..
     } = props;
+    let open_settings = props.on_settings;
     let groups: Vec<NavGroup> = build_nav(CATALOGUE, VIEWS);
     let trail: Vec<&'static str> = match entry_for_path(&groups, &active_path) {
         Some((group, entry)) => vec![group.title, entry.label],
@@ -184,6 +189,18 @@ pub fn AppShell(props: AppShellProps) -> Element {
                     div { class: "topbar-actions",
                         button { class: "icon-btn", r#type: "button", aria_label: "Search",
                             Icon { name: "search" }
+                        }
+                        button {
+                            class: "icon-btn",
+                            r#type: "button",
+                            aria_label: "Settings",
+                            "data-action": "settings",
+                            onclick: move |_| {
+                                if let Some(handler) = open_settings {
+                                    handler.call(());
+                                }
+                            },
+                            Icon { name: "settings" }
                         }
                     }
                 }
