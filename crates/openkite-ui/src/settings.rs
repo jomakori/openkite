@@ -7,7 +7,7 @@
 use serde::Deserialize;
 
 /// Every custom property a theme is allowed to set.
-pub const TOKENS: [&str; 11] = [
+pub const TOKENS: [&str; 12] = [
     "bg",
     "surface",
     "surface-solid",
@@ -19,6 +19,8 @@ pub const TOKENS: [&str; 11] = [
     "success",
     "warn",
     "danger",
+    // A bare `L C H` triple, not a colour: chrome reads it as `oklch(var(--glass)/a)`.
+    "glass",
 ];
 
 /// Whether a theme paints light or dark, so the platform scrollbars match.
@@ -33,6 +35,41 @@ impl Appearance {
         match self {
             Self::Light => "light",
             Self::Dark => "dark",
+        }
+    }
+}
+
+/// Which appearance the console should paint, before the system is consulted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Preference {
+    System,
+    Light,
+    Dark,
+}
+
+impl Preference {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::System => "system",
+            Self::Light => "light",
+            Self::Dark => "dark",
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::System => "System",
+            Self::Light => "Light",
+            Self::Dark => "Dark",
+        }
+    }
+
+    /// The appearance to paint, given what the platform reports.
+    pub fn resolve(self, system: Appearance) -> Appearance {
+        match self {
+            Self::System => system,
+            Self::Light => Appearance::Light,
+            Self::Dark => Appearance::Dark,
         }
     }
 }
@@ -96,91 +133,494 @@ impl Theme {
     }
 }
 
-/// The five themes that ship with the console. `frost` is the base sheet, so it
-/// carries no overrides of its own.
+/// The frost pair the console ships with: the frosted surfaces are built for it.
+pub const DEFAULT_LIGHT: &str = "frost";
+pub const DEFAULT_DARK: &str = "frost-dark";
+
+/// The presets that ship with the console: twelve dark and twelve light, drawn
+/// from the themes people already run in Zed and VS Code. `frost` and
+/// `frost-dark` are the defaults and the pair the frosted surfaces are built for.
 pub fn builtin_themes() -> Vec<Theme> {
     vec![
-        Theme::builtin("frost", "Frost", Appearance::Light, &[]),
+        // Dark
         Theme::builtin(
-            "dusk",
-            "Dusk",
+            "frost-dark",
+            "Frost Dark",
             Appearance::Dark,
             &[
-                ("bg", "oklch(0.185 0.012 262)"),
-                ("surface", "oklch(0.255 0.014 262 / 0.82)"),
-                ("surface-solid", "oklch(0.255 0.014 262 / 0.97)"),
-                ("fg", "oklch(0.94 0.006 262)"),
-                ("muted", "oklch(0.76 0.014 262)"),
-                ("subtle", "oklch(0.62 0.014 262)"),
-                ("border", "oklch(0.37 0.014 262)"),
-                ("accent", "oklch(0.7 0.14 258)"),
-                ("success", "oklch(0.72 0.13 150)"),
-                ("warn", "oklch(0.78 0.13 78)"),
-                ("danger", "oklch(0.7 0.17 22)"),
+                ("bg", "oklch(0.173 0.009 264)"),
+                ("glass", "0.221 0.015 262"),
+                ("surface", "oklch(0.221 0.015 262 / 0.86)"),
+                ("surface-solid", "oklch(0.221 0.015 262 / 0.97)"),
+                ("fg", "oklch(0.942 0.009 258)"),
+                ("muted", "oklch(0.742 0.009 260)"),
+                ("subtle", "oklch(0.526 0.009 262)"),
+                ("border", "oklch(0.342 0.009 263)"),
+                ("accent", "oklch(0.725 0.144 258)"),
+                ("success", "oklch(0.720 0.130 150)"),
+                ("warn", "oklch(0.780 0.130 78)"),
+                ("danger", "oklch(0.700 0.170 22)"),
             ],
         ),
         Theme::builtin(
-            "midnight",
-            "Midnight",
+            "catppuccin-mocha",
+            "Catppuccin Mocha",
             Appearance::Dark,
             &[
-                ("bg", "oklch(0.145 0.014 268)"),
-                ("surface", "oklch(0.205 0.016 268 / 0.86)"),
-                ("surface-solid", "oklch(0.205 0.016 268 / 0.97)"),
-                ("fg", "oklch(0.91 0.008 268)"),
-                ("muted", "oklch(0.7 0.016 268)"),
-                ("subtle", "oklch(0.55 0.016 268)"),
-                ("border", "oklch(0.315 0.02 268)"),
-                ("accent", "oklch(0.66 0.16 272)"),
-                ("success", "oklch(0.7 0.12 152)"),
-                ("warn", "oklch(0.76 0.12 82)"),
-                ("danger", "oklch(0.68 0.16 24)"),
+                ("bg", "oklch(0.243 0.030 284)"),
+                ("glass", "0.324 0.032 282"),
+                ("surface", "oklch(0.324 0.032 282 / 0.86)"),
+                ("surface-solid", "oklch(0.324 0.032 282 / 0.97)"),
+                ("fg", "oklch(0.879 0.043 272)"),
+                ("muted", "oklch(0.713 0.039 275)"),
+                ("subtle", "oklch(0.535 0.036 278)"),
+                ("border", "oklch(0.383 0.033 281)"),
+                ("accent", "oklch(0.766 0.111 260)"),
+                ("success", "oklch(0.720 0.130 150)"),
+                ("warn", "oklch(0.780 0.130 78)"),
+                ("danger", "oklch(0.700 0.170 22)"),
             ],
         ),
         Theme::builtin(
-            "graphite",
-            "Graphite",
+            "one-dark",
+            "One Dark",
             Appearance::Dark,
             &[
-                ("bg", "oklch(0.17 0 0)"),
-                ("surface", "oklch(0.235 0 0 / 0.88)"),
-                ("surface-solid", "oklch(0.235 0 0 / 0.97)"),
-                ("fg", "oklch(0.97 0 0)"),
-                ("muted", "oklch(0.78 0 0)"),
-                ("subtle", "oklch(0.6 0 0)"),
-                ("border", "oklch(0.42 0 0)"),
-                ("accent", "oklch(0.78 0.02 250)"),
-                ("success", "oklch(0.76 0.1 150)"),
-                ("warn", "oklch(0.8 0.1 80)"),
-                ("danger", "oklch(0.72 0.14 24)"),
+                ("bg", "oklch(0.293 0.016 264)"),
+                ("glass", "0.368 0.022 267"),
+                ("surface", "oklch(0.368 0.022 267 / 0.86)"),
+                ("surface-solid", "oklch(0.368 0.022 267 / 0.97)"),
+                ("fg", "oklch(0.762 0.020 263)"),
+                ("muted", "oklch(0.640 0.019 263)"),
+                ("subtle", "oklch(0.509 0.018 264)"),
+                ("border", "oklch(0.396 0.017 264)"),
+                ("accent", "oklch(0.730 0.121 245)"),
+                ("success", "oklch(0.720 0.130 150)"),
+                ("warn", "oklch(0.780 0.130 78)"),
+                ("danger", "oklch(0.700 0.170 22)"),
             ],
         ),
         Theme::builtin(
-            "paper",
-            "Paper",
+            "dracula",
+            "Dracula",
+            Appearance::Dark,
+            &[
+                ("bg", "oklch(0.288 0.022 278)"),
+                ("glass", "0.403 0.032 278"),
+                ("surface", "oklch(0.403 0.032 278 / 0.86)"),
+                ("surface-solid", "oklch(0.403 0.032 278 / 0.97)"),
+                ("fg", "oklch(0.977 0.008 107)"),
+                ("muted", "oklch(0.798 0.001 185)"),
+                ("subtle", "oklch(0.605 0.008 274)"),
+                ("border", "oklch(0.440 0.016 276)"),
+                ("accent", "oklch(0.742 0.149 302)"),
+                ("success", "oklch(0.720 0.130 150)"),
+                ("warn", "oklch(0.780 0.130 78)"),
+                ("danger", "oklch(0.700 0.170 22)"),
+            ],
+        ),
+        Theme::builtin(
+            "nord-dark",
+            "Nord",
+            Appearance::Dark,
+            &[
+                ("bg", "oklch(0.324 0.023 264)"),
+                ("glass", "0.379 0.029 266"),
+                ("surface", "oklch(0.379 0.029 266 / 0.86)"),
+                ("surface-solid", "oklch(0.379 0.029 266 / 0.97)"),
+                ("fg", "oklch(0.951 0.007 261)"),
+                ("muted", "oklch(0.788 0.011 263)"),
+                ("subtle", "oklch(0.613 0.016 263)"),
+                ("border", "oklch(0.462 0.020 264)"),
+                ("accent", "oklch(0.775 0.062 217)"),
+                ("success", "oklch(0.720 0.130 150)"),
+                ("warn", "oklch(0.780 0.130 78)"),
+                ("danger", "oklch(0.700 0.170 22)"),
+            ],
+        ),
+        Theme::builtin(
+            "gruvbox-dark",
+            "Gruvbox Dark",
+            Appearance::Dark,
+            &[
+                ("bg", "oklch(0.277 0.000 90)"),
+                ("glass", "0.344 0.007 49"),
+                ("surface", "oklch(0.344 0.007 49 / 0.86)"),
+                ("surface-solid", "oklch(0.344 0.007 49 / 0.97)"),
+                ("fg", "oklch(0.894 0.057 89)"),
+                ("muted", "oklch(0.734 0.042 89)"),
+                ("subtle", "oklch(0.561 0.026 89)"),
+                ("border", "oklch(0.413 0.012 89)"),
+                ("accent", "oklch(0.832 0.159 83)"),
+                ("success", "oklch(0.720 0.130 150)"),
+                ("warn", "oklch(0.780 0.130 78)"),
+                ("danger", "oklch(0.700 0.170 22)"),
+            ],
+        ),
+        Theme::builtin(
+            "tokyo-night",
+            "Tokyo Night",
+            Appearance::Dark,
+            &[
+                ("bg", "oklch(0.226 0.021 280)"),
+                ("glass", "0.306 0.037 273"),
+                ("surface", "oklch(0.306 0.037 273 / 0.86)"),
+                ("surface-solid", "oklch(0.306 0.037 273 / 0.97)"),
+                ("fg", "oklch(0.846 0.061 275)"),
+                ("muted", "oklch(0.685 0.051 275)"),
+                ("subtle", "oklch(0.511 0.040 276)"),
+                ("border", "oklch(0.363 0.030 278)"),
+                ("accent", "oklch(0.719 0.132 264)"),
+                ("success", "oklch(0.720 0.130 150)"),
+                ("warn", "oklch(0.780 0.130 78)"),
+                ("danger", "oklch(0.700 0.170 22)"),
+            ],
+        ),
+        Theme::builtin(
+            "solarized-dark",
+            "Solarized Dark",
+            Appearance::Dark,
+            &[
+                ("bg", "oklch(0.267 0.049 220)"),
+                ("glass", "0.309 0.052 220"),
+                ("surface", "oklch(0.309 0.052 220 / 0.86)"),
+                ("surface-solid", "oklch(0.309 0.052 220 / 0.97)"),
+                ("fg", "oklch(0.698 0.016 197)"),
+                ("muted", "oklch(0.586 0.024 209)"),
+                ("subtle", "oklch(0.465 0.033 215)"),
+                ("border", "oklch(0.362 0.041 218)"),
+                ("accent", "oklch(0.615 0.139 245)"),
+                ("success", "oklch(0.720 0.130 150)"),
+                ("warn", "oklch(0.780 0.130 78)"),
+                ("danger", "oklch(0.700 0.170 22)"),
+            ],
+        ),
+        Theme::builtin(
+            "monokai",
+            "Monokai",
+            Appearance::Dark,
+            &[
+                ("bg", "oklch(0.274 0.011 115)"),
+                ("glass", "0.357 0.018 103"),
+                ("surface", "oklch(0.357 0.018 103 / 0.86)"),
+                ("surface-solid", "oklch(0.357 0.018 103 / 0.97)"),
+                ("fg", "oklch(0.977 0.008 107)"),
+                ("muted", "oklch(0.794 0.009 109)"),
+                ("subtle", "oklch(0.597 0.009 112)"),
+                ("border", "oklch(0.428 0.010 113)"),
+                ("accent", "oklch(0.841 0.204 127)"),
+                ("success", "oklch(0.720 0.130 150)"),
+                ("warn", "oklch(0.780 0.130 78)"),
+                ("danger", "oklch(0.700 0.170 22)"),
+            ],
+        ),
+        Theme::builtin(
+            "ayu-dark",
+            "Ayu Dark",
+            Appearance::Dark,
+            &[
+                ("bg", "oklch(0.163 0.014 264)"),
+                ("glass", "0.205 0.021 268"),
+                ("surface", "oklch(0.205 0.021 268 / 0.86)"),
+                ("surface-solid", "oklch(0.205 0.021 268 / 0.97)"),
+                ("fg", "oklch(0.798 0.010 94)"),
+                ("muted", "oklch(0.633 0.004 102)"),
+                ("subtle", "oklch(0.455 0.003 249)"),
+                ("border", "oklch(0.303 0.008 262)"),
+                ("accent", "oklch(0.797 0.130 82)"),
+                ("success", "oklch(0.720 0.130 150)"),
+                ("warn", "oklch(0.780 0.130 78)"),
+                ("danger", "oklch(0.700 0.170 22)"),
+            ],
+        ),
+        Theme::builtin(
+            "kanagawa-wave",
+            "Kanagawa Wave",
+            Appearance::Dark,
+            &[
+                ("bg", "oklch(0.243 0.017 285)"),
+                ("glass", "0.291 0.024 285"),
+                ("surface", "oklch(0.291 0.024 285 / 0.86)"),
+                ("surface-solid", "oklch(0.291 0.024 285 / 0.97)"),
+                ("fg", "oklch(0.876 0.039 99)"),
+                ("muted", "oklch(0.711 0.025 98)"),
+                ("subtle", "oklch(0.534 0.009 93)"),
+                ("border", "oklch(0.382 0.005 296)"),
+                ("accent", "oklch(0.694 0.095 264)"),
+                ("success", "oklch(0.720 0.130 150)"),
+                ("warn", "oklch(0.780 0.130 78)"),
+                ("danger", "oklch(0.700 0.170 22)"),
+            ],
+        ),
+        Theme::builtin(
+            "rose-pine",
+            "Rosé Pine",
+            Appearance::Dark,
+            &[
+                ("bg", "oklch(0.213 0.025 291)"),
+                ("glass", "0.241 0.032 289"),
+                ("surface", "oklch(0.241 0.032 289 / 0.86)"),
+                ("surface-solid", "oklch(0.241 0.032 289 / 0.97)"),
+                ("fg", "oklch(0.909 0.030 290)"),
+                ("muted", "oklch(0.728 0.029 290)"),
+                ("subtle", "oklch(0.533 0.027 291)"),
+                ("border", "oklch(0.366 0.026 291)"),
+                ("accent", "oklch(0.776 0.095 305)"),
+                ("success", "oklch(0.720 0.130 150)"),
+                ("warn", "oklch(0.780 0.130 78)"),
+                ("danger", "oklch(0.700 0.170 22)"),
+            ],
+        ),
+        // Light
+        Theme::builtin(
+            "frost",
+            "Frost",
             Appearance::Light,
             &[
-                ("bg", "oklch(0.958 0.014 88)"),
-                ("surface", "oklch(0.995 0.006 90 / 0.9)"),
-                ("surface-solid", "oklch(0.995 0.006 90 / 0.98)"),
-                ("fg", "oklch(0.27 0.02 60)"),
-                ("muted", "oklch(0.52 0.022 62)"),
-                ("subtle", "oklch(0.66 0.018 64)"),
-                ("border", "oklch(0.885 0.014 82)"),
-                ("accent", "oklch(0.56 0.13 40)"),
-                ("success", "oklch(0.6 0.11 148)"),
-                ("warn", "oklch(0.68 0.13 70)"),
-                ("danger", "oklch(0.6 0.17 26)"),
+                ("bg", "oklch(0.973 0.006 265)"),
+                ("glass", "1.000 0.000 90"),
+                ("surface", "oklch(1.000 0.000 90 / 0.86)"),
+                ("surface-solid", "oklch(1.000 0.000 90 / 0.97)"),
+                ("fg", "oklch(0.237 0.015 257)"),
+                ("muted", "oklch(0.429 0.013 258)"),
+                ("subtle", "oklch(0.642 0.010 259)"),
+                ("border", "oklch(0.826 0.008 261)"),
+                ("accent", "oklch(0.553 0.164 259)"),
+                ("success", "oklch(0.600 0.110 150)"),
+                ("warn", "oklch(0.680 0.130 70)"),
+                ("danger", "oklch(0.580 0.170 26)"),
+            ],
+        ),
+        Theme::builtin(
+            "catppuccin-latte",
+            "Catppuccin Latte",
+            Appearance::Light,
+            &[
+                ("bg", "oklch(0.958 0.006 265)"),
+                ("glass", "0.933 0.009 265"),
+                ("surface", "oklch(0.933 0.009 265 / 0.86)"),
+                ("surface-solid", "oklch(0.933 0.009 265 / 0.97)"),
+                ("fg", "oklch(0.435 0.043 279)"),
+                ("muted", "oklch(0.571 0.033 279)"),
+                ("subtle", "oklch(0.723 0.022 277)"),
+                ("border", "oklch(0.853 0.013 274)"),
+                ("accent", "oklch(0.559 0.226 262)"),
+                ("success", "oklch(0.600 0.110 150)"),
+                ("warn", "oklch(0.680 0.130 70)"),
+                ("danger", "oklch(0.580 0.170 26)"),
+            ],
+        ),
+        Theme::builtin(
+            "one-light",
+            "One Light",
+            Appearance::Light,
+            &[
+                ("bg", "oklch(0.985 0.000 90)"),
+                ("glass", "0.955 0.000 90"),
+                ("surface", "oklch(0.955 0.000 90 / 0.86)"),
+                ("surface-solid", "oklch(0.955 0.000 90 / 0.97)"),
+                ("fg", "oklch(0.350 0.014 275)"),
+                ("muted", "oklch(0.515 0.010 275)"),
+                ("subtle", "oklch(0.699 0.006 275)"),
+                ("border", "oklch(0.858 0.003 275)"),
+                ("accent", "oklch(0.602 0.193 263)"),
+                ("success", "oklch(0.600 0.110 150)"),
+                ("warn", "oklch(0.680 0.130 70)"),
+                ("danger", "oklch(0.580 0.170 26)"),
+            ],
+        ),
+        Theme::builtin(
+            "solarized-light",
+            "Solarized Light",
+            Appearance::Light,
+            &[
+                ("bg", "oklch(0.974 0.026 90)"),
+                ("glass", "0.931 0.026 92"),
+                ("surface", "oklch(0.931 0.026 92 / 0.86)"),
+                ("surface-solid", "oklch(0.931 0.026 92 / 0.97)"),
+                ("fg", "oklch(0.523 0.028 219)"),
+                ("muted", "oklch(0.640 0.017 202)"),
+                ("subtle", "oklch(0.771 0.012 148)"),
+                ("border", "oklch(0.883 0.018 104)"),
+                ("accent", "oklch(0.615 0.139 245)"),
+                ("success", "oklch(0.600 0.110 150)"),
+                ("warn", "oklch(0.680 0.130 70)"),
+                ("danger", "oklch(0.580 0.170 26)"),
+            ],
+        ),
+        Theme::builtin(
+            "gruvbox-light",
+            "Gruvbox Light",
+            Appearance::Light,
+            &[
+                ("bg", "oklch(0.956 0.055 96)"),
+                ("glass", "0.894 0.057 89"),
+                ("surface", "oklch(0.894 0.057 89 / 0.86)"),
+                ("surface-solid", "oklch(0.894 0.057 89 / 0.97)"),
+                ("fg", "oklch(0.344 0.007 49)"),
+                ("muted", "oklch(0.503 0.018 85)"),
+                ("subtle", "oklch(0.680 0.033 92)"),
+                ("border", "oklch(0.833 0.045 95)"),
+                ("accent", "oklch(0.618 0.128 71)"),
+                ("success", "oklch(0.600 0.110 150)"),
+                ("warn", "oklch(0.680 0.130 70)"),
+                ("danger", "oklch(0.580 0.170 26)"),
+            ],
+        ),
+        Theme::builtin(
+            "github-light",
+            "GitHub Light",
+            Appearance::Light,
+            &[
+                ("bg", "oklch(1.000 0.000 90)"),
+                ("glass", "0.978 0.003 248"),
+                ("surface", "oklch(0.978 0.003 248 / 0.86)"),
+                ("surface-solid", "oklch(0.978 0.003 248 / 0.97)"),
+                ("fg", "oklch(0.254 0.011 254)"),
+                ("muted", "oklch(0.448 0.008 254)"),
+                ("subtle", "oklch(0.664 0.005 254)"),
+                ("border", "oklch(0.851 0.002 254)"),
+                ("accent", "oklch(0.540 0.191 257)"),
+                ("success", "oklch(0.600 0.110 150)"),
+                ("warn", "oklch(0.680 0.130 70)"),
+                ("danger", "oklch(0.580 0.170 26)"),
+            ],
+        ),
+        Theme::builtin(
+            "ayu-light",
+            "Ayu Light",
+            Appearance::Light,
+            &[
+                ("bg", "oklch(0.985 0.000 90)"),
+                ("glass", "0.955 0.000 90"),
+                ("surface", "oklch(0.955 0.000 90 / 0.86)"),
+                ("surface-solid", "oklch(0.955 0.000 90 / 0.97)"),
+                ("fg", "oklch(0.490 0.010 248)"),
+                ("muted", "oklch(0.619 0.008 248)"),
+                ("subtle", "oklch(0.762 0.005 248)"),
+                ("border", "oklch(0.886 0.002 248)"),
+                ("accent", "oklch(0.775 0.158 58)"),
+                ("success", "oklch(0.600 0.110 150)"),
+                ("warn", "oklch(0.680 0.130 70)"),
+                ("danger", "oklch(0.580 0.170 26)"),
+            ],
+        ),
+        Theme::builtin(
+            "rose-pine-dawn",
+            "Rosé Pine Dawn",
+            Appearance::Light,
+            &[
+                ("bg", "oklch(0.970 0.011 72)"),
+                ("glass", "0.987 0.011 77"),
+                ("surface", "oklch(0.987 0.011 77 / 0.86)"),
+                ("surface-solid", "oklch(0.987 0.011 77 / 0.97)"),
+                ("fg", "oklch(0.460 0.063 290)"),
+                ("muted", "oklch(0.592 0.044 292)"),
+                ("subtle", "oklch(0.740 0.024 299)"),
+                ("border", "oklch(0.868 0.008 335)"),
+                ("accent", "oklch(0.617 0.074 306)"),
+                ("success", "oklch(0.600 0.110 150)"),
+                ("warn", "oklch(0.680 0.130 70)"),
+                ("danger", "oklch(0.580 0.170 26)"),
+            ],
+        ),
+        Theme::builtin(
+            "kanagawa-lotus",
+            "Kanagawa Lotus",
+            Appearance::Light,
+            &[
+                ("bg", "oklch(0.936 0.063 102)"),
+                ("glass", "0.887 0.077 98"),
+                ("surface", "oklch(0.887 0.077 98 / 0.86)"),
+                ("surface-solid", "oklch(0.887 0.077 98 / 0.97)"),
+                ("fg", "oklch(0.452 0.026 285)"),
+                ("muted", "oklch(0.578 0.003 305)"),
+                ("subtle", "oklch(0.718 0.023 100)"),
+                ("border", "oklch(0.839 0.045 101)"),
+                ("accent", "oklch(0.521 0.086 261)"),
+                ("success", "oklch(0.600 0.110 150)"),
+                ("warn", "oklch(0.680 0.130 70)"),
+                ("danger", "oklch(0.580 0.170 26)"),
+            ],
+        ),
+        Theme::builtin(
+            "everforest-light",
+            "Everforest Light",
+            Appearance::Light,
+            &[
+                ("bg", "oklch(0.974 0.026 90)"),
+                ("glass", "0.952 0.031 99"),
+                ("surface", "oklch(0.952 0.031 99 / 0.86)"),
+                ("surface-solid", "oklch(0.952 0.031 99 / 0.97)"),
+                ("fg", "oklch(0.515 0.021 233)"),
+                ("muted", "oklch(0.635 0.011 211)"),
+                ("subtle", "oklch(0.767 0.009 131)"),
+                ("border", "oklch(0.882 0.018 98)"),
+                ("accent", "oklch(0.670 0.156 118)"),
+                ("success", "oklch(0.600 0.110 150)"),
+                ("warn", "oklch(0.680 0.130 70)"),
+                ("danger", "oklch(0.580 0.170 26)"),
+            ],
+        ),
+        Theme::builtin(
+            "quiet-light",
+            "Quiet Light",
+            Appearance::Light,
+            &[
+                ("bg", "oklch(0.970 0.000 90)"),
+                ("glass", "1.000 0.000 90"),
+                ("surface", "oklch(1.000 0.000 90 / 0.86)"),
+                ("surface-solid", "oklch(1.000 0.000 90 / 0.97)"),
+                ("fg", "oklch(0.321 0.000 90)"),
+                ("muted", "oklch(0.490 0.000 90)"),
+                ("subtle", "oklch(0.678 0.000 90)"),
+                ("border", "oklch(0.840 0.000 90)"),
+                ("accent", "oklch(0.508 0.104 301)"),
+                ("success", "oklch(0.600 0.110 150)"),
+                ("warn", "oklch(0.680 0.130 70)"),
+                ("danger", "oklch(0.580 0.170 26)"),
+            ],
+        ),
+        Theme::builtin(
+            "xcode-light",
+            "Xcode Light",
+            Appearance::Light,
+            &[
+                ("bg", "oklch(1.000 0.000 90)"),
+                ("glass", "0.961 0.000 90"),
+                ("surface", "oklch(0.961 0.000 90 / 0.86)"),
+                ("surface-solid", "oklch(0.961 0.000 90 / 0.97)"),
+                ("fg", "oklch(0.269 0.000 90)"),
+                ("muted", "oklch(0.459 0.000 90)"),
+                ("subtle", "oklch(0.671 0.000 90)"),
+                ("border", "oklch(0.854 0.000 90)"),
+                ("accent", "oklch(0.603 0.218 257)"),
+                ("success", "oklch(0.600 0.110 150)"),
+                ("warn", "oklch(0.680 0.130 70)"),
+                ("danger", "oklch(0.580 0.170 26)"),
             ],
         ),
     ]
 }
 
 pub fn theme_by_id(id: &str) -> Theme {
-    builtin_themes()
-        .into_iter()
-        .find(|theme| theme.id == id)
-        .unwrap_or_else(|| builtin_themes().remove(0))
+    let themes = builtin_themes();
+    // An unknown id falls back to the default light preset, not to whichever
+    // preset happens to sit first in the table.
+    let index = themes
+        .iter()
+        .position(|theme| theme.id == id)
+        .or_else(|| themes.iter().position(|theme| theme.id == DEFAULT_LIGHT))
+        .unwrap_or(0);
+    themes[index].clone()
+}
+
+/// The preset a given appearance paints with when nothing else is chosen.
+pub fn default_theme(appearance: Appearance) -> Theme {
+    theme_by_id(match appearance {
+        Appearance::Light => DEFAULT_LIGHT,
+        Appearance::Dark => DEFAULT_DARK,
+    })
 }
 
 /// A Zed theme file, reduced to the tokens the console can honour.
@@ -343,8 +783,13 @@ pub const SHORTCUTS: [Shortcut; 6] = [
 /// The settings the console holds for this profile.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Settings {
-    pub theme: String,
-    /// The theme read from a Zed file, if the active theme came from one.
+    /// Whether the console follows the system appearance or pins one.
+    pub preference: Preference,
+    /// The preset painted when the resolved appearance is light.
+    pub theme_light: String,
+    /// The preset painted when the resolved appearance is dark.
+    pub theme_dark: String,
+    /// A theme read from a Zed file, if the active theme came from one.
     pub imported: Option<Theme>,
     pub density: Density,
     pub kubeconfig_paths: Vec<String>,
@@ -353,7 +798,9 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            theme: "frost".to_string(),
+            preference: Preference::System,
+            theme_light: DEFAULT_LIGHT.to_string(),
+            theme_dark: DEFAULT_DARK.to_string(),
             imported: None,
             density: Density::Comfortable,
             kubeconfig_paths: vec!["~/.kube/config".to_string()],
@@ -362,17 +809,26 @@ impl Default for Settings {
 }
 
 impl Settings {
-    pub fn theme(&self) -> Theme {
+    /// The appearance the console paints with, given what the platform reports.
+    pub fn appearance(&self, system: Appearance) -> Appearance {
+        self.preference.resolve(system)
+    }
+
+    /// The preset for an appearance: whichever slot matches it, or the default pair.
+    pub fn theme_for(&self, appearance: Appearance) -> Theme {
+        let id = match appearance {
+            Appearance::Light => &self.theme_light,
+            Appearance::Dark => &self.theme_dark,
+        };
         match &self.imported {
-            Some(theme) if theme.id == self.theme => theme.clone(),
-            _ => theme_by_id(&self.theme),
+            Some(theme) if theme.id == *id => theme.clone(),
+            _ => theme_by_id(id),
         }
     }
 
-    /// Makes an imported theme the active one.
-    pub fn use_theme(&mut self, theme: Theme) {
-        self.theme = theme.id.clone();
-        self.imported = Some(theme);
+    /// The theme in force, given what the platform reports.
+    pub fn theme(&self, system: Appearance) -> Theme {
+        self.theme_for(self.appearance(system))
     }
 
     /// Adds a kubeconfig path, ignoring blanks and duplicates.
@@ -388,9 +844,28 @@ impl Settings {
         self.kubeconfig_paths.retain(|known| known != path);
     }
 
+    /// Points the slot that matches the theme's own appearance at it, so a dark
+    /// preset never lands in the light slot.
+    pub fn set_theme(&mut self, id: &str) {
+        let theme = theme_by_id(id);
+        match theme.appearance {
+            Appearance::Light => self.theme_light = theme.id,
+            Appearance::Dark => self.theme_dark = theme.id,
+        }
+    }
+
+    /// Makes an imported theme the active one in the slot its appearance owns.
+    pub fn use_theme(&mut self, theme: Theme) {
+        match theme.appearance {
+            Appearance::Light => self.theme_light = theme.id.clone(),
+            Appearance::Dark => self.theme_dark = theme.id.clone(),
+        }
+        self.imported = Some(theme);
+    }
+
     /// The token block every surface under the theme reads.
-    pub fn css_vars(&self) -> String {
-        self.theme().css_vars()
+    pub fn css_vars(&self, system: Appearance) -> String {
+        self.theme(system).css_vars()
     }
 }
 
@@ -412,17 +887,61 @@ mod tests {
     }
 
     #[test]
-    fn five_themes_ship_and_the_default_is_frost() {
+    fn twelve_themes_ship_per_appearance() {
         let themes = builtin_themes();
-        assert_eq!(themes.len(), 5, "{themes:?}");
-        assert_eq!(Settings::default().theme, "frost");
-        assert!(themes.iter().any(|t| t.appearance == Appearance::Light));
-        assert!(themes.iter().any(|t| t.appearance == Appearance::Dark));
+        let light = themes
+            .iter()
+            .filter(|t| t.appearance == Appearance::Light)
+            .count();
+        let dark = themes
+            .iter()
+            .filter(|t| t.appearance == Appearance::Dark)
+            .count();
+        assert_eq!((light, dark), (12, 12), "{themes:?}");
+        let mut ids: Vec<_> = themes.iter().map(|t| t.id.as_str()).collect();
+        ids.sort_unstable();
+        ids.dedup();
+        assert_eq!(ids.len(), 24, "duplicate preset id");
+    }
+
+    #[test]
+    fn the_default_is_the_frost_pair_following_the_system() {
+        let settings = Settings::default();
+        assert_eq!(settings.preference, Preference::System);
+        assert_eq!(settings.theme(Appearance::Light).id, "frost");
+        assert_eq!(settings.theme(Appearance::Dark).id, "frost-dark");
+    }
+
+    #[test]
+    fn a_preset_lands_in_the_slot_its_own_appearance_owns() {
+        let mut settings = Settings::default();
+        settings.set_theme("tokyo-night");
+        assert_eq!(settings.theme_dark, "tokyo-night");
+        assert_eq!(
+            settings.theme_light, "frost",
+            "a dark preset must not fill the light slot"
+        );
+        settings.set_theme("gruvbox-light");
+        assert_eq!(settings.theme_light, "gruvbox-light");
+        assert_eq!(settings.theme(Appearance::Dark).id, "tokyo-night");
+        assert_eq!(settings.theme(Appearance::Light).id, "gruvbox-light");
+    }
+
+    #[test]
+    fn pinning_an_appearance_ignores_what_the_system_reports() {
+        let mut settings = Settings::default();
+        settings.set_theme("tokyo-night");
+        settings.preference = Preference::Light;
+        assert_eq!(settings.appearance(Appearance::Dark), Appearance::Light);
+        assert_eq!(settings.theme(Appearance::Dark).id, "frost");
+        settings.preference = Preference::Dark;
+        assert_eq!(settings.theme(Appearance::Light).id, "tokyo-night");
     }
 
     #[test]
     fn an_unknown_theme_falls_back_to_frost() {
         assert_eq!(theme_by_id("nope").id, "frost");
+        assert_eq!(default_theme(Appearance::Dark).id, "frost-dark");
     }
 
     #[test]
@@ -466,10 +985,66 @@ mod tests {
         );
     }
 
+    /// WCAG contrast of two `oklch(L C H)` tokens. OKLab's lightness is close
+    /// enough to the cube root of relative luminance that squaring it is a
+    /// faithful ratio for a guard like this.
+    fn contrast(a: &str, b: &str) -> f32 {
+        let l = |token: &str| -> f32 {
+            token
+                .trim_start_matches("oklch(")
+                .split(' ')
+                .next()
+                .expect("lightness")
+                .parse::<f32>()
+                .expect("number")
+                .powi(3)
+        };
+        let (ya, yb) = (l(a), l(b));
+        (ya.max(yb) + 0.05) / (ya.min(yb) + 0.05)
+    }
+
     #[test]
-    fn the_base_theme_carries_no_overrides() {
-        assert_eq!(Settings::default().css_vars(), "");
-        assert!(!theme_by_id("midnight").css_vars().is_empty());
+    fn every_preset_keeps_its_ink_readable() {
+        for theme in builtin_themes() {
+            let token = |name: &str| {
+                theme
+                    .tokens()
+                    .iter()
+                    .find(|(key, _)| *key == name)
+                    .map(|(_, value)| value.clone())
+                    .unwrap_or_default()
+            };
+            let bg = token("bg");
+            let body = contrast(&token("fg"), &bg);
+            let muted = contrast(&token("muted"), &bg);
+            assert!(body >= 4.5, "{} body ink {body:.2}:1 on {}", theme.id, bg);
+            assert!(
+                muted >= 3.0,
+                "{} muted ink {muted:.2}:1 on {}",
+                theme.id,
+                bg
+            );
+        }
+    }
+
+    #[test]
+    fn every_preset_paints_every_token() {
+        for theme in builtin_themes() {
+            assert_eq!(
+                theme.tokens().len(),
+                TOKENS.len(),
+                "{} is incomplete",
+                theme.id
+            );
+            let vars = theme.css_vars();
+            for name in TOKENS {
+                assert!(
+                    vars.contains(&format!("--{name}:")),
+                    "{} misses --{name}",
+                    theme.id
+                );
+            }
+        }
     }
 
     #[test]
@@ -477,8 +1052,11 @@ mod tests {
         let json = r##"{"themes":[{"name":"Imported","style":{"background":"#010203"}}]}"##;
         let mut settings = Settings::default();
         settings.use_theme(parse_zed_theme(json).expect("theme"));
-        assert_eq!(settings.theme, "zed-imported");
-        assert_eq!(settings.css_vars(), "--bg:#010203");
+        assert_eq!(
+            settings.theme_dark, "zed-imported",
+            "no appearance means dark"
+        );
+        assert_eq!(settings.css_vars(Appearance::Dark), "--bg:#010203");
     }
 
     #[test]
