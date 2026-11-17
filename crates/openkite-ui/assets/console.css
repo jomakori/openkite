@@ -1614,6 +1614,20 @@ tr.child{cursor:pointer}
 
 
 .dlg.wide{width:min(520px,100%);max-height:calc(100dvh - 32px);overflow-y:auto}
+
+/* Command palette: the dialog becomes a fixed-height column so the list scrolls, not the page. */
+.dlg.cm-panel{width:min(560px,100%);height:min(62dvh,520px);padding:0;display:flex;flex-direction:column;overflow:hidden}
+.cm-search .search-field{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface)}
+.cm-search .cm-input{flex:1;min-width:0;border:0;background:transparent;color:var(--fg);font:inherit;font-size:13px;padding:0;outline:none}
+.cm-panel .cm-list{padding:0 6px 6px;display:flex;flex-direction:column;gap:1px}
+.cm-item[aria-selected="true"]{background:color-mix(in oklab,var(--accent) 12%, var(--mix))}
+.cm-item .icon{margin-left:0;color:var(--muted)}
+.cm-item[aria-selected="true"] .icon{color:var(--accent)}
+.cm-key{margin-left:auto;font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);white-space:nowrap}
+.cm-panel .cm-foot{flex-direction:row;align-items:center;justify-content:space-between;gap:12px;padding:8px 12px}
+.cm-keys{display:flex;align-items:center;gap:5px;font-size:10.5px;color:var(--muted)}
+.cm-keys span{margin-right:6px}
+.cm-count{font-size:10.5px;font-variant-numeric:tabular-nums}
 .set-sec{margin-bottom:18px}
 .set-sec h4{margin:0 0 8px;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
 .seg{display:inline-flex;padding:2px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface-solid)}
