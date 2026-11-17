@@ -10,6 +10,8 @@ pub use shell::{AppShell, AppShellProps, Connection, Counts};
 
 pub mod inspector;
 pub mod inspector_view;
+pub mod overview;
+pub mod overview_view;
 pub mod table;
 pub mod table_columns;
 pub mod table_view;
@@ -19,5 +21,10 @@ pub use inspector::{
     Gauge, InspectorData, InspectorState, Manifest, QuickAction, ResourceLink, SchemaNode, Tab,
 };
 pub use inspector_view::{Inspector, InspectorProps};
+pub use overview::{
+    BoardAction, CapacityGauge, Interest, Lane, NodeRow, OverviewData, OverviewLayout, ProblemRow,
+    Size, WidgetId,
+};
+pub use overview_view::{Overview, OverviewProps};
 pub use table::{columns, Column, Density, Row, RowEffect, RowPart, Sort, SortDir, TableState};
 pub use table_view::{ResourceTable, ResourceTableProps};

@@ -2672,3 +2672,11 @@ pre.yaml .y-d{color:color-mix(in oklab,var(--terminal-fg) 55%, transparent)}
 .menu-item.danger{color:var(--danger)}
 .empty-hint{margin:12px 0;color:var(--muted);font-size:12px}
 @media (pointer:coarse){ .menu-item{min-height:44px} }
+
+/* Overview board shell and the meter block used by overview and inspector. */
+.overview{display:flex;flex-direction:column;gap:14px;padding:16px;min-height:0;overflow:auto}
+.overview-head{display:flex;align-items:baseline;gap:10px}
+.overview-head h1{margin:0;font-size:18px;font-weight:600}
+.overview-meta{margin:0;color:var(--muted);font-size:12px}
+.overview-head .btn{margin-left:auto}
+.meter{display:flex;flex-direction:column;gap:4px;min-width:120px;flex:1}
