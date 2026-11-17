@@ -14,6 +14,8 @@ pub mod logs;
 pub mod logs_view;
 pub mod overview;
 pub mod overview_view;
+pub mod palette;
+pub mod palette_view;
 pub mod table;
 pub mod table_columns;
 pub mod table_view;
@@ -30,5 +32,7 @@ pub use overview::{
     Size, WidgetId,
 };
 pub use overview_view::{Overview, OverviewProps};
+pub use palette::{Command, Entry, Hit, Palette, COMMANDS, RESULT_LIMIT};
+pub use palette_view::{PaletteOverlay, PaletteOverlayProps};
 pub use table::{columns, Column, Density, Row, RowEffect, RowPart, Sort, SortDir, TableState};
 pub use table_view::{ResourceTable, ResourceTableProps};
