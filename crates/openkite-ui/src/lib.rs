@@ -12,6 +12,8 @@ pub mod inspector;
 pub mod inspector_view;
 pub mod logs;
 pub mod logs_view;
+pub mod manifest_edit;
+pub mod manifest_edit_view;
 pub mod overview;
 pub mod overview_view;
 pub mod palette;
@@ -29,6 +31,11 @@ pub use inspector::{
 pub use inspector_view::{Inspector, InspectorProps};
 pub use logs::{DockAction, Level, LogDock, LogLine, LogPane, PodChoice};
 pub use logs_view::{Dock, DockProps};
+pub use manifest_edit::{
+    diff, highlight, lint, Conflict, Diagnostic, FieldChange, Lint, ManifestEdit, Phase, Severity,
+    FIELD_MANAGER,
+};
+pub use manifest_edit_view::{ManifestEditor, ManifestEditorProps};
 pub use overview::{
     BoardAction, CapacityGauge, Interest, Lane, NodeRow, OverviewData, OverviewLayout, ProblemRow,
     Size, WidgetId,
