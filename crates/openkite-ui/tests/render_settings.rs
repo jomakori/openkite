@@ -60,24 +60,27 @@ fn render_with(settings: Settings, system: Appearance, open: bool) -> String {
 #[test]
 fn a_closed_sheet_renders_nothing() {
     let html = render(Settings::default(), false);
-    assert!(!html.contains("modal-body"), "{html}");
+    assert!(!html.contains("pane-body"), "{html}");
     assert!(!html.contains("Settings"), "{html}");
 }
 
 #[test]
-fn the_sheet_is_a_modal_dialog_with_a_title() {
+fn the_sheet_is_a_pane_on_the_right_edge() {
     let html = render(Settings::default(), true);
-    assert!(html.contains(r#"class="dlg wide modal""#), "{html}");
+    assert!(html.contains(r#"class="set-pane""#), "{html}");
     assert!(html.contains(r#"role="dialog""#), "{html}");
     assert!(html.contains(r#"aria-modal="true""#), "{html}");
     assert!(html.contains(r#"aria-label="Settings""#), "{html}");
-    assert!(html.contains("modal-head"), "{html}");
-    assert!(html.contains("modal-body"), "{html}");
-    assert!(html.contains("modal-actions"), "{html}");
+    assert!(html.contains("pane-head"), "{html}");
+    assert!(html.contains("pane-body"), "{html}");
+    assert!(html.contains("pane-foot"), "{html}");
+    // The centred modal chrome is gone with it.
+    assert!(!html.contains("dlg wide modal"), "{html}");
+    assert!(!html.contains("modal-actions"), "{html}");
 }
 
 #[test]
-fn all_twenty_four_themes_are_offered_in_two_groups() {
+fn all_twenty_four_themes_are_offered_in_one_list() {
     let html = render(Settings::default(), true);
     for id in [
         "frost-dark",
@@ -117,11 +120,11 @@ fn all_twenty_four_themes_are_offered_in_two_groups() {
             "{id}: {html}"
         );
     }
-    assert_eq!(html.matches("theme-group").count(), 2, "{html}");
-    assert_eq!(html.matches("theme-swatch").count(), 24, "{html}");
+    assert_eq!(html.matches("theme-row").count(), 24, "{html}");
+    assert!(!html.contains("theme-group"), "one flat list, no groups");
     // Appearance, one theme, one density.
     assert_eq!(html.matches(r#"aria-pressed="true""#).count(), 3, "{html}");
-    assert!(html.contains(r#"class="theme-tile on""#), "{html}");
+    assert!(html.contains(r#"class="theme-row on""#), "{html}");
 }
 
 #[test]
@@ -251,13 +254,37 @@ fn the_import_field_and_error_are_rendered() {
 }
 
 #[test]
-fn every_theme_tile_carries_its_own_preview() {
+fn every_row_previews_its_own_four_colours() {
     let html = render(Settings::default(), true);
-    assert_eq!(html.matches("theme-swatch").count(), 24, "{html}");
-    assert!(html.contains("data-appearance=\"light\""), "{html}");
-    assert!(html.contains("data-appearance=\"dark\""), "{html}");
-    // Tokyo Night's tile paints from its own tokens, not the active theme's.
+    // Four dots per row: canvas, raised surface, ink, accent.
+    assert_eq!(html.matches("class=\"theme-dot\"").count(), 96, "{html}");
+    // Tokyo Night's row paints from its own tokens, not the active theme's.
     assert!(html.contains("background:oklch(0.226 0.021 280)"), "{html}");
+    // The slotted presets say which slot they fill; the rest leave it blank.
+    assert!(
+        html.contains(r#"<span class="theme-slot">D</span>"#),
+        "{html}"
+    );
+    assert!(
+        html.contains(r#"<span class="theme-slot">L</span>"#),
+        "{html}"
+    );
+}
+
+#[test]
+fn pinning_an_appearance_narrows_the_list_to_that_half() {
+    let light = Settings {
+        preference: Preference::Light,
+        ..Settings::default()
+    };
+    let html = render(light, true);
+    // Every dark preset is still listed, but dimmed and refused.
+    assert!(html.contains(r#"class="theme-row off""#), "{html}");
+    assert!(html.contains(r#"data-theme-mode="dark""#), "{html}");
+    assert!(html.contains("disabled"), "{html}");
+
+    let system = render(Settings::default(), true);
+    assert!(!system.contains("theme-row off"), "{system}");
 }
 
 #[test]

@@ -72,6 +72,13 @@ pub fn SettingsSheet(props: SettingsSheetProps) -> Element {
             themes.push(chosen);
         }
     }
+    let mut listed: Vec<Theme> = themes.clone();
+    listed.sort_by(|left, right| left.name.cmp(&right.name));
+    let dark_count = listed
+        .iter()
+        .filter(|theme| theme.appearance == Appearance::Dark)
+        .count();
+    let light_count = listed.len() - dark_count;
     let active_id = active.id.clone();
     let preference = settings.preference;
     let light_id = settings.theme_light.clone();
@@ -83,13 +90,15 @@ pub fn SettingsSheet(props: SettingsSheetProps) -> Element {
     let mut draft = use_signal(String::new);
     let draft_value = draft();
     rsx! {
-        div { class: "dlg-scrim", "data-settings": "scrim", onclick: move |_| props.on_close.call(()) ,
-            div {
-                class: "dlg wide modal",
+        div { class: "set-scrim", "data-settings": "scrim", onclick: move |_| props.on_close.call(()) ,
+            aside {
+                class: "set-pane",
                 role: "dialog",
                 "aria-modal": "true",
                 "aria-label": "Settings",
-                div { class: "modal-head",
+                "data-settings": "pane",
+                onclick: move |event| event.stop_propagation(),
+                div { class: "pane-head",
                     h2 { "Settings" }
                     button {
                         class: "btn ghost icon-only",
@@ -98,7 +107,7 @@ pub fn SettingsSheet(props: SettingsSheetProps) -> Element {
                         dangerous_inner_html: icon("x"),
                     }
                 }
-                div { class: "modal-body",
+                div { class: "pane-body",
                     section { class: "set-group",
                         header { class: "set-head",
                             h3 { "Appearance" }
@@ -121,29 +130,38 @@ pub fn SettingsSheet(props: SettingsSheetProps) -> Element {
                     section { class: "set-group theme-set",
                         header { class: "set-head",
                             h3 { "Theme" }
-                            span { class: "muted", "12 dark, 12 light, or import a Zed theme" }
+                            span { class: "muted", "{dark_count} dark, {light_count} light — one list, pick by eye" }
                         }
-                        for (label, appearance) in [("Dark", Appearance::Dark), ("Light", Appearance::Light)] {
-                            h4 { class: "theme-group", "{label}" }
-                            div { class: "theme-grid", "data-appearance": "{appearance.as_str()}",
-                                for theme in themes.iter().filter(|theme| theme.appearance == appearance) {
-                                    button {
-                                        key: "{theme.id}",
-                                        class: if theme.id == active_id { "theme-tile on" } else { "theme-tile" },
-                                        "data-theme-id": "{theme.id}",
-                                        "aria-pressed": if theme.id == active_id { "true" } else { "false" },
-                                        onclick: {
-                                            let id = theme.id.clone();
-                                            move |_| props.on_theme.call(id.clone())
-                                        },
-                                        span {
-                                            class: "theme-swatch",
-                                            "data-appearance": theme.appearance.as_str(),
-                                            style: swatch(theme),
-                                        }
-                                        span { class: "theme-name", "{theme.name}" }
-                                        if theme.id == light_id || theme.id == dark_id {
-                                            span { class: "theme-slot", if theme.id == dark_id { "dark" } else { "light" } }
+                        div { class: "theme-list", role: "listbox", "aria-label": "Theme",
+                            for theme in &listed {
+                                {
+                                    let id = theme.id.clone();
+                                    let mode = theme.appearance.as_str();
+                                    let pickable = preference.accepts(theme.appearance);
+                                    let chosen = theme.id == active_id;
+                                    let slotted = if theme.id == dark_id { "D" } else if theme.id == light_id { "L" } else { "" };
+                                    rsx! {
+                                        button {
+                                            key: "{theme.id}",
+                                            class: if chosen { "theme-row on" } else if !pickable { "theme-row off" } else { "theme-row" },
+                                            role: "option",
+                                            "data-theme-id": "{theme.id}",
+                                            "data-theme-mode": "{mode}",
+                                            "aria-selected": if chosen { "true" } else { "false" },
+                                            "aria-pressed": if chosen { "true" } else { "false" },
+                                            disabled: !pickable,
+                                            onclick: move |_| props.on_theme.call(id.clone()),
+                                            span { class: "theme-rail" }
+                                            span { class: "theme-dots",
+                                                for tint in palette(theme) {
+                                                    span { class: "theme-dot", style: "background:{tint}" }
+                                                }
+                                            }
+                                            span { class: "theme-name", "{theme.name}" }
+                                            if !slotted.is_empty() {
+                                                span { class: "theme-slot", "{slotted}" }
+                                            }
+                                            span { class: "theme-mode", "{mode}" }
                                         }
                                     }
                                 }
@@ -250,7 +268,7 @@ pub fn SettingsSheet(props: SettingsSheetProps) -> Element {
                         }
                     }
                 }
-                div { class: "modal-actions",
+                div { class: "pane-foot",
                     span { class: "muted", "Changes apply immediately" }
                     button { class: "btn btn-primary", onclick: move |_| props.on_close.call(()), "Done" }
                 }
@@ -259,22 +277,23 @@ pub fn SettingsSheet(props: SettingsSheetProps) -> Element {
     }
 }
 
-/// A tile's preview: its own background, text and accent side by side.
-fn swatch(theme: &Theme) -> String {
-    let tint = |name: &str, fallback: &str| {
+/// A row's preview strip: the preset's background, raised surface, text and accent, in the
+/// order the eye reads them, so a theme is recognisable before its name is.
+fn palette(theme: &Theme) -> Vec<String> {
+    let tint = |name: &str| {
         theme
             .tokens()
             .iter()
             .find(|(token, _)| token == name)
             .map(|(_, value)| value.clone())
-            .unwrap_or_else(|| fallback.to_string())
+            .unwrap_or_else(|| "var(--surface)".to_string())
     };
-    format!(
-        "background:{};color:{};border-color:{}",
-        tint("bg", "var(--surface)"),
-        tint("fg", "var(--fg)"),
-        tint("accent", "var(--border)")
-    )
+    vec![
+        tint("bg"),
+        tint("surface-solid"),
+        tint("fg"),
+        tint("accent"),
+    ]
 }
 
 fn icon(name: &str) -> String {

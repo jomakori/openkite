@@ -2727,11 +2727,19 @@ pre.yaml .y-d{color:color-mix(in oklab,var(--terminal-fg) 55%, transparent)}
 .set-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
 .set-head h3{white-space:nowrap}
 .set-head h3{margin:0;font-size:11.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
-.theme-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:6px}
-.theme-tile{display:flex;flex-direction:column;gap:6px;padding:6px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);text-align:left;cursor:pointer}
-.theme-tile.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
-.theme-swatch{height:40px;border:1px solid;border-radius:6px;display:flex;align-items:flex-end;padding:6px}
-.theme-swatch::after{content:"";width:22px;height:6px;border-radius:3px;background:currentColor;opacity:.85}
+.theme-list{display:flex;flex-direction:column;max-height:none;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface-solid)}
+.theme-row{display:flex;align-items:center;gap:10px;padding:0 10px 0 0;height:30px;min-height:0;min-width:0;border:0;border-bottom:1px solid color-mix(in oklab,var(--border) 60%, transparent);background:transparent;color:var(--fg);text-align:left;cursor:pointer}
+.theme-row:last-child{border-bottom:0}
+.theme-row:hover{background:color-mix(in oklab,var(--fg) 5%, transparent)}
+.theme-row.on{background:color-mix(in oklab,var(--accent) 12%, transparent)}
+.theme-row.off{opacity:.42;cursor:default}
+.theme-rail{flex:0 0 3px;align-self:stretch;background:transparent}
+.theme-row.on .theme-rail{background:var(--accent)}
+.theme-dots{display:flex;flex:0 0 auto;gap:2px;padding-left:7px}
+.theme-dot{width:12px;height:12px;border-radius:3px;border:1px solid color-mix(in oklab,var(--fg) 22%, transparent)}
+.theme-row .theme-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+.theme-row .theme-mode{flex:0 0 auto;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--subtle)}
+.theme-row .theme-slot{flex:0 0 auto;font-size:9px;font-weight:600;letter-spacing:.06em;color:var(--accent);border:1px solid color-mix(in oklab,var(--accent) 45%, transparent);border-radius:3px;padding:0 3px;line-height:13px}
 .theme-name{font-size:11.5px;color:var(--fg)}
 .set-row{display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap}
 .set-label{flex:0 0 100%;font-size:11.5px;color:var(--muted)}
@@ -2744,8 +2752,8 @@ pre.yaml .y-d{color:color-mix(in oklab,var(--terminal-fg) 55%, transparent)}
 .set-item .btn.icon-only{width:28px;min-width:28px;padding:0}
 [data-density="compact"] .modal-body{gap:12px}
 [data-density="compact"] .set-item{padding:4px 10px}
-[data-density="compact"] .theme-swatch{height:34px}
-@media (max-width:720px){.theme-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+[data-density="compact"] .theme-row{height:26px}
+@media (pointer:coarse){ .theme-row{height:44px;min-height:44px} }
 
 /* Manifest editor: field-level diff and the 409 conflict pair. The editor chrome above
    reuses the prototype's yaml-* classes; these two blocks are new. */
@@ -2786,7 +2794,17 @@ pre.yaml .y-d{color:color-mix(in oklab,var(--terminal-fg) 55%, transparent)}
 .conflict-side .conflict-body{display:flex;align-items:flex-start;gap:0}
 .conflict-side .yaml-gutter{flex:0 0 auto;width:2.9em}
 .conflict-side pre{flex:1 1 auto;margin:0}
-/* The picker splits the presets by the appearance each one paints. */
-.theme-group{margin:10px 0 4px;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--subtle)}
-.theme-tile{position:relative}
-.theme-slot{position:absolute;top:4px;right:4px;font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--subtle)}
+/* One flat list, the way a desktop theme switcher reads: palette first, name second. */
+
+/* Settings sits in a pane on the right edge: the table stays visible behind it, so a
+   change can be read against the thing it changes. */
+.set-scrim{position:fixed;inset:0;z-index:70;display:flex;justify-content:flex-end;background:color-mix(in oklab,var(--bg) 40%, transparent)}
+.set-pane{display:flex;flex-direction:column;height:100dvh;width:min(420px,100vw);background:var(--surface-solid);border-left:1px solid var(--border);box-shadow:-16px 0 40px color-mix(in oklab,#000 26%, transparent);animation:pane-in .15s ease-out}
+@keyframes pane-in{from{transform:translateX(16px);opacity:.55}to{transform:none;opacity:1}}
+.pane-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border)}
+.pane-head h2{margin:0;font-size:15px;font-weight:600}
+.pane-body{flex:1;min-height:0;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:16px}
+.pane-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-top:1px solid var(--border)}
+.pane-body .theme-set{grid-column:auto}
+@media (max-width:560px){.set-pane{width:100vw;border-left:0}}
+@media (prefers-reduced-motion:reduce){.set-pane{animation:none}}

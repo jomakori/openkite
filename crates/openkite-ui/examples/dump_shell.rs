@@ -38,6 +38,7 @@ fn main() {
             active_path: "/workloads/pods".to_string(),
             cluster: "prod-east-1".to_string(),
             connection: Connection::Live,
+            on_settings: None,
             children: rsx! {
                 div { class: "page-head", h1 { "Pods" } }
                 div { class: "card", "Page body rendered by the routed surface." }
