@@ -2,12 +2,15 @@
 //! changes the tokens the surfaces below it paint with — without a reload.
 
 use dioxus::prelude::*;
-use openkite_ui::settings::{builtin_themes, parse_zed_theme, Density, Settings};
+use openkite_ui::settings::{
+    builtin_themes, parse_zed_theme, Appearance, Density, Preference, Settings,
+};
 use openkite_ui::settings_view::{SettingsSheet, ThemeScope};
 
 #[derive(Props, Clone, PartialEq)]
 struct HarnessProps {
     settings: Settings,
+    system: Appearance,
     open: bool,
     import_text: String,
     import_error: Option<String>,
@@ -16,14 +19,16 @@ struct HarnessProps {
 #[component]
 fn Harness(props: HarnessProps) -> Element {
     rsx! {
-        ThemeScope { settings: props.settings.clone(),
+        ThemeScope { settings: props.settings.clone(), system: props.system,
             SettingsSheet {
                 open: props.open,
                 settings: props.settings.clone(),
+                system: props.system,
                 themes: builtin_themes(),
                 import_text: props.import_text.clone(),
                 import_error: props.import_error.clone(),
                 on_theme: move |_id: String| {},
+                on_preference: move |_preference: Preference| {},
                 on_density: move |_density: Density| {},
                 on_import_text: move |_text: String| {},
                 on_import: move |_| {},
@@ -36,8 +41,13 @@ fn Harness(props: HarnessProps) -> Element {
 }
 
 fn render(settings: Settings, open: bool) -> String {
+    render_with(settings, Appearance::Dark, open)
+}
+
+fn render_with(settings: Settings, system: Appearance, open: bool) -> String {
     let props = HarnessProps {
         settings,
+        system,
         open,
         import_text: String::new(),
         import_error: None,
@@ -67,42 +77,101 @@ fn the_sheet_is_a_modal_dialog_with_a_title() {
 }
 
 #[test]
-fn all_five_themes_are_offered_and_one_is_marked() {
+fn all_twenty_four_themes_are_offered_in_two_groups() {
     let html = render(Settings::default(), true);
-    for id in ["frost", "dusk", "midnight", "graphite", "paper"] {
+    for id in [
+        "frost-dark",
+        "catppuccin-mocha",
+        "one-dark",
+        "dracula",
+        "nord-dark",
+        "gruvbox-dark",
+        "tokyo-night",
+        "solarized-dark",
+        "monokai",
+        "ayu-dark",
+        "kanagawa-wave",
+        "rose-pine",
+    ] {
         assert!(
             html.contains(&format!(r#"data-theme-id="{id}""#)),
             "{id}: {html}"
         );
     }
-    assert_eq!(
-        html.matches(r#"aria-pressed="true""#).count(),
-        2,
-        "one theme, one density: {html}"
-    );
+    for id in [
+        "frost",
+        "catppuccin-latte",
+        "one-light",
+        "solarized-light",
+        "gruvbox-light",
+        "github-light",
+        "ayu-light",
+        "rose-pine-dawn",
+        "kanagawa-lotus",
+        "everforest-light",
+        "quiet-light",
+        "xcode-light",
+    ] {
+        assert!(
+            html.contains(&format!(r#"data-theme-id="{id}""#)),
+            "{id}: {html}"
+        );
+    }
+    assert_eq!(html.matches("theme-group").count(), 2, "{html}");
+    assert_eq!(html.matches("theme-swatch").count(), 24, "{html}");
+    // Appearance, one theme, one density.
+    assert_eq!(html.matches(r#"aria-pressed="true""#).count(), 3, "{html}");
     assert!(html.contains(r#"class="theme-tile on""#), "{html}");
 }
 
 #[test]
-fn the_default_theme_paints_the_default_tokens() {
+fn the_appearance_switch_offers_system_light_and_dark() {
     let html = render(Settings::default(), true);
-    assert!(html.contains(r#"data-theme="frost""#), "{html}");
+    for option in ["system", "light", "dark"] {
+        assert!(
+            html.contains(&format!(r#"data-preference="{option}""#)),
+            "{option}: {html}"
+        );
+    }
     assert!(
-        !html.contains("--bg:"),
-        "the base sheet needs no overrides: {html}"
+        html.contains(r#"data-preference="system" class="seg on""#)
+            || html.contains(r#"class="seg on" data-preference="system""#),
+        "{html}"
     );
 }
 
 #[test]
-fn switching_theme_changes_the_tokens_without_a_reload() {
+fn the_default_follows_the_system_and_paints_that_half_of_the_pair() {
+    let dark = render_with(Settings::default(), Appearance::Dark, true);
+    assert!(dark.contains(r#"data-theme="frost-dark""#), "{dark}");
+    assert!(dark.contains(r#"data-appearance="dark""#), "{dark}");
+    assert!(dark.contains("--bg:oklch(0.173 0.009 264)"), "{dark}");
+
+    let light = render_with(Settings::default(), Appearance::Light, true);
+    assert!(light.contains(r#"data-theme="frost""#), "{light}");
+    assert!(light.contains(r#"data-appearance="light""#), "{light}");
+    assert!(light.contains("--bg:oklch(0.973 0.006 265)"), "{light}");
+}
+
+#[test]
+fn pinning_an_appearance_overrides_the_system_report() {
     let settings = Settings {
-        theme: "midnight".to_string(),
+        preference: Preference::Light,
         ..Settings::default()
     };
+    let html = render_with(settings, Appearance::Dark, true);
+    assert!(html.contains(r#"data-theme="frost""#), "{html}");
+    assert!(!html.contains(r#"data-theme="frost-dark""#), "{html}");
+}
+
+#[test]
+fn switching_theme_changes_the_tokens_without_a_reload() {
+    let mut settings = Settings::default();
+    settings.set_theme("catppuccin-mocha");
     let html = render(settings, true);
-    assert!(html.contains(r#"data-theme="midnight""#), "{html}");
-    assert!(html.contains("--bg:oklch(0.145 0.014 268)"), "{html}");
-    assert!(html.contains("--accent:oklch(0.66 0.16 272)"), "{html}");
+    assert!(html.contains(r#"data-theme="catppuccin-mocha""#), "{html}");
+    assert!(html.contains("--bg:oklch(0.243 0.030 284)"), "{html}");
+    assert!(html.contains("--accent:oklch(0.766 0.111 260)"), "{html}");
 }
 
 #[test]
@@ -166,6 +235,7 @@ fn kubeconfig_paths_are_listed_and_removable() {
 fn the_import_field_and_error_are_rendered() {
     let props = HarnessProps {
         settings: Settings::default(),
+        system: Appearance::Dark,
         open: true,
         import_text: "{\"themes\":[]}".to_string(),
         import_error: Some("That file carries no themes".to_string()),
@@ -183,11 +253,11 @@ fn the_import_field_and_error_are_rendered() {
 #[test]
 fn every_theme_tile_carries_its_own_preview() {
     let html = render(Settings::default(), true);
-    assert_eq!(html.matches("theme-swatch").count(), 5, "{html}");
+    assert_eq!(html.matches("theme-swatch").count(), 24, "{html}");
     assert!(html.contains("data-appearance=\"light\""), "{html}");
     assert!(html.contains("data-appearance=\"dark\""), "{html}");
-    // Midnight's tile paints from its own tokens, not the active theme's.
-    assert!(html.contains("background:oklch(0.145 0.014 268)"), "{html}");
+    // Tokyo Night's tile paints from its own tokens, not the active theme's.
+    assert!(html.contains("background:oklch(0.226 0.021 280)"), "{html}");
 }
 
 #[test]

@@ -1273,7 +1273,8 @@ body.tab-dragging{user-select:none;-webkit-user-select:none;cursor:grabbing}
 
 
 :root{--glass:1 0 0;--mix:white;--mix-text:black;--on-fg:white;color-scheme:light}
-[data-theme="dark"]{
+[data-appearance="light"]{--glass:1 0 0;--mix:white;--mix-text:black;--on-fg:white;color-scheme:light}
+[data-appearance="dark"],[data-theme="dark"]{
   color-scheme:dark;
   --bg:oklch(0.185 0.012 262);
   --surface:oklch(0.255 0.014 262 / 0.82);
@@ -1300,11 +1301,11 @@ body.tab-dragging{user-select:none;-webkit-user-select:none;cursor:grabbing}
   --shadow-hover:0 4px 16px rgba(0,0,0,0.36), 0 8px 24px rgba(0,0,0,0.3);
   --shadow-terminal:0 8px 32px rgba(0,0,0,0.5);
 }
-[data-theme="dark"] .app{background:
+[data-appearance="dark"] .app,[data-theme="dark"] .app{background:
   radial-gradient(760px 420px at 84% -8%, oklch(0.3 0.05 258 / 0.4), transparent 70%),
   radial-gradient(560px 360px at 18% 108%, oklch(0.28 0.05 185 / 0.28), transparent 72%),
   var(--bg)}
-[data-theme="dark"] .btn-primary{color:var(--on-accent)}
+[data-appearance="dark"] .btn-primary,[data-theme="dark"] .btn-primary{color:var(--on-accent)}
 [data-theme="dark"] .dock,[data-theme="dark"] .dock-handle{box-shadow:0 -4px 24px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.08)}
 [data-theme="dark"] .log-level.warn{color:var(--warn)}
 [data-theme="dark"] .menu-item.active{background:color-mix(in oklab,var(--accent) 22%, var(--mix))}
@@ -2719,17 +2720,17 @@ pre.yaml .y-d{color:color-mix(in oklab,var(--terminal-fg) 55%, transparent)}
 .modal-head h2{margin:0;font-size:15px;font-weight:600}
 .modal-body{padding:16px 18px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px 24px;align-content:start;overflow-y:auto}
 .modal-body > .set-group{grid-column:auto;align-self:start}
-.modal-body > .set-group:first-child{grid-column:1/-1}
+.modal-body > .set-group:first-child,.modal-body > .theme-set{grid-column:1/-1}
 @media (max-width:900px){.modal-body{grid-template-columns:minmax(0,1fr)}}
 .modal-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;border-top:1px solid var(--border);background:var(--surface-solid)}
 .set-group{display:flex;flex-direction:column;gap:10px}
 .set-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
 .set-head h3{white-space:nowrap}
 .set-head h3{margin:0;font-size:11.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
-.theme-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px}
-.theme-tile{display:flex;flex-direction:column;gap:8px;padding:8px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);text-align:left;cursor:pointer}
+.theme-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:6px}
+.theme-tile{display:flex;flex-direction:column;gap:6px;padding:6px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);text-align:left;cursor:pointer}
 .theme-tile.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
-.theme-swatch{height:46px;border:1px solid;border-radius:6px;display:flex;align-items:flex-end;padding:6px}
+.theme-swatch{height:40px;border:1px solid;border-radius:6px;display:flex;align-items:flex-end;padding:6px}
 .theme-swatch::after{content:"";width:22px;height:6px;border-radius:3px;background:currentColor;opacity:.85}
 .theme-name{font-size:11.5px;color:var(--fg)}
 .set-row{display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap}
@@ -2785,3 +2786,7 @@ pre.yaml .y-d{color:color-mix(in oklab,var(--terminal-fg) 55%, transparent)}
 .conflict-side .conflict-body{display:flex;align-items:flex-start;gap:0}
 .conflict-side .yaml-gutter{flex:0 0 auto;width:2.9em}
 .conflict-side pre{flex:1 1 auto;margin:0}
+/* The picker splits the presets by the appearance each one paints. */
+.theme-group{margin:10px 0 4px;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--subtle)}
+.theme-tile{position:relative}
+.theme-slot{position:absolute;top:4px;right:4px;font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--subtle)}

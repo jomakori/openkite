@@ -212,6 +212,33 @@ outside the `colors:` set above; it is pinned instead by those `--term-*` custom
 properties in the console stylesheet, which the terminal surface reads and no
 other surface may reference.
 
+## Themes
+
+Twelve dark and twelve light presets ship, drawn from the themes people already
+run in Zed and VS Code. `frost` and `frost-dark` are the pair the frosted
+surfaces above are built for, and the default.
+
+- **One slot per appearance.** A preset belongs to light or dark, so the
+  settings hold `theme_light` and `theme_dark`; choosing a preset fills the slot
+  its own appearance owns. A dark preset never lands in the light slot, which is
+  what lets the console switch appearance without repainting in the wrong
+  palette.
+- **Preference — `system` / `light` / `dark`.** `system` resolves to whatever
+  the platform reports; `light` and `dark` pin it. The `ThemeScope` wrapper
+  publishes the resolved appearance as `data-appearance` and the preset as
+  `data-theme`, and the stylesheet keys `color-scheme` and the derived chrome
+  fills off `data-appearance`.
+- **Four colours in, twelve tokens out.** Each preset names only its canvas,
+  raised surface, body ink and accent; `muted`, `subtle`, `border` and the glass
+  triple are mixed toward the canvas, so every preset inherits the console's
+  contrast relationships instead of carrying 24 hand-tuned sheets. A test holds
+  body ink at ≥ 4.5:1 and muted ink at ≥ 3.0:1 for all of them.
+- **Frost survives the presets.** Surfaces stay translucent (as above), and
+  `--glass` follows each preset's own surface hue, so chrome tint stays in the
+  theme's family instead of falling back to neutral grey.
+- **The terminal stays dark.** The log dock is the one opaque surface and keeps
+  its own palette under every preset, light ones included.
+
 ## Typography
 
 Two families, both OFL-1.1, shipped as vendored asset files by the console crate
@@ -324,7 +351,6 @@ than an absolutely-positioned icon, `color-mix(in srgb, …)` with `fg`/`border`
 mixes rather than the reference's `oklab`-with-black/white, and the
 inspector/toast fills noted above.
 
-## Accessibility
 ## Accessibility
 
 The contract is audited, not assumed. `npx -y @google/design.md lint DESIGN.md`
