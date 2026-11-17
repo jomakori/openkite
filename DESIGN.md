@@ -235,7 +235,10 @@ surfaces above are built for, and the default.
   body ink at ≥ 4.5:1 and muted ink at ≥ 3.0:1 for all of them.
 - **Frost survives the presets.** Surfaces stay translucent (as above), and
   `--glass` follows each preset's own surface hue, so chrome tint stays in the
-  theme's family instead of falling back to neutral grey.
+  theme's family instead of falling back to neutral grey. The frost pair itself
+  is drawn from Apple's system palette — system blue accent, system green,
+  orange and red for status, neutral canvases — so the glass has the material it
+  was designed against instead of a hand-picked accent beside it.
 - **The terminal stays dark.** The log dock is the one opaque surface and keeps
   its own palette under every preset, light ones included.
 - **The picker is one list, not two grids.** All 24 presets sit in a single
@@ -286,6 +289,37 @@ Rules that come from the reference, not from taste:
   rest of the touch surfaces (`docs/architecture.md` § 6), so it is a contract
   for that work, not a v1 surface.
 
+## Materials
+
+The chrome is one material, not a set of tinted panels. It follows Apple's
+Liquid Glass: the functional layer floats above the content, the canvas tints
+through it, and the light comes from one direction.
+
+- **Glass, then content.** The sidebar, topbar, settings pane, dialogs and menus
+  paint from `--glass` at `--glass-alpha` with `backdrop-filter`, so the rows
+  behind them stay readable shapes instead of vanishing into a flat panel.
+  Content surfaces (`.panel`, `.table-wrap`) keep their `--surface` fill; glass
+  is chrome only.
+- **A specular edge, not a border.** Chrome edges are `--glass-hair` (a hairline
+  mixed from `--border`, or from white in dark appearance) plus a 1px
+  `--glass-edge` highlight inset along the top — that highlight is what makes a
+  pane read as a lifted sheet rather than a rectangle with a stroke.
+- **Shadow follows what is underneath.** `--glass-shade` is a two-layer drop
+  shadow: deep and soft where content runs beneath (16px/40px in dark), light in
+  light appearance (10px/30px). The topbar adds a 14px gradient fade below
+  itself so content slides under it instead of stopping at a hard line.
+- **One saturating blur.** `blur(24px) saturate(180%) brightness(1.04)` — the
+  saturation is what carries the colour of the content through the pane; without
+  it glass greys out the theme it is meant to be tinting.
+- **Accents are the system's.** The frost pair uses Apple's system blue, green,
+  orange and red on Apple's neutral canvases, because glass beside a hand-picked
+  accent reads as a decorated panel instead of system material. Vendored presets
+  keep their own palettes: the material is the console's, the colour is the
+  theme's.
+- **Glass yields to the system.** `prefers-reduced-transparency` drops
+  `--glass-alpha` to 1 and removes the blur, falling back to `--surface-solid`;
+  `prefers-contrast: more` paints chrome opaque and hands the hairline to `--fg`.
+
 ## Elevation & Depth
 
 Three states, no more. Depth is what tells you a surface can be interacted with.
@@ -296,10 +330,10 @@ Three states, no more. Depth is what tells you a surface can be interacted with.
   the page rather than lifted off it.
 
 Blur is a token too, and it is *layered*, not decorative: 40px for branded frost
-(theme rows), 20px for shell chrome (sidebar, topbar), 24px for the inspector,
-18px for content panels, 16px for Argo cards. It is a five-value set; a sixth
-blur radius is a sixth elevation state by another name, and the blur set is
-closed for the same reason the elevation set is.
+(theme rows), 24px for shell chrome and the inspector, 18px for content panels,
+16px for Argo cards. It is a four-value set; a fifth blur radius is a fifth
+elevation state by another name, and the blur set is closed for the same reason
+the elevation set is.
 
 ## Shapes
 

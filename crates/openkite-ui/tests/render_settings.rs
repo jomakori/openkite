@@ -148,12 +148,12 @@ fn the_default_follows_the_system_and_paints_that_half_of_the_pair() {
     let dark = render_with(Settings::default(), Appearance::Dark, true);
     assert!(dark.contains(r#"data-theme="frost-dark""#), "{dark}");
     assert!(dark.contains(r#"data-appearance="dark""#), "{dark}");
-    assert!(dark.contains("--bg:oklch(0.173 0.009 264)"), "{dark}");
+    assert!(dark.contains("--bg:oklch(0.185 0.004 286)"), "{dark}");
 
     let light = render_with(Settings::default(), Appearance::Light, true);
     assert!(light.contains(r#"data-theme="frost""#), "{light}");
     assert!(light.contains(r#"data-appearance="light""#), "{light}");
-    assert!(light.contains("--bg:oklch(0.973 0.006 265)"), "{light}");
+    assert!(light.contains("--bg:oklch(0.971 0.003 286)"), "{light}");
 }
 
 #[test]
@@ -292,4 +292,37 @@ fn the_footer_says_changes_apply_immediately() {
     let html = render(Settings::default(), true);
     assert!(html.contains("Changes apply immediately"), "{html}");
     assert!(html.contains("Done"), "{html}");
+}
+
+/// The glass is a layer, not a decoration on one panel: the same variables
+/// drive the sidebar, the topbar, the settings pane and every menu, and they
+/// stand down when the system asks for opacity.
+#[test]
+fn the_chrome_paints_from_one_glass_layer() {
+    let css = include_str!("../assets/console.css");
+    for variable in [
+        "--glass-alpha",
+        "--glass-blur",
+        "--glass-edge",
+        "--glass-hair",
+        "--glass-shade",
+    ] {
+        assert!(css.contains(variable), "the glass layer defines {variable}");
+    }
+    for surface in [".set-pane{", ".dlg{", ".menu-pop{"] {
+        let start = css.find(surface).expect("surface rule");
+        let rule = &css[start..css[start..].find('}').expect("close") + start];
+        assert!(
+            rule.contains("backdrop-filter:var(--glass-blur)"),
+            "{surface} blurs what is behind it"
+        );
+    }
+    assert!(
+        css.contains("@media (prefers-reduced-transparency: reduce)"),
+        "glass falls back to an opaque surface"
+    );
+    assert!(
+        css.contains("@media (prefers-contrast: more)"),
+        "glass hands the edges to the ink colour"
+    );
 }

@@ -146,6 +146,9 @@ impl Theme {
 }
 
 /// The frost pair the console ships with: the frosted surfaces are built for it.
+/// Both appearances are drawn from Apple's system palette — the blue, green,
+/// orange and red the OS uses, on the neutral canvases it uses — because the
+/// glass chrome only reads as glass when the tint behind it is the system's own.
 pub const DEFAULT_LIGHT: &str = "frost";
 pub const DEFAULT_DARK: &str = "frost-dark";
 
@@ -160,18 +163,18 @@ pub fn builtin_themes() -> Vec<Theme> {
             "Frost Dark",
             Appearance::Dark,
             &[
-                ("bg", "oklch(0.173 0.009 264)"),
-                ("glass", "0.221 0.015 262"),
-                ("surface", "oklch(0.221 0.015 262 / 0.86)"),
-                ("surface-solid", "oklch(0.221 0.015 262 / 0.97)"),
-                ("fg", "oklch(0.942 0.009 258)"),
-                ("muted", "oklch(0.742 0.009 260)"),
-                ("subtle", "oklch(0.526 0.009 262)"),
-                ("border", "oklch(0.342 0.009 263)"),
-                ("accent", "oklch(0.725 0.144 258)"),
-                ("success", "oklch(0.720 0.130 150)"),
-                ("warn", "oklch(0.780 0.130 78)"),
-                ("danger", "oklch(0.700 0.170 22)"),
+                ("bg", "oklch(0.185 0.004 286)"),
+                ("glass", "0.262 0.010 265"),
+                ("surface", "oklch(0.262 0.010 265 / 0.72)"),
+                ("surface-solid", "oklch(0.262 0.010 265 / 0.96)"),
+                ("fg", "oklch(0.971 0.003 286)"),
+                ("muted", "oklch(0.768 0.006 268)"),
+                ("subtle", "oklch(0.556 0.005 268)"),
+                ("border", "oklch(0.352 0.007 268)"),
+                ("accent", "oklch(0.624 0.206 256)"),
+                ("success", "oklch(0.756 0.208 147)"),
+                ("warn", "oklch(0.782 0.171 67)"),
+                ("danger", "oklch(0.663 0.224 28)"),
             ],
         ),
         Theme::builtin(
@@ -389,18 +392,18 @@ pub fn builtin_themes() -> Vec<Theme> {
             "Frost",
             Appearance::Light,
             &[
-                ("bg", "oklch(0.973 0.006 265)"),
-                ("glass", "1.000 0.000 90"),
-                ("surface", "oklch(1.000 0.000 90 / 0.86)"),
-                ("surface-solid", "oklch(1.000 0.000 90 / 0.97)"),
-                ("fg", "oklch(0.237 0.015 257)"),
-                ("muted", "oklch(0.429 0.013 258)"),
-                ("subtle", "oklch(0.642 0.010 259)"),
-                ("border", "oklch(0.826 0.008 261)"),
-                ("accent", "oklch(0.553 0.164 259)"),
-                ("success", "oklch(0.600 0.110 150)"),
-                ("warn", "oklch(0.680 0.130 70)"),
-                ("danger", "oklch(0.580 0.170 26)"),
+                ("bg", "oklch(0.971 0.003 286)"),
+                ("glass", "0.996 0.006 265"),
+                ("surface", "oklch(1.000 0.000 90 / 0.72)"),
+                ("surface-solid", "oklch(1.000 0.000 90 / 0.96)"),
+                ("fg", "oklch(0.232 0.004 286)"),
+                ("muted", "oklch(0.540 0.008 286)"),
+                ("subtle", "oklch(0.680 0.006 286)"),
+                ("border", "oklch(0.882 0.004 286)"),
+                ("accent", "oklch(0.603 0.218 257)"),
+                ("success", "oklch(0.730 0.194 147)"),
+                ("warn", "oklch(0.765 0.175 63)"),
+                ("danger", "oklch(0.654 0.232 29)"),
             ],
         ),
         Theme::builtin(
@@ -1080,5 +1083,75 @@ mod tests {
         assert_eq!(settings.kubeconfig_paths.len(), 2);
         settings.remove_kubeconfig("~/.kube/config");
         assert_eq!(settings.kubeconfig_paths, vec!["~/kube/prod.yaml"]);
+    }
+
+    /// The frost pair is the one theme whose values are a design decision, not a
+    /// vendored palette: it has to look like Apple's glass, so its glass lifts
+    /// above the canvas with a tint in it and its accents are the system colours.
+    #[test]
+    fn the_frost_pair_is_cut_from_apples_palette() {
+        let token = |appearance: Appearance, name: &str| -> String {
+            default_theme(appearance)
+                .tokens()
+                .iter()
+                .find(|(key, _)| *key == name)
+                .map(|(_, value)| value.clone())
+                .unwrap_or_default()
+        };
+        let number = |raw: &str, index: usize| -> f32 {
+            raw.trim_start_matches("oklch(")
+                .split([' ', '/'])
+                .filter(|part| !part.is_empty())
+                .nth(index)
+                .expect("component")
+                .trim_end_matches(')')
+                .parse::<f32>()
+                .expect("number")
+        };
+        let alpha = |raw: &str| -> f32 {
+            if raw.contains('/') {
+                number(raw, 3)
+            } else {
+                1.0
+            }
+        };
+
+        for appearance in [Appearance::Light, Appearance::Dark] {
+            let id = default_theme(appearance).id;
+            let bg = token(appearance, "bg");
+            let glass = token(appearance, "glass");
+            assert!(
+                number(&glass, 0) > number(&bg, 0),
+                "{id}: glass sits above the canvas"
+            );
+            assert!(number(&glass, 1) > 0.004, "{id}: glass carries a tint");
+            assert!(
+                alpha(&token(appearance, "surface")) < 0.8,
+                "{id}: surface lets the canvas through"
+            );
+            assert!(
+                alpha(&token(appearance, "surface-solid")) < 1.0,
+                "{id}: even the solid surface keeps a trace of air"
+            );
+
+            let hue = |name: &str| number(&token(appearance, name), 2);
+            assert!(
+                (250.0..=262.0).contains(&hue("accent")),
+                "{id}: accent is system blue, got {:.0}",
+                hue("accent")
+            );
+            assert!(
+                (140.0..=155.0).contains(&hue("success")),
+                "{id}: success is system green"
+            );
+            assert!(
+                (58.0..=72.0).contains(&hue("warn")),
+                "{id}: warn is system orange"
+            );
+            assert!(
+                (24.0..=32.0).contains(&hue("danger")),
+                "{id}: danger is system red"
+            );
+        }
     }
 }
