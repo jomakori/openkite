@@ -2636,3 +2636,39 @@ pre.yaml .y-d{color:color-mix(in oklab,var(--terminal-fg) 55%, transparent)}
   .insp-handle{left:0;width:26px}
   .inspector-header,.inspector-body{padding-left:26px}
 }
+
+/* Inspector panels and the overflow menu. */
+.insp-title{display:flex;flex-direction:column;gap:2px;min-width:0}
+.insp-title h2{margin:0;font-size:14px;font-weight:600;overflow-wrap:anywhere}
+.insp-tools{display:flex;align-items:center;gap:4px;margin-left:auto}
+.insp-eyebrow{margin:14px 0 6px;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.insp-panel{display:flex;flex-direction:column;padding:12px;min-height:0;overflow:auto}
+.insp-panel>.kv-list+.insp-eyebrow{margin-top:14px}
+.ctr-card{border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);margin-bottom:10px;overflow:hidden}
+.ctr-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);font-size:12px}
+.ctr-name{font-weight:600}
+.inst-list{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none}
+.inst-link{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:36px;padding:0 10px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--fg);font:inherit;font-size:12px;text-align:left;cursor:pointer}
+.inst-link:hover{border-color:var(--accent)}
+.schema-row{display:grid;grid-template-columns:minmax(90px,auto) 72px 1fr;gap:8px;align-items:baseline;padding:6px 8px;border-bottom:1px solid var(--border);font-size:12px}
+.schema-row[data-depth="1"]{padding-left:22px}
+.schema-row[data-depth="2"]{padding-left:38px}
+.schema-name{font-weight:600}
+.schema-desc{color:var(--muted);overflow-wrap:anywhere}
+.ev-list{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none}
+.ev{display:grid;grid-template-columns:8px 96px 1fr auto;gap:8px;align-items:baseline;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);font-size:12px}
+.ev.warn{border-color:color-mix(in oklab,var(--warn,rgba(217,160,58,.5)) 45%, var(--border))}
+.ev-reason{font-weight:600}
+.ev-msg{min-width:0;overflow-wrap:anywhere}
+.cond-list{display:flex;flex-direction:column;gap:4px;margin:0;padding:0;list-style:none}
+.cond{display:grid;grid-template-columns:8px 1fr auto;gap:8px;align-items:baseline;padding:4px 6px;font-size:12px}
+.cond .dot,.ev .dot{width:6px;height:6px;border-radius:99px;background:var(--ok,var(--accent));display:block}
+.cond.warn .dot,.ev.warn .dot{background:var(--warn,rgba(217,160,58,.9))}
+.menu-wrap{position:relative}
+.menu{position:absolute;right:0;top:calc(100% + 4px);z-index:30;display:none;min-width:168px;margin:0;padding:4px;list-style:none;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);box-shadow:var(--shadow-hover,none)}
+.menu-wrap.open .menu{display:block}
+.menu-item{display:flex;align-items:center;gap:8px;width:100%;min-height:34px;padding:0 8px;border:0;border-radius:var(--r-sm);background:transparent;color:var(--fg);font:inherit;font-size:12px;text-align:left;cursor:pointer}
+.menu-item:hover{background:color-mix(in oklab,var(--fg) 7%, transparent)}
+.menu-item.danger{color:var(--danger)}
+.empty-hint{margin:12px 0;color:var(--muted);font-size:12px}
+@media (pointer:coarse){ .menu-item{min-height:44px} }

@@ -8,9 +8,16 @@ pub use nav::{
 };
 pub use shell::{AppShell, AppShellProps, Connection, Counts};
 
+pub mod inspector;
+pub mod inspector_view;
 pub mod table;
 pub mod table_columns;
 pub mod table_view;
 
+pub use inspector::{
+    action_bar, actions_for, default_schema, has_tab, tab_ids, tabs_for, Container, Detail, Event,
+    Gauge, InspectorData, InspectorState, Manifest, QuickAction, ResourceLink, SchemaNode, Tab,
+};
+pub use inspector_view::{Inspector, InspectorProps};
 pub use table::{columns, Column, Density, Row, RowEffect, RowPart, Sort, SortDir, TableState};
 pub use table_view::{ResourceTable, ResourceTableProps};
