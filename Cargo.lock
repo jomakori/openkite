@@ -4042,6 +4042,8 @@ dependencies = [
  "dioxus",
  "dioxus-ssr",
  "openkite-api",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

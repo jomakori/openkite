@@ -16,6 +16,8 @@ pub mod overview;
 pub mod overview_view;
 pub mod palette;
 pub mod palette_view;
+pub mod settings;
+pub mod settings_view;
 pub mod table;
 pub mod table_columns;
 pub mod table_view;
@@ -34,5 +36,10 @@ pub use overview::{
 pub use overview_view::{Overview, OverviewProps};
 pub use palette::{Command, Entry, Hit, Palette, COMMANDS, RESULT_LIMIT};
 pub use palette_view::{PaletteOverlay, PaletteOverlayProps};
+// `Density` already names the table row density, so the settings one stays qualified.
+pub use settings::{
+    builtin_themes, parse_zed_theme, Appearance, Settings, Theme, ThemeError, SHORTCUTS, TOKENS,
+};
+pub use settings_view::{SettingsSheet, SettingsSheetProps, ThemeScope, ThemeScopeProps};
 pub use table::{columns, Column, Density, Row, RowEffect, RowPart, Sort, SortDir, TableState};
 pub use table_view::{ResourceTable, ResourceTableProps};
