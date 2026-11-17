@@ -27,6 +27,11 @@ impl Counts {
         self
     }
 
+    /// The whole map, for callers that hand counts on to a view.
+    pub fn as_map(&self) -> &std::collections::BTreeMap<&'static str, usize> {
+        &self.counts
+    }
+
     /// Rows known for a kind; zero when no frame has landed yet.
     pub fn get(&self, kind: &str) -> usize {
         self.counts.get(kind).copied().unwrap_or(0)
