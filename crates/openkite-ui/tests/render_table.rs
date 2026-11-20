@@ -177,6 +177,75 @@ fn expanded_parent_renders_child_rows() {
 }
 
 #[test]
+fn tree_toggle_reflects_collapsed_state_by_default() {
+    let kids = vec![pod("api-7d9-abc12", "default", "Running", "3d", "0")];
+    let rows = vec![pod("api-7d9", "default", "Running", "3d", "0").with_kids(kids)];
+    // Nothing expanded yet: the control offers "Expand all".
+    let html = render(rows, TableState::default(), "pods");
+    assert!(
+        html.contains("id=\"expandCollapseAll\""),
+        "single control missing: {html}"
+    );
+    assert!(html.contains("data-state=\"collapsed\""), "{html}");
+    assert!(html.contains("aria-label=\"Expand all\""), "{html}");
+    assert!(
+        !html.contains("id=\"expandAll\""),
+        "old button must be gone: {html}"
+    );
+    assert!(
+        !html.contains("id=\"collapseAll\""),
+        "old button must be gone: {html}"
+    );
+}
+
+#[test]
+fn tree_toggle_reflects_expanded_state_once_every_parent_is_open() {
+    let kids = vec![pod("api-7d9-abc12", "default", "Running", "3d", "0")];
+    let rows = vec![pod("api-7d9", "default", "Running", "3d", "0").with_kids(kids)];
+    let mut state = TableState::default();
+    state.expanded.insert("api-7d9".to_string());
+    let html = render(rows, state, "pods");
+    assert!(html.contains("data-state=\"expanded\""), "{html}");
+    assert!(html.contains("aria-label=\"Collapse all\""), "{html}");
+}
+
+#[test]
+fn clicking_the_toggle_when_all_expanded_collapses_everything() {
+    use openkite_ui::table::TableState as State;
+
+    let kids_a = vec![pod("a-child", "default", "Running", "1d", "0")];
+    let kids_b = vec![pod("b-child", "default", "Running", "1d", "0")];
+    let rows = vec![
+        pod("a", "default", "Running", "1d", "0").with_kids(kids_a),
+        pod("b", "default", "Running", "1d", "0").with_kids(kids_b),
+    ];
+
+    // Start fully expanded: the toggle's next action must be "collapse all".
+    let mut state = State::default();
+    state.expand_all(&rows);
+    assert!(state.all_expanded(&rows));
+
+    // Activating the single control toggles exactly as the toolbar's onclick does.
+    state.toggle_expand_all(&rows);
+    assert!(!state.all_expanded(&rows));
+    assert!(state.expanded.is_empty());
+
+    let html = render(rows.clone(), state.clone(), "pods");
+    assert!(html.contains("data-state=\"collapsed\""), "{html}");
+    assert!(
+        !html.contains("class=\"child\""),
+        "children should be collapsed: {html}"
+    );
+
+    // Activating again from fully-collapsed expands everything back.
+    state.toggle_expand_all(&rows);
+    assert!(state.all_expanded(&rows));
+    let html = render(rows, state, "pods");
+    assert!(html.contains("data-state=\"expanded\""), "{html}");
+    assert!(html.matches("class=\"child\"").count() == 2, "{html}");
+}
+
+#[test]
 fn hidden_columns_drop_from_the_header_but_name_stays() {
     let mut state = TableState::default();
     state.hidden.insert("restarts".to_string());
