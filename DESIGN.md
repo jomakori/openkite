@@ -183,10 +183,14 @@ Posture, in four rules:
 Semantic names, not colour names — `success` is what a healthy pod is, not that
 its green is `#4d9a5e`.
 
-- **Canvas — `bg` / `surface` / `surface-solid`.** `bg` is the page. `surface`
-  (`rgba(255,255,255,0.85)`) is a frosted panel over it; `surface-solid`
-  (`0.97`) is the frosted-but-almost-solid fill for chips, pills and controls,
-  where text sits directly on the fill and needs the extra opacity.
+- **Canvas — `bg` / `fill` / `surface` / `fill-hi` / `surface-solid`.** `bg` is the
+  page. Ranked by paint, `fill` (`0.70`) is for rows and lists that sit inside a
+  panel; `surface` (`rgba(255,255,255,0.85)`) is a frosted panel over the page;
+  `fill-hi` (`0.91`) is a control lifted off a panel; `surface-solid` (`0.97`) is
+  the frosted-but-almost-solid fill for chips, pills and controls, where text sits
+  directly on the fill and needs the extra opacity. The four steps stay in that
+  order in both appearances — a rung that overtakes its neighbour turns the ladder
+  back into a guess.
 - **Ink — `fg` / `muted` / `subtle`.** `fg` is body, headings and inverted fills
   (active chip, toast). `muted` is secondary ink (table meta, chips, log pods);
   `subtle` is placeholders, disabled ink and the eyebrow.
