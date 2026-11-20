@@ -254,6 +254,33 @@ impl TableState {
             .collect();
     }
 
+    /// Whether every row with children is currently expanded. This is the single source
+    /// of truth for the toolbar's expand/collapse toggle: no parallel flag, so it cannot
+    /// drift from what is actually open. A tree with no expandable rows reports `false`
+    /// (nothing to collapse), matching the control's default "Expand all" state.
+    pub fn all_expanded(&self, rows: &[Row]) -> bool {
+        let mut any_expandable = false;
+        for row in rows {
+            if !row.kids.is_empty() {
+                any_expandable = true;
+                if !self.expanded.contains(&row.id) {
+                    return false;
+                }
+            }
+        }
+        any_expandable
+    }
+
+    /// Expand everything if it is not already all open, otherwise collapse everything.
+    /// This is exactly what the toolbar's single toggle control invokes.
+    pub fn toggle_expand_all(&mut self, rows: &[Row]) {
+        if self.all_expanded(rows) {
+            self.expanded.clear();
+        } else {
+            self.expand_all(rows);
+        }
+    }
+
     pub fn toggle_selected(&mut self, row_id: &str) {
         if !self.selected.remove(row_id) {
             self.selected.insert(row_id.to_string());
@@ -596,6 +623,31 @@ mod tests {
         assert!(!state.indeterminate(&refs));
         state.clear_selection();
         assert!(!state.any_selected(&refs));
+    }
+
+    #[test]
+    fn all_expanded_tracks_rows_without_a_parallel_flag() {
+        let rows = vec![
+            Row::new("parent-1", "parent-1").with_kids(vec![Row::new("child-1", "child-1")]),
+            Row::new("parent-2", "parent-2").with_kids(vec![Row::new("child-2", "child-2")]),
+            Row::new("leaf", "leaf"),
+        ];
+        let mut state = TableState::default();
+        assert!(!state.all_expanded(&rows));
+        state.expand_all(&rows);
+        assert!(state.all_expanded(&rows));
+        state.toggle_expand_all(&rows);
+        assert!(!state.all_expanded(&rows));
+        assert!(state.expanded.is_empty());
+        state.toggle_expand_all(&rows);
+        assert!(state.all_expanded(&rows));
+    }
+
+    #[test]
+    fn all_expanded_is_false_when_nothing_can_expand() {
+        let rows = vec![Row::new("leaf", "leaf")];
+        let state = TableState::default();
+        assert!(!state.all_expanded(&rows));
     }
 
     #[test]

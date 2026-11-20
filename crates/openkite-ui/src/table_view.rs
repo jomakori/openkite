@@ -131,6 +131,12 @@ pub fn ResourceTable(props: ResourceTableProps) -> Element {
         state.all_selected(&refs)
     };
     let lower_label = props.label.to_lowercase();
+    let all_expanded = state.all_expanded(&all_rows);
+    let (tree_state, tree_icon, tree_label) = if all_expanded {
+        ("expanded", "#i-collapse-all", "Collapse all")
+    } else {
+        ("collapsed", "#i-expand-all", "Expand all")
+    };
 
     rsx! {
         div { class: "chip-row", id: "nsChips", role: "group", "aria-label": "Namespace filter",
@@ -271,36 +277,21 @@ pub fn ResourceTable(props: ResourceTableProps) -> Element {
                 div { class: "tree-bar", id: "treeBar", role: "group", "aria-label": "Expand or collapse all rows",
                     button {
                         class: "icon-btn",
-                        id: "expandAll",
+                        id: "expandCollapseAll",
                         r#type: "button",
-                        "aria-label": "Expand all",
-                        title: "Expand all",
+                        "aria-label": "{tree_label}",
+                        title: "{tree_label}",
+                        "data-state": "{tree_state}",
                         onclick: {
                             let st = state.clone();
                             let rows = all_rows.clone();
                             move |_| {
                                 let mut next = st.clone();
-                                next.expand_all(&rows);
+                                next.toggle_expand_all(&rows);
                                 emit.call(next);
                             }
                         },
-                        svg { class: "icon", use { href: "#i-expand-all" } }
-                    }
-                    button {
-                        class: "icon-btn",
-                        id: "collapseAll",
-                        r#type: "button",
-                        "aria-label": "Collapse all",
-                        title: "Collapse all",
-                        onclick: {
-                            let st = state.clone();
-                            move |_| {
-                                let mut next = st.clone();
-                                next.expanded.clear();
-                                emit.call(next);
-                            }
-                        },
-                        svg { class: "icon", use { href: "#i-collapse-all" } }
+                        svg { class: "icon", use { href: "{tree_icon}" } }
                     }
                 }
             }
