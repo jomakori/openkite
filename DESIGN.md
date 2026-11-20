@@ -296,21 +296,33 @@ Liquid Glass: the functional layer floats above the content, the canvas tints
 through it, and the light comes from one direction.
 
 - **Glass, then content.** The sidebar, topbar, settings pane, dialogs and menus
-  paint from `--glass` at `--glass-alpha` with `backdrop-filter`, so the rows
-  behind them stay readable shapes instead of vanishing into a flat panel.
-  Content surfaces (`.panel`, `.table-wrap`) keep their `--surface` fill; glass
-  is chrome only.
+  paint from `--glass` at `--glass-alpha` (0.56 light, 0.50 dark) with
+  `backdrop-filter`, so the rows behind them stay readable shapes instead of
+  vanishing into a flat panel. The sheet sits a shade off the canvas — 0.958 in
+  light, 0.300 in dark — so it reads as material above flat white content
+  rather than as more of the same. Content surfaces (`.panel`, `.table-wrap`)
+  keep their `--surface` fill; glass is chrome only.
 - **A specular edge, not a border.** Chrome edges are `--glass-hair` (a hairline
   mixed from `--border`, or from white in dark appearance) plus a 1px
-  `--glass-edge` highlight inset along the top — that highlight is what makes a
-  pane read as a lifted sheet rather than a rectangle with a stroke.
+  `--glass-edge` highlight inset along the top and the leading edge — that
+  highlight is what makes a pane read as a lifted sheet rather than a rectangle
+  with a stroke. A side pane carries `--glass-drop`, a shadow cast *sideways*
+  off the window; a vertical offset would read as floating above the content
+  instead of beside it.
 - **Shadow follows what is underneath.** `--glass-shade` is a two-layer drop
   shadow: deep and soft where content runs beneath (16px/40px in dark), light in
   light appearance (10px/30px). The topbar adds a 14px gradient fade below
   itself so content slides under it instead of stopping at a hard line.
-- **One saturating blur.** `blur(24px) saturate(180%) brightness(1.04)` — the
+- **One saturating blur.** `blur(30px) saturate(180%) brightness(1.04)` — the
   saturation is what carries the colour of the content through the pane; without
-  it glass greys out the theme it is meant to be tinting.
+  it glass greys out the theme it is meant to be tinting. Wide enough that rows
+  become colour and light, never readable text underneath.
+
+- **Controls belong to the material.** The segmented control is a `--glass`
+  track with a lit thumb, a selected theme row is an accent fill with a 2px
+  accent rail, and the prominent button keeps its tint but catches the same top
+  highlight. A glass sheet holding opaque stock controls reads as a picture of
+  a sheet.
 - **Accents are the system's.** The frost pair uses Apple's system blue, green,
   orange and red on Apple's neutral canvases, because glass beside a hand-picked
   accent reads as a decorated panel instead of system material. Vendored presets
@@ -330,7 +342,7 @@ Three states, no more. Depth is what tells you a surface can be interacted with.
   the page rather than lifted off it.
 
 Blur is a token too, and it is *layered*, not decorative: 40px for branded frost
-(theme rows), 24px for shell chrome and the inspector, 18px for content panels,
+(theme rows), 30px for shell chrome and the inspector, 18px for content panels,
 16px for Argo cards. It is a four-value set; a fifth blur radius is a fifth
 elevation state by another name, and the blur set is closed for the same reason
 the elevation set is.
@@ -377,7 +389,7 @@ above, never from a new literal.
   `terminal-fg` text, mono 12px, `md` radius, `shadow-terminal`, 268px max
   height, 44px header actions.
 - **Inspector** — `.inspector`: slide-over from the right, `min(420px, 100%)`,
-  `surface` fill + 24px blur, `shadow-hover`, `.kv-list` key/value rows,
+  `--glass` fill + 30px blur, `--glass-shade` plus the lateral `--glass-drop`, `.kv-list` key/value rows,
   `.inspector-actions` footer.
 - **Toast** — `.toast`: bottom-anchored at 80px, 220–340px wide, `fg` fill with
   white text, `md` radius, `shadow-hover`. It reads as a system message, which is

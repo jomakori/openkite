@@ -317,6 +317,35 @@ fn the_chrome_paints_from_one_glass_layer() {
             "{surface} blurs what is behind it"
         );
     }
+    // A sheet that stops transmitting is an opaque panel with extra steps.
+    for scope in [":root{", "  --glass:0.300 0.012 265;"] {
+        let start = css.find(scope).expect("scope");
+        let block = &css[start..css[start..].find('}').expect("close") + start];
+        let alpha_at = block.find("--glass-alpha").expect("alpha token");
+        let value = &block[alpha_at..];
+        let value = &value[value.find(':').expect("colon") + 1..];
+        let value = value[..value.find(';').expect("semicolon")].trim();
+        let alpha: f32 = if let Some(fraction) = value.strip_prefix('.') {
+            format!("0.{fraction}").parse().expect("alpha parses")
+        } else {
+            value.parse().expect("alpha parses")
+        };
+        assert!(
+            alpha <= 0.6,
+            "{scope} keeps the sheet under 60% paint, got {alpha}"
+        );
+    }
+    // The sheet casts its shadow sideways, off the window: a vertical offset
+    // reads as a pane floating above the content instead of beside it.
+    for token in css.match_indices("--glass-drop:").map(|(i, _)| i) {
+        let value = &css[token..];
+        let value = &value[value.find(':').unwrap() + 1..];
+        let value = value[..value.find(';').unwrap()].trim();
+        assert!(
+            value.starts_with('-') && value.split_whitespace().nth(1) == Some("0"),
+            "the pane drop shadow is horizontal, got {value}"
+        );
+    }
     assert!(
         css.contains("@media (prefers-reduced-transparency: reduce)"),
         "glass falls back to an opaque surface"

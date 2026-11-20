@@ -164,7 +164,7 @@ pub fn builtin_themes() -> Vec<Theme> {
             Appearance::Dark,
             &[
                 ("bg", "oklch(0.185 0.004 286)"),
-                ("glass", "0.262 0.010 265"),
+                ("glass", "0.300 0.012 265"),
                 ("surface", "oklch(0.262 0.010 265 / 0.72)"),
                 ("surface-solid", "oklch(0.262 0.010 265 / 0.96)"),
                 ("fg", "oklch(0.971 0.003 286)"),
@@ -393,7 +393,7 @@ pub fn builtin_themes() -> Vec<Theme> {
             Appearance::Light,
             &[
                 ("bg", "oklch(0.971 0.003 286)"),
-                ("glass", "0.996 0.006 265"),
+                ("glass", "0.958 0.010 265"),
                 ("surface", "oklch(1.000 0.000 90 / 0.72)"),
                 ("surface-solid", "oklch(1.000 0.000 90 / 0.96)"),
                 ("fg", "oklch(0.232 0.004 286)"),
@@ -1120,10 +1120,16 @@ mod tests {
             let id = default_theme(appearance).id;
             let bg = token(appearance, "bg");
             let glass = token(appearance, "glass");
-            assert!(
-                number(&glass, 0) > number(&bg, 0),
-                "{id}: glass sits above the canvas"
-            );
+            let gap = number(&glass, 0) - number(&bg, 0);
+            match appearance {
+                // Dark glass is a lit surface, clearly above a near-black canvas.
+                Appearance::Dark => assert!(gap > 0.05, "{id}: glass sits above the canvas"),
+                // Light glass is a shade off white content, not more of it.
+                Appearance::Light => assert!(
+                    (0.005..0.03).contains(&gap.abs()),
+                    "{id}: glass is a distinct tone from the canvas, gap {gap}"
+                ),
+            }
             assert!(number(&glass, 1) > 0.004, "{id}: glass carries a tint");
             assert!(
                 alpha(&token(appearance, "surface")) < 0.8,
