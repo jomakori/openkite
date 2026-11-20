@@ -85,7 +85,7 @@ fn all_twenty_four_themes_are_offered_in_one_list() {
     for id in [
         "frost-dark",
         "catppuccin-mocha",
-        "one-dark",
+        "everforest-dark",
         "dracula",
         "nord-dark",
         "gruvbox-dark",
@@ -113,7 +113,7 @@ fn all_twenty_four_themes_are_offered_in_one_list() {
         "kanagawa-lotus",
         "everforest-light",
         "quiet-light",
-        "xcode-light",
+        "tokyo-day",
     ] {
         assert!(
             html.contains(&format!(r#"data-theme-id="{id}""#)),

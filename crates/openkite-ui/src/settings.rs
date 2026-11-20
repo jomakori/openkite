@@ -197,22 +197,22 @@ pub fn builtin_themes() -> Vec<Theme> {
             ],
         ),
         Theme::builtin(
-            "one-dark",
-            "One Dark",
+            "everforest-dark",
+            "Everforest Dark",
             Appearance::Dark,
             &[
-                ("bg", "oklch(0.293 0.016 264)"),
-                ("glass", "0.368 0.022 267"),
-                ("surface", "oklch(0.368 0.022 267 / 0.86)"),
-                ("surface-solid", "oklch(0.368 0.022 267 / 0.97)"),
-                ("fg", "oklch(0.762 0.020 263)"),
-                ("muted", "oklch(0.640 0.019 263)"),
-                ("subtle", "oklch(0.509 0.018 264)"),
-                ("border", "oklch(0.396 0.017 264)"),
-                ("accent", "oklch(0.730 0.121 245)"),
-                ("success", "oklch(0.720 0.130 150)"),
-                ("warn", "oklch(0.780 0.130 78)"),
-                ("danger", "oklch(0.700 0.170 22)"),
+                ("bg", "oklch(0.324 0.015 240.4)"),
+                ("glass", "0.424 0.015 240.4"),
+                ("surface", "oklch(0.424 0.015 240.4 / 0.86)"),
+                ("surface-solid", "oklch(0.424 0.015 240.4 / 0.97)"),
+                ("fg", "oklch(0.830 0.041 86.1)"),
+                ("muted", "oklch(0.698 0.026 89.8)"),
+                ("subtle", "oklch(0.557 0.012 103.7)"),
+                ("border", "oklch(0.405 0.008 218.6)"),
+                ("accent", "oklch(0.749 0.063 185.5)"),
+                ("success", "oklch(0.773 0.091 125.8)"),
+                ("warn", "oklch(0.808 0.086 83.7)"),
+                ("danger", "oklch(0.709 0.128 19.6)"),
             ],
         ),
         Theme::builtin(
@@ -597,28 +597,40 @@ pub fn builtin_themes() -> Vec<Theme> {
             ],
         ),
         Theme::builtin(
-            "xcode-light",
-            "Xcode Light",
+            "tokyo-day",
+            "Tokyo Day",
             Appearance::Light,
             &[
-                ("bg", "oklch(1.000 0.000 90)"),
-                ("glass", "0.961 0.000 90"),
-                ("surface", "oklch(0.961 0.000 90 / 0.86)"),
-                ("surface-solid", "oklch(0.961 0.000 90 / 0.97)"),
-                ("fg", "oklch(0.269 0.000 90)"),
-                ("muted", "oklch(0.459 0.000 90)"),
-                ("subtle", "oklch(0.671 0.000 90)"),
-                ("border", "oklch(0.854 0.000 90)"),
-                ("accent", "oklch(0.603 0.218 257)"),
-                ("success", "oklch(0.600 0.110 150)"),
-                ("warn", "oklch(0.680 0.130 70)"),
-                ("danger", "oklch(0.580 0.170 26)"),
+                ("bg", "oklch(0.929 0.008 278.6)"),
+                ("glass", "0.99 0.003 278.6"),
+                ("surface", "oklch(0.99 0.003 278.6 / 0.86)"),
+                ("surface-solid", "oklch(0.99 0.003 278.6 / 0.97)"),
+                ("fg", "oklch(0.359 0.051 273.2)"),
+                ("muted", "oklch(0.462 0.044 273.4)"),
+                ("subtle", "oklch(0.673 0.028 274.1)"),
+                ("border", "oklch(0.838 0.015 275.7)"),
+                ("accent", "oklch(0.52 0.18 257.5)"),
+                ("success", "oklch(0.505 0.093 130.3)"),
+                ("warn", "oklch(0.513 0.075 75.2)"),
+                ("danger", "oklch(0.534 0.233 11.6)"),
             ],
         ),
     ]
 }
 
+/// A persisted id that no longer ships maps to the nearest surviving theme of
+/// the same appearance, so a selection saved before a palette curation still
+/// resolves to a close match instead of silently falling back to the default.
+fn migrate_theme_id(id: &str) -> &str {
+    match id {
+        "one-dark" => "tokyo-night",
+        "xcode-light" => "quiet-light",
+        other => other,
+    }
+}
+
 pub fn theme_by_id(id: &str) -> Theme {
+    let id = migrate_theme_id(id);
     let themes = builtin_themes();
     // An unknown id falls back to the default light preset, not to whichever
     // preset happens to sit first in the table.
@@ -957,6 +969,25 @@ mod tests {
     fn an_unknown_theme_falls_back_to_frost() {
         assert_eq!(theme_by_id("nope").id, "frost");
         assert_eq!(default_theme(Appearance::Dark).id, "frost-dark");
+    }
+
+    #[test]
+    fn a_retired_theme_id_migrates_to_its_nearest_neighbour() {
+        assert_eq!(theme_by_id("one-dark").id, "tokyo-night");
+        assert_eq!(theme_by_id("xcode-light").id, "quiet-light");
+
+        let mut settings = Settings {
+            theme_dark: "one-dark".to_string(),
+            theme_light: "xcode-light".to_string(),
+            ..Settings::default()
+        };
+        assert_eq!(settings.theme_for(Appearance::Dark).id, "tokyo-night");
+        assert_eq!(settings.theme_for(Appearance::Light).id, "quiet-light");
+        // The migration resolves the theme; it does not rewrite the stored id.
+        settings.theme_dark = migrate_theme_id(&settings.theme_dark).to_string();
+        settings.theme_light = migrate_theme_id(&settings.theme_light).to_string();
+        assert_eq!(settings.theme_dark, "tokyo-night");
+        assert_eq!(settings.theme_light, "quiet-light");
     }
 
     #[test]
