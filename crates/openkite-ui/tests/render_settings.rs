@@ -398,3 +398,26 @@ fn the_surface_ladder_climbs_in_four_steps() {
         );
     }
 }
+
+// One blur reads as pasted; three stacked layers read as depth.
+#[test]
+fn the_shadow_tiers_stack_three_layers() {
+    let css = include_str!("../assets/console.css");
+    for token in ["--shadow-rest:", "--shadow-hover:"] {
+        let hits: Vec<&str> = css
+            .match_indices(token)
+            .map(|(at, _)| {
+                let rest = &css[at + token.len()..];
+                &rest[..rest.find(';').expect("semicolon")]
+            })
+            .collect();
+        assert_eq!(hits.len(), 2, "{token} is defined once per appearance");
+        for value in hits {
+            assert_eq!(
+                value.matches("rgba(").count(),
+                3,
+                "{token} stacks three layers: {value}"
+            );
+        }
+    }
+}

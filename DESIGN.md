@@ -340,10 +340,16 @@ through it, and the light comes from one direction.
 
 Three states, no more. Depth is what tells you a surface can be interacted with.
 
-- `--shadow-rest` — a panel, a table wrap or a button at rest.
-- `--shadow-hover` — a hovered control, the inspector, or the toast.
+- `--shadow-rest` — a panel, a table wrap or a button at rest: **three stacked
+  layers** (a 1px contact line, a mid glow, a wide deep cast), not one blur. One
+  blur reads as pasted; stacked layers read as a body with weight.
+- `--shadow-hover` — a hovered control, the inspector, or the toast: the same
+  three layers, each pushed further out and darker. Only interactive surfaces
+  (buttons, links, hover-reactive tiles) take this tier — a static panel never
+  lifts, because a card that rises without doing anything is a lie.
 - `--shadow-terminal` — the log dock, the one surface that reads as sunk into
-  the page rather than lifted off it.
+  the page rather than lifted off it: a single deep layer, because a sunk
+  surface casts one shadow, not a stack.
 
 Blur is a token too, and it is *layered*, not decorative: 40px for branded frost
 (theme rows), 30px for shell chrome and the inspector, 18px for content panels,
@@ -481,9 +487,9 @@ spelling is kept beside the hex so the derivation is checkable — e.g.
 | `log-error` | `--log-error` `oklch(0.6709 0.1448 17.0)` | `#e06c75` |
 | `font-sans` | `--font-sans` (IBM Plex Sans stack) | the same stack |
 | `font-mono` | `--font-mono` (IBM Plex Mono stack) | the same stack |
-| `shadow-rest` | `--shadow-rest` | the same value |
-| `shadow-hover` | `--shadow-hover` | the same value |
-| `shadow-terminal` | `--shadow-terminal` | the same value |
+| `shadow-rest` | `--shadow-rest` two flat layers | three stacked layers |
+| `shadow-hover` | `--shadow-hover` two flat layers | three stacked layers, interactive surfaces only |
+| `shadow-terminal` | `--shadow-terminal` `0 8px 32px` | one deep layer |
 | `r-sm` | `--r-sm` `6px` | `6px` |
 | `r-md` | `--r-md` `8px` | `8px` |
 | `r-pill` | no `:root` property — `border-radius: 999px` on `.chip` and `.pill` | `999px` |
@@ -519,8 +525,11 @@ npx -y @google/design.md export --format dtcg         DESIGN.md > tokens.json
 
 `design.md` has no typed slot for shadows or font stacks, so the three
 `--shadow-*` values and the two `--font-*` stacks are pinned by the
-`## Provenance` table and by the reference `:root` block, not by the YAML token
-block.
+`## Provenance` table, not by the YAML token block. The console is the authority
+for the shadow stack: rest and hover are three layers each (the reference still
+carries two), terminal is one, and the render test in
+`crates/openkite-ui/tests/render_settings.rs` fails if a definition drops to a
+single blur.
 
 The console crate's design test is the enforcement point, and it does not exist
 yet: when it lands it must pin the vendored reference by SHA-256, derive the
