@@ -13,7 +13,9 @@
 /* ---- openkite-console.css ---- */
 :root{
   --bg: oklch(0.9755 0.0045 258.3);
+  --fill: oklch(1 0 0 / 0.70);
   --surface: oklch(1 0 0 / 0.85);
+  --fill-hi: oklch(1 0 0 / 0.91);
   --surface-solid: oklch(1 0 0 / 0.97);
   --fg: oklch(0.29 0.018 258);
   --muted: oklch(0.56 0.02 262);
@@ -418,8 +420,6 @@ button:focus-visible,input:focus-visible,[tabindex]:focus-visible{
   border:1px solid var(--border);
   border-radius:var(--r-md);
   box-shadow:var(--shadow-rest);
-  backdrop-filter:blur(18px);
-  -webkit-backdrop-filter:blur(18px);
   overflow:hidden;
 }
 .table-wrap{overflow-x:auto}
@@ -553,8 +553,6 @@ button:focus-visible,input:focus-visible,[tabindex]:focus-visible{
   border-radius:var(--r-md);
   background:var(--surface);
   box-shadow:var(--shadow-rest);
-  backdrop-filter:blur(16px);
-  -webkit-backdrop-filter:blur(16px);
   transition:transform 0.18s ease, box-shadow 0.18s ease;
 }
 .app-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-hover)}
@@ -950,7 +948,7 @@ button:focus-visible,input:focus-visible,[tabindex]:focus-visible{
 .stat-card{
   display:flex;flex-direction:column;gap:6px;padding:14px 16px;
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);
-  box-shadow:var(--shadow-rest);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  box-shadow:var(--shadow-rest);
 }
 .stat-label{font-size:11px;letter-spacing:0.02em;color:var(--muted)}
 .stat-value{font-size:26px;font-weight:600;line-height:1.1;letter-spacing:-0.01em;display:flex;align-items:baseline;gap:8px}
@@ -1295,7 +1293,9 @@ body.tab-dragging{user-select:none;-webkit-user-select:none;cursor:grabbing}
 [data-appearance="dark"],[data-theme="dark"]{
   color-scheme:dark;
   --bg:oklch(0.185 0.012 262);
+  --fill:oklch(0.255 0.014 262 / 0.68);
   --surface:oklch(0.255 0.014 262 / 0.82);
+  --fill-hi:oklch(0.255 0.014 262 / 0.90);
   --surface-solid:oklch(0.255 0.014 262 / 0.97);
   --fg:oklch(0.94 0.006 262);
   --muted:oklch(0.76 0.014 262);

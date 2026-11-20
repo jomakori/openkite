@@ -355,3 +355,46 @@ fn the_chrome_paints_from_one_glass_layer() {
         "glass hands the edges to the ink colour"
     );
 }
+
+// The ladder only reads as depth while each rung outranks the one below it.
+#[test]
+fn the_surface_ladder_climbs_in_four_steps() {
+    let css = include_str!("../assets/console.css");
+    let blocks: Vec<&str> = css
+        .match_indices("--fill:")
+        .map(|(at, _)| {
+            let open = css[..at].rfind('{').expect("block opens");
+            let close = css[at..].find('}').expect("block closes") + at;
+            &css[open..=close]
+        })
+        .collect();
+    assert_eq!(blocks.len(), 2, "both appearances carry the ladder");
+    for block in blocks {
+        let alpha = |token: &str| -> f32 {
+            let at = block.find(token).expect("token");
+            let rest = &block[at + token.len()..];
+            let value = &rest[..rest.find(';').expect("semicolon")];
+            let painted = value.rsplit('/').next().expect("alpha");
+            painted
+                .trim()
+                .trim_end_matches(')')
+                .parse()
+                .expect("alpha parses")
+        };
+        let (fill, surface, fill_hi, solid) = (
+            alpha("--fill:"),
+            alpha("--surface:"),
+            alpha("--fill-hi:"),
+            alpha("--surface-solid:"),
+        );
+        assert!(fill < surface, "fill {fill} sits under surface {surface}");
+        assert!(
+            surface < fill_hi,
+            "fill-hi {fill_hi} lifts off surface {surface}"
+        );
+        assert!(
+            fill_hi < solid,
+            "surface-solid {solid} tops fill-hi {fill_hi}"
+        );
+    }
+}
