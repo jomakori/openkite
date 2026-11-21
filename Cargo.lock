@@ -4053,8 +4053,13 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "dioxus",
+ "dioxus-ssr",
  "http-body-util",
+ "k8s-openapi",
+ "kube",
+ "openkite-engine",
  "openkite-ui",
+ "serde",
  "tokio",
  "tower",
  "tracing",
