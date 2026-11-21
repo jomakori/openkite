@@ -42,6 +42,7 @@
   --shadow-terminal: 0 16px 48px rgba(15,23,42,0.22);
   --r-sm: 6px;
   --r-md: 8px;
+  --r-lg: 14px;
   /* Liquid Glass: the functional layer tints the canvas through, catches a
      specular line along its top edge, and shadows only as deep as the content
      it floats over needs. */
@@ -525,6 +526,7 @@ button:focus-visible,input:focus-visible,[tabindex]:focus-visible{
   font-family:var(--font-mono);
   font-size:12px;
   line-height:1.75;
+  background:var(--terminal-bg);
 }
 .log-line{
   display:flex;
@@ -972,11 +974,15 @@ button:focus-visible,input:focus-visible,[tabindex]:focus-visible{
 
 
 .dock{
-  position:fixed;left:252px;right:0;bottom:0;z-index:55;height:min(340px,46vh);
+  position:fixed;left:264px;right:12px;bottom:12px;z-index:55;height:min(340px,46vh);
   display:flex;flex-direction:column;
-  background:var(--terminal-bg);color:var(--terminal-fg);
-  border-radius:var(--r-md) var(--r-md) 0 0;
-  box-shadow:var(--shadow-terminal);
+  color:var(--terminal-fg);
+  border-radius:var(--r-lg);
+  border:1px solid var(--glass-hair);
+  background:color-mix(in oklab, var(--terminal-bg) 86%, transparent);
+  backdrop-filter:blur(20px) saturate(1.25);
+  -webkit-backdrop-filter:blur(20px) saturate(1.25);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,0.10), var(--shadow-terminal);
   transform:translateY(calc(100% + 24px));opacity:0;visibility:hidden;
   transition:transform 0.28s cubic-bezier(.2,.8,.2,1), opacity 0.2s ease, visibility 0s linear 0.28s;
 }
@@ -1208,20 +1214,6 @@ body.dock-open .main{padding-bottom:var(--dock-h)}
 .main{padding-bottom:64px}
 body.dock-open .main{padding-bottom:calc(var(--dock-h) + 16px)}
 
-.dock-handle{
-  position:fixed;right:20px;bottom:0;z-index:54;min-height:44px;padding:0 14px;gap:8px;
-  background:var(--terminal-bg);color:white;border-radius:var(--r-md) var(--r-md) 0 0;
-  box-shadow:var(--shadow-terminal);font-size:12px;font-weight:500;letter-spacing:0.02em;
-  transition:bottom 0.28s cubic-bezier(.2,.8,.2,1), background 0.15s ease;
-}
-.dock-handle:hover{background:color-mix(in oklab,var(--terminal-bg) 88%, white)}
-.dock-handle:active{transform:translateY(1px)}
-.dock-handle .icon{width:15px;height:15px;color:var(--log-method)}
-.dock-handle kbd{font-family:var(--font-mono);font-size:10.5px;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,0.12);color:rgba(255,255,255,0.85)}
-.dock-handle .chev{width:13px;height:13px;color:rgba(255,255,255,0.8);transform:rotate(-90deg);transition:transform 0.25s ease}
-.dock-handle[aria-pressed="true"] .chev{transform:rotate(90deg)}
-body.dock-open .dock-handle{bottom:var(--dock-h)}
-
 .dock-bar{flex-wrap:nowrap;gap:2px;padding:0 4px 0 4px;min-height:44px}
 .dock-tabs{display:flex;flex:1 1 0;min-width:0;gap:2px;align-items:stretch;overflow-x:auto;scrollbar-width:none;touch-action:pan-x;padding-top:2px}
 .dock-tab{position:relative;flex:0 0 auto;display:flex;align-items:center;min-height:42px;max-width:240px;border-bottom:2px solid transparent;border-radius:var(--r-sm) var(--r-sm) 0 0;color:rgba(255,255,255,0.64);animation:none;user-select:none;-webkit-user-select:none;transition:background 0.15s ease, opacity 0.15s ease}
@@ -1277,18 +1269,17 @@ body.tab-dragging{user-select:none;-webkit-user-select:none;cursor:grabbing}
 
 @media (max-width:767px){
   :root{--dock-h:min(62vh,500px)}
-  .dock{height:var(--dock-h)}
+  .dock{height:var(--dock-h);left:12px;bottom:12px}
   .dock-bar{flex-wrap:nowrap}
   .dock-tabs{flex:1 1 0}
   .dock-actions{margin-left:0}
-  .dock-handle{right:10px;bottom:74px;padding:0 12px}
-  .dock-handle kbd,.dock-handle .handle-label{display:none}
-  body.dock-open .dock-handle{bottom:calc(74px + var(--dock-h))}
+  .dock-toggle{min-height:44px}
+  .dock-tab{min-height:44px}
   .main{padding-bottom:130px}
   body.dock-open .main{padding-bottom:calc(74px + var(--dock-h) + 16px)}
   .dock-body.split{flex-direction:column}
 }
-@media (prefers-reduced-motion:reduce){ .dock-handle,.drop-hint{transition:none} }
+@media (prefers-reduced-motion:reduce){ .drop-hint{transition:none} }
 
 
 :root{--glass:0.958 0.010 265;--mix:white;--mix-text:black;--on-fg:white;color-scheme:light}
@@ -1332,7 +1323,7 @@ body.tab-dragging{user-select:none;-webkit-user-select:none;cursor:grabbing}
   radial-gradient(560px 360px at 18% 108%, oklch(0.28 0.05 185 / 0.28), transparent 72%),
   var(--bg)}
 [data-appearance="dark"] .btn-primary,[data-theme="dark"] .btn-primary{color:var(--on-accent)}
-[data-theme="dark"] .dock,[data-theme="dark"] .dock-handle{box-shadow:0 -4px 24px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.08)}
+[data-theme="dark"] .dock{box-shadow:inset 0 1px 0 rgba(255,255,255,0.10), var(--shadow-terminal)}
 [data-theme="dark"] .log-level.warn{color:var(--warn)}
 [data-theme="dark"] .menu-item.active{background:color-mix(in oklab,var(--accent) 22%, var(--mix))}
 [data-theme="dark"] .brand-word{color:var(--fg)}
@@ -1404,17 +1395,6 @@ pre.yaml .y-d{color:rgba(255,255,255,0.4)}
   .inspector{width:100%}
   .qa-row{gap:6px}
 }
-
-
-.dock-handle{width:48px;min-width:48px;padding:0;gap:0;border-radius:var(--r-md) var(--r-md) 0 0}
-.dock-handle .handle-label,.dock-handle kbd{display:none}
-.dock-handle .icon{width:18px;height:18px}
-.dock-handle .ic-down{display:none;transform:rotate(90deg);color:rgba(255,255,255,0.85)}
-.dock-handle[aria-pressed="true"] .ic-dock{display:none}
-.dock-handle[aria-pressed="true"] .ic-down{display:block}
-.handle-badge{position:absolute;top:2px;right:2px;min-width:16px;height:16px;padding:0 4px;border-radius:99px;background:var(--accent);color:var(--on-accent);font-family:var(--font-sans);font-size:10px;font-weight:600;line-height:16px;text-align:center}
-.dock-handle[aria-pressed="true"] .handle-badge{display:none}
-@media (max-width:767px){ .dock-handle{right:10px} }
 
 
 /* ---- openkite-charts.css ---- */
