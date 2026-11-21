@@ -113,6 +113,7 @@ fn main() {
     let html = dioxus_ssr::render(&dom);
     let page = format!(
         "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">\
+         <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\
          <title>openkite · logs</title>\
          <link rel=\"stylesheet\" href=\"file://{}/assets/console.css\"></head>\
          <body><div id=\"app\">{html}</div></body></html>",
