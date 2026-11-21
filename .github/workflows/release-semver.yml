@@ -1,0 +1,46 @@
+name: Semantic Release
+
+# The tag producer. Without this, release.yml (which triggers on tags) never fires.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Compute the next version and notes without tagging or releasing
+        type: boolean
+        default: true
+
+concurrency:
+  group: semantic-release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  version:
+    name: VERSION bump and tag
+    runs-on: ubuntu-24.04
+    steps:
+      - name: CHECKOUT the full history and tags
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: INSTALL node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: INSTALL npm dependencies
+        run: npm ci
+
+      - name: RUN semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '--dry-run' || '' }}
