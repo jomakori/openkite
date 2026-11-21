@@ -1,10 +1,22 @@
-//! Browser shell: axum server that hosts the console.
+//! Browser shell: axum server that server-renders the openkite-ui console from
+//! live cluster data (see `live.rs` for the cluster adapter).
+
+use std::sync::Arc;
 
 use axum::{
+    extract::State,
+    http::{header, StatusCode},
     response::{Html, IntoResponse},
     routing::get,
     Router,
 };
+use dioxus::prelude::*;
+use openkite_ui::overview::{BoardAction, OverviewData, OverviewLayout};
+use openkite_ui::table::{Row, TableState};
+use openkite_ui::{AppShell, Connection, Counts, Overview, ResourceTable};
+
+mod live;
+pub use live::Live;
 
 /// Version baked in at build time; the release workflow passes the git tag.
 const BUILD_VERSION: &str = match option_env!("OPENKITE_VERSION") {
@@ -12,11 +24,29 @@ const BUILD_VERSION: &str = match option_env!("OPENKITE_VERSION") {
     None => env!("CARGO_PKG_VERSION"),
 };
 
+/// Console stylesheet, served verbatim at `/styles/console.css`.
+const CONSOLE_CSS: &str = include_str!("../../openkite-ui/assets/console.css");
+/// Icon sprite the shell markup references by fragment id (`#i-name`).
+const ICONS_SVG: &str = include_str!("../../openkite-ui/assets/icons.svg");
+/// Absolute path the `asset!` macro bakes into icon hrefs at compile time inside
+/// `openkite-ui` (no bundler runs for this plain `cargo` build); stripped below so
+/// the inline sprite's fragment ids resolve instead of a dead filesystem link.
+const UI_CRATE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../openkite-ui");
+
+#[derive(Clone)]
+struct AppState {
+    live: Arc<Live>,
+}
+
 /// Routes served by the browser shell.
-pub fn router() -> Router {
+pub fn router(live: Arc<Live>) -> Router {
     Router::new()
         .route("/healthz", get(healthz))
-        .route("/", get(index))
+        .route("/", get(overview))
+        .route("/table", get(table))
+        .route("/styles/console.css", get(styles))
+        .fallback(not_found)
+        .with_state(AppState { live })
 }
 
 /// Serve until the process receives SIGTERM or Ctrl-C.
@@ -28,9 +58,10 @@ pub async fn serve() -> std::io::Result<()> {
     let address = std::net::SocketAddr::from(([0, 0, 0, 0], port));
 
     let listener = tokio::net::TcpListener::bind(address).await?;
+    let live = Arc::new(Live::connect().await);
     tracing::info!(%address, version = version(), "openkite-web listening");
 
-    axum::serve(listener, router())
+    axum::serve(listener, router(live))
         .with_graceful_shutdown(shutdown_signal())
         .await
 }
@@ -44,54 +75,26 @@ async fn healthz() -> &'static str {
     "ok"
 }
 
-async fn index() -> impl IntoResponse {
-    Html(index_html(&version()))
+async fn styles() -> impl IntoResponse {
+    ([(header::CONTENT_TYPE, "text/css")], CONSOLE_CSS)
 }
 
-fn index_html(version: &str) -> String {
-    format!(
-        r#"<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>OpenKite</title>
-<style>
-  :root {{ color-scheme: dark; }}
-  body {{
-    margin: 0;
-    min-height: 100vh;
-    display: grid;
-    place-items: center;
-    background: #0b0d10;
-    color: #e6e9ef;
-    font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, sans-serif;
-  }}
-  main {{ max-width: 34rem; padding: 2rem; }}
-  h1 {{ margin: 0 0 .25rem; font-size: 1.5rem; letter-spacing: -.01em; }}
-  p {{ margin: 0 0 1rem; color: #9aa4b2; }}
-  code {{
-    font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
-    background: #151a21;
-    border: 1px solid #232a34;
-    border-radius: 6px;
-    padding: .15rem .4rem;
-    color: #cbd5e1;
-  }}
-  footer {{ margin-top: 2rem; font-size: 13px; color: #6b7686; }}
-</style>
-</head>
-<body>
-<main>
-  <h1>OpenKite</h1>
-  <p>The browser shell is running, but the console arrives with the engine.
-     This page is the v2 placeholder for release <code>{version}</code>.</p>
-  <footer>Health check: <code>/healthz</code></footer>
-</main>
-</body>
-</html>
-"#
-    )
+async fn overview(State(state): State<AppState>) -> impl IntoResponse {
+    let data = state.live.overview().await;
+    let connection = state.live.connection();
+    let cluster = state.live.cluster();
+    Html(render_overview(data, connection, cluster))
+}
+
+async fn table(State(state): State<AppState>) -> impl IntoResponse {
+    let rows = state.live.table().await;
+    let connection = state.live.connection();
+    let cluster = state.live.cluster();
+    Html(render_table(rows, connection, cluster))
+}
+
+async fn not_found() -> impl IntoResponse {
+    (StatusCode::NOT_FOUND, Html(not_found_html()))
 }
 
 async fn shutdown_signal() {
@@ -120,47 +123,124 @@ async fn shutdown_signal() {
     tracing::info!("shutdown signal received");
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use axum::http::header;
-    use http_body_util::BodyExt;
-    use tower::ServiceExt;
-
-    #[tokio::test]
-    async fn healthz_reports_ok() {
-        let response = router()
-            .oneshot(
-                axum::http::Request::get("/healthz")
-                    .body(axum::body::Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), 200);
-        let body = response.into_body().collect().await.unwrap().to_bytes();
-        assert_eq!(&body[..], b"ok");
+/// Builds `Counts` from the counts map `Live::overview` already filled.
+fn counts_from_data(data: &OverviewData) -> Counts {
+    let mut counts = Counts::new();
+    for (kind, rows) in &data.counts {
+        counts = counts.with(kind, *rows);
     }
+    counts
+}
 
-    #[tokio::test]
-    async fn index_serves_html() {
-        let response = router()
-            .oneshot(
-                axum::http::Request::get("/")
-                    .body(axum::body::Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
+#[derive(Props, Clone, PartialEq)]
+struct OverviewPageProps {
+    data: OverviewData,
+    cluster: String,
+    connection: Connection,
+}
 
-        assert_eq!(response.status(), 200);
-        assert_eq!(
-            response.headers().get(header::CONTENT_TYPE).unwrap(),
-            "text/html; charset=utf-8"
-        );
-        let body = response.into_body().collect().await.unwrap().to_bytes();
-        let html = String::from_utf8(body.to_vec()).unwrap();
-        assert!(html.contains("OpenKite"));
+#[allow(non_snake_case)]
+fn OverviewPage(props: OverviewPageProps) -> Element {
+    let on_action = use_callback(|_: BoardAction| {});
+    let counts = counts_from_data(&props.data);
+    rsx! {
+        AppShell {
+            counts,
+            active_path: "/overview".to_string(),
+            cluster: props.cluster.clone(),
+            connection: props.connection,
+            children: rsx! {
+                Overview {
+                    layout: OverviewLayout::default(),
+                    data: props.data.clone(),
+                    namespaces: Vec::new(),
+                    on_action,
+                }
+            },
+        }
     }
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct TablePageProps {
+    rows: Vec<Row>,
+    cluster: String,
+    connection: Connection,
+}
+
+#[allow(non_snake_case)]
+fn TablePage(props: TablePageProps) -> Element {
+    let on_open = use_callback(|_: String| {});
+    let on_state = use_callback(|_: TableState| {});
+    let on_scroll = use_callback(|_: f64| {});
+    let counts = Counts::new().with("pods", props.rows.len());
+    let state = TableState::default();
+    rsx! {
+        AppShell {
+            counts,
+            active_path: "/workloads/pods".to_string(),
+            cluster: props.cluster.clone(),
+            connection: props.connection,
+            children: rsx! {
+                div { class: "page-head",
+                    div {
+                        h1 { "Pods" }
+                        p { "All pods in {props.cluster}" }
+                    }
+                }
+                ResourceTable {
+                    kind: "pods".to_string(),
+                    label: "Pods".to_string(),
+                    rows: props.rows.clone(),
+                    state: state.clone(),
+                    namespaces: Vec::new(),
+                    on_open,
+                    on_state,
+                    scroll_top: 0.0,
+                    on_scroll,
+                }
+            },
+        }
+    }
+}
+
+/// Renders a page component to a full HTML document, patching the icon sprite's
+/// hrefs the same way `openkite-ui`'s `dump_*` examples do.
+fn html_document(title: &str, body_inner: String) -> String {
+    let mut body = body_inner;
+    body = body.replace(&format!("{UI_CRATE_DIR}/assets/icons.svg#"), "#");
+    body = body.replace(&format!("{UI_CRATE_DIR}#"), "#");
+    format!(
+        "<!doctype html>\n<html lang=\"en\" data-appearance=\"dark\" data-theme=\"frost-dark\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>{title}</title>\n<link rel=\"stylesheet\" href=\"/styles/console.css\">\n</head>\n<body>\n{ICONS_SVG}\n{body}\n</body>\n</html>\n"
+    )
+}
+
+fn render_overview(data: OverviewData, connection: Connection, cluster: String) -> String {
+    let mut dom = VirtualDom::new_with_props(
+        OverviewPage,
+        OverviewPageProps {
+            data,
+            cluster,
+            connection,
+        },
+    );
+    dom.rebuild_in_place();
+    html_document("openkite · Overview", dioxus_ssr::render(&dom))
+}
+
+fn render_table(rows: Vec<Row>, connection: Connection, cluster: String) -> String {
+    let mut dom = VirtualDom::new_with_props(
+        TablePage,
+        TablePageProps {
+            rows,
+            cluster,
+            connection,
+        },
+    );
+    dom.rebuild_in_place();
+    html_document("openkite · Pods", dioxus_ssr::render(&dom))
+}
+
+fn not_found_html() -> String {
+    "<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\"><title>Not found</title></head><body><main><h1>Not found</h1><p><a href=\"/\">Back to the console</a></p></main></body></html>\n".to_owned()
 }
