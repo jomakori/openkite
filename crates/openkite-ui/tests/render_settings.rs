@@ -421,3 +421,26 @@ fn the_shadow_tiers_stack_three_layers() {
         }
     }
 }
+
+// A card's edge is --border; the dividers inside it are hairlines.
+#[test]
+fn pane_dividers_are_hairlines() {
+    let css = include_str!("../assets/console.css");
+    for selector in [
+        ".panel-head{",
+        ".panel-title{",
+        ".insp-tabs{",
+        ".sub-tabs{",
+        ".sheet-bar{",
+        ".topn-head{",
+    ] {
+        let at = css
+            .find(selector)
+            .unwrap_or_else(|| panic!("{selector} exists"));
+        let rule = &css[at..css[at..].find('}').expect("rule closes") + at];
+        assert!(
+            !rule.contains("border-bottom:1px solid var(--border)"),
+            "{selector} divider is a hairline"
+        );
+    }
+}

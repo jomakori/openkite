@@ -313,6 +313,13 @@ through it, and the light comes from one direction.
   with a stroke. A side pane carries `--glass-drop`, a shadow cast *sideways*
   off the window; a vertical offset would read as floating above the content
   instead of beside it.
+- **One frame, hairlines inside it.** `--border` draws the outer edge of a card
+  and nothing else: `.panel`, `.app-card`, `.dlg`, `.menu`. Every separator
+  *inside* a pane — the rule under a pane head, a tab strip, the sheet bar —
+  is `--glass-hair`, so a stack of panes reads as one surface with structure
+  instead of boxes inside boxes. An inner divider at full `--border` turns the
+  card back into a frame around more frames, and the eye loses the one edge it
+  was using to find the card.
 - **Shadow follows what is underneath.** `--glass-shade` is a two-layer drop
   shadow: deep and soft where content runs beneath (16px/40px in dark), light in
   light appearance (10px/30px). The topbar adds a 14px gradient fade below
