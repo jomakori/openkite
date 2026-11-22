@@ -1,15 +1,12 @@
 name: Release
 
-# One workflow per release. svu derives the next version from the commits since
-# the last tag and pushes it; the artifacts come from the Staging run of the pull
-# request that just merged, so nothing is built twice; the image is retagged, not
-# rebuilt. One file is mandatory: a tag pushed with GITHUB_TOKEN does not trigger
-# another workflow.
+# One workflow per release, run only when a human dispatches it: a merge to main
+# never tags. svu derives the next version from the commits since the last tag and
+# pushes it; the artifacts come from the Staging run of the pull request that just
+# merged, so nothing is built twice; the image is retagged, not rebuilt. One file
+# is mandatory: a tag pushed with GITHUB_TOKEN does not trigger another workflow.
 
 on:
-  push:
-    branches: [main]
-    tags: ["v*"]
   workflow_dispatch:
 
 concurrency:
@@ -23,7 +20,6 @@ permissions:
 jobs:
   version:
     name: Resolve Version
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
