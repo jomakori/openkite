@@ -1,7 +1,10 @@
 name: lint-test
 
 on:
+  # `labeled`/`unlabeled` are load-bearing: the default activity types would leave
+  # a pull request with its pre-label result after someone adds the staging label.
   pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   merge_group:
   push:
     branches: [main]
@@ -19,7 +22,7 @@ concurrency:
 
 jobs:
   fmt:
-    name: Check formatting
+    name: Check Formatting
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -31,11 +34,11 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-      - name: Check formatting
+      - name: Check Formatting
         run: cargo fmt --all -- --check
 
   clippy:
-    name: Lint with clippy
+    name: Lint Code
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -47,25 +50,98 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - name: Lint with clippy
+      - name: Lint Code
         run: cargo clippy --workspace --exclude openkite-desktop --all-targets -- -D warnings
 
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Diff against the base
+        id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          # Anything under crates/, a manifest, a build input or the workflows themselves.
+          CODE_PATHS: ^(crates/|Cargo\.(toml|lock)$|rust-toolchain|Dockerfile|Tiltfile|packaging/|\.github/)
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" != 'pull_request' ]; then
+            echo 'code=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git diff --name-only "$BASE"...HEAD | grep -Eq "$CODE_PATHS"; then
+            echo 'code=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'code=false' >> "$GITHUB_OUTPUT"
+            echo 'No binary or dependency change: lint only.'
+          fi
+
+  staging-gate:
+    name: Require Label
+    needs: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
+    steps:
+      - name: Decide whether the build runs
+        id: gate
+        env:
+          EVENT: ${{ github.event_name }}
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          CODE: ${{ needs.changes.outputs.code }}
+        run: |
+          if [ "$EVENT" != 'pull_request' ]; then
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+            echo 'Not a pull request: the full suite runs.'
+            exit 0
+          fi
+          if [ "$CODE" != 'true' ]; then
+            echo 'run=false' >> "$GITHUB_OUTPUT"
+            echo 'No binary or dependency change: nothing to build or test.'
+            exit 0
+          fi
+          if printf '%s' "$LABELS" | jq -e 'index("staging")' >/dev/null; then
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+            echo 'staging label present: build and test.'
+          else
+            echo 'run=false' >> "$GITHUB_OUTPUT"
+            echo "::error::Add the \`staging\` label to build and test before merging."
+            exit 1
+          fi
+
   test:
-    name: Run tests
+    name: Run Tests
+    needs: staging-gate
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
     steps:
       - name: Check out repository
+        if: needs.staging-gate.outputs.run == 'true'
         uses: actions/checkout@v4
       - name: Install the Rust toolchain
+        if: needs.staging-gate.outputs.run == 'true'
         uses: dtolnay/rust-toolchain@stable
-      - name: Run tests
+      - name: Run Tests
+        if: needs.staging-gate.outputs.run == 'true'
         run: cargo test --workspace --exclude openkite-desktop
 
   boundary:
-    name: Guard the crate boundary
+    name: Guard Boundary
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -75,7 +151,7 @@ jobs:
         uses: actions/checkout@v4
       - name: Install the Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-      - name: Guard the crate boundary
+      - name: Guard Crate Boundary
         run: |
           tree="$(cargo tree -p openkite-engine --prefix none)"
           if printf '%s\n' "$tree" | grep -Eq '^(dioxus|openkite-ui) '; then
@@ -85,7 +161,9 @@ jobs:
           fi
 
   benchmark:
-    name: OKT-218 volume benchmark
+    name: Benchmark Volume
+    needs: staging-gate
+    if: needs.staging-gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -101,7 +179,9 @@ jobs:
             -- --ignored --nocapture
 
   desktop:
-    name: Desktop shell builds
+    name: Build Desktop
+    needs: staging-gate
+    if: needs.staging-gate.outputs.run == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 30
     permissions:
@@ -123,7 +203,9 @@ jobs:
         run: cargo check -p openkite-desktop --all-targets
 
   exec-conformance:
-    name: Exec conformance against a kind cluster
+    name: Run Conformance
+    needs: staging-gate
+    if: needs.staging-gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions:
