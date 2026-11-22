@@ -97,6 +97,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: DOWNLOAD the artifacts built for the pull request
+        id: download
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           pattern: openkite-*
@@ -105,7 +107,15 @@ jobs:
           run-id: ${{ needs.locate.outputs.run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: LIST the payload
-        run: ls -lh dist
+        id: list
+        run: |
+          mkdir -p dist
+          ls -lh dist
+          if [ -n "$(find dist -mindepth 1 -maxdepth 1 2>/dev/null)" ]; then
+            echo "has_artifacts=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_artifacts=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: CREATE the release with generated notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -114,8 +124,15 @@ jobs:
           gh release create "$tag" \
             --title "$tag" \
             --generate-notes \
-            --verify-tag \
-            dist/*
+            --verify-tag
+      - name: UPLOAD the release assets
+        if: steps.list.outputs.has_artifacts == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="v${{ needs.version.outputs.version }}"
+          gh release upload "$tag" dist/* --clobber
       - name: RETAG the pull request image as the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
