@@ -19,7 +19,7 @@ permissions:
 
 jobs:
   version:
-    name: RESOLVE the pr version token
+    name: Resolve Version
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -37,7 +37,7 @@ jobs:
           echo "sha7=${HEAD_SHA:0:7}" >> "$GITHUB_OUTPUT"
 
   image:
-    name: BUILD image ${{ needs.version.outputs.token }}
+    name: Build Image
     needs: [version]
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 30

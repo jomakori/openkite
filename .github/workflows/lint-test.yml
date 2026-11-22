@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   fmt:
-    name: Check formatting
+    name: Check Formatting
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -34,11 +34,11 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-      - name: Check formatting
+      - name: Check Formatting
         run: cargo fmt --all -- --check
 
   clippy:
-    name: Lint with clippy
+    name: Lint Code
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -50,11 +50,11 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - name: Lint with clippy
+      - name: Lint Code
         run: cargo clippy --workspace --exclude openkite-desktop --all-targets -- -D warnings
 
   staging-gate:
-    name: Require the staging label
+    name: Require Staging Label
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -73,7 +73,7 @@ jobs:
           fi
 
   test:
-    name: Run tests
+    name: Run Tests
     if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'staging')
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -84,11 +84,11 @@ jobs:
         uses: actions/checkout@v4
       - name: Install the Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-      - name: Run tests
+      - name: Run Tests
         run: cargo test --workspace --exclude openkite-desktop
 
   boundary:
-    name: Guard the crate boundary
+    name: Guard Crate Boundary
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -98,7 +98,7 @@ jobs:
         uses: actions/checkout@v4
       - name: Install the Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-      - name: Guard the crate boundary
+      - name: Guard Crate Boundary
         run: |
           tree="$(cargo tree -p openkite-engine --prefix none)"
           if printf '%s\n' "$tree" | grep -Eq '^(dioxus|openkite-ui) '; then
@@ -108,7 +108,7 @@ jobs:
           fi
 
   benchmark:
-    name: OKT-218 volume benchmark
+    name: Benchmark Volume IO
     if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'staging')
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -125,7 +125,7 @@ jobs:
             -- --ignored --nocapture
 
   desktop:
-    name: Desktop shell builds
+    name: Build Desktop Shell
     if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'staging')
     runs-on: ubuntu-26.04
     timeout-minutes: 30
@@ -148,7 +148,7 @@ jobs:
         run: cargo check -p openkite-desktop --all-targets
 
   exec-conformance:
-    name: Exec conformance against a kind cluster
+    name: Run Exec Conformance
     if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'staging')
     runs-on: ubuntu-latest
     timeout-minutes: 40
