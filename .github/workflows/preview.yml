@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   deploy:
-    name: DEPLOY pr${{ github.event.pull_request.number }}
+    name: Deploy Preview
     if: >-
       github.event.action != 'closed' &&
       !github.event.pull_request.draft &&
@@ -70,7 +70,7 @@ jobs:
         run: tilt ci
 
   withdraw:
-    name: WITHDRAW the preview label
+    name: Withdraw Preview
     needs: [deploy]
     if: >-
       failure() &&
@@ -99,7 +99,7 @@ jobs:
             }
 
   teardown:
-    name: REMOVE the pr${{ github.event.pull_request.number }} environment
+    name: Remove Preview
     if: >-
       (github.event.action == 'unlabeled' && github.event.label.name == 'preview') ||
       github.event.action == 'closed'
