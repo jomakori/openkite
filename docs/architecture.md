@@ -35,7 +35,6 @@ and a debug panel says so instead of degrading silently).
 | `openkite-ui` | The console: Dioxus surfaces, rendered by either shell, with `web` / `desktop` crate features selecting the renderer. |
 | `openkite-desktop` | The native shell: webview window, engine over an in-process channel. |
 | `openkite-web` | The browser shell: axum server, server-rendered console, WebSocket delta stream. |
-| `openkite-cli` | The binary entry point for scripted and headless use of the engine. |
 
 Data flows one way, engine → api → ui → shell. Shells are thin: they own a
 window, a session and a transport, and nothing about Kubernetes. The UI owns

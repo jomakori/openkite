@@ -1,9 +1,9 @@
 name: Release
 
-# One workflow per release. semantic-release decides the version on main and
-# pushes the tag, GoReleaser turns that tag into packages, the same run pushes
-# the image. It has to be one file: a tag pushed with GITHUB_TOKEN does not
-# trigger another workflow, so a separate tag-triggered file would never fire.
+# One workflow per release. svu derives the next version from the commits since
+# the last tag and pushes the tag; GoReleaser turns that tag into packages and
+# writes the release notes; the same run pushes the image. It has to be one
+# file: a tag pushed with GITHUB_TOKEN does not trigger another workflow.
 on:
   push:
     branches: [main]
@@ -21,35 +21,42 @@ concurrency:
 
 permissions:
   contents: write
-  issues: write
-  pull-requests: write
   packages: write
 
 jobs:
   version:
-    name: VERSION bump and tag
+    name: VERSION from svu
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 10
     outputs:
-      version: ${{ steps.release.outputs.version }}
+      version: ${{ steps.tag.outputs.version }}
     steps:
       - name: CHECKOUT the full history and tags
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - name: INSTALL node
-        uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: npm
-      - name: INSTALL npm dependencies
-        run: npm ci
-      - name: RUN semantic-release
-        id: release
+      - name: INSTALL svu
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx semantic-release
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download -R caarlos0/svu -p 'svu_*_linux_amd64.tar.gz' -D "$RUNNER_TEMP/svu" --clobber
+          tar -xzf "$RUNNER_TEMP"/svu/*.tar.gz -C /usr/local/bin svu
+          svu --version
+      - name: TAG the next version
+        id: tag
+        run: |
+          set -euo pipefail
+          current="$(svu current)"
+          next="$(svu next)"
+          echo "current=$current next=$next" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$current" = "$next" ]; then
+            echo "No releasable commits since $current — nothing to tag."
+            exit 0
+          fi
+          git tag "$next"
+          git push origin "$next"
+          echo "version=${next#v}" >> "$GITHUB_OUTPUT"
 
   package:
     name: PACKAGE artifacts
@@ -81,7 +88,7 @@ jobs:
           GORELEASER_CURRENT_TAG: ${{ needs.version.outputs.version != '' && format('v{0}', needs.version.outputs.version) || '' }}
 
   image:
-    name: BUILD and push the arm64 image
+    name: BUILD and push the image
     needs: version
     if: always() && (needs.version.outputs.version != '' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-24.04-arm
