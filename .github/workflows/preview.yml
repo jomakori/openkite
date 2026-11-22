@@ -55,13 +55,25 @@ jobs:
               | tar -xz -C /usr/local/bin tilt
           fi
           tilt version
+      - name: INSTALL the Doppler cli
+        uses: dopplerhq/cli-action@v3
+      - name: FETCH the tailnet credentials from Doppler
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+        run: |
+          set -euo pipefail
+          for name in TAILSCALE_AUTH_KEY TAILSCALE_PROXY_HOST; do
+            value=$(doppler secrets get "$name" --plain --project devops --config ci)
+            echo "::add-mask::$value"
+            echo "$name=$value" >> "$GITHUB_ENV"
+          done
       - name: JOIN the tailnet
         uses: tailscale/github-action@v4
         with:
-          authkey: ${{ secrets.TAILSCALE_AUTH_KEY }}
+          authkey: ${{ env.TAILSCALE_AUTH_KEY }}
       - name: WRITE the client kubeconfig
         run: |
-          tailscale configure kubeconfig ${{ secrets.TAILSCALE_PROXY_HOST }}
+          tailscale configure kubeconfig ${{ env.TAILSCALE_PROXY_HOST }}
           kubectl config current-context
           echo "OPENKITE_CONTEXT=$(kubectl config current-context)" >> "$GITHUB_ENV"
       - name: ASSERT cluster access
@@ -111,13 +123,25 @@ jobs:
       RELEASE: openkite-preview-${{ github.event.pull_request.number }}
       ENVIRONMENT: openkite-pr${{ github.event.pull_request.number }}
     steps:
+      - name: INSTALL the Doppler cli
+        uses: dopplerhq/cli-action@v3
+      - name: FETCH the tailnet credentials from Doppler
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+        run: |
+          set -euo pipefail
+          for name in TAILSCALE_AUTH_KEY TAILSCALE_PROXY_HOST; do
+            value=$(doppler secrets get "$name" --plain --project devops --config ci)
+            echo "::add-mask::$value"
+            echo "$name=$value" >> "$GITHUB_ENV"
+          done
       - name: JOIN the tailnet
         uses: tailscale/github-action@v4
         with:
-          authkey: ${{ secrets.TAILSCALE_AUTH_KEY }}
+          authkey: ${{ env.TAILSCALE_AUTH_KEY }}
       - name: WRITE the client kubeconfig
         run: |
-          tailscale configure kubeconfig ${{ secrets.TAILSCALE_PROXY_HOST }}
+          tailscale configure kubeconfig ${{ env.TAILSCALE_PROXY_HOST }}
           kubectl config current-context
       - name: ASSERT cluster access
         run: kubectl auth can-i list namespaces
