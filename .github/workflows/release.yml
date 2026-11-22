@@ -22,7 +22,7 @@ permissions:
 
 jobs:
   version:
-    name: VERSION from svu
+    name: Resolve Version
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -58,12 +58,13 @@ jobs:
           echo "version=${next#v}" >> "$GITHUB_OUTPUT"
 
   locate:
-    name: LOCATE the merged pull request build
+    name: Locate Build
     needs: version
     if: needs.version.outputs.version != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
+      skip: ${{ steps.find.outputs.skip }}
       run_id: ${{ steps.find.outputs.run_id }}
       pr: ${{ steps.find.outputs.pr }}
       image: ${{ steps.find.outputs.image }}
@@ -81,8 +82,9 @@ jobs:
           run_id="$(gh api "repos/$REPO/actions/workflows/staging.yml/runs?head_sha=$head&status=success&per_page=1" \
             --jq '.workflow_runs[0].id')"
           if [ -z "$run_id" ] || [ "$run_id" = "null" ]; then
-            echo "::error::No successful Staging run for pr-$pr ($head). Re-run Staging on the pull request first."
-            exit 1
+            echo 'skip=true' >> "$GITHUB_OUTPUT"
+            echo "::notice::No Staging build for pr-$pr: the pull request changed no build input, so there is nothing to release."
+            exit 0
           fi
           {
             echo "pr=$pr"
@@ -91,8 +93,9 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
   publish:
-    name: PUBLISH the release
+    name: Publish Release
     needs: [version, locate]
+    if: needs.locate.outputs.skip != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -128,7 +131,7 @@ jobs:
           docker buildx imagetools inspect "$tag"
 
   cleanup:
-    name: CLEAN UP the pull request artifacts
+    name: Clean Up Artifacts
     needs: [version, locate, publish]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
