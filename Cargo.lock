@@ -4051,6 +4051,7 @@ dependencies = [
  "k8s-openapi",
  "kube",
  "openkite-engine",
+ "openkite-engine-testkit",
  "openkite-ui",
  "serde",
  "tokio",

@@ -5,7 +5,7 @@ ARG OPENKITE_VERSION=dev
 ENV OPENKITE_VERSION=${OPENKITE_VERSION}
 WORKDIR /src
 COPY . .
-RUN cargo build --release -p openkite-web
+RUN cargo build --release -p openkite-web --features fixtures
 
 FROM debian:bookworm-slim
 RUN apt-get update \
