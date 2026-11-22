@@ -24,3 +24,9 @@ repos:
         language: system
         pass_filenames: false
         types: [rust]
+
+      - id: comment-hygiene
+        name: no ticket/PR ids in comments
+        entry: bash scripts/check-comments.sh
+        language: system
+        files: '\.(rs|toml|ya?ml|css|js|mjs|ts|py|sh)$'
