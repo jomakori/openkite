@@ -3,6 +3,12 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      snapshot:
+        description: Build the artifacts without publishing or touching the release
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -40,9 +46,30 @@ jobs:
           tags: |
             ghcr.io/jomakori/openkite:${{ github.ref_name }}
             ghcr.io/jomakori/openkite:latest
-      - name: Create the GitHub release
+
+  package:
+    name: PACKAGE artifacts
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the tagged commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install the Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install zig (cargo-zigbuild cross-compile backend)
+        uses: mlugg/setup-zig@v2
+      - name: Install cargo-zigbuild
+        uses: taiki-e/install-action@cargo-zigbuild
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: ${{ (github.event_name == 'workflow_dispatch' && inputs.snapshot) && 'release --snapshot --clean --skip=publish' || 'release --clean' }}
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1 \
-            || gh release create "${GITHUB_REF_NAME}" --generate-notes --title "${GITHUB_REF_NAME}"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}

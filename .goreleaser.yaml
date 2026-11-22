@@ -1,0 +1,94 @@
+# GoReleaser (OSS, v2) config for openkite.
+# Cross-compiles all 5 targets from a single Linux CI runner via the `rust`
+# builder, which shells out to cargo-zigbuild: no QEMU, no per-OS runners.
+# zig and cargo-zigbuild are installed by the release workflow.
+# Validate with: docker run --rm -v "$PWD:/w" -w /w goreleaser/goreleaser:latest check
+version: 2
+
+project_name: openkite
+
+before:
+  hooks:
+    - rustup default stable
+    - rustup target add x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu x86_64-apple-darwin aarch64-apple-darwin x86_64-pc-windows-gnu
+    - cargo fetch --locked
+
+builds:
+  - id: openkite-cli
+    builder: rust
+    binary: openkite-cli
+    flags:
+      - --release
+      - --package=openkite-cli
+    targets:
+      - x86_64-unknown-linux-gnu
+      - aarch64-unknown-linux-gnu
+      - x86_64-apple-darwin
+      - aarch64-apple-darwin
+      - x86_64-pc-windows-gnu
+
+  - id: openkite-web
+    builder: rust
+    binary: openkite-web
+    flags:
+      - --release
+      - --package=openkite-web
+    targets:
+      - x86_64-unknown-linux-gnu
+      - aarch64-unknown-linux-gnu
+      - x86_64-apple-darwin
+      - aarch64-apple-darwin
+      - x86_64-pc-windows-gnu
+
+archives:
+  - id: default
+    ids: [openkite-cli, openkite-web]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE-MIT
+      - LICENSE-APACHE
+      - README.md
+
+checksum:
+  name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"
+  algorithm: sha256
+
+release:
+  github:
+    owner: jomakori
+    name: openkite
+  draft: false
+  # semantic-release already created the tag + GitHub release with notes;
+  # append our artifacts instead of touching the body.
+  mode: append
+
+homebrew_casks:
+  - name: openkite
+    ids: [default]
+    repository:
+      owner: jomakori
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    commit_msg_template: "Brew cask update for {{ .ProjectName }} version {{ .Tag }}"
+    homepage: "https://github.com/jomakori/openkite"
+    description: "OpenKite CLI and web console"
+    # Casks are the supported channel on macOS and Linuxbrew alike since 2.16;
+    # `brews` is deprecated and would only produce the old hacky formulas.
+    binaries:
+      - openkite-cli
+      - openkite-web
+
+nfpms:
+  - id: openkite-nfpm
+    package_name: openkite
+    ids: [openkite-cli, openkite-web]
+    formats: [deb, rpm]
+    maintainer: "jomakori"
+    homepage: "https://github.com/jomakori/openkite"
+    license: "MIT OR Apache-2.0"
+    description: "OpenKite CLI and web console"
+    bindir: /usr/bin
