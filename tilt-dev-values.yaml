@@ -1,0 +1,14 @@
+# Values for the in-pod dev loop only. The pod rebuilds its own binary, so the
+# registry cache has to outlive a container restart or every restart refetches
+# the dependency set from crates.io.
+openkite:
+  environments:
+    production:
+      tag: dev
+  service:
+    extraVolumeMounts:
+      - name: cargo-cache
+        mountPath: /usr/local/cargo
+    extraVolumes:
+      - name: cargo-cache
+        emptyDir: {}

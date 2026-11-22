@@ -1,0 +1,19 @@
+# syntax=docker/dockerfile:1
+
+# Dev image for the in-pod loop: it carries the toolchain so a source sync can
+# rebuild the binary inside the pod instead of a local cross-build.
+FROM rust:1.90-bookworm
+
+ARG OPENKITE_VERSION=dev
+ENV OPENKITE_VERSION=${OPENKITE_VERSION} \
+    CARGO_HOME=/usr/local/cargo
+
+WORKDIR /src
+COPY Cargo.toml Cargo.lock ./
+COPY crates ./crates
+
+# Prebuilds the dependency set, so a sync only recompiles the crate that changed.
+RUN cargo build --release -p openkite-web
+
+EXPOSE 8080
+CMD ["/src/target/release/openkite-web"]
