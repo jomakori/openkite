@@ -1,7 +1,10 @@
 name: lint-test
 
 on:
+  # `labeled`/`unlabeled` are load-bearing: the default activity types would leave
+  # a pull request with its pre-label result after someone adds the staging label.
   pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   merge_group:
   push:
     branches: [main]
@@ -50,8 +53,28 @@ jobs:
       - name: Lint with clippy
         run: cargo clippy --workspace --exclude openkite-desktop --all-targets -- -D warnings
 
+  staging-gate:
+    name: Require the staging label
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Check the label
+        env:
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: |
+          if printf '%s' "$LABELS" | jq -e 'index("staging")' >/dev/null; then
+            echo "staging label present: this pull request runs the test jobs."
+          else
+            echo "::error::Add the \`staging\` label to run the tests and confirm the build before merging."
+            exit 1
+          fi
+
   test:
     name: Run tests
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'staging')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -86,6 +109,7 @@ jobs:
 
   benchmark:
     name: OKT-218 volume benchmark
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'staging')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -102,6 +126,7 @@ jobs:
 
   desktop:
     name: Desktop shell builds
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'staging')
     runs-on: ubuntu-26.04
     timeout-minutes: 30
     permissions:
@@ -124,6 +149,7 @@ jobs:
 
   exec-conformance:
     name: Exec conformance against a kind cluster
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'staging')
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions:
