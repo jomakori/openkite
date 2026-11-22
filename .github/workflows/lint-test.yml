@@ -87,7 +87,7 @@ jobs:
           fi
 
   staging-gate:
-    name: Require Staging Label
+    name: Require Label
     needs: changes
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -141,7 +141,7 @@ jobs:
         run: cargo test --workspace --exclude openkite-desktop
 
   boundary:
-    name: Guard Crate Boundary
+    name: Guard Boundary
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -161,7 +161,7 @@ jobs:
           fi
 
   benchmark:
-    name: Benchmark Volume IO
+    name: Benchmark Volume
     needs: staging-gate
     if: needs.staging-gate.outputs.run == 'true'
     runs-on: ubuntu-latest
@@ -179,7 +179,7 @@ jobs:
             -- --ignored --nocapture
 
   desktop:
-    name: Build Desktop Shell
+    name: Build Desktop
     needs: staging-gate
     if: needs.staging-gate.outputs.run == 'true'
     runs-on: ubuntu-26.04
@@ -203,7 +203,7 @@ jobs:
         run: cargo check -p openkite-desktop --all-targets
 
   exec-conformance:
-    name: Run Exec Conformance
+    name: Run Conformance
     needs: staging-gate
     if: needs.staging-gate.outputs.run == 'true'
     runs-on: ubuntu-latest
