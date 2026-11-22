@@ -30,6 +30,8 @@ jobs:
       TILT_VERSION: v0.37.7
       OPENKITE_PR: ${{ github.event.pull_request.number }}
       OPENKITE_DEV_LOOP: '0'
+      # CI promotes the image staging built for this commit instead of rebuilding.
+      OPENKITE_SHA7: ${{ github.event.pull_request.head.sha }}
       OPENKITE_CHART: gke_GitOps/apps/helm
     steps:
       - name: CHECK OUT the pull request head
