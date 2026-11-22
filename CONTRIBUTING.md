@@ -12,7 +12,6 @@ rebuild starts from.
 | `crates/openkite-ui` | The console: Dioxus 0.7 surfaces, rendered by either shell. |
 | `crates/openkite-desktop` | The native shell: webview window, engine over an in-process channel. |
 | `crates/openkite-web` | The browser shell: axum server, server-rendered console, WebSocket deltas. |
-| `crates/openkite-cli` | The binary entry point for scripted and headless use. |
 
 Data flows one way: engine → api → ui → shell.
 

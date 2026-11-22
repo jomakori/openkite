@@ -1,0 +1,153 @@
+name: Preview
+
+# Label-gated ephemeral environment: Tilt renders the GitOps umbrella chart at
+# pr<N> coordinates and tears it down when the label leaves or the PR closes.
+# The image itself is built by Staging; this workflow only deploys the tag.
+
+on:
+  pull_request:
+    types: [labeled, unlabeled, synchronize, closed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy Preview
+    if: >-
+      github.event.action != 'closed' &&
+      !github.event.pull_request.draft &&
+      contains(github.event.pull_request.labels.*.name, 'preview')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      TILT_VERSION: v0.37.7
+      OPENKITE_PR: ${{ github.event.pull_request.number }}
+      OPENKITE_DEV_LOOP: '0'
+      # CI promotes the image staging built for this commit instead of rebuilding.
+      OPENKITE_SHA7: ${{ github.event.pull_request.head.sha }}
+      OPENKITE_CHART: gke_GitOps/apps/helm
+    steps:
+      - name: CHECK OUT the pull request head
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: CHECK OUT the chart
+        uses: actions/checkout@v5
+        with:
+          repository: jomakori/gke_GitOps
+          path: gke_GitOps
+      - name: RESTORE the Tilt binary
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/bin/tilt
+          key: tilt-${{ runner.os }}-${{ env.TILT_VERSION }}
+      - name: INSTALL Tilt
+        run: |
+          if ! command -v tilt >/dev/null 2>&1; then
+            base="https://github.com/tilt-dev/tilt/releases/download/${TILT_VERSION}"
+            curl -fsSL "${base}/tilt.${TILT_VERSION#v}.linux.x86_64.tar.gz" \
+              | tar -xz -C /usr/local/bin tilt
+          fi
+          tilt version
+      - name: INSTALL the Doppler cli
+        uses: dopplerhq/cli-action@v3
+      - name: FETCH the tailnet credentials from Doppler
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+        run: |
+          set -euo pipefail
+          for name in TAILSCALE_AUTH_KEY TAILSCALE_PROXY_HOST; do
+            value=$(doppler secrets get "$name" --plain --project devops --config ci)
+            echo "::add-mask::$value"
+            echo "$name=$value" >> "$GITHUB_ENV"
+          done
+      - name: JOIN the tailnet
+        uses: tailscale/github-action@v4
+        with:
+          authkey: ${{ env.TAILSCALE_AUTH_KEY }}
+      - name: WRITE the client kubeconfig
+        run: |
+          tailscale configure kubeconfig ${{ env.TAILSCALE_PROXY_HOST }}
+          kubectl config current-context
+          echo "OPENKITE_CONTEXT=$(kubectl config current-context)" >> "$GITHUB_ENV"
+      - name: ASSERT cluster access
+        run: kubectl auth can-i list namespaces
+      - name: DEPLOY the preview
+        run: tilt ci
+
+  withdraw:
+    name: Withdraw Preview
+    needs: [deploy]
+    if: >-
+      failure() &&
+      contains(github.event.pull_request.labels.*.name, 'preview')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: REMOVE the label after a failed deploy
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const pr = context.payload.pull_request.number;
+            try {
+              await github.rest.issues.removeLabel({ owner, repo, issue_number: pr, name: 'preview' });
+              core.notice(`pr-${pr}: the deploy failed, so the label came off.`);
+            } catch (error) {
+              if (error.status === 404) {
+                core.notice(`pr-${pr}: no preview label to withdraw.`);
+                return;
+              }
+              throw error;
+            }
+
+  teardown:
+    name: Remove Preview
+    if: >-
+      (github.event.action == 'unlabeled' && github.event.label.name == 'preview') ||
+      github.event.action == 'closed'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      RELEASE: openkite-preview-${{ github.event.pull_request.number }}
+      ENVIRONMENT: openkite-pr${{ github.event.pull_request.number }}
+    steps:
+      - name: INSTALL the Doppler cli
+        uses: dopplerhq/cli-action@v3
+      - name: FETCH the tailnet credentials from Doppler
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+        run: |
+          set -euo pipefail
+          for name in TAILSCALE_AUTH_KEY TAILSCALE_PROXY_HOST; do
+            value=$(doppler secrets get "$name" --plain --project devops --config ci)
+            echo "::add-mask::$value"
+            echo "$name=$value" >> "$GITHUB_ENV"
+          done
+      - name: JOIN the tailnet
+        uses: tailscale/github-action@v4
+        with:
+          authkey: ${{ env.TAILSCALE_AUTH_KEY }}
+      - name: WRITE the client kubeconfig
+        run: |
+          tailscale configure kubeconfig ${{ env.TAILSCALE_PROXY_HOST }}
+          kubectl config current-context
+      - name: ASSERT cluster access
+        run: kubectl auth can-i list namespaces
+      - name: REMOVE the environment
+        run: |
+          helm uninstall "$RELEASE" --namespace "$ENVIRONMENT" --ignore-not-found
+          kubectl delete namespace "$ENVIRONMENT" --ignore-not-found

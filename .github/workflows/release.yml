@@ -1,48 +1,169 @@
 name: Release
 
-on:
-  push:
-    tags: ["v*"]
+# One workflow per release, run only when a human dispatches it: a merge to main
+# never tags. svu derives the next version from the commits since the last tag and
+# pushes it; the artifacts come from the Staging run of the pull request that just
+# merged, so nothing is built twice; the image is retagged, not rebuilt. One file
+# is mandatory: a tag pushed with GITHUB_TOKEN does not trigger another workflow.
 
-permissions:
-  contents: write
-  packages: write
+on:
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
+permissions:
+  contents: write
+  packages: write
+
 jobs:
-  image:
-    name: Build and push the arm64 image
-    runs-on: ubuntu-26.04-arm
-    timeout-minutes: 45
-    permissions:
-      contents: write
-      packages: write
+  version:
+    name: Resolve Version
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
     steps:
-      - name: Check out the tagged commit
-        uses: actions/checkout@v4
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
+      - name: CHECKOUT the full history and tags
+        uses: actions/checkout@v5
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          platforms: linux/arm64
-          push: true
-          build-args: |
-            OPENKITE_VERSION=${{ github.ref_name }}
-          tags: |
-            ghcr.io/jomakori/openkite:${{ github.ref_name }}
-            ghcr.io/jomakori/openkite:latest
-      - name: Create the GitHub release
+          fetch-depth: 0
+      - name: INSTALL svu
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1 \
-            || gh release create "${GITHUB_REF_NAME}" --generate-notes --title "${GITHUB_REF_NAME}"
+          gh release download -R caarlos0/svu -p 'svu_*_linux_amd64.tar.gz' -D "$RUNNER_TEMP/svu" --clobber
+          tar -xzf "$RUNNER_TEMP"/svu/*.tar.gz -C /usr/local/bin svu
+          svu --version
+      - name: TAG the next version
+        id: tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          current="$(svu current)"
+          next="$(svu next)"
+          echo "current=$current next=$next" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$current" = "$next" ]; then
+            echo "No releasable commits since $current — nothing to tag."
+            exit 0
+          fi
+          git tag "$next"
+          git push origin "$next"
+          echo "version=${next#v}" >> "$GITHUB_OUTPUT"
+
+  locate:
+    name: Locate Build
+    needs: version
+    if: needs.version.outputs.version != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      skip: ${{ steps.find.outputs.skip }}
+      run_id: ${{ steps.find.outputs.run_id }}
+      pr: ${{ steps.find.outputs.pr }}
+      image: ${{ steps.find.outputs.image }}
+    steps:
+      - name: FIND the Staging run for this commit
+        id: find
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          pr="$(gh api "repos/$REPO/commits/$SHA/pulls" --jq '.[0].number')"
+          head="$(gh api "repos/$REPO/pulls/$pr" --jq '.head.sha')"
+          run_id="$(gh api "repos/$REPO/actions/workflows/staging.yml/runs?head_sha=$head&status=success&per_page=1" \
+            --jq '.workflow_runs[0].id')"
+          if [ -z "$run_id" ] || [ "$run_id" = "null" ]; then
+            echo 'skip=true' >> "$GITHUB_OUTPUT"
+            echo "::notice::No Staging build for pr-$pr: the pull request changed no build input, so there is nothing to release."
+            exit 0
+          fi
+          {
+            echo "pr=$pr"
+            echo "run_id=$run_id"
+            echo "image=pr-${pr}-${head:0:7}"
+          } >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: Publish Release
+    needs: [version, locate]
+    if: needs.locate.outputs.skip != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: DOWNLOAD the artifacts built for the pull request
+        id: download
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          pattern: openkite-*
+          merge-multiple: true
+          path: dist
+          run-id: ${{ needs.locate.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: LIST the payload
+        id: list
+        run: |
+          mkdir -p dist
+          ls -lh dist
+          if [ -n "$(find dist -mindepth 1 -maxdepth 1 2>/dev/null)" ]; then
+            echo "has_artifacts=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_artifacts=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: CREATE the release with generated notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="v${{ needs.version.outputs.version }}"
+          gh release create "$tag" \
+            --title "$tag" \
+            --generate-notes \
+            --verify-tag
+      - name: UPLOAD the release assets
+        if: steps.list.outputs.has_artifacts == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="v${{ needs.version.outputs.version }}"
+          gh release upload "$tag" dist/* --clobber
+      - name: RETAG the pull request image as the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "$GH_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          source="ghcr.io/jomakori/openkite:${{ needs.locate.outputs.image }}"
+          tag="ghcr.io/jomakori/openkite:v${{ needs.version.outputs.version }}"
+          docker buildx imagetools create -t "$tag" -t ghcr.io/jomakori/openkite:latest "$source"
+          docker buildx imagetools inspect "$tag"
+
+  cleanup:
+    name: Clean Up Artifacts
+    needs: [version, locate, publish]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: DELETE the pull request artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ needs.locate.outputs.pr }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$REPO/pulls/$PR" --jq '.head.sha' > "$RUNNER_TEMP/head"
+          head="$(cat "$RUNNER_TEMP/head")"
+          gh api "repos/$REPO/actions/runs?head_sha=$head&per_page=100" \
+            --jq '.workflow_runs[].id' | while read -r run; do
+              gh api "repos/$REPO/actions/runs/$run/artifacts" \
+                --jq '.artifacts[] | select(.name | startswith("openkite-")) | .id' \
+              | while read -r artifact; do
+                  gh api -X DELETE "repos/$REPO/actions/artifacts/$artifact"
+                  echo "deleted artifact $artifact from run $run"
+                done
+            done
