@@ -1,48 +1,119 @@
 name: Release
 
+# One workflow per release. svu derives the next version from the commits since
+# the last tag and pushes the tag; GoReleaser turns that tag into packages and
+# writes the release notes; the same run pushes the image. It has to be one
+# file: a tag pushed with GITHUB_TOKEN does not trigger another workflow.
 on:
   push:
+    branches: [main]
     tags: ["v*"]
-
-permissions:
-  contents: write
-  packages: write
+  workflow_dispatch:
+    inputs:
+      snapshot:
+        description: Build the artifacts without publishing or touching the release
+        type: boolean
+        default: true
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
+permissions:
+  contents: write
+  packages: write
+
 jobs:
-  image:
-    name: Build and push the arm64 image
-    runs-on: ubuntu-26.04-arm
-    timeout-minutes: 45
-    permissions:
-      contents: write
-      packages: write
+  version:
+    name: VERSION from svu
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
     steps:
-      - name: Check out the tagged commit
-        uses: actions/checkout@v4
-      - name: Log in to GHCR
+      - name: CHECKOUT the full history and tags
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: INSTALL svu
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download -R caarlos0/svu -p 'svu_*_linux_amd64.tar.gz' -D "$RUNNER_TEMP/svu" --clobber
+          tar -xzf "$RUNNER_TEMP"/svu/*.tar.gz -C /usr/local/bin svu
+          svu --version
+      - name: TAG the next version
+        id: tag
+        run: |
+          set -euo pipefail
+          current="$(svu current)"
+          next="$(svu next)"
+          echo "current=$current next=$next" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$current" = "$next" ]; then
+            echo "No releasable commits since $current — nothing to tag."
+            exit 0
+          fi
+          git tag "$next"
+          git push origin "$next"
+          echo "version=${next#v}" >> "$GITHUB_OUTPUT"
+
+  package:
+    name: PACKAGE artifacts
+    needs: version
+    if: always() && (needs.version.outputs.version != '' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: CHECKOUT the released commit
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.version.outputs.version != '' && format('refs/tags/v{0}', needs.version.outputs.version) || github.ref }}
+      - name: INSTALL the Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: INSTALL zig (cargo-zigbuild cross-compile backend)
+        uses: mlugg/setup-zig@v2
+      - name: INSTALL cargo-zigbuild
+        uses: taiki-e/install-action@cargo-zigbuild
+      - name: RUN GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: ${{ (github.event_name == 'workflow_dispatch' && inputs.snapshot) && 'release --snapshot --clean --skip=publish' || 'release --clean' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ needs.version.outputs.version != '' && format('v{0}', needs.version.outputs.version) || '' }}
+
+  image:
+    name: BUILD and push the image
+    needs: version
+    if: always() && (needs.version.outputs.version != '' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    env:
+      IMAGE_TAG: ${{ needs.version.outputs.version != '' && format('v{0}', needs.version.outputs.version) || github.ref_name }}
+    steps:
+      - name: CHECKOUT the released commit
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.version.outputs.version != '' && format('refs/tags/v{0}', needs.version.outputs.version) || github.ref }}
+      - name: LOG IN to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push
+      - name: BUILD and push
         uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/arm64
           push: true
           build-args: |
-            OPENKITE_VERSION=${{ github.ref_name }}
+            OPENKITE_VERSION=${{ env.IMAGE_TAG }}
           tags: |
-            ghcr.io/jomakori/openkite:${{ github.ref_name }}
+            ghcr.io/jomakori/openkite:${{ env.IMAGE_TAG }}
             ghcr.io/jomakori/openkite:latest
-      - name: Create the GitHub release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1 \
-            || gh release create "${GITHUB_REF_NAME}" --generate-notes --title "${GITHUB_REF_NAME}"

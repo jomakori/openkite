@@ -1,0 +1,48 @@
+# GoReleaser (OSS, v2) config for openkite.
+# Cross-compiles the Linux targets from one runner via the `rust` builder,
+# which shells out to cargo-zigbuild: no QEMU, no per-OS runners. zig and
+# cargo-zigbuild are installed by the release workflow.
+# Version comes from the svu tag; GoReleaser creates the release and its notes.
+version: 2
+
+project_name: openkite
+
+before:
+  hooks:
+    - rustup default stable
+    - rustup target add x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu
+    - cargo fetch --locked
+
+builds:
+  - id: openkite-web
+    builder: rust
+    binary: openkite-web
+    flags:
+      - --release
+      - --package=openkite-web
+    targets:
+      - x86_64-unknown-linux-gnu
+      - aarch64-unknown-linux-gnu
+    env:
+      - OPENKITE_VERSION={{ .Version }}
+
+archives:
+  - id: default
+    ids: [openkite-web]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    files:
+      - LICENSE-MIT
+      - LICENSE-APACHE
+      - README.md
+
+checksum:
+  name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"
+  algorithm: sha256
+
+release:
+  github:
+    owner: jomakori
+    name: openkite
+  draft: false
+  prerelease: auto

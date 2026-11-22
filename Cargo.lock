@@ -3991,13 +3991,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "openkite-cli"
-version = "0.1.0"
-dependencies = [
- "openkite-engine",
-]
-
-[[package]]
 name = "openkite-desktop"
 version = "0.1.0"
 dependencies = [
