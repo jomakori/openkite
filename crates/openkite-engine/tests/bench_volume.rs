@@ -1,4 +1,5 @@
-//! OKT-218: deterministic volume fixture + harness reproducing §5.3's numbers.
+//! Deterministic volume fixture plus the harness that reproduces the design's
+//! frame-rate and memory budgets.
 //! Ignored by default (~20s wall clock to reproduce the real event pacing); the CI
 //! benchmark job runs it explicitly, in release mode, against this in-process fixture.
 use std::collections::BTreeMap;
@@ -453,7 +454,7 @@ async fn volume_benchmark_reproduces_section_5_3() {
         (PROJECTION_BYTES_RANGE.0..=PROJECTION_BYTES_RANGE.1).contains(&projection_bytes);
     let pinned_pass = pinned_layer_bytes < PINNED_LAYER_MAX_BYTES;
 
-    println!("== OKT-218 volume benchmark (fixed seed {SEED:#x}) ==");
+    println!("== volume benchmark (fixed seed {SEED:#x}) ==");
     println!(
         "burst frames:        {frame_count} (in-range {}-{}: {})",
         FRAME_RANGE.0,
