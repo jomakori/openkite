@@ -1,7 +1,12 @@
 name: Release
 
+# One workflow per release. semantic-release decides the version on main and
+# pushes the tag, GoReleaser turns that tag into packages, the same run pushes
+# the image. It has to be one file: a tag pushed with GITHUB_TOKEN does not
+# trigger another workflow, so a separate tag-triggered file would never fire.
 on:
   push:
+    branches: [main]
     tags: ["v*"]
   workflow_dispatch:
     inputs:
@@ -10,61 +15,61 @@ on:
         type: boolean
         default: true
 
-permissions:
-  contents: write
-  packages: write
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  packages: write
+
 jobs:
-  image:
-    name: Build and push the arm64 image
-    runs-on: ubuntu-26.04-arm
-    timeout-minutes: 45
-    permissions:
-      contents: write
-      packages: write
+  version:
+    name: VERSION bump and tag
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.release.outputs.version }}
     steps:
-      - name: Check out the tagged commit
-        uses: actions/checkout@v4
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
+      - name: CHECKOUT the full history and tags
+        uses: actions/checkout@v5
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push
-        uses: docker/build-push-action@v6
+          fetch-depth: 0
+      - name: INSTALL node
+        uses: actions/setup-node@v5
         with:
-          context: .
-          platforms: linux/arm64
-          push: true
-          build-args: |
-            OPENKITE_VERSION=${{ github.ref_name }}
-          tags: |
-            ghcr.io/jomakori/openkite:${{ github.ref_name }}
-            ghcr.io/jomakori/openkite:latest
+          node-version: 22
+          cache: npm
+      - name: INSTALL npm dependencies
+        run: npm ci
+      - name: RUN semantic-release
+        id: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release
 
   package:
     name: PACKAGE artifacts
-    runs-on: ubuntu-latest
+    needs: version
+    if: always() && (needs.version.outputs.version != '' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
-    permissions:
-      contents: write
     steps:
-      - name: Check out the tagged commit
-        uses: actions/checkout@v4
+      - name: CHECKOUT the released commit
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - name: Install the Rust toolchain
+          ref: ${{ needs.version.outputs.version != '' && format('refs/tags/v{0}', needs.version.outputs.version) || github.ref }}
+      - name: INSTALL the Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-      - name: Install zig (cargo-zigbuild cross-compile backend)
+      - name: INSTALL zig (cargo-zigbuild cross-compile backend)
         uses: mlugg/setup-zig@v2
-      - name: Install cargo-zigbuild
+      - name: INSTALL cargo-zigbuild
         uses: taiki-e/install-action@cargo-zigbuild
-      - name: Run GoReleaser
+      - name: RUN GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
@@ -73,3 +78,35 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ needs.version.outputs.version != '' && format('v{0}', needs.version.outputs.version) || '' }}
+
+  image:
+    name: BUILD and push the arm64 image
+    needs: version
+    if: always() && (needs.version.outputs.version != '' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    env:
+      IMAGE_TAG: ${{ needs.version.outputs.version != '' && format('v{0}', needs.version.outputs.version) || github.ref_name }}
+    steps:
+      - name: CHECKOUT the released commit
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.version.outputs.version != '' && format('refs/tags/v{0}', needs.version.outputs.version) || github.ref }}
+      - name: LOG IN to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: BUILD and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64
+          push: true
+          build-args: |
+            OPENKITE_VERSION=${{ env.IMAGE_TAG }}
+          tags: |
+            ghcr.io/jomakori/openkite:${{ env.IMAGE_TAG }}
+            ghcr.io/jomakori/openkite:latest
