@@ -1,0 +1,140 @@
+name: Staging
+
+# Every pull request gets a buildable set of artifacts versioned pr-<number>.
+# Applying the `staging` label additionally hands the same image tags to the
+# preview ApplicationSet, which is what actually runs the PR environment.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+  workflow_dispatch:
+
+concurrency:
+  group: staging-${{ github.event.pull_request.number || github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  version:
+    name: RESOLVE the pr version token
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      token: ${{ steps.token.outputs.token }}
+      sha7: ${{ steps.token.outputs.sha7 }}
+    steps:
+      - name: RESOLVE token and short sha
+        id: token
+        env:
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          echo "token=pr-${PR}" >> "$GITHUB_OUTPUT"
+          echo "sha7=${HEAD_SHA:0:7}" >> "$GITHUB_OUTPUT"
+
+  image:
+    name: BUILD image ${{ needs.version.outputs.token }}
+    needs: [version]
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    steps:
+      - name: CHECK OUT the pull request head
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: LOG IN to ghcr
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: SET UP buildx
+        uses: docker/setup-buildx-action@v3
+      - name: BUILD and push the PR image tags
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          build-args: |
+            OPENKITE_VERSION=${{ needs.version.outputs.token }}
+          tags: |
+            ghcr.io/jomakori/openkite:${{ needs.version.outputs.token }}
+            ghcr.io/jomakori/openkite:${{ needs.version.outputs.token }}-${{ needs.version.outputs.sha7 }}
+
+  packages:
+    name: PACKAGE ${{ matrix.format }} ${{ matrix.arch }}
+    needs: [version]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            format: flatpak
+            arch: x86_64
+            rust_target: x86_64-unknown-linux-gnu
+          - os: ubuntu-24.04-arm
+            format: flatpak
+            arch: aarch64
+            rust_target: aarch64-unknown-linux-gnu
+          - os: macos-26
+            format: dmg
+            arch: aarch64
+            rust_target: aarch64-apple-darwin
+          - os: macos-26-intel
+            format: dmg
+            arch: x86_64
+            rust_target: x86_64-apple-darwin
+          - os: windows-latest
+            format: nsis
+            arch: x86_64
+            rust_target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - name: CHECK OUT the pull request head
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: INSTALL the Linux webview headers
+        if: matrix.format == 'flatpak'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev \
+            libjavascriptcoregtk-4.1-dev libssl-dev pkg-config \
+            flatpak flatpak-builder
+      - name: INSTALL the Flatpak runtime and SDK
+        if: matrix.format == 'flatpak'
+        run: |
+          flatpak remote-add --if-not-exists --user flathub https://flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user -y --noninteractive flathub \
+            org.gnome.Platform//51 org.gnome.Sdk//51
+      - name: INSTALL the Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+      - name: INSTALL cargo-packager
+        if: matrix.format != 'flatpak'
+        run: cargo install cargo-packager --locked
+      - name: BUILD the desktop release binary
+        env:
+          OPENKITE_VERSION: ${{ needs.version.outputs.token }}
+        run: cargo build --release -p openkite-desktop
+      - name: PACKAGE the Flatpak bundle
+        if: matrix.format == 'flatpak'
+        run: bash packaging/linux/build-flatpak.sh "${{ matrix.arch }}" "${{ needs.version.outputs.token }}"
+      - name: PACKAGE the native installer
+        if: matrix.format != 'flatpak'
+        working-directory: crates/openkite-desktop
+        run: cargo packager --release --formats ${{ matrix.format }}
+      - name: UPLOAD the artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: openkite-${{ matrix.format }}-${{ matrix.arch }}
+          path: dist/
+          retention-days: 14
+          if-no-files-found: error

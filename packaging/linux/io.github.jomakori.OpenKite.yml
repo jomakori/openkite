@@ -1,0 +1,27 @@
+id: io.github.jomakori.OpenKite
+runtime: org.gnome.Platform
+runtime-version: '51'
+sdk: org.gnome.Sdk
+command: openkite-desktop
+
+finish-args:
+  - --share=network
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  - --filesystem=~/.kube:ro
+
+modules:
+  - name: openkite
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 openkite-desktop /app/bin/openkite-desktop
+      - install -Dm644 io.github.jomakori.OpenKite.desktop /app/share/applications/io.github.jomakori.OpenKite.desktop
+      - install -Dm644 io.github.jomakori.OpenKite.svg /app/share/icons/hicolor/scalable/apps/io.github.jomakori.OpenKite.svg
+    sources:
+      - type: file
+        path: openkite-desktop
+      - type: file
+        path: io.github.jomakori.OpenKite.desktop
+      - type: file
+        path: io.github.jomakori.OpenKite.svg

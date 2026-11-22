@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=OpenKite
+GenericName=Kubernetes Console
+Comment=Browse and operate a cluster from one console
+Exec=openkite-desktop
+Icon=io.github.jomakori.OpenKite
+Terminal=false
+Categories=Development;System;
+Keywords=kubernetes;k8s;console;cluster;
+StartupNotify=true
