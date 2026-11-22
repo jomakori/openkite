@@ -53,38 +53,91 @@ jobs:
       - name: Lint Code
         run: cargo clippy --workspace --exclude openkite-desktop --all-targets -- -D warnings
 
-  staging-gate:
-    name: Require Staging Label
-    if: github.event_name == 'pull_request'
+  changes:
+    name: Detect Changes
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: read
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
     steps:
-      - name: Check the label
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Diff against the base
+        id: diff
         env:
-          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          # Anything under crates/, a manifest, a build input or the workflows themselves.
+          CODE_PATHS: ^(crates/|Cargo\.(toml|lock)$|rust-toolchain|Dockerfile|Tiltfile|packaging/|\.github/)
         run: |
-          if printf '%s' "$LABELS" | jq -e 'index("staging")' >/dev/null; then
-            echo "staging label present: this pull request runs the test jobs."
+          set -euo pipefail
+          if [ "$EVENT" != 'pull_request' ]; then
+            echo 'code=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git diff --name-only "$BASE"...HEAD | grep -Eq "$CODE_PATHS"; then
+            echo 'code=true' >> "$GITHUB_OUTPUT"
           else
-            echo "::error::Add the \`staging\` label to run the tests and confirm the build before merging."
+            echo 'code=false' >> "$GITHUB_OUTPUT"
+            echo 'No binary or dependency change: lint only.'
+          fi
+
+  staging-gate:
+    name: Require Staging Label
+    needs: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
+    steps:
+      - name: Decide whether the build runs
+        id: gate
+        env:
+          EVENT: ${{ github.event_name }}
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          CODE: ${{ needs.changes.outputs.code }}
+        run: |
+          if [ "$EVENT" != 'pull_request' ]; then
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+            echo 'Not a pull request: the full suite runs.'
+            exit 0
+          fi
+          if [ "$CODE" != 'true' ]; then
+            echo 'run=false' >> "$GITHUB_OUTPUT"
+            echo 'No binary or dependency change: nothing to build or test.'
+            exit 0
+          fi
+          if printf '%s' "$LABELS" | jq -e 'index("staging")' >/dev/null; then
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+            echo 'staging label present: build and test.'
+          else
+            echo 'run=false' >> "$GITHUB_OUTPUT"
+            echo "::error::Add the \`staging\` label to build and test before merging."
             exit 1
           fi
 
   test:
     name: Run Tests
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'staging')
+    needs: staging-gate
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
     steps:
       - name: Check out repository
+        if: needs.staging-gate.outputs.run == 'true'
         uses: actions/checkout@v4
       - name: Install the Rust toolchain
+        if: needs.staging-gate.outputs.run == 'true'
         uses: dtolnay/rust-toolchain@stable
       - name: Run Tests
+        if: needs.staging-gate.outputs.run == 'true'
         run: cargo test --workspace --exclude openkite-desktop
 
   boundary:
@@ -109,7 +162,8 @@ jobs:
 
   benchmark:
     name: Benchmark Volume IO
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'staging')
+    needs: staging-gate
+    if: needs.staging-gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -126,7 +180,8 @@ jobs:
 
   desktop:
     name: Build Desktop Shell
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'staging')
+    needs: staging-gate
+    if: needs.staging-gate.outputs.run == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 30
     permissions:
@@ -149,7 +204,8 @@ jobs:
 
   exec-conformance:
     name: Run Exec Conformance
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'staging')
+    needs: staging-gate
+    if: needs.staging-gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions:

@@ -7,6 +7,15 @@ name: Staging
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled]
+    # Docs, comments and workflow prose change no binary: skip the image build.
+    paths:
+      - 'crates/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain*'
+      - 'Dockerfile'
+      - 'build.rs'
+      - '.github/workflows/staging.yml'
   workflow_dispatch:
 
 concurrency:
