@@ -10,8 +10,3 @@ publish = false
 [dependencies]
 dioxus.workspace = true
 openkite-ui = { path = "../openkite-ui", version = "0.1.0", features = ["desktop"] }
-
-[package.metadata.packager]
-product-name = "OpenKite"
-identifier = "io.github.jomakori.OpenKite"
-out-dir = "../../dist"

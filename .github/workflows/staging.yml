@@ -1,8 +1,8 @@
 name: Staging
 
-# Every pull request gets a buildable set of artifacts versioned pr-<number>.
-# Applying the `staging` label additionally hands the same image tags to the
-# preview ApplicationSet, which is what actually runs the PR environment.
+# One build per pull request, versioned pr-<number>, so release can promote the
+# image instead of rebuilding it. Applying the `staging` label additionally hands
+# the per-commit tag to the staging ApplicationSet, which is what runs the env.
 
 on:
   pull_request:
@@ -61,80 +61,8 @@ jobs:
           push: true
           build-args: |
             OPENKITE_VERSION=${{ needs.version.outputs.token }}
+          # Both tags carry weight: the constant one names the artifact, the
+          # sha-tagged one is what makes the ApplicationSet roll on a new push.
           tags: |
             ghcr.io/jomakori/openkite:${{ needs.version.outputs.token }}
             ghcr.io/jomakori/openkite:${{ needs.version.outputs.token }}-${{ needs.version.outputs.sha7 }}
-
-  packages:
-    name: PACKAGE ${{ matrix.format }} ${{ matrix.arch }}
-    needs: [version]
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-24.04
-            format: flatpak
-            arch: x86_64
-            rust_target: x86_64-unknown-linux-gnu
-          - os: ubuntu-24.04-arm
-            format: flatpak
-            arch: aarch64
-            rust_target: aarch64-unknown-linux-gnu
-          - os: macos-26
-            format: dmg
-            arch: aarch64
-            rust_target: aarch64-apple-darwin
-          - os: macos-26-intel
-            format: dmg
-            arch: x86_64
-            rust_target: x86_64-apple-darwin
-          - os: windows-latest
-            format: nsis
-            arch: x86_64
-            rust_target: x86_64-pc-windows-msvc
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
-    steps:
-      - name: CHECK OUT the pull request head
-        uses: actions/checkout@v5
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-      - name: INSTALL the Linux webview headers
-        if: matrix.format == 'flatpak'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev \
-            libjavascriptcoregtk-4.1-dev libssl-dev pkg-config \
-            flatpak flatpak-builder
-      - name: INSTALL the Flatpak runtime and SDK
-        if: matrix.format == 'flatpak'
-        run: |
-          flatpak remote-add --if-not-exists --user flathub https://flathub.org/repo/flathub.flatpakrepo
-          flatpak install --user -y --noninteractive flathub \
-            org.gnome.Platform//51 org.gnome.Sdk//51
-      - name: INSTALL the Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.rust_target }}
-      - name: INSTALL cargo-packager
-        if: matrix.format != 'flatpak'
-        run: cargo install cargo-packager --locked
-      - name: BUILD the desktop release binary
-        env:
-          OPENKITE_VERSION: ${{ needs.version.outputs.token }}
-        run: cargo build --release -p openkite-desktop
-      - name: PACKAGE the Flatpak bundle
-        if: matrix.format == 'flatpak'
-        run: bash packaging/linux/build-flatpak.sh "${{ matrix.arch }}" "${{ needs.version.outputs.token }}"
-      - name: PACKAGE the native installer
-        if: matrix.format != 'flatpak'
-        working-directory: crates/openkite-desktop
-        run: cargo packager --release --formats ${{ matrix.format }}
-      - name: UPLOAD the artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: openkite-${{ matrix.format }}-${{ matrix.arch }}
-          path: dist/
-          retention-days: 14
-          if-no-files-found: error
