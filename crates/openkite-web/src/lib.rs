@@ -15,6 +15,8 @@ use openkite_ui::overview::{BoardAction, OverviewData, OverviewLayout};
 use openkite_ui::table::{Row, TableState};
 use openkite_ui::{AppShell, Connection, Counts, Overview, ResourceTable};
 
+#[cfg(feature = "fixtures")]
+pub mod fixtures;
 mod live;
 pub use live::Live;
 

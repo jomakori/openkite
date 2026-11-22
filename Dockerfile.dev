@@ -13,7 +13,7 @@ COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
 
 # Prebuilds the dependency set, so a sync only recompiles the crate that changed.
-RUN cargo build --release -p openkite-web
+RUN cargo build --release -p openkite-web --features fixtures
 
 EXPOSE 8080
 CMD ["/src/target/release/openkite-web"]

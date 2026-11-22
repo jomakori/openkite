@@ -30,15 +30,27 @@ pub enum Live {
 
 impl Live {
     /// Connects now; falls back to [`Live::Unavailable`] on failure so the server still starts
-    /// and serves an empty console instead of refusing to boot without a cluster.
+    /// and serves an empty console instead of refusing to boot without a cluster. With the
+    /// `fixtures` feature and `OPENKITE_DATA_MODE=fixtures`, the seeded local cluster is used
+    /// instead and no cluster credential is read at all.
     pub async fn connect() -> Self {
+        #[cfg(feature = "fixtures")]
+        if crate::fixtures::requested() {
+            return crate::fixtures::connect().await;
+        }
+
         match Engine::connect(None).await {
-            Ok(engine) => Live::Connected(Arc::new(engine)),
+            Ok(engine) => Live::from_engine(engine),
             Err(error) => {
                 tracing::warn!(%error, "engine connect failed; serving an empty console");
                 Live::Unavailable
             }
         }
+    }
+
+    /// Wraps an engine a caller already connected.
+    pub fn from_engine(engine: Engine) -> Self {
+        Live::Connected(Arc::new(engine))
     }
 
     /// A state that answers every query with empty data: the CI/test fallback, no kube creds needed.

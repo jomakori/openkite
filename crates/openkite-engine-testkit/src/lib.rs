@@ -1,4 +1,5 @@
 //! In-process fake Kubernetes apiserver for engine integration tests.
+pub mod demo;
 mod discovery;
 mod routes;
 mod status;
@@ -87,6 +88,11 @@ impl Scenario {
     /// Starts an empty scenario.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// The seeded cluster previews and the fixture-backed shell render.
+    pub fn demo() -> Self {
+        demo::scenario()
     }
 
     /// Registers a resource kind so discovery and list endpoints can serve it.

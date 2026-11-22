@@ -65,6 +65,17 @@ impl Engine {
         })
     }
 
+    /// Build an engine around a client that is already configured, for callers that own the
+    /// connection themselves (the fixture-backed shell, tests).
+    pub fn from_client(client: Client, context: impl Into<String>) -> Self {
+        Self {
+            client,
+            context: context.into(),
+            auth: AuthKind::None,
+            catalogue: CatalogueCache::new(),
+        }
+    }
+
     /// The client every request this engine makes goes through.
     pub fn client(&self) -> Client {
         self.client.clone()
