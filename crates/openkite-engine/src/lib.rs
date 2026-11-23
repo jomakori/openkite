@@ -1,4 +1,5 @@
 //! Collection engine: what to watch, what to keep, and the deltas leaving it.
+pub mod access;
 pub mod auth;
 pub mod catalogue;
 pub mod coalesce;
@@ -21,6 +22,7 @@ use std::sync::Arc;
 use kube::config::{Config, Kubeconfig};
 use kube::Client;
 
+use crate::access::Gate;
 use crate::auth::AuthKind;
 use crate::catalogue::{CatalogueCache, CatalogueSnapshot};
 use crate::context::ContextSwitcher;
@@ -35,9 +37,15 @@ pub struct Engine {
     context: String,
     auth: AuthKind,
     catalogue: CatalogueCache,
+    gate: Gate,
 }
 
 impl Engine {
+    /// The authorization checks for the connected identity.
+    pub fn gate(&self) -> &Gate {
+        &self.gate
+    }
+
     /// Connect with in-cluster credentials when present, otherwise with the given or current context.
     pub async fn connect(context: Option<&str>) -> Result<Self, EngineError> {
         if auth::is_in_cluster() {
@@ -48,6 +56,7 @@ impl Engine {
                 context: IN_CLUSTER_CONTEXT.to_owned(),
                 auth: AuthKind::InCluster,
                 catalogue: CatalogueCache::new(),
+                gate: Gate::default(),
             });
         }
 
@@ -62,6 +71,7 @@ impl Engine {
             context: name,
             auth,
             catalogue: CatalogueCache::new(),
+            gate: Gate::default(),
         })
     }
 
@@ -73,6 +83,7 @@ impl Engine {
             context: context.into(),
             auth: AuthKind::None,
             catalogue: CatalogueCache::new(),
+            gate: Gate::default(),
         }
     }
 

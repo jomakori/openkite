@@ -29,6 +29,17 @@ pub(crate) struct WatchRecord {
     pub(crate) object: Value,
 }
 
+/// One answer the fake apiserver gives to an access review.
+#[derive(Clone, Debug)]
+pub(crate) struct AccessRule {
+    pub(crate) verb: String,
+    pub(crate) group: String,
+    pub(crate) resource: String,
+    pub(crate) namespace: Option<String>,
+    pub(crate) allowed: bool,
+    pub(crate) reason: Option<String>,
+}
+
 /// Holds the seeded surface of a fake apiserver.
 pub(crate) struct Store {
     pub(crate) resources: Vec<ResourceDef>,
@@ -37,6 +48,8 @@ pub(crate) struct Store {
     log: Mutex<VecDeque<WatchRecord>>,
     dropped_through: AtomicU64,
     events: broadcast::Sender<WatchRecord>,
+    access_rules: Mutex<Vec<AccessRule>>,
+    access_reviews: AtomicU64,
 }
 
 impl Store {
@@ -50,6 +63,8 @@ impl Store {
             log: Mutex::new(VecDeque::new()),
             dropped_through: AtomicU64::new(0),
             events,
+            access_rules: Mutex::new(Vec::new()),
+            access_reviews: AtomicU64::new(0),
         };
         store.stamp_seeds();
         store
@@ -111,6 +126,48 @@ impl Store {
             .filter(|record| &record.gvk == gvk && record.resource_version > from)
             .cloned()
             .collect()
+    }
+
+    /// Records one answer the fake apiserver gives to an access review.
+    pub(crate) fn add_access_rule(&self, rule: AccessRule) {
+        self.access_rules
+            .lock()
+            .expect("access rules lock")
+            .push(rule);
+    }
+
+    /// Answers one access review, counting the request. A question no rule covers is denied.
+    pub(crate) fn decide_access(
+        &self,
+        verb: &str,
+        group: &str,
+        resource: &str,
+        namespace: Option<&str>,
+    ) -> (bool, Option<String>) {
+        self.access_reviews.fetch_add(1, Ordering::SeqCst);
+        let rules = self.access_rules.lock().expect("access rules lock");
+        let rule = rules.iter().find(|rule| {
+            rule.verb == verb
+                && rule.group == group
+                && rule.resource == resource
+                && match (&rule.namespace, namespace) {
+                    (None, _) => true,
+                    (Some(rule_namespace), Some(asked)) => rule_namespace == asked,
+                    (Some(_), None) => false,
+                }
+        });
+        match rule {
+            Some(rule) => (rule.allowed, rule.reason.clone()),
+            None => (
+                false,
+                Some(format!("no rule allows {verb} {group}/{resource}")),
+            ),
+        }
+    }
+
+    /// How many access reviews have been answered.
+    pub(crate) fn access_review_count(&self) -> u64 {
+        self.access_reviews.load(Ordering::SeqCst)
     }
 
     /// True when the log no longer reaches back to `resource_version`.

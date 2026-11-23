@@ -9,7 +9,7 @@ use axum::body::{Body, Bytes};
 use axum::extract::{Path, Query, State};
 use axum::http::{header, HeaderMap};
 use axum::response::{IntoResponse, Response};
-use axum::routing::get;
+use axum::routing::{get, post};
 use axum::{Json, Router};
 use futures_util::stream;
 use serde::Deserialize;
@@ -31,6 +31,10 @@ pub(crate) fn router(store: Arc<Store>) -> Router {
         .route(
             "/api/{version}/namespaces/{namespace}/{plural}",
             get(list_core_namespaced),
+        )
+        .route(
+            "/apis/authorization.k8s.io/v1/selfsubjectaccessreviews",
+            post(access_review),
         )
         .route("/apis/{group}/{version}", get(group_resources))
         .route("/apis/{group}/{version}/{plural}", get(list_group))
@@ -57,6 +61,40 @@ pub(crate) struct ListQuery {
     timeout_seconds: Option<u64>,
     #[serde(rename = "allowWatchBookmarks")]
     allow_watch_bookmarks: Option<bool>,
+}
+
+/// Answers a SelfSubjectAccessReview from the store's rule matrix.
+async fn access_review(State(store): State<Arc<Store>>, Json(body): Json<Value>) -> Response {
+    let attributes = body
+        .pointer("/spec/resourceAttributes")
+        .cloned()
+        .unwrap_or(Value::Null);
+    let field = |key: &str| {
+        attributes
+            .pointer(&format!("/{key}"))
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned()
+    };
+
+    let (allowed, reason) = store.decide_access(
+        &field("verb"),
+        &field("group"),
+        &field("resource"),
+        attributes.pointer("/namespace").and_then(Value::as_str),
+    );
+
+    let mut status = json!({ "allowed": allowed });
+    if let Some(reason) = reason {
+        status["reason"] = json!(reason);
+    }
+
+    Json(json!({
+        "apiVersion": "authorization.k8s.io/v1",
+        "kind": "SelfSubjectAccessReview",
+        "status": status,
+    }))
+    .into_response()
 }
 
 async fn api_root(State(store): State<Arc<Store>>, headers: HeaderMap) -> Response {
