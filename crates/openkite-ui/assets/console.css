@@ -2819,6 +2819,24 @@ pre.yaml .y-d{color:color-mix(in oklab,var(--terminal-fg) 55%, transparent)}
 @media (max-width:560px){.set-pane{width:100vw;border-left:0}}
 @media (prefers-reduced-motion:reduce){.set-pane{animation:none}}
 
+/* A destructive confirmation names its cost first, then the options that change it.
+   Both dialogs reuse the scrim and shell the rest of the console already wears. */
+.act-policy{border:0;margin:14px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
+.act-policy legend{padding:0 0 4px;font-size:12px;color:var(--muted)}
+.act-choice{display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;align-items:center;column-gap:10px;row-gap:2px;padding:9px 11px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);cursor:pointer}
+.act-choice:hover{border-color:color-mix(in oklab,var(--accent) 40%,var(--border))}
+.act-choice input{margin:0}
+.act-choice-label{grid-column:2;font-size:13px}
+.act-choice-hint{grid-column:2;font-size:12px;color:var(--muted);line-height:1.4}
+.act-plan{list-style:none;margin:14px 0 0;padding:0;display:flex;flex-direction:column;gap:6px;max-height:240px;overflow-y:auto}
+.act-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);font-size:12px}
+.act-row.skip{opacity:.72}
+.act-key{font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.act-badges{display:flex;flex:0 0 auto;align-items:center;gap:6px}
+.act-row .pill{padding:3px 7px}
+.act-row .pill.neutral{color:var(--muted);background:color-mix(in oklab,var(--muted) 10%,transparent);border-color:color-mix(in oklab,var(--muted) 26%,transparent)}
+.btn:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
+
 /* Glass gives way when the system asks for opacity or stronger edges. */
 @media (prefers-reduced-transparency: reduce){
   :root{--glass-alpha:1;--glass-blur:none}

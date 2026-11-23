@@ -128,6 +128,39 @@ impl Store {
             .collect()
     }
 
+    /// One stored object, by namespace and name.
+    pub(crate) fn object(&self, gvk: &Gvk, namespace: Option<&str>, name: &str) -> Option<Value> {
+        let objects = self.objects.lock().expect("store lock");
+        objects.get(gvk)?.iter().find_map(|item| {
+            let same_name = field(item, "name").as_deref() == Some(name);
+            let same_namespace = match namespace {
+                Some(namespace) => field(item, "namespace").as_deref() == Some(namespace),
+                None => true,
+            };
+            (same_name && same_namespace).then(|| item.clone())
+        })
+    }
+
+    /// Merges a patch into the stored object and feeds the change to every watcher.
+    pub(crate) fn merge_patch(
+        &self,
+        gvk: &Gvk,
+        namespace: Option<&str>,
+        name: &str,
+        patch: &Value,
+    ) -> Option<Value> {
+        let current = self.object(gvk, namespace, name)?;
+        let mut merged = current.clone();
+        merge(&mut merged, patch);
+        Some(self.apply(gvk, Event::Modified, merged))
+    }
+
+    /// Removes the object and feeds the deletion to every watcher.
+    pub(crate) fn remove(&self, gvk: &Gvk, namespace: Option<&str>, name: &str) -> Option<Value> {
+        let current = self.object(gvk, namespace, name)?;
+        Some(self.apply(gvk, Event::Deleted, current))
+    }
+
     /// Records one answer the fake apiserver gives to an access review.
     pub(crate) fn add_access_rule(&self, rule: AccessRule) {
         self.access_rules
@@ -240,6 +273,21 @@ fn field(item: &Value, key: &str) -> Option<String> {
 }
 
 /// Builds the `metadata` block returned by list responses.
+/// Applies a JSON merge patch: objects merge, `null` removes the key.
+fn merge(target: &mut Value, patch: &Value) {
+    let (Some(target), Some(patch)) = (target.as_object_mut(), patch.as_object()) else {
+        *target = patch.clone();
+        return;
+    };
+    for (key, value) in patch {
+        if value.is_null() {
+            target.remove(key);
+        } else {
+            merge(target.entry(key.clone()).or_insert(Value::Null), value);
+        }
+    }
+}
+
 pub(crate) fn list_meta(resource_version: &str, continue_token: Option<&str>) -> Value {
     let mut meta = Map::new();
     meta.insert(

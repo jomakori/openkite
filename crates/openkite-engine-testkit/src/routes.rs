@@ -18,7 +18,7 @@ use tokio::time::Instant;
 
 use crate::discovery;
 use crate::status;
-use crate::store::{list_meta, Store, WatchRecord};
+use crate::store::{list_meta, Gvk, Store, WatchRecord};
 use crate::{Event, ResourceDef};
 
 /// Builds the router serving discovery, list, watch and Status responses.
@@ -40,9 +40,239 @@ pub(crate) fn router(store: Arc<Store>) -> Router {
         .route("/apis/{group}/{version}/{plural}", get(list_group))
         .route(
             "/apis/{group}/{version}/namespaces/{namespace}/{plural}",
-            get(list_group_namespaced),
+            get(list_group_namespaced).post(create_group),
+        )
+        .route(
+            "/api/{version}/{plural}/{name}",
+            get(get_core_cluster_item)
+                .patch(patch_core_cluster_item)
+                .delete(delete_core_cluster_item),
+        )
+        .route(
+            "/apis/{group}/{version}/{plural}/{name}",
+            get(get_group_cluster_item)
+                .patch(patch_group_cluster_item)
+                .delete(delete_group_cluster_item),
+        )
+        .route(
+            "/api/{version}/namespaces/{namespace}/{plural}/{name}",
+            get(get_core_item)
+                .patch(patch_core_item)
+                .delete(delete_core_item),
+        )
+        .route(
+            "/apis/{group}/{version}/namespaces/{namespace}/{plural}/{name}",
+            get(get_group_item)
+                .patch(patch_group_item)
+                .delete(delete_group_item),
+        )
+        .route(
+            "/api/{version}/namespaces/{namespace}/pods/{name}/eviction",
+            post(evict_pod),
         )
         .with_state(store)
+}
+
+/// The group/version/plural key of a served resource.
+fn gvk(group: &str, version: &str, plural: &str) -> Gvk {
+    Gvk {
+        group: group.to_owned(),
+        version: version.to_owned(),
+        plural: plural.to_owned(),
+    }
+}
+
+fn has_resource(store: &Store, group: &str, version: &str, plural: &str) -> bool {
+    store
+        .resources
+        .iter()
+        .any(|def| def.group == group && def.version == version && def.plural == plural)
+}
+
+async fn get_core_cluster_item(
+    State(store): State<Arc<Store>>,
+    Path((version, plural, name)): Path<(String, String, String)>,
+) -> Response {
+    get_item(&store, "", &version, None, &plural, &name)
+}
+
+async fn get_group_cluster_item(
+    State(store): State<Arc<Store>>,
+    Path((group, version, plural, name)): Path<(String, String, String, String)>,
+) -> Response {
+    get_item(&store, &group, &version, None, &plural, &name)
+}
+
+async fn patch_core_cluster_item(
+    State(store): State<Arc<Store>>,
+    Path((version, plural, name)): Path<(String, String, String)>,
+    Json(body): Json<Value>,
+) -> Response {
+    patch_item(&store, "", &version, None, &plural, &name, &body)
+}
+
+async fn patch_group_cluster_item(
+    State(store): State<Arc<Store>>,
+    Path((group, version, plural, name)): Path<(String, String, String, String)>,
+    Json(body): Json<Value>,
+) -> Response {
+    patch_item(&store, &group, &version, None, &plural, &name, &body)
+}
+
+async fn delete_core_cluster_item(
+    State(store): State<Arc<Store>>,
+    Path((version, plural, name)): Path<(String, String, String)>,
+) -> Response {
+    delete_item(&store, "", &version, None, &plural, &name)
+}
+
+async fn delete_group_cluster_item(
+    State(store): State<Arc<Store>>,
+    Path((group, version, plural, name)): Path<(String, String, String, String)>,
+) -> Response {
+    delete_item(&store, &group, &version, None, &plural, &name)
+}
+
+async fn get_core_item(
+    State(store): State<Arc<Store>>,
+    Path((version, namespace, plural, name)): Path<(String, String, String, String)>,
+) -> Response {
+    get_item(&store, "", &version, Some(&namespace), &plural, &name)
+}
+
+async fn get_group_item(
+    State(store): State<Arc<Store>>,
+    Path((group, version, namespace, plural, name)): Path<(String, String, String, String, String)>,
+) -> Response {
+    get_item(&store, &group, &version, Some(&namespace), &plural, &name)
+}
+
+fn get_item(
+    store: &Store,
+    group: &str,
+    version: &str,
+    namespace: Option<&str>,
+    plural: &str,
+    name: &str,
+) -> Response {
+    if !has_resource(store, group, version, plural) {
+        return status::not_found(group, version, plural);
+    }
+    match store.object(&gvk(group, version, plural), namespace, name) {
+        Some(object) => Json(object).into_response(),
+        None => status::not_found(group, version, plural),
+    }
+}
+
+async fn patch_core_item(
+    State(store): State<Arc<Store>>,
+    Path((version, namespace, plural, name)): Path<(String, String, String, String)>,
+    Json(body): Json<Value>,
+) -> Response {
+    patch_item(
+        &store,
+        "",
+        &version,
+        Some(&namespace),
+        &plural,
+        &name,
+        &body,
+    )
+}
+
+async fn patch_group_item(
+    State(store): State<Arc<Store>>,
+    Path((group, version, namespace, plural, name)): Path<(String, String, String, String, String)>,
+    Json(body): Json<Value>,
+) -> Response {
+    patch_item(
+        &store,
+        &group,
+        &version,
+        Some(&namespace),
+        &plural,
+        &name,
+        &body,
+    )
+}
+
+fn patch_item(
+    store: &Store,
+    group: &str,
+    version: &str,
+    namespace: Option<&str>,
+    plural: &str,
+    name: &str,
+    body: &Value,
+) -> Response {
+    if !has_resource(store, group, version, plural) {
+        return status::not_found(group, version, plural);
+    }
+    match store.merge_patch(&gvk(group, version, plural), namespace, name, body) {
+        Some(object) => Json(object).into_response(),
+        None => status::not_found(group, version, plural),
+    }
+}
+
+async fn delete_core_item(
+    State(store): State<Arc<Store>>,
+    Path((version, namespace, plural, name)): Path<(String, String, String, String)>,
+) -> Response {
+    delete_item(&store, "", &version, Some(&namespace), &plural, &name)
+}
+
+async fn delete_group_item(
+    State(store): State<Arc<Store>>,
+    Path((group, version, namespace, plural, name)): Path<(String, String, String, String, String)>,
+) -> Response {
+    delete_item(&store, &group, &version, Some(&namespace), &plural, &name)
+}
+
+fn delete_item(
+    store: &Store,
+    group: &str,
+    version: &str,
+    namespace: Option<&str>,
+    plural: &str,
+    name: &str,
+) -> Response {
+    if !has_resource(store, group, version, plural) {
+        return status::not_found(group, version, plural);
+    }
+    match store.remove(&gvk(group, version, plural), namespace, name) {
+        Some(_) => Json(json!({ "kind": "Status", "apiVersion": "v1", "status": "Success" }))
+            .into_response(),
+        None => status::not_found(group, version, plural),
+    }
+}
+
+async fn create_group(
+    State(store): State<Arc<Store>>,
+    Path((group, version, namespace, plural)): Path<(String, String, String, String)>,
+    Json(body): Json<Value>,
+) -> Response {
+    if !has_resource(&store, &group, &version, &plural) {
+        return status::not_found(&group, &version, &plural);
+    }
+    let mut object = body;
+    if object.pointer("/metadata/namespace").is_none() {
+        object["metadata"]["namespace"] = json!(namespace);
+    }
+    let created = store.apply(&gvk(&group, &version, &plural), Event::Added, object);
+    (axum::http::StatusCode::CREATED, Json(created)).into_response()
+}
+
+/// Accepts an `Eviction` and removes the pod, which is what the subresource means.
+async fn evict_pod(
+    State(store): State<Arc<Store>>,
+    Path((version, namespace, name)): Path<(String, String, String)>,
+) -> Response {
+    let _ = version;
+    match store.remove(&gvk("", "v1", "pods"), Some(&namespace), &name) {
+        Some(_) => Json(json!({ "kind": "Status", "apiVersion": "v1", "status": "Success" }))
+            .into_response(),
+        None => status::not_found("", "v1", "pods"),
+    }
 }
 
 #[derive(Debug, Default, Deserialize)]

@@ -1,6 +1,7 @@
 //! OpenKite console UI: shell, navigation and the page surfaces rendered inside it.
 
 pub mod access;
+pub mod actions_view;
 pub mod nav;
 pub mod shell;
 

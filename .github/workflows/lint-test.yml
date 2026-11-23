@@ -277,7 +277,9 @@ jobs:
         run: kind create cluster --name "${KIND_CLUSTER}" --wait 180s
       - name: Confirm the cluster answers
         run: kubectl cluster-info
-      - name: Build the conformance test
-        run: cargo test -p openkite-engine --test conformance_exec --no-run
+      - name: Build the conformance tests
+        run: cargo test -p openkite-engine --test conformance_exec --test conformance_actions --no-run
       - name: Diff exec behaviour against kubectl
         run: cargo test -p openkite-engine --test conformance_exec -- --ignored --nocapture
+      - name: Exercise workload actions
+        run: cargo test -p openkite-engine --test conformance_actions -- --ignored --nocapture

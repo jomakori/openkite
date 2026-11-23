@@ -1,5 +1,6 @@
 //! Collection engine: what to watch, what to keep, and the deltas leaving it.
 pub mod access;
+pub mod actions;
 pub mod auth;
 pub mod catalogue;
 pub mod coalesce;
