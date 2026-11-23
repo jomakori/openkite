@@ -202,6 +202,53 @@ jobs:
       - name: Check the desktop shell
         run: cargo check -p openkite-desktop --all-targets
 
+  binaries:
+    name: Build Binaries
+    needs: staging-gate
+    if: needs.staging-gate.outputs.run == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: linux-amd64
+          - os: ubuntu-24.04-arm
+            target: linux-arm64
+          - os: macos-26-intel
+            target: darwin-amd64
+          - os: macos-26
+            target: darwin-arm64
+          - os: windows-latest
+            target: windows-amd64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Install the Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Build the binary
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          cargo build --release -p openkite-web
+          mkdir -p payload
+          case "$TARGET" in
+            windows-*) cp target/release/openkite-web.exe "payload/openkite-web-$TARGET.exe" ;;
+            *) cp target/release/openkite-web "payload/openkite-web-$TARGET" ;;
+          esac
+      - name: Upload the binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: openkite-dist-${{ matrix.target }}
+          path: payload/*
+          if-no-files-found: error
+          retention-days: 14
+
   exec-conformance:
     name: Run Conformance
     needs: staging-gate
