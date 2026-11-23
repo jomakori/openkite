@@ -1,0 +1,105 @@
+name: Chocolatey
+
+# Publishes the openkite Chocolatey package to the GitHub Packages NuGet feed
+# whenever a release is published, and verifies the install in the same job —
+# community.chocolatey.org needs its own API key and human review, so it is
+# not wired up here.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  package:
+    name: Package Chocolatey
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+      - name: Resolve the release to package
+        id: release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          tag="$EVENT_TAG"
+          if [ -z "$tag" ]; then
+            tag="$(gh release view --json tagName -q .tagName)"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+      - name: Download the windows-amd64 asset and checksums
+        id: asset
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p assets
+          gh release download "$TAG" \
+            -p '*windows-amd64.tar.gz' \
+            -p 'checksums.txt' \
+            -D assets --clobber
+          archive="$(basename assets/*windows-amd64.tar.gz)"
+          checksum="$(grep "$archive" assets/checksums.txt | cut -d' ' -f1)"
+          url="https://github.com/${{ github.repository }}/releases/download/$TAG/$archive"
+          echo "checksum=$checksum" >> "$GITHUB_OUTPUT"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+      - name: Fill in the nuspec and install script placeholders
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          URL: ${{ steps.asset.outputs.url }}
+          CHECKSUM: ${{ steps.asset.outputs.checksum }}
+        run: |
+          $nuspec = 'packaging/chocolatey/openkite.nuspec'
+          (Get-Content $nuspec) -replace 'VERSION_PLACEHOLDER', $env:VERSION |
+            Set-Content $nuspec
+
+          $install = 'packaging/chocolatey/tools/chocolateyinstall.ps1'
+          (Get-Content $install) `
+            -replace 'URL_PLACEHOLDER', $env:URL `
+            -replace 'CHECKSUM_PLACEHOLDER', $env:CHECKSUM |
+            Set-Content $install
+      - name: Pack the nupkg
+        shell: pwsh
+        working-directory: packaging/chocolatey
+        run: choco pack
+      - name: Push the nupkg to the GitHub Packages feed
+        shell: pwsh
+        working-directory: packaging/chocolatey
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          dotnet nuget push "openkite.$env:VERSION.nupkg" `
+            --api-key $env:GITHUB_TOKEN `
+            --source "https://nuget.pkg.github.com/jomakori/index.json"
+      - name: Install the package from the feed and verify it
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          choco install openkite -y `
+            --source "https://nuget.pkg.github.com/jomakori/index.json" `
+            --user "${{ github.actor }}" `
+            --password $env:GITHUB_TOKEN
+
+          $shim = Join-Path $env:ChocolateyInstall 'bin\openkite.exe'
+          $output = & $shim --version
+          Write-Host $output
+
+          $expected = $env:TAG.TrimStart('v')
+          if ($output -notmatch [regex]::Escape($expected)) {
+            throw "openkite --version printed '$output', expected it to contain '$expected'"
+          }

@@ -69,7 +69,7 @@ pub async fn serve() -> std::io::Result<()> {
 }
 
 /// Release tag from the environment, falling back to the build-time value.
-fn version() -> String {
+pub fn version() -> String {
     std::env::var("OPENKITE_VERSION").unwrap_or_else(|_| BUILD_VERSION.to_owned())
 }
 
