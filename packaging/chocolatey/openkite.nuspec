@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>openkite</id>
+    <version>VERSION_PLACEHOLDER</version>
+    <title>OpenKite</title>
+    <authors>jomakori</authors>
+    <owners>jomakori</owners>
+    <projectUrl>https://github.com/jomakori/openkite</projectUrl>
+    <projectSourceUrl>https://github.com/jomakori/openkite</projectSourceUrl>
+    <docsUrl>https://github.com/jomakori/openkite#readme</docsUrl>
+    <bugTrackerUrl>https://github.com/jomakori/openkite/issues</bugTrackerUrl>
+    <licenseUrl>https://github.com/jomakori/openkite/blob/main/LICENSE-MIT</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <tags>openkite kubernetes k8s console cli</tags>
+    <summary>Command-line shim for the OpenKite browser shell</summary>
+    <description>OpenKite is a Kubernetes IDE in Rust: a Dioxus console over a kube-rs engine. This package installs the openkite-web binary from the project's own GitHub release and shims it on PATH as `openkite`.</description>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>

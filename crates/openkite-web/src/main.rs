@@ -4,6 +4,11 @@ use openkite_web::serve;
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
+    if std::env::args().nth(1).as_deref() == Some("--version") {
+        println!("openkite-web {}", openkite_web::version());
+        return Ok(());
+    }
+
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(
