@@ -50,6 +50,10 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
+      - name: Restore the Rust build cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Run cargo clippy
         run: cargo clippy --workspace --exclude openkite-desktop --all-targets -- -D warnings
 
@@ -133,6 +137,10 @@ jobs:
         uses: actions/checkout@v7
       - name: Install the Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+      - name: Restore the Rust build cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Guard the crate boundary
         run: |
           tree="$(cargo tree -p openkite-engine --prefix none)"
@@ -158,8 +166,10 @@ jobs:
           RESULTS: ${{ toJSON(needs) }}
         run: |
           set -euo pipefail
+          # A cancelled job only occurs when the run itself was cancelled, so a
+          # superseded pull request must not leave a failing gate on its old commit.
           failing="$(printf '%s' "$RESULTS" \
-            | jq -r 'to_entries[] | select(.value.result != "success") | "\(.key)=\(.value.result)"')"
+            | jq -r 'to_entries[] | select(.value.result != "success" and .value.result != "cancelled") | "\(.key)=\(.value.result)"')"
           if [ -n "$failing" ]; then
             printf '%s\n' "$failing" | sed 's/^/::error::/'
             exit 1
@@ -169,19 +179,21 @@ jobs:
   run-tests:
     name: Run Tests
     needs: require-label
+    if: needs.require-label.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
     steps:
       - name: Check out the repository
-        if: needs.require-label.outputs.run == 'true'
         uses: actions/checkout@v7
       - name: Install the Rust toolchain
-        if: needs.require-label.outputs.run == 'true'
         uses: dtolnay/rust-toolchain@stable
+      - name: Restore the Rust build cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Run the test suite
-        if: needs.require-label.outputs.run == 'true'
         run: cargo test --workspace --exclude openkite-desktop
 
   benchmark-volume:
@@ -197,6 +209,10 @@ jobs:
         uses: actions/checkout@v7
       - name: Install the Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+      - name: Restore the Rust build cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Run the 5k-pod / 40k-object / 5k-event volume benchmark
         run: |
           cargo test -p openkite-engine --release --test bench_volume \
@@ -215,6 +231,10 @@ jobs:
         uses: actions/checkout@v7
       - name: Install the Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+      - name: Restore the Rust build cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Install native webview dependencies
         run: |
           sudo apt-get update
@@ -255,6 +275,11 @@ jobs:
         uses: actions/checkout@v7
       - name: Install the Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+      - name: Restore the Rust build cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Build the binary
         shell: bash
         env:
@@ -292,6 +317,10 @@ jobs:
         uses: actions/checkout@v7
       - name: Install the Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+      - name: Restore the Rust build cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Install kind and kubectl
         run: |
           curl -fsSLo kind "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-amd64"
