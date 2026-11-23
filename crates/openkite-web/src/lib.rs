@@ -92,7 +92,8 @@ async fn table(State(state): State<AppState>) -> impl IntoResponse {
     let rows = state.live.table().await;
     let connection = state.live.connection();
     let cluster = state.live.cluster();
-    Html(render_table(rows, connection, cluster))
+    let permissions = state.live.permissions("", "pods", None).await;
+    Html(render_table(rows, connection, cluster, permissions))
 }
 
 async fn not_found() -> impl IntoResponse {
@@ -168,6 +169,7 @@ struct TablePageProps {
     rows: Vec<Row>,
     cluster: String,
     connection: Connection,
+    permissions: openkite_ui::access::Permissions,
 }
 
 #[allow(non_snake_case)]
@@ -200,6 +202,7 @@ fn TablePage(props: TablePageProps) -> Element {
                     on_state,
                     scroll_top: 0.0,
                     on_scroll,
+                    permissions: props.permissions.clone(),
                 }
             },
         }
@@ -230,13 +233,19 @@ fn render_overview(data: OverviewData, connection: Connection, cluster: String) 
     html_document("openkite · Overview", dioxus_ssr::render(&dom))
 }
 
-fn render_table(rows: Vec<Row>, connection: Connection, cluster: String) -> String {
+fn render_table(
+    rows: Vec<Row>,
+    connection: Connection,
+    cluster: String,
+    permissions: openkite_ui::access::Permissions,
+) -> String {
     let mut dom = VirtualDom::new_with_props(
         TablePage,
         TablePageProps {
             rows,
             cluster,
             connection,
+            permissions,
         },
     );
     dom.rebuild_in_place();

@@ -7,9 +7,10 @@
 
 use dioxus::prelude::*;
 
+use crate::access::{verb_for_action, Permissions};
 use crate::inspector::{
-    action_bar, default_schema, Gauge, InspectorData, InspectorState, Manifest, QuickAction,
-    SchemaNode, Tab,
+    action_bar, default_schema, ActionBar, Gauge, InspectorData, InspectorState, Manifest,
+    QuickAction, SchemaNode, Tab,
 };
 
 #[derive(Props, Clone, PartialEq)]
@@ -28,6 +29,9 @@ pub struct InspectorProps {
     pub on_action: EventHandler<String>,
     /// Follow a link from the Resources panel.
     pub on_goto: EventHandler<String>,
+    /// What the identity may do to this kind; an action it cannot perform is absent.
+    #[props(default)]
+    pub permissions: Permissions,
 }
 
 /// Icon from the sprite.
@@ -296,7 +300,13 @@ pub fn Inspector(props: InspectorProps) -> Element {
     let tabs = crate::inspector::tabs_for(&props.kind);
     let active = props.state.tab;
     let open = props.state.is_open();
-    let bar = action_bar(&props.kind);
+    let offered = action_bar(&props.kind);
+    let allowed = |action: &QuickAction| props.permissions.allows(verb_for_action(action.id));
+    let bar = ActionBar {
+        left: offered.left.into_iter().filter(allowed).collect(),
+        right: offered.right.into_iter().filter(allowed).collect(),
+        menu: offered.menu.into_iter().filter(allowed).collect(),
+    };
     let on_action = props.on_action;
     let left_buttons: Vec<Element> = bar
         .left

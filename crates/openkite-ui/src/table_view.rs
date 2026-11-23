@@ -6,6 +6,8 @@
 
 use dioxus::prelude::*;
 
+use crate::access::{DeniedPanel, Permissions};
+
 use crate::nav::icon_for;
 use crate::table::{
     effect_for, health_dots, key_opens_row, pill_class, virtual_window, Row, RowEffect, RowPart,
@@ -36,6 +38,10 @@ pub struct ResourceTableProps {
     pub scroll_top: f64,
     /// Emitted when the body scrolls.
     pub on_scroll: EventHandler<f64>,
+    /// What the identity may do to this resource; a denied list replaces the table
+    /// with the reason, and a denied delete removes the bulk action.
+    #[props(default)]
+    pub permissions: Permissions,
 }
 
 /// Direction glyph for a column, empty when it is not the active sort column.
@@ -131,6 +137,13 @@ pub fn ResourceTable(props: ResourceTableProps) -> Element {
         state.all_selected(&refs)
     };
     let lower_label = props.label.to_lowercase();
+
+    if !props.permissions.can_list() {
+        let reason = props.permissions.list_denial().map(str::to_owned);
+        return rsx! {
+            DeniedPanel { resource: props.label.clone(), reason }
+        };
+    }
     let all_expanded = state.all_expanded(&all_rows);
     let (tree_state, tree_icon, tree_label) = if all_expanded {
         ("expanded", "#i-collapse-all", "Collapse all")
@@ -198,9 +211,11 @@ pub fn ResourceTable(props: ResourceTableProps) -> Element {
                     },
                     svg { class: "icon", use { href: "#i-close" } }
                 }
-                button { class: "btn btn-danger", r#type: "button",
-                    svg { class: "icon", use { href: "#i-trash" } }
-                    "Delete"
+                if props.permissions.can_delete() {
+                    button { class: "btn btn-danger", r#type: "button",
+                        svg { class: "icon", use { href: "#i-trash" } }
+                        "Delete"
+                    }
                 }
             }
         }

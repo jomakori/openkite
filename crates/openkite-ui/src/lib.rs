@@ -1,8 +1,10 @@
 //! OpenKite console UI: shell, navigation and the page surfaces rendered inside it.
 
+pub mod access;
 pub mod nav;
 pub mod shell;
 
+pub use access::{DeniedPanel, Permissions, Verb as AccessVerb};
 pub use nav::{
     build_nav, coverage_gaps, entry_for_path, CatalogueKind, NavEntry, NavGroup, CATALOGUE, VIEWS,
 };
