@@ -4,8 +4,9 @@ name: Release
 # never tags. svu derives the next version from the commits since the last tag and
 # pushes it; the binaries come from the successful lint-test run of the pull
 # request that merged, so nothing is built twice; the image Staging built for that
-# pull request is retagged, not rebuilt. One file is mandatory: a tag pushed with
-# GITHUB_TOKEN does not trigger another workflow.
+# pull request is retagged, not rebuilt. A tag pushed with GITHUB_TOKEN does not
+# trigger another workflow, so the Flatpak and Chocolatey files are queued here
+# through workflow_dispatch, which is the one event that exemption does not cover.
 
 on:
   workflow_dispatch:
@@ -15,7 +16,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  actions: read
+  actions: write
   contents: write
   packages: write
   pull-requests: read
@@ -191,6 +192,23 @@ jobs:
           tag="ghcr.io/jomakori/openkite:v${{ needs.resolve-version.outputs.version }}"
           docker buildx imagetools create -t "$tag" -t ghcr.io/jomakori/openkite:latest "$source"
           docker buildx imagetools inspect "$tag"
+
+  dispatch-packages:
+    name: Dispatch Packages
+    needs: [resolve-version, publish]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Queue the Flatpak bundle
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: v${{ needs.resolve-version.outputs.version }}
+        run: gh workflow run flatpak.yml --ref main -f tag="$TAG"
+      - name: Queue the Chocolatey package
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: v${{ needs.resolve-version.outputs.version }}
+        run: gh workflow run chocolatey.yml --ref main -f tag="$TAG"
 
   clean-up-artifacts:
     name: Clean Up Artifacts

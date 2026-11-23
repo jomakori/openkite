@@ -3,12 +3,17 @@ name: Chocolatey
 # Publishes the openkite Chocolatey package to the GitHub Packages NuGet feed
 # whenever a release is published, and verifies the install in the same job —
 # community.chocolatey.org needs its own API key and human review, so it is
-# not wired up here.
+# not wired up here. release.yml queues it through workflow_dispatch, because a
+# release created with GITHUB_TOKEN does not fire the release event.
 
 on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to package (defaults to the latest release)
+        required: false
 
 permissions:
   contents: read
@@ -27,7 +32,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          EVENT_TAG: ${{ github.event.release.tag_name }}
+          EVENT_TAG: ${{ github.event.release.tag_name || github.event.inputs.tag }}
         run: |
           set -euo pipefail
           tag="$EVENT_TAG"
