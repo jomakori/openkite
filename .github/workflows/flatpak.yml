@@ -68,8 +68,7 @@ jobs:
           set -euo pipefail
           flatpak install --noninteractive flathub \
             org.gnome.Platform//${{ steps.runtime.outputs.version }} \
-            org.gnome.Sdk//${{ steps.runtime.outputs.version }} \
-            org.freedesktop.Sdk.Extension.rust-stable//${{ steps.runtime.outputs.version }}
+            org.gnome.Sdk//${{ steps.runtime.outputs.version }}
 
       - name: Fetch the release source tarball
         id: source
@@ -93,7 +92,7 @@ jobs:
       - name: Build the Flatpak repo
         run: |
           set -euo pipefail
-          flatpak-builder --force-clean --repo="$RUNNER_TEMP/repo" \
+          flatpak-builder --force-clean --install-deps-from=flathub --repo="$RUNNER_TEMP/repo" \
             "$RUNNER_TEMP/build" "$RUNNER_TEMP/manifest.yml"
 
       - name: Build the bundle
