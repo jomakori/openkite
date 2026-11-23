@@ -27,17 +27,17 @@ permissions:
   packages: write
 
 jobs:
-  version:
+  resolve-version:
     name: Resolve Version
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
-      token: ${{ steps.token.outputs.token }}
-      sha7: ${{ steps.token.outputs.sha7 }}
+      token: ${{ steps.resolve.outputs.token }}
+      sha7: ${{ steps.resolve.outputs.sha7 }}
     steps:
-      - name: RESOLVE token and short sha
-        id: token
+      - name: Resolve the token and short sha
+        id: resolve
         env:
           PR: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -45,33 +45,36 @@ jobs:
           echo "token=pr-${PR}" >> "$GITHUB_OUTPUT"
           echo "sha7=${HEAD_SHA:0:7}" >> "$GITHUB_OUTPUT"
 
-  image:
+  build-image:
     name: Build Image
-    needs: [version]
+    needs: [resolve-version]
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 30
+    env:
+      IMAGE_TAG: ${{ needs.resolve-version.outputs.token }}
+      IMAGE_SHA_TAG: ${{ needs.resolve-version.outputs.token }}-${{ needs.resolve-version.outputs.sha7 }}
     steps:
-      - name: CHECK OUT the pull request head
-        uses: actions/checkout@v5
+      - name: Check out the pull request head
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha }}
-      - name: LOG IN to ghcr
-        uses: docker/login-action@v3
+      - name: Log in to ghcr
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: SET UP buildx
-        uses: docker/setup-buildx-action@v3
-      - name: BUILD and push the PR image tags
-        uses: docker/build-push-action@v6
+      - name: Set up buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Build and push the pull request tags
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: true
           build-args: |
-            OPENKITE_VERSION=${{ needs.version.outputs.token }}
+            OPENKITE_VERSION=${{ needs.resolve-version.outputs.token }}
           # Both tags carry weight: the constant one names the artifact, the
           # sha-tagged one is what makes the ApplicationSet roll on a new push.
           tags: |
-            ghcr.io/jomakori/openkite:${{ needs.version.outputs.token }}
-            ghcr.io/jomakori/openkite:${{ needs.version.outputs.token }}-${{ needs.version.outputs.sha7 }}
+            ghcr.io/jomakori/openkite:${{ env.IMAGE_TAG }}
+            ghcr.io/jomakori/openkite:${{ env.IMAGE_SHA_TAG }}

@@ -2,9 +2,10 @@ name: Release
 
 # One workflow per release, run only when a human dispatches it: a merge to main
 # never tags. svu derives the next version from the commits since the last tag and
-# pushes it; the artifacts come from the Staging run of the pull request that just
-# merged, so nothing is built twice; the image is retagged, not rebuilt. One file
-# is mandatory: a tag pushed with GITHUB_TOKEN does not trigger another workflow.
+# pushes it; the binaries come from the successful lint-test run of the pull
+# request that merged, so nothing is built twice; the image Staging built for that
+# pull request is retagged, not rebuilt. One file is mandatory: a tag pushed with
+# GITHUB_TOKEN does not trigger another workflow.
 
 on:
   workflow_dispatch:
@@ -14,29 +15,31 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
+  actions: read
   contents: write
   packages: write
+  pull-requests: read
 
 jobs:
-  version:
+  resolve-version:
     name: Resolve Version
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
       version: ${{ steps.tag.outputs.version }}
     steps:
-      - name: CHECKOUT the full history and tags
-        uses: actions/checkout@v5
+      - name: Check out the full history and tags
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - name: INSTALL svu
+      - name: Install svu
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release download -R caarlos0/svu -p 'svu_*_linux_amd64.tar.gz' -D "$RUNNER_TEMP/svu" --clobber
           tar -xzf "$RUNNER_TEMP"/svu/*.tar.gz -C /usr/local/bin svu
           svu --version
-      - name: TAG the next version
+      - name: Tag the next version
         id: tag
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -60,10 +63,10 @@ jobs:
           git push origin "$next"
           echo "version=${next#v}" >> "$GITHUB_OUTPUT"
 
-  locate:
+  locate-build:
     name: Locate Build
-    needs: version
-    if: needs.version.outputs.version != ''
+    needs: resolve-version
+    if: needs.resolve-version.outputs.version != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
@@ -72,29 +75,38 @@ jobs:
       pr: ${{ steps.find.outputs.pr }}
       image: ${{ steps.find.outputs.image }}
     steps:
-      - name: FIND the Staging run for this commit
+      - name: Find the pull request build for this commit
         id: find
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # The tagged commit, not the dispatch commit: a resumed release publishes
           # the build that was made for the version being tagged.
-          TAG: v${{ needs.version.outputs.version }}
+          TAG: v${{ needs.resolve-version.outputs.version }}
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          SHA="$(gh api "repos/$REPO/commits/$TAG" --jq '.sha')"
-          pr="$(gh api "repos/$REPO/commits/$SHA/pulls" --jq '.[0].number // empty')"
+          commit="$(gh api "repos/$REPO/commits/$TAG" --jq '.sha')"
+          pr="$(gh api "repos/$REPO/commits/$commit/pulls" --jq '.[0].number // empty')"
           if [ -z "$pr" ]; then
             echo 'skip=true' >> "$GITHUB_OUTPUT"
             echo "::notice::No pull request is associated with $TAG, so there is no build to publish."
             exit 0
           fi
           head="$(gh api "repos/$REPO/pulls/$pr" --jq '.head.sha')"
-          run_id="$(gh api "repos/$REPO/actions/workflows/staging.yml/runs?head_sha=$head&status=success&per_page=1" \
-            --jq '.workflow_runs[0].id')"
-          if [ -z "$run_id" ] || [ "$run_id" = "null" ]; then
+          # lint-test builds the release binaries; Staging only builds the image.
+          run_id="$(gh api \
+            "repos/$REPO/actions/workflows/lint-test.yml/runs?head_sha=$head&status=success&per_page=1" \
+            --jq '.workflow_runs[0].id // empty')"
+          if [ -z "$run_id" ]; then
             echo 'skip=true' >> "$GITHUB_OUTPUT"
-            echo "::notice::No Staging build for pr-$pr: the pull request changed no build input, so there is nothing to release."
+            echo "::notice::No successful lint-test run for pr-$pr, so there is nothing to publish."
+            exit 0
+          fi
+          binaries="$(gh api "repos/$REPO/actions/runs/$run_id/artifacts?per_page=100" \
+            --jq '[.artifacts[] | select(.name | startswith("openkite-dist-"))] | length')"
+          if [ "$binaries" = '0' ]; then
+            echo 'skip=true' >> "$GITHUB_OUTPUT"
+            echo "::notice::Run $run_id carries no openkite-dist artifacts: the pull request changed no build input."
             exit 0
           fi
           {
@@ -105,33 +117,29 @@ jobs:
 
   publish:
     name: Publish Release
-    needs: [version, locate]
-    if: needs.locate.outputs.skip != 'true'
+    needs: [resolve-version, locate-build]
+    if: needs.locate-build.outputs.skip != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - name: CHECK OUT the release commit
+      - name: Check out the release commit
         uses: actions/checkout@v7
         with:
           # gh release create --verify-tag reads the tag from a local clone.
           fetch-depth: 0
           fetch-tags: true
-
-      - name: DOWNLOAD the binaries built for the pull request
-        id: download
-        continue-on-error: true
-        uses: actions/download-artifact@v4
+      - name: Download the binaries built for the pull request
+        uses: actions/download-artifact@v8
         with:
           pattern: openkite-dist-*
           merge-multiple: true
           path: dist
-          run-id: ${{ needs.locate.outputs.run_id }}
+          run-id: ${{ needs.locate-build.outputs.run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: PACKAGE the binaries
-        id: package
+      - name: Package the binaries
         shell: bash
         env:
-          VERSION: v${{ needs.version.outputs.version }}
+          VERSION: v${{ needs.resolve-version.outputs.version }}
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -144,53 +152,60 @@ jobs:
             tar -czf "out/openkite_${VERSION}_${platform}.tar.gz" -C dist "$name"
           done
           if [ -z "$(ls -A out 2>/dev/null)" ]; then
-            echo "::error::The Staging run for this pull request produced no binaries, so there is nothing to publish."
+            echo "::error::The pull request run produced no binaries, so there is nothing to publish."
             exit 1
           fi
           (cd out && sha256sum ./*.tar.gz > checksums.txt)
           ls -lh out
-      - name: CREATE the release with generated notes
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          tag="v${{ needs.version.outputs.version }}"
-          gh release create "$tag" \
-            --title "$tag" \
-            --generate-notes \
-            --verify-tag
-      - name: UPLOAD the release assets
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          tag="v${{ needs.version.outputs.version }}"
-          gh release upload "$tag" out/* --clobber
-      - name: RETAG the pull request image as the release
+      - name: Confirm the pull request image exists
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           echo "$GH_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          source="ghcr.io/jomakori/openkite:${{ needs.locate.outputs.image }}"
-          tag="ghcr.io/jomakori/openkite:v${{ needs.version.outputs.version }}"
+          source="ghcr.io/jomakori/openkite:${{ needs.locate-build.outputs.image }}"
+          if ! docker buildx imagetools inspect "$source" >/dev/null 2>&1; then
+            echo "::error::$source is missing: Staging never built an image for this pull request."
+            exit 1
+          fi
+      - name: Create the release with generated notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="v${{ needs.resolve-version.outputs.version }}"
+          gh release create "$tag" \
+            --title "$tag" \
+            --generate-notes \
+            --verify-tag
+      - name: Upload the release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="v${{ needs.resolve-version.outputs.version }}"
+          gh release upload "$tag" out/* --clobber
+      - name: Retag the pull request image as the release
+        run: |
+          set -euo pipefail
+          source="ghcr.io/jomakori/openkite:${{ needs.locate-build.outputs.image }}"
+          tag="ghcr.io/jomakori/openkite:v${{ needs.resolve-version.outputs.version }}"
           docker buildx imagetools create -t "$tag" -t ghcr.io/jomakori/openkite:latest "$source"
           docker buildx imagetools inspect "$tag"
 
-  cleanup:
+  clean-up-artifacts:
     name: Clean Up Artifacts
-    needs: [version, locate, publish]
+    needs: [locate-build, publish]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - name: DELETE the pull request artifacts
+      - name: Delete the pull request artifacts
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
-          PR: ${{ needs.locate.outputs.pr }}
+          PR: ${{ needs.locate-build.outputs.pr }}
         run: |
           set -euo pipefail
-          gh api "repos/$REPO/pulls/$PR" --jq '.head.sha' > "$RUNNER_TEMP/head"
-          head="$(cat "$RUNNER_TEMP/head")"
+          head="$(gh api "repos/$REPO/pulls/$PR" --jq '.head.sha')"
           gh api "repos/$REPO/actions/runs?head_sha=$head&per_page=100" \
             --jq '.workflow_runs[].id' | while read -r run; do
               gh api "repos/$REPO/actions/runs/$run/artifacts" \
