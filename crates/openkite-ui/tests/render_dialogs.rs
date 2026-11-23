@@ -2,7 +2,7 @@
 
 use dioxus::prelude::*;
 use openkite_ui::actions_view::{
-    confirmation_matches, DeleteDialog, DrainDialog, DrainRow, DrainToggles, Propagation,
+    confirmation_matches, DeleteDialog, DrainDialog, DrainRow, DrainToggles, Propagation, SkipKind,
 };
 
 #[derive(Props, Clone, PartialEq)]
@@ -125,12 +125,20 @@ fn the_drain_preview_says_which_pods_stay_and_why() {
     let html = drain_dialog(
         vec![
             DrainRow::evicting("prod/api-7d9"),
-            DrainRow::skipping("kube-system/fluentbit-1", "owned by a DaemonSet"),
+            DrainRow::skipping("kube-system/fluentbit-1", SkipKind::DaemonSet),
         ],
         DrainToggles::default(),
     );
     assert!(html.contains("prod/api-7d9"), "{html}");
-    assert!(html.contains("stays — owned by a DaemonSet"), "{html}");
+    assert!(html.contains(">protected<"), "the skip is badged: {html}");
+    assert!(
+        html.contains("daemonset"),
+        "the badge names the owner: {html}"
+    );
+    assert!(
+        html.contains("a DaemonSet runs one on every node"),
+        "{html}"
+    );
     assert!(
         html.contains("1 pod(s) are evicted"),
         "the count is stated: {html}"
@@ -142,7 +150,7 @@ fn a_drain_with_nothing_to_evict_cannot_be_confirmed() {
     let html = drain_dialog(
         vec![DrainRow::skipping(
             "kube-system/fluentbit-1",
-            "owned by a DaemonSet",
+            SkipKind::DaemonSet,
         )],
         DrainToggles::default(),
     );

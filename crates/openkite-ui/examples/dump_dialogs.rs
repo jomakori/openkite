@@ -1,6 +1,8 @@
 //! Dumps the two confirmation dialogs to a self-contained HTML file for review.
 use dioxus::prelude::*;
-use openkite_ui::actions_view::{DeleteDialog, DrainDialog, DrainRow, DrainToggles, Propagation};
+use openkite_ui::actions_view::{
+    DeleteDialog, DrainDialog, DrainRow, DrainToggles, Propagation, SkipKind,
+};
 use openkite_ui::{AppShell, Connection, Counts};
 
 #[derive(Props, Clone, PartialEq)]
@@ -35,9 +37,9 @@ fn Pair(props: PairProps) -> Element {
             rows: vec![
                 DrainRow::evicting("prod/checkout-api-7d9c4f8b6-2xqzt"),
                 DrainRow::evicting("prod/worker-5f6d8c9b4-h7lmn"),
-                DrainRow::skipping("prod/metrics-9c4d2f7b8-z8vxn", "owned by a DaemonSet"),
-                DrainRow::skipping("kube-system/coredns-6b8f7d9c4-q2wrt", "owned by a DaemonSet"),
-                DrainRow::skipping("prod/session-cache-2f7c9d4b8-p9qrs", "would lose its emptyDir data"),
+                DrainRow::skipping("prod/metrics-9c4d2f7b8-z8vxn", SkipKind::DaemonSet),
+                DrainRow::skipping("kube-system/coredns-6b8f7d9c4-q2wrt", SkipKind::MirrorPod),
+                DrainRow::skipping("prod/session-cache-2f7c9d4b8-p9qrs", SkipKind::EmptyDirData),
             ],
             toggles: props.toggles,
             on_toggles,

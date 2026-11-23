@@ -63,13 +63,44 @@ pub fn confirmation_matches(name: &str, typed: &str) -> bool {
     !name.trim().is_empty() && typed.trim() == name
 }
 
+/// Why a drain leaves a pod alone, as the plan badges it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SkipKind {
+    DaemonSet,
+    MirrorPod,
+    EmptyDirData,
+    LocalStorage,
+}
+
+impl SkipKind {
+    /// The short badge label.
+    pub fn badge(self) -> &'static str {
+        match self {
+            Self::DaemonSet => "daemonset",
+            Self::MirrorPod => "mirror pod",
+            Self::EmptyDirData => "emptyDir",
+            Self::LocalStorage => "local storage",
+        }
+    }
+
+    /// The sentence the badge stands for.
+    pub fn reason(self) -> &'static str {
+        match self {
+            Self::DaemonSet => "a DaemonSet runs one on every node",
+            Self::MirrorPod => "the apiserver owns a mirror pod",
+            Self::EmptyDirData => "evicting it would lose its emptyDir data",
+            Self::LocalStorage => "it mounts local storage",
+        }
+    }
+}
+
 /// One pod in a drain preview.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DrainRow {
     /// `namespace/name`.
     pub key: String,
-    /// The reason it stays, when it stays.
-    pub skip: Option<String>,
+    /// Why it stays, when it stays.
+    pub skip: Option<SkipKind>,
 }
 
 impl DrainRow {
@@ -82,10 +113,10 @@ impl DrainRow {
     }
 
     /// A pod the drain will leave alone, and why.
-    pub fn skipping(key: impl Into<String>, reason: impl Into<String>) -> Self {
+    pub fn skipping(key: impl Into<String>, kind: SkipKind) -> Self {
         Self {
             key: key.into(),
-            skip: Some(reason.into()),
+            skip: Some(kind),
         }
     }
 }
@@ -293,12 +324,25 @@ pub fn DrainDialog(props: DrainDialogProps) -> Element {
                             li {
                                 class: if row.skip.is_some() { "act-row skip" } else { "act-row" },
                                 span { class: "act-key", "{row.key}" }
-                                match row.skip.clone() {
-                                    Some(reason) => rsx! {
-                                        span { class: "act-note", "stays — {reason}" }
+                                match row.skip {
+                                    Some(kind) => rsx! {
+                                        div { class: "act-badges",
+                                            span {
+                                                class: "pill warn",
+                                                title: "the drain leaves it running",
+                                                "protected"
+                                            }
+                                            span {
+                                                class: "pill neutral",
+                                                title: "{kind.reason()}",
+                                                "{kind.badge()}"
+                                            }
+                                        }
                                     },
                                     None => rsx! {
-                                        span { class: "act-note evict", "evicted" }
+                                        div { class: "act-badges",
+                                            span { class: "pill danger", "evicted" }
+                                        }
                                     },
                                 }
                             }
