@@ -201,6 +201,25 @@ async fn rows(
     {
         return Err("restart left no stamp on the pod template".to_owned());
     }
+    // Wait for the rollout the stamp started, so the drain sees one ReplicaSet's pods.
+    until("the restarted pods to replace the old ones", || async {
+        let current = deployments_api
+            .get("web")
+            .await
+            .map_err(|e| e.to_string())?;
+        let field = |path: &str| {
+            current
+                .data
+                .pointer(path)
+                .and_then(|v| v.as_u64())
+                .unwrap_or_default()
+        };
+        Ok(field("/spec/replicas") == 2
+            && field("/status/replicas") == 2
+            && field("/status/updatedReplicas") == 2
+            && field("/status/availableReplicas") == 2)
+    })
+    .await?;
 
     // A CronJob, then the one-off Job a "trigger" asks for.
     let cronjob: DynamicObject = serde_json::from_value(serde_json::json!({
