@@ -320,6 +320,20 @@ fn a_collapsed_dock_renders_its_bar_only() {
 }
 
 #[test]
+fn the_dock_has_exactly_one_toggle() {
+    let html = render(LogDock::default());
+    assert_eq!(
+        html.matches("data-act=\"toggle\"").count(),
+        1,
+        "two toggles would leave the user guessing which one closes it: {html}"
+    );
+    assert!(
+        !html.contains("dock-handle"),
+        "the orb handle is gone; the bar toggle is the only control: {html}"
+    );
+}
+
+#[test]
 fn the_bar_carries_the_picker_and_the_split_control() {
     let mut dock = running_dock();
     dock.set_choices(vec![
