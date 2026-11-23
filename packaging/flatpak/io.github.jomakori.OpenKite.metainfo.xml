@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.jomakori.OpenKite</id>
+  <name>OpenKite</name>
+  <summary>Browse and operate a Kubernetes cluster</summary>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT OR Apache-2.0</project_license>
+  <developer id="io.github.jomakori">
+    <name>jomakori</name>
+  </developer>
+  <description>
+    <p>
+      OpenKite is a Kubernetes IDE: a console over a kube-rs engine for browsing
+      and operating cluster resources, served as a native desktop window.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.github.jomakori.OpenKite.desktop</launchable>
+  <url type="homepage">https://github.com/jomakori/openkite</url>
+  <url type="bugtracker">https://github.com/jomakori/openkite/issues</url>
+  <content_rating type="oars-1.1"/>
+</component>

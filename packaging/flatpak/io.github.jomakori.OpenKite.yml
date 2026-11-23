@@ -1,0 +1,62 @@
+app-id: io.github.jomakori.OpenKite
+runtime: org.gnome.Platform
+runtime-version: "47"
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: openkite-desktop
+
+finish-args:
+  # Display and GPU acceleration for the GTK + WebKitGTK shell.
+  - --share=ipc
+  - --socket=fallback-x11
+  - --socket=wayland
+  - --device=dri
+  # Cluster reach: the engine talks to the API server over the network.
+  - --share=network
+  # Kubeconfig is read-only and the app honours KUBECONFIG if set.
+  - --filesystem=~/.kube:ro
+  - --env=KUBECONFIG=$HOME/.kube/config
+
+cleanup:
+  - /include
+  - /lib/pkgconfig
+  - /man
+  - /share/doc
+  - /share/info
+  - /share/man
+
+modules:
+  - name: openkite
+    buildsystem: cargo
+    build-options:
+      # cargo needs the registry during build; the sandbox blocks it unless
+      # this module opts back in, which is fine off Flathub (see README).
+      build-args:
+        - --share=network
+      append-path: /usr/lib/sdk/rust-stable/bin
+      env:
+        CARGO_HOME: /run/build/openkite/cargo
+    sources:
+      # The workflow replaces these two placeholders with the tagged
+      # release's source tarball and its measured checksum before building.
+      - type: archive
+        url: "@OPENKITE_SOURCE_URL@"
+        sha256: "@OPENKITE_SOURCE_SHA256@"
+        strip-components: 1
+    build-commands:
+      - cargo build --release --locked -p openkite-desktop
+      - install -Dm0755 target/release/openkite-desktop /app/bin/openkite-desktop
+
+  - name: openkite-metadata
+    buildsystem: simple
+    sources:
+      - type: dir
+        path: .
+    build-commands:
+      - install -Dm0644 io.github.jomakori.OpenKite.desktop
+        /app/share/applications/io.github.jomakori.OpenKite.desktop
+      - install -Dm0644 io.github.jomakori.OpenKite.metainfo.xml
+        /app/share/metainfo/io.github.jomakori.OpenKite.metainfo.xml
+      - install -Dm0644 io.github.jomakori.OpenKite.svg
+        /app/share/icons/hicolor/scalable/apps/io.github.jomakori.OpenKite.svg
