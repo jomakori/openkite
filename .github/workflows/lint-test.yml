@@ -158,8 +158,10 @@ jobs:
           RESULTS: ${{ toJSON(needs) }}
         run: |
           set -euo pipefail
+          # A cancelled job only occurs when the run itself was cancelled, so a
+          # superseded pull request must not leave a failing gate on its old commit.
           failing="$(printf '%s' "$RESULTS" \
-            | jq -r 'to_entries[] | select(.value.result != "success") | "\(.key)=\(.value.result)"')"
+            | jq -r 'to_entries[] | select(.value.result != "success" and .value.result != "cancelled") | "\(.key)=\(.value.result)"')"
           if [ -n "$failing" ]; then
             printf '%s\n' "$failing" | sed 's/^/::error::/'
             exit 1
