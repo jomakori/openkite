@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=OpenKite
+Comment=Browse and operate a Kubernetes cluster
+Exec=openkite-desktop
+Icon=io.github.jomakori.OpenKite
+Terminal=false
+Categories=Development;
+StartupWMClass=openkite-desktop
