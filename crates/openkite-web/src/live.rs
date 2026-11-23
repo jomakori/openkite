@@ -120,6 +120,59 @@ impl Live {
     }
 
     /// One row per pod for `/table`.
+    /// What the identity may do to one resource, as the view model wants it.
+    ///
+    /// A review that fails leaves the console as it was rather than blanking a working
+    /// screen; the failure is logged so it can be seen.
+    pub async fn permissions(
+        &self,
+        group: &str,
+        resource: &str,
+        namespace: Option<&str>,
+    ) -> openkite_ui::access::Permissions {
+        let Live::Connected(engine) = self else {
+            return openkite_ui::access::Permissions::default();
+        };
+        match engine
+            .gate()
+            .capabilities(&engine.client(), group, resource, namespace)
+            .await
+        {
+            Ok(capabilities) => {
+                let mut permissions = openkite_ui::access::Permissions::default();
+                for (verb, view) in [
+                    (
+                        openkite_engine::access::Verb::Get,
+                        openkite_ui::access::Verb::Get,
+                    ),
+                    (
+                        openkite_engine::access::Verb::List,
+                        openkite_ui::access::Verb::List,
+                    ),
+                    (
+                        openkite_engine::access::Verb::Create,
+                        openkite_ui::access::Verb::Create,
+                    ),
+                    (
+                        openkite_engine::access::Verb::Update,
+                        openkite_ui::access::Verb::Update,
+                    ),
+                    (
+                        openkite_engine::access::Verb::Delete,
+                        openkite_ui::access::Verb::Delete,
+                    ),
+                ] {
+                    permissions.set(view, capabilities.allows(verb), capabilities.reason(verb));
+                }
+                permissions
+            }
+            Err(error) => {
+                tracing::warn!(%error, resource, "authorization review failed; showing controls");
+                openkite_ui::access::Permissions::default()
+            }
+        }
+    }
+
     pub async fn table(&self) -> Vec<Row> {
         let Live::Connected(engine) = self else {
             return Vec::new();

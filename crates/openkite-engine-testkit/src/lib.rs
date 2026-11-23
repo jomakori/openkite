@@ -184,6 +184,42 @@ impl FakeApiserver {
         Client::try_from(config).expect("build kube client")
     }
 
+    /// Answers access reviews for one verb/resource with an allow.
+    pub fn allow_access(&self, verb: &str, group: &str, resource: &str, namespace: Option<&str>) {
+        self.store.add_access_rule(store::AccessRule {
+            verb: verb.to_owned(),
+            group: group.to_owned(),
+            resource: resource.to_owned(),
+            namespace: namespace.map(str::to_owned),
+            allowed: true,
+            reason: None,
+        });
+    }
+
+    /// Answers access reviews for one verb/resource with a denial and its reason.
+    pub fn deny_access(
+        &self,
+        verb: &str,
+        group: &str,
+        resource: &str,
+        namespace: Option<&str>,
+        reason: &str,
+    ) {
+        self.store.add_access_rule(store::AccessRule {
+            verb: verb.to_owned(),
+            group: group.to_owned(),
+            resource: resource.to_owned(),
+            namespace: namespace.map(str::to_owned),
+            allowed: false,
+            reason: Some(reason.to_owned()),
+        });
+    }
+
+    /// How many access reviews the fake apiserver has answered.
+    pub fn access_review_count(&self) -> u64 {
+        self.store.access_review_count()
+    }
+
     /// Stops the server and waits for its task to finish.
     pub async fn shutdown(mut self) {
         if let Some(tx) = self.shutdown.take() {
