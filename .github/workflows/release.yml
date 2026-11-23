@@ -76,11 +76,19 @@ jobs:
         id: find
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SHA: ${{ github.sha }}
+          # The tagged commit, not the dispatch commit: a resumed release publishes
+          # the build that was made for the version being tagged.
+          TAG: v${{ needs.version.outputs.version }}
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          pr="$(gh api "repos/$REPO/commits/$SHA/pulls" --jq '.[0].number')"
+          SHA="$(gh api "repos/$REPO/commits/$TAG" --jq '.sha')"
+          pr="$(gh api "repos/$REPO/commits/$SHA/pulls" --jq '.[0].number // empty')"
+          if [ -z "$pr" ]; then
+            echo 'skip=true' >> "$GITHUB_OUTPUT"
+            echo "::notice::No pull request is associated with $TAG, so there is no build to publish."
+            exit 0
+          fi
           head="$(gh api "repos/$REPO/pulls/$pr" --jq '.head.sha')"
           run_id="$(gh api "repos/$REPO/actions/workflows/staging.yml/runs?head_sha=$head&status=success&per_page=1" \
             --jq '.workflow_runs[0].id')"
