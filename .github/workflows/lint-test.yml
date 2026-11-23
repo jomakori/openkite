@@ -75,8 +75,10 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           BASE: ${{ github.event.pull_request.base.sha }}
-          # Anything under crates/, a manifest, a build input or the workflows themselves.
-          CODE_PATHS: ^(crates/|Cargo\.(toml|lock)$|rust-toolchain|Dockerfile|Tiltfile|packaging/|\.github/)
+          # Anything that can change the binary or the image: a crate, a manifest,
+          # the toolchain, the Dockerfile or the Tiltfile. Docs, workflows and
+          # packaging metadata are lint-only, per the build-trigger rule.
+          CODE_PATHS: ^(crates/|Cargo\.(toml|lock)$|rust-toolchain|Dockerfile|Tiltfile)
         run: |
           set -euo pipefail
           if [ "$EVENT" != 'pull_request' ]; then
@@ -222,7 +224,7 @@ jobs:
     name: Build Desktop
     needs: require-label
     if: needs.require-label.outputs.run == 'true'
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: read
