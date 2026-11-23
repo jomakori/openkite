@@ -20,10 +20,9 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: RESOLVE the release to package
+      - name: Check out the repository
+        uses: actions/checkout@v7
+      - name: Resolve the release to package
         id: release
         shell: bash
         env:
@@ -37,8 +36,8 @@ jobs:
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
-
-      - name: DOWNLOAD the windows-amd64 asset and checksums
+      - name: Download the windows-amd64 asset and checksums
+        id: asset
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -55,9 +54,7 @@ jobs:
           url="https://github.com/${{ github.repository }}/releases/download/$TAG/$archive"
           echo "checksum=$checksum" >> "$GITHUB_OUTPUT"
           echo "url=$url" >> "$GITHUB_OUTPUT"
-        id: asset
-
-      - name: FILL IN the nuspec and install script placeholders
+      - name: Fill in the nuspec and install script placeholders
         shell: pwsh
         env:
           VERSION: ${{ steps.release.outputs.version }}
@@ -73,13 +70,11 @@ jobs:
             -replace 'URL_PLACEHOLDER', $env:URL `
             -replace 'CHECKSUM_PLACEHOLDER', $env:CHECKSUM |
             Set-Content $install
-
-      - name: PACK the nupkg
+      - name: Pack the nupkg
         shell: pwsh
         working-directory: packaging/chocolatey
         run: choco pack
-
-      - name: PUSH the nupkg to the GitHub Packages feed
+      - name: Push the nupkg to the GitHub Packages feed
         shell: pwsh
         working-directory: packaging/chocolatey
         env:
@@ -89,8 +84,7 @@ jobs:
           dotnet nuget push "openkite.$env:VERSION.nupkg" `
             --api-key $env:GITHUB_TOKEN `
             --source "https://nuget.pkg.github.com/jomakori/index.json"
-
-      - name: INSTALL the package from the feed and verify it
+      - name: Install the package from the feed and verify it
         shell: pwsh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
