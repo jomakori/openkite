@@ -21,39 +21,39 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  fmt:
+  check-formatting:
     name: Check Formatting
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+      - name: Check out the repository
+        uses: actions/checkout@v7
       - name: Install the Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-      - name: Check Formatting
+      - name: Run cargo fmt
         run: cargo fmt --all -- --check
 
-  clippy:
+  lint-code:
     name: Lint Code
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+      - name: Check out the repository
+        uses: actions/checkout@v7
       - name: Install the Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - name: Lint Code
+      - name: Run cargo clippy
         run: cargo clippy --workspace --exclude openkite-desktop --all-targets -- -D warnings
 
-  changes:
+  detect-changes:
     name: Detect Changes
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -62,8 +62,8 @@ jobs:
     outputs:
       code: ${{ steps.diff.outputs.code }}
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+      - name: Check out the repository
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Diff against the base
@@ -86,9 +86,9 @@ jobs:
             echo 'No binary or dependency change: lint only.'
           fi
 
-  staging-gate:
+  require-label:
     name: Require Label
-    needs: changes
+    needs: detect-changes
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -101,7 +101,7 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
-          CODE: ${{ needs.changes.outputs.code }}
+          CODE: ${{ needs.detect-changes.outputs.code }}
         run: |
           if [ "$EVENT" != 'pull_request' ]; then
             echo 'run=true' >> "$GITHUB_OUTPUT"
@@ -122,36 +122,18 @@ jobs:
             exit 1
           fi
 
-  test:
-    name: Run Tests
-    needs: staging-gate
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    permissions:
-      contents: read
-    steps:
-      - name: Check out repository
-        if: needs.staging-gate.outputs.run == 'true'
-        uses: actions/checkout@v4
-      - name: Install the Rust toolchain
-        if: needs.staging-gate.outputs.run == 'true'
-        uses: dtolnay/rust-toolchain@stable
-      - name: Run Tests
-        if: needs.staging-gate.outputs.run == 'true'
-        run: cargo test --workspace --exclude openkite-desktop
-
-  boundary:
+  guard-boundary:
     name: Guard Boundary
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+      - name: Check out the repository
+        uses: actions/checkout@v7
       - name: Install the Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-      - name: Guard Crate Boundary
+      - name: Guard the crate boundary
         run: |
           tree="$(cargo tree -p openkite-engine --prefix none)"
           if printf '%s\n' "$tree" | grep -Eq '^(dioxus|openkite-ui) '; then
@@ -160,17 +142,59 @@ jobs:
             exit 1
           fi
 
-  benchmark:
-    name: Benchmark Volume
-    needs: staging-gate
-    if: needs.staging-gate.outputs.run == 'true'
+  # The single check branch protection requires for the cheap gates. Every job
+  # listed here must run unconditionally: a skipped dependency counts as a fail.
+  run-checks:
+    name: Run Checks
+    needs: [check-formatting, lint-code, detect-changes, require-label, guard-boundary]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Confirm every check passed
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          failing="$(printf '%s' "$RESULTS" \
+            | jq -r 'to_entries[] | select(.value.result != "success") | "\(.key)=\(.value.result)"')"
+          if [ -n "$failing" ]; then
+            printf '%s\n' "$failing" | sed 's/^/::error::/'
+            exit 1
+          fi
+          echo 'Every check passed.'
+
+  run-tests:
+    name: Run Tests
+    needs: require-label
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+      - name: Check out the repository
+        if: needs.require-label.outputs.run == 'true'
+        uses: actions/checkout@v7
+      - name: Install the Rust toolchain
+        if: needs.require-label.outputs.run == 'true'
+        uses: dtolnay/rust-toolchain@stable
+      - name: Run the test suite
+        if: needs.require-label.outputs.run == 'true'
+        run: cargo test --workspace --exclude openkite-desktop
+
+  benchmark-volume:
+    name: Benchmark Volume
+    needs: require-label
+    if: needs.require-label.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
       - name: Install the Rust toolchain
         uses: dtolnay/rust-toolchain@stable
       - name: Run the 5k-pod / 40k-object / 5k-event volume benchmark
@@ -178,17 +202,17 @@ jobs:
           cargo test -p openkite-engine --release --test bench_volume \
             -- --ignored --nocapture
 
-  desktop:
+  build-desktop:
     name: Build Desktop
-    needs: staging-gate
-    if: needs.staging-gate.outputs.run == 'true'
+    needs: require-label
+    if: needs.require-label.outputs.run == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 30
     permissions:
       contents: read
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+      - name: Check out the repository
+        uses: actions/checkout@v7
       - name: Install the Rust toolchain
         uses: dtolnay/rust-toolchain@stable
       - name: Install native webview dependencies
@@ -202,10 +226,10 @@ jobs:
       - name: Check the desktop shell
         run: cargo check -p openkite-desktop --all-targets
 
-  binaries:
+  build-binaries:
     name: Build Binaries
-    needs: staging-gate
-    if: needs.staging-gate.outputs.run == 'true'
+    needs: require-label
+    if: needs.require-label.outputs.run == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -220,13 +244,15 @@ jobs:
             target: darwin-arm64
           - os: windows-latest
             target: windows-amd64
+          - os: windows-11-arm
+            target: windows-arm64
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     permissions:
       contents: read
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+      - name: Check out the repository
+        uses: actions/checkout@v7
       - name: Install the Rust toolchain
         uses: dtolnay/rust-toolchain@stable
       - name: Build the binary
@@ -242,17 +268,17 @@ jobs:
             *) cp target/release/openkite-web "payload/openkite-web-$TARGET" ;;
           esac
       - name: Upload the binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: openkite-dist-${{ matrix.target }}
           path: payload/*
           if-no-files-found: error
           retention-days: 14
 
-  exec-conformance:
+  run-conformance:
     name: Run Conformance
-    needs: staging-gate
-    if: needs.staging-gate.outputs.run == 'true'
+    needs: require-label
+    if: needs.require-label.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions:
@@ -262,8 +288,8 @@ jobs:
       KUBECTL_VERSION: v1.37.2
       KIND_CLUSTER: openkite-conformance
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+      - name: Check out the repository
+        uses: actions/checkout@v7
       - name: Install the Rust toolchain
         uses: dtolnay/rust-toolchain@stable
       - name: Install kind and kubectl
