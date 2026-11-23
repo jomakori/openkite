@@ -398,7 +398,7 @@ impl Actions {
         });
         let body: DynamicObject = serde_json::from_value(eviction)
             .map_err(|error| ActionError::Malformed(error.to_string()))?;
-        api.create_subresource::<DynamicObject, ()>(
+        api.create_subresource::<DynamicObject, DynamicObject>(
             "eviction",
             name,
             &PostParams::default(),
