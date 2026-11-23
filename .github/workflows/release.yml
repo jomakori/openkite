@@ -105,8 +105,18 @@ jobs:
           binaries="$(gh api "repos/$REPO/actions/runs/$run_id/artifacts?per_page=100" \
             --jq '[.artifacts[] | select(.name | startswith("openkite-dist-"))] | length')"
           if [ "$binaries" = '0' ]; then
+            # Build Binaries is skipped only when the pull request changed no build
+            # input. A successful build with nothing left to download means the
+            # artifacts expired or were cleaned up, and a release must say so
+            # instead of silently publishing nothing.
+            built="$(gh api "repos/$REPO/actions/runs/$run_id/jobs?per_page=100" \
+              --jq '[.jobs[] | select(.name | startswith("Build Binaries")) | .conclusion] | unique | join(",")')"
+            if [ "$built" = 'success' ]; then
+              echo "::error::Run $run_id built the binaries but carries no openkite-dist artifacts: they expired or were deleted. Re-run lint-test for $head."
+              exit 1
+            fi
             echo 'skip=true' >> "$GITHUB_OUTPUT"
-            echo "::notice::Run $run_id carries no openkite-dist artifacts: the pull request changed no build input."
+            echo "::notice::Run $run_id skipped the binary build: the pull request changed no build input."
             exit 0
           fi
           {
