@@ -38,9 +38,8 @@ jobs:
       MANIFEST: packaging/flatpak/io.github.jomakori.OpenKite.yml
       APP_ID: io.github.jomakori.OpenKite
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v5
-
+      - name: Check out the repository
+        uses: actions/checkout@v7
       - name: Resolve tag and version
         id: version
         run: |
@@ -48,28 +47,24 @@ jobs:
           tag="${{ github.event.release.tag_name || github.event.inputs.tag }}"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
-
       - name: Install flatpak and flatpak-builder
         run: |
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends flatpak flatpak-builder
           flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-
       - name: Read runtime version from the manifest
         id: runtime
         run: |
           set -euo pipefail
           version="$(sed -n 's/^runtime-version: *"\{0,1\}\([0-9.]*\)"\{0,1\}$/\1/p' "$MANIFEST")"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-
       - name: Install the GNOME runtime and SDK
         run: |
           set -euo pipefail
           flatpak install --noninteractive flathub \
             org.gnome.Platform//${{ steps.runtime.outputs.version }} \
             org.gnome.Sdk//${{ steps.runtime.outputs.version }}
-
       - name: Fetch the release source tarball
         id: source
         env:
@@ -81,20 +76,17 @@ jobs:
           sha256="$(sha256sum "$RUNNER_TEMP/source.tar.gz" | cut -d' ' -f1)"
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
-
       - name: Render the manifest for this release
         run: |
           set -euo pipefail
           sed -e "s#@OPENKITE_SOURCE_URL@#${{ steps.source.outputs.url }}#" \
               -e "s/@OPENKITE_SOURCE_SHA256@/${{ steps.source.outputs.sha256 }}/" \
               "$MANIFEST" > "$RUNNER_TEMP/manifest.yml"
-
       - name: Build the Flatpak repo
         run: |
           set -euo pipefail
           flatpak-builder --force-clean --install-deps-from=flathub --repo="$RUNNER_TEMP/repo" \
             "$RUNNER_TEMP/build" "$RUNNER_TEMP/manifest.yml"
-
       - name: Build the bundle
         id: bundle
         env:
@@ -105,17 +97,14 @@ jobs:
           file="openkite_${VERSION}_${ARCH}.flatpak"
           flatpak build-bundle "$RUNNER_TEMP/repo" "$file" "$APP_ID"
           echo "file=$file" >> "$GITHUB_OUTPUT"
-
       - name: Install the bundle to verify it
         run: |
           set -euo pipefail
           flatpak install --user --noninteractive "${{ steps.bundle.outputs.file }}"
-
       - name: Launch the installed app to verify it
         run: |
           set -euo pipefail
           flatpak run --user --command=true "$APP_ID"
-
       - name: Upload the bundle to the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
