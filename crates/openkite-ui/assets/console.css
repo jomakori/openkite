@@ -18,8 +18,8 @@
   --fill-hi: oklch(1 0 0 / 0.91);
   --surface-solid: oklch(1 0 0 / 0.97);
   --fg: oklch(0.29 0.018 258);
-  --muted: oklch(0.56 0.02 262);
-  --subtle: oklch(0.70 0.015 262);
+  --muted: oklch(0.515 0.02 262);
+  --subtle: oklch(0.55 0.015 262);
   --border: oklch(0.9188 0.0071 268.5);
   --accent: oklch(0.6420 0.1531 257.9);
   --progress: oklch(0.6420 0.1531 257.9);
