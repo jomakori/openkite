@@ -2811,7 +2811,7 @@ pre.yaml .y-d{color:color-mix(in oklab,var(--terminal-fg) 55%, transparent)}
 .set-pane::-webkit-scrollbar-thumb{background:color-mix(in oklab,var(--fg) 26%, transparent);border-radius:999px}
 .set-pane::-webkit-scrollbar-track{background:transparent}
 @keyframes pane-in{from{transform:translateX(16px);opacity:.55}to{transform:none;opacity:1}}
-.pane-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border)}
+.pane-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border);touch-action:none}
 .pane-head h2{margin:0;font-size:15px;font-weight:600}
 .pane-body{flex:1;min-height:0;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:16px}
 .pane-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-top:1px solid var(--border)}
@@ -2845,4 +2845,10 @@ pre.yaml .y-d{color:color-mix(in oklab,var(--terminal-fg) 55%, transparent)}
 @media (prefers-contrast: more){
   :root{--glass-edge:white;--glass-hair:var(--fg)}
   .sidebar,.topbar,.set-pane,.dlg,.menu,.menu-pop{background:var(--surface-solid);backdrop-filter:none;-webkit-backdrop-filter:none}
+}
+
+/* Phones: the sheet goes full-bleed and every row keeps a 44px touch target. */
+@media (max-width:767px){
+  .set-pane{border-radius:0}
+  .set-pane .theme-row,.set-pane .set-row .btn,.set-pane .seg{min-height:44px}
 }
