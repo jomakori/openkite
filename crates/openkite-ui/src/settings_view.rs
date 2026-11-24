@@ -4,6 +4,9 @@ use dioxus::prelude::*;
 
 use crate::settings::{Appearance, Density, Preference, Settings, Theme, SHORTCUTS};
 
+/// Returns focus to the topbar button that opens the sheet.
+const SETTINGS_REFOCUS: &str = "document.querySelector('[data-action=\"settings\"]')?.focus();";
+
 #[derive(Props, Clone, PartialEq)]
 pub struct SettingsSheetProps {
     /// Whether the sheet is open.
@@ -88,22 +91,44 @@ pub fn SettingsSheet(props: SettingsSheetProps) -> Element {
     let import_text = props.import_text.clone();
     let paths = settings.kubeconfig_paths.clone();
     let mut draft = use_signal(String::new);
+    let mut drag_from = use_signal(|| 0.0f64);
+    let dismiss = {
+        let close = props.on_close;
+        move || {
+            spawn(async move {
+                let _ = dioxus::document::eval(SETTINGS_REFOCUS).await;
+                close.call(());
+            });
+        }
+    };
     let draft_value = draft();
     rsx! {
-        div { class: "set-scrim", "data-settings": "scrim", onclick: move |_| props.on_close.call(()) ,
+        div { class: "set-scrim", "data-settings": "scrim", onclick: move |_| dismiss(),
             aside {
                 class: "set-pane",
                 role: "dialog",
                 "aria-modal": "true",
                 "aria-label": "Settings",
                 "data-settings": "pane",
+                tabindex: "-1",
+                autofocus: "true",
                 onclick: move |event| event.stop_propagation(),
-                div { class: "pane-head",
+                onkeydown: move |event| {
+                    if event.key().to_string() == "Escape" { dismiss(); }
+                },
+                div {
+                    class: "pane-head",
+                    onpointerdown: move |event| drag_from.set(event.data().client_coordinates().y),
+                    onpointerup: move |event| {
+                        let travelled = event.data().client_coordinates().y - drag_from();
+                        drag_from.set(0.0);
+                        if travelled > 60.0 { dismiss(); }
+                    },
                     h2 { "Settings" }
                     button {
                         class: "btn ghost icon-only",
                         "aria-label": "Close settings",
-                        onclick: move |_| props.on_close.call(()),
+                        onclick: move |_| dismiss(),
                         dangerous_inner_html: icon("x"),
                     }
                 }

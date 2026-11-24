@@ -80,6 +80,16 @@ fn the_sheet_is_a_pane_on_the_right_edge() {
 }
 
 #[test]
+fn the_pane_takes_focus_so_the_keyboard_can_close_it() {
+    let html = render(Settings::default(), true);
+    assert!(html.contains(r#"tabindex="-1""#), "{html}");
+    assert!(html.contains(r#"autofocus="true""#), "{html}");
+    assert!(html.contains(r#"data-settings="pane""#), "{html}");
+    assert!(html.contains(r#"data-settings="scrim""#), "{html}");
+    assert!(html.contains(r#"aria-label="Close settings""#), "{html}");
+}
+
+#[test]
 fn all_twenty_four_themes_are_offered_in_one_list() {
     let html = render(Settings::default(), true);
     for id in [
