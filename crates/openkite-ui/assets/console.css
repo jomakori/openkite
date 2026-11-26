@@ -2750,15 +2750,17 @@ pre.yaml .y-d{color:color-mix(in oklab,var(--terminal-fg) 55%, transparent)}
 .set-head h3{white-space:nowrap}
 .set-head h3{margin:0;font-size:11.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
 .theme-list{display:flex;flex-direction:column;max-height:none;overflow-y:auto;border:1px solid var(--glass-hair);border-radius:var(--r-sm);background:oklch(var(--glass) / .28);box-shadow:inset 0 1px 0 var(--glass-edge)}
-.theme-row{display:flex;align-items:center;gap:10px;padding:0 10px 0 0;height:30px;min-height:0;min-width:0;border:0;border-bottom:1px solid color-mix(in oklab,var(--border) 60%, transparent);background:transparent;color:var(--fg);text-align:left;cursor:pointer}
+/* OKT-267: appearance picker restyled per mockup — taller rows, grouped swatch chip */
+.theme-row{display:flex;align-items:center;gap:10px;padding:0 10px 0 0;height:40px;min-height:0;min-width:0;border:0;border-bottom:1px solid color-mix(in oklab,var(--border) 60%, transparent);background:transparent;color:var(--fg);text-align:left;cursor:pointer}
 .theme-row:last-child{border-bottom:0}
 .theme-row:hover{background:color-mix(in oklab,var(--fg) 5%, transparent)}
 .theme-row.on{background:color-mix(in oklab,var(--accent) 12%, transparent);box-shadow:inset 2px 0 0 var(--accent), inset 0 1px 0 var(--glass-edge), inset 0 -1px 0 color-mix(in oklab, var(--accent) 18%, transparent)}
 .theme-row.off{opacity:.42;cursor:default}
 .theme-rail{flex:0 0 3px;align-self:stretch;background:transparent}
 .theme-row.on .theme-rail{background:var(--accent)}
-.theme-dots{display:flex;flex:0 0 auto;gap:2px;padding-left:7px}
-.theme-dot{width:12px;height:12px;border-radius:3px;border:1px solid color-mix(in oklab,var(--fg) 22%, transparent)}
+.theme-dots{display:flex;flex:0 0 auto;gap:3px;padding:3px 5px;border-radius:6px;background:color-mix(in oklab,var(--fg) 4%, transparent)}
+.theme-dot{width:16px;height:16px;border-radius:4px;border:1px solid color-mix(in oklab,var(--fg) 22%, transparent)}
+/* /OKT-267 */
 .theme-row .theme-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
 .theme-row .theme-mode{flex:0 0 auto;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--subtle)}
 .theme-row .theme-slot{flex:0 0 auto;font-size:9px;font-weight:600;letter-spacing:.06em;color:var(--accent);border:1px solid color-mix(in oklab,var(--accent) 45%, transparent);border-radius:3px;padding:0 3px;line-height:13px}

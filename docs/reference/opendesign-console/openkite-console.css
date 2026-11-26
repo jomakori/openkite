@@ -1037,6 +1037,18 @@ body.dock-open .main{padding-bottom:min(340px,46vh)}
   .resource-name{justify-content:flex-start;overflow-wrap:anywhere;font-size:12px}
 }
 
+/* OKT-267: appearance picker restyled per mockup — taller rows, grouped swatch chip */
+.theme-row{display:flex;align-items:center;gap:10px;padding:0 10px 0 0;height:40px;min-height:0;min-width:0;border:0;border-bottom:1px solid color-mix(in oklab,var(--border) 60%, transparent);background:transparent;color:var(--fg);text-align:left;cursor:pointer}
+.theme-row:last-child{border-bottom:0}
+.theme-row:hover{background:color-mix(in oklab,var(--fg) 5%, transparent)}
+.theme-row.on{background:color-mix(in oklab,var(--accent) 12%, transparent);box-shadow:inset 2px 0 0 var(--accent), inset 0 1px 0 var(--glass-edge), inset 0 -1px 0 color-mix(in oklab, var(--accent) 18%, transparent)}
+.theme-row.off{opacity:.42;cursor:default}
+.theme-rail{flex:0 0 3px;align-self:stretch;background:transparent}
+.theme-row.on .theme-rail{background:var(--accent)}
+.theme-dots{display:flex;flex:0 0 auto;gap:3px;padding:3px 5px;border-radius:6px;background:color-mix(in oklab,var(--fg) 4%, transparent)}
+.theme-dot{width:16px;height:16px;border-radius:4px;border:1px solid color-mix(in oklab,var(--fg) 22%, transparent)}
+/* /OKT-267 */
+
 [hidden]{display:none !important}
 
 /* ===== OKT-260: G1 ambient colour field — four gradients per appearance (light + dark) ===== */
