@@ -1022,3 +1022,20 @@ body.dock-open .main{padding-bottom:min(340px,46vh)}
 }
 
 [hidden]{display:none !important}
+
+/* ===== OKT-260: G1 ambient colour field — four gradients per appearance (light + dark) ===== */
+.app{
+  background:
+    radial-gradient(760px 420px at 84% -8%, oklch(0.95 0.035 250 / 0.42), transparent 70%),
+    radial-gradient(560px 360px at 18% 108%, oklch(0.92 0.045 185 / 0.24), transparent 72%),
+    radial-gradient(620px 380px at 6% -4%, oklch(0.93 0.04 292 / 0.20), transparent 72%),
+    radial-gradient(680px 400px at 96% 104%, oklch(0.94 0.045 70 / 0.18), transparent 74%),
+    var(--bg);
+}
+[data-appearance="dark"] .app,[data-theme="dark"] .app{background:
+  radial-gradient(760px 420px at 84% -8%, oklch(0.3 0.05 258 / 0.4), transparent 70%),
+  radial-gradient(560px 360px at 18% 108%, oklch(0.28 0.05 185 / 0.28), transparent 72%),
+  radial-gradient(620px 380px at 6% -4%, oklch(0.32 0.07 292 / 0.32), transparent 72%),
+  radial-gradient(680px 400px at 96% 104%, oklch(0.30 0.06 70 / 0.26), transparent 74%),
+  var(--bg)}
+/* ===== END OKT-260 ===== */
