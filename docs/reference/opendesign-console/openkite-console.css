@@ -1059,4 +1059,3 @@ body.dock-open .main{padding-bottom:min(340px,46vh)}
   radial-gradient(620px 380px at 6% -4%, oklch(0.32 0.07 292 / 0.32), transparent 72%),
   radial-gradient(680px 400px at 96% 104%, oklch(0.30 0.06 70 / 0.26), transparent 74%),
   var(--bg);background-attachment:fixed}
-
