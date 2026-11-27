@@ -30,3 +30,7 @@ repos:
         entry: bash scripts/check-comments.sh
         language: system
         files: '\.(rs|toml|ya?ml|css|js|mjs|ts|py|sh)$'
+        # console.css is generated and the reference sheets mirror it byte for
+        # byte, so neither can hold an id the other lacks; a ticket note in the
+        # stylesheet arrives through the sheets, not through a hand edit here.
+        exclude: '^(crates/openkite-ui/assets/console\.css|docs/reference/opendesign-console/[^/]+\.css)$'

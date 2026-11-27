@@ -1,17 +1,24 @@
 # OpenDesign reference — vendored
 
-The OpenKite console mockup, copied byte-for-byte from the OpenDesign project so
-the design system can be graded **in-repo** and regenerated without network
-access. `DESIGN.md` and `docs/design-surfaces.md` cite line numbers into the
+The OpenKite console mockup, copied from the OpenDesign project so the design
+system can be graded **in-repo** and regenerated without network access.
+`DESIGN.md` and `docs/design-surfaces.md` cite line numbers into the
 `openkite-console.css` / `.html` copies in this directory.
 
-**Do not edit these files.** Every line reference in `DESIGN.md` and
-`docs/design-surfaces.md` is into these exact bytes; an edit silently
-invalidates them. Update by re-grabbing (below) and re-deriving the docs.
+**These three `.css` sheets are the edit surface for the console stylesheet.**
+`crates/openkite-ui/assets/console.css` is generated from them by
+`crates/openkite-ui/assets/build_console_css.py`; editing the generated file
+instead is drift, and the next run deletes your change — that is how the glass
+layer, the settings pane and the ambient field were nearly lost. Change a rule
+here, then run the generator and commit both.
 
-The mockup is the design source of truth: it is re-fetched from OpenDesign and
-re-derived into the docs, never hand-edited to match what the app happens to
-render.
+`openkite-console.html` and the `.js` files are still read-only references: they
+were fetched from OpenDesign and are never hand-edited.
+
+The sheets keep the mockup's values as their base and have since been extended
+with the console's own rules (the fill/radius rungs, the Liquid Glass layer, the
+settings pane, the ambient field). Where they differ from a fresh grab, the
+in-repo rule is the shipped one; re-grabbing means re-applying those edits.
 
 ## Source
 
@@ -37,23 +44,31 @@ render.
 | `openkite-charts.js` | 10799 | 2026-10-19T16:45:30Z | code | `da9e478f464c9600c3fce18add45bc34e92fb2b5ef7244ed27bdd8fbb3fffe75` |
 | `openkite-workloads.css` | 24615 | 2026-10-19T07:10:21Z | code | `4ec7385912cc00e5edbe639e693093872e276564950afd187ac7c833becb29fc` |
 
-These hashes were verified against the live source at fetch time; re-check with
-the loop in **Re-grab** below.
+These hashes are the **fetch-time** record; the loop in **Re-grab** re-checks them
+against the live source. The three `.css` sheets have been extended in-repo since
+the grab, so their bytes no longer match the rows above — expected, and the
+manifest stays as provenance. Current bytes, which the generator reproduces:
 
-The `openkite-console.css` and `openkite-console.html` rows are enforced, not
-just recorded: `crates/openkite-ui/tests/design.rs` pins both files and derives
-its class/token contracts from them, so a re-grab fails CI until the contract
-block in `docs/design-surfaces.md` (§ Reference contract) is re-derived. This
-table is the provenance record; that block is the machine-checked one.
+| File (current) | Bytes | sha256 |
+|---|---|---|
+| `openkite-console.css` | 33569 | `48627f3a5de32bc1d9e0ffdbd6499c831a0af8c688ea15afcbc51869cc72385b` |
+| `openkite-workloads.css` | 23034 | `b9185c7d666b18d76af3f2e127118c2ee7fa1ea7df0a592bd194655399ef2123` |
+| `openkite-charts.css` | 121349 | `97189952058580f99f1544de7a4ba92f827f28ce422a33fb3e018be24fef5ba0` |
+
+Nothing pins the fetch-time hashes; what is enforced is that
+`crates/openkite-ui/assets/console.css` reproduces from these sheets —
+`crates/openkite-ui/tests/console_css.rs` runs `build_console_css.py --check` in
+the workspace test job and fails on any difference.
 
 ## What is where
 
 - **`brand-spec.md`** — the reference's own token spec (the file the `design-md`
   skill generalises). The provenance of every value in `DESIGN.md`.
-- **`openkite-console.css` `:1-29`** — the reference's `:root` token block. This
-  is the canonical palette.
-- **`openkite-console.css` `:30-1024`** — the shell surface rules
-  (`docs/design-surfaces.md` maps each surface to its line range).
+- **`openkite-console.css` `:1-42`** — the `:root` token block, including the
+  console's own `--fill`, radius and `--glass-*` rungs. This is the canonical
+  palette.
+- **`openkite-console.css` `:43-1088`** — the shell surface rules
+  (`docs/design-surfaces.md` maps each surface to its selectors).
 - **`openkite-console.html`** — the artifact structure: `data-od-id` landmarks
   per surface, starting at `:79` (`.app`), `:118` (`.topbar`), `:148`
   (`#view-overview`), `:163` (`#view-workloads`), `:215` (`#view-argocd`),
@@ -65,10 +80,28 @@ table is the provenance record; that block is the machine-checked one.
   for a value.
 - **`openkite-charts.css`** / **`openkite-charts.js`** — the chart, sparkline,
   gauge, meter and trend system, the cluster and account popovers, and the
-  pull-down search sheet.
+  pull-down search sheet. The sheet's tail also carries rules that are not
+  charts: the settings modal, the appearance picker and the per-palette ambient
+  field, because those blocks were appended to the generated stylesheet over
+  several PRs and the sheet mirrors it byte for byte. Splitting them out is a
+  stylesheet change, not a drift fix.
 - **`openkite-workloads.css`** — the menu popup, row/column/namespace menus, the
   bulk-select bar, the inspector refinements, dialogs, and the dock-v2 tabs and
   split panes.
+
+## Regenerate
+
+Edit a rule in one of the three `.css` sheets, then:
+
+```bash
+python3 crates/openkite-ui/assets/build_console_css.py           # write console.css
+python3 crates/openkite-ui/assets/build_console_css.py --check   # verify, exit 1 on drift
+```
+
+Commit the sheet and the generated file together. `--check` also refuses (exit
+2) when the result would drop a custom property the committed stylesheet
+already defines — the loss that shipped when the glass layer lived only in the
+generated file; pass `--allow-drop <token>` when the removal is intended.
 
 ## Re-grab
 
