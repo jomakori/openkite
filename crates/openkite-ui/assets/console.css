@@ -2891,3 +2891,150 @@ pre.yaml .y-d{color:color-mix(in oklab,var(--terminal-fg) 55%, transparent)}
   radial-gradient(620px 380px at 6% -4%, oklch(0.32 0.07 292 / 0.32), transparent 72%),
   radial-gradient(680px 400px at 96% 104%, oklch(0.30 0.06 70 / 0.26), transparent 74%),
   var(--bg);background-attachment:fixed}
+
+/* ===== OKT-269: T3 per-palette ambient tint — colour field keyed to active palette (data-theme=id); same layer structure/blur/alpha as OKT-260, hue swapped per palette (accent, success, warn, glass) ===== */
+[data-theme="frost-dark"] .app{background:
+  radial-gradient(760px 420px at 84% -8%, oklch(0.3 0.05 256.0 / 0.4), transparent 70%),
+  radial-gradient(560px 360px at 18% 108%, oklch(0.28 0.05 147.0 / 0.28), transparent 72%),
+  radial-gradient(620px 380px at 6% -4%, oklch(0.32 0.07 67.0 / 0.32), transparent 72%),
+  radial-gradient(680px 400px at 96% 104%, oklch(0.3 0.06 265.0 / 0.26), transparent 74%),
+  var(--bg)}
+[data-theme="catppuccin-mocha"] .app{background:
+  radial-gradient(760px 420px at 84% -8%, oklch(0.3 0.05 260.0 / 0.4), transparent 70%),
+  radial-gradient(560px 360px at 18% 108%, oklch(0.28 0.05 150.0 / 0.28), transparent 72%),
+  radial-gradient(620px 380px at 6% -4%, oklch(0.32 0.07 78.0 / 0.32), transparent 72%),
+  radial-gradient(680px 400px at 96% 104%, oklch(0.3 0.06 282.0 / 0.26), transparent 74%),
+  var(--bg)}
+[data-theme="everforest-dark"] .app{background:
+  radial-gradient(760px 420px at 84% -8%, oklch(0.3 0.05 185.5 / 0.4), transparent 70%),
+  radial-gradient(560px 360px at 18% 108%, oklch(0.28 0.05 125.8 / 0.28), transparent 72%),
+  radial-gradient(620px 380px at 6% -4%, oklch(0.32 0.07 83.7 / 0.32), transparent 72%),
+  radial-gradient(680px 400px at 96% 104%, oklch(0.3 0.06 240.4 / 0.26), transparent 74%),
+  var(--bg)}
+[data-theme="dracula"] .app{background:
+  radial-gradient(760px 420px at 84% -8%, oklch(0.3 0.05 302.0 / 0.4), transparent 70%),
+  radial-gradient(560px 360px at 18% 108%, oklch(0.28 0.05 150.0 / 0.28), transparent 72%),
+  radial-gradient(620px 380px at 6% -4%, oklch(0.32 0.07 78.0 / 0.32), transparent 72%),
+  radial-gradient(680px 400px at 96% 104%, oklch(0.3 0.06 278.0 / 0.26), transparent 74%),
+  var(--bg)}
+[data-theme="nord-dark"] .app{background:
+  radial-gradient(760px 420px at 84% -8%, oklch(0.3 0.05 217.0 / 0.4), transparent 70%),
+  radial-gradient(560px 360px at 18% 108%, oklch(0.28 0.05 150.0 / 0.28), transparent 72%),
+  radial-gradient(620px 380px at 6% -4%, oklch(0.32 0.07 78.0 / 0.32), transparent 72%),
+  radial-gradient(680px 400px at 96% 104%, oklch(0.3 0.06 266.0 / 0.26), transparent 74%),
+  var(--bg)}
+[data-theme="gruvbox-dark"] .app{background:
+  radial-gradient(760px 420px at 84% -8%, oklch(0.3 0.05 83.0 / 0.4), transparent 70%),
+  radial-gradient(560px 360px at 18% 108%, oklch(0.28 0.05 150.0 / 0.28), transparent 72%),
+  radial-gradient(620px 380px at 6% -4%, oklch(0.32 0.07 78.0 / 0.32), transparent 72%),
+  radial-gradient(680px 400px at 96% 104%, oklch(0.3 0.06 49.0 / 0.26), transparent 74%),
+  var(--bg)}
+[data-theme="tokyo-night"] .app{background:
+  radial-gradient(760px 420px at 84% -8%, oklch(0.3 0.05 264.0 / 0.4), transparent 70%),
+  radial-gradient(560px 360px at 18% 108%, oklch(0.28 0.05 150.0 / 0.28), transparent 72%),
+  radial-gradient(620px 380px at 6% -4%, oklch(0.32 0.07 78.0 / 0.32), transparent 72%),
+  radial-gradient(680px 400px at 96% 104%, oklch(0.3 0.06 273.0 / 0.26), transparent 74%),
+  var(--bg)}
+[data-theme="solarized-dark"] .app{background:
+  radial-gradient(760px 420px at 84% -8%, oklch(0.3 0.05 245.0 / 0.4), transparent 70%),
+  radial-gradient(560px 360px at 18% 108%, oklch(0.28 0.05 150.0 / 0.28), transparent 72%),
+  radial-gradient(620px 380px at 6% -4%, oklch(0.32 0.07 78.0 / 0.32), transparent 72%),
+  radial-gradient(680px 400px at 96% 104%, oklch(0.3 0.06 220.0 / 0.26), transparent 74%),
+  var(--bg)}
+[data-theme="monokai"] .app{background:
+  radial-gradient(760px 420px at 84% -8%, oklch(0.3 0.05 127.0 / 0.4), transparent 70%),
+  radial-gradient(560px 360px at 18% 108%, oklch(0.28 0.05 150.0 / 0.28), transparent 72%),
+  radial-gradient(620px 380px at 6% -4%, oklch(0.32 0.07 78.0 / 0.32), transparent 72%),
+  radial-gradient(680px 400px at 96% 104%, oklch(0.3 0.06 103.0 / 0.26), transparent 74%),
+  var(--bg)}
+[data-theme="ayu-dark"] .app{background:
+  radial-gradient(760px 420px at 84% -8%, oklch(0.3 0.05 82.0 / 0.4), transparent 70%),
+  radial-gradient(560px 360px at 18% 108%, oklch(0.28 0.05 150.0 / 0.28), transparent 72%),
+  radial-gradient(620px 380px at 6% -4%, oklch(0.32 0.07 78.0 / 0.32), transparent 72%),
+  radial-gradient(680px 400px at 96% 104%, oklch(0.3 0.06 268.0 / 0.26), transparent 74%),
+  var(--bg)}
+[data-theme="kanagawa-wave"] .app{background:
+  radial-gradient(760px 420px at 84% -8%, oklch(0.3 0.05 264.0 / 0.4), transparent 70%),
+  radial-gradient(560px 360px at 18% 108%, oklch(0.28 0.05 150.0 / 0.28), transparent 72%),
+  radial-gradient(620px 380px at 6% -4%, oklch(0.32 0.07 78.0 / 0.32), transparent 72%),
+  radial-gradient(680px 400px at 96% 104%, oklch(0.3 0.06 285.0 / 0.26), transparent 74%),
+  var(--bg)}
+[data-theme="rose-pine"] .app{background:
+  radial-gradient(760px 420px at 84% -8%, oklch(0.3 0.05 305.0 / 0.4), transparent 70%),
+  radial-gradient(560px 360px at 18% 108%, oklch(0.28 0.05 150.0 / 0.28), transparent 72%),
+  radial-gradient(620px 380px at 6% -4%, oklch(0.32 0.07 78.0 / 0.32), transparent 72%),
+  radial-gradient(680px 400px at 96% 104%, oklch(0.3 0.06 289.0 / 0.26), transparent 74%),
+  var(--bg)}
+[data-theme="frost"] .app{background:
+  radial-gradient(760px 420px at 84% -8%, oklch(0.95 0.035 257.0 / 0.42), transparent 70%),
+  radial-gradient(560px 360px at 18% 108%, oklch(0.92 0.045 147.0 / 0.24), transparent 72%),
+  radial-gradient(620px 380px at 6% -4%, oklch(0.93 0.04 63.0 / 0.2), transparent 72%),
+  radial-gradient(680px 400px at 96% 104%, oklch(0.94 0.045 265.0 / 0.18), transparent 74%),
+  var(--bg)}
+[data-theme="catppuccin-latte"] .app{background:
+  radial-gradient(760px 420px at 84% -8%, oklch(0.95 0.035 262.0 / 0.42), transparent 70%),
+  radial-gradient(560px 360px at 18% 108%, oklch(0.92 0.045 150.0 / 0.24), transparent 72%),
+  radial-gradient(620px 380px at 6% -4%, oklch(0.93 0.04 70.0 / 0.2), transparent 72%),
+  radial-gradient(680px 400px at 96% 104%, oklch(0.94 0.045 265.0 / 0.18), transparent 74%),
+  var(--bg)}
+[data-theme="one-light"] .app{background:
+  radial-gradient(760px 420px at 84% -8%, oklch(0.95 0.035 263.0 / 0.42), transparent 70%),
+  radial-gradient(560px 360px at 18% 108%, oklch(0.92 0.045 150.0 / 0.24), transparent 72%),
+  radial-gradient(620px 380px at 6% -4%, oklch(0.93 0.04 70.0 / 0.2), transparent 72%),
+  radial-gradient(680px 400px at 96% 104%, oklch(0.94 0.045 90.0 / 0.18), transparent 74%),
+  var(--bg)}
+[data-theme="solarized-light"] .app{background:
+  radial-gradient(760px 420px at 84% -8%, oklch(0.95 0.035 245.0 / 0.42), transparent 70%),
+  radial-gradient(560px 360px at 18% 108%, oklch(0.92 0.045 150.0 / 0.24), transparent 72%),
+  radial-gradient(620px 380px at 6% -4%, oklch(0.93 0.04 70.0 / 0.2), transparent 72%),
+  radial-gradient(680px 400px at 96% 104%, oklch(0.94 0.045 92.0 / 0.18), transparent 74%),
+  var(--bg)}
+[data-theme="gruvbox-light"] .app{background:
+  radial-gradient(760px 420px at 84% -8%, oklch(0.95 0.035 71.0 / 0.42), transparent 70%),
+  radial-gradient(560px 360px at 18% 108%, oklch(0.92 0.045 150.0 / 0.24), transparent 72%),
+  radial-gradient(620px 380px at 6% -4%, oklch(0.93 0.04 70.0 / 0.2), transparent 72%),
+  radial-gradient(680px 400px at 96% 104%, oklch(0.94 0.045 89.0 / 0.18), transparent 74%),
+  var(--bg)}
+[data-theme="github-light"] .app{background:
+  radial-gradient(760px 420px at 84% -8%, oklch(0.95 0.035 257.0 / 0.42), transparent 70%),
+  radial-gradient(560px 360px at 18% 108%, oklch(0.92 0.045 150.0 / 0.24), transparent 72%),
+  radial-gradient(620px 380px at 6% -4%, oklch(0.93 0.04 70.0 / 0.2), transparent 72%),
+  radial-gradient(680px 400px at 96% 104%, oklch(0.94 0.045 248.0 / 0.18), transparent 74%),
+  var(--bg)}
+[data-theme="ayu-light"] .app{background:
+  radial-gradient(760px 420px at 84% -8%, oklch(0.95 0.035 58.0 / 0.42), transparent 70%),
+  radial-gradient(560px 360px at 18% 108%, oklch(0.92 0.045 150.0 / 0.24), transparent 72%),
+  radial-gradient(620px 380px at 6% -4%, oklch(0.93 0.04 70.0 / 0.2), transparent 72%),
+  radial-gradient(680px 400px at 96% 104%, oklch(0.94 0.045 90.0 / 0.18), transparent 74%),
+  var(--bg)}
+[data-theme="rose-pine-dawn"] .app{background:
+  radial-gradient(760px 420px at 84% -8%, oklch(0.95 0.035 306.0 / 0.42), transparent 70%),
+  radial-gradient(560px 360px at 18% 108%, oklch(0.92 0.045 150.0 / 0.24), transparent 72%),
+  radial-gradient(620px 380px at 6% -4%, oklch(0.93 0.04 70.0 / 0.2), transparent 72%),
+  radial-gradient(680px 400px at 96% 104%, oklch(0.94 0.045 77.0 / 0.18), transparent 74%),
+  var(--bg)}
+[data-theme="kanagawa-lotus"] .app{background:
+  radial-gradient(760px 420px at 84% -8%, oklch(0.95 0.035 261.0 / 0.42), transparent 70%),
+  radial-gradient(560px 360px at 18% 108%, oklch(0.92 0.045 150.0 / 0.24), transparent 72%),
+  radial-gradient(620px 380px at 6% -4%, oklch(0.93 0.04 70.0 / 0.2), transparent 72%),
+  radial-gradient(680px 400px at 96% 104%, oklch(0.94 0.045 98.0 / 0.18), transparent 74%),
+  var(--bg)}
+[data-theme="everforest-light"] .app{background:
+  radial-gradient(760px 420px at 84% -8%, oklch(0.95 0.035 118.0 / 0.42), transparent 70%),
+  radial-gradient(560px 360px at 18% 108%, oklch(0.92 0.045 150.0 / 0.24), transparent 72%),
+  radial-gradient(620px 380px at 6% -4%, oklch(0.93 0.04 70.0 / 0.2), transparent 72%),
+  radial-gradient(680px 400px at 96% 104%, oklch(0.94 0.045 99.0 / 0.18), transparent 74%),
+  var(--bg)}
+[data-theme="quiet-light"] .app{background:
+  radial-gradient(760px 420px at 84% -8%, oklch(0.95 0.035 301.0 / 0.42), transparent 70%),
+  radial-gradient(560px 360px at 18% 108%, oklch(0.92 0.045 150.0 / 0.24), transparent 72%),
+  radial-gradient(620px 380px at 6% -4%, oklch(0.93 0.04 70.0 / 0.2), transparent 72%),
+  radial-gradient(680px 400px at 96% 104%, oklch(0.94 0.045 90.0 / 0.18), transparent 74%),
+  var(--bg)}
+[data-theme="tokyo-day"] .app{background:
+  radial-gradient(760px 420px at 84% -8%, oklch(0.95 0.035 257.5 / 0.42), transparent 70%),
+  radial-gradient(560px 360px at 18% 108%, oklch(0.92 0.045 130.3 / 0.24), transparent 72%),
+  radial-gradient(620px 380px at 6% -4%, oklch(0.93 0.04 75.2 / 0.2), transparent 72%),
+  radial-gradient(680px 400px at 96% 104%, oklch(0.94 0.045 278.6 / 0.18), transparent 74%),
+  var(--bg)}
+/* ===== END OKT-269 ===== */
