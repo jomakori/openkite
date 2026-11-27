@@ -74,6 +74,22 @@ impl Live {
         }
     }
 
+    /// Aggregated events for `/events`, optionally scoped to one involved object.
+    ///
+    /// The object scope is a field selector on the apiserver (`involvedObject.uid=<uid>`), so
+    /// a per-object tab lists exactly the events the server attributes to that object.
+    pub async fn events(&self, object_uid: Option<&str>) -> Vec<openkite_ui::inspector::Event> {
+        let Live::Connected(engine) = self else {
+            return Vec::new();
+        };
+        let client = engine.client();
+        let raw = match object_uid {
+            Some(uid) => timed(openkite_engine::events::list_for_object(&client, uid)).await,
+            None => timed(list_all::<Event>(client.clone())).await,
+        };
+        aggregated_event_rows(&raw.unwrap_or_default())
+    }
+
     /// Board data for `/`. See module docs for the per-field timeout/fallback behaviour.
     pub async fn overview(&self) -> OverviewData {
         let Live::Connected(engine) = self else {
@@ -433,14 +449,68 @@ fn age_of(time: Option<&Time>) -> String {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|since| since.as_secs() as i64)
         .unwrap_or(then);
-    let delta = now.saturating_sub(then).max(0);
-    match delta {
-        0..=59 => format!("{delta}s"),
-        60..=3599 => format!("{}m", delta / 60),
-        3600..=86_399 => format!("{}h", delta / 3600),
-        86_400..=31_535_999 => format!("{}d", delta / 86_400),
-        _ => format!("{}y", delta / 31_536_000),
+    units(now.saturating_sub(then).max(0))
+}
+
+/// Age of an aggregated row, whose last observation is milliseconds since the epoch.
+fn age_of_millis(millis: Option<u64>) -> String {
+    let Some(millis) = millis else {
+        return String::new();
+    };
+    let now = openkite_engine::events::now_millis();
+    units(now.saturating_sub(millis) as i64 / 1000)
+}
+
+/// First-to-last observation of an aggregated row, e.g. `40s`; empty when it never repeated.
+fn span_of(first: Option<u64>, last: Option<u64>) -> String {
+    match (first, last) {
+        (Some(first), Some(last)) if last > first => units((last - first) as i64 / 1000),
+        _ => String::new(),
     }
+}
+
+/// kubectl-style duration: `40s`, `5m`, `2h`, `3d`, `1y`.
+fn units(seconds: i64) -> String {
+    match seconds.max(0) {
+        0..=59 => format!("{seconds}s"),
+        60..=3599 => format!("{}m", seconds / 60),
+        3600..=86_399 => format!("{}h", seconds / 3600),
+        86_400..=31_535_999 => format!("{}d", seconds / 86_400),
+        _ => format!("{}y", seconds / 31_536_000),
+    }
+}
+
+/// Collapses raw events into the rows the events view renders: one row per cause inside the
+/// aggregation window, newest first, carrying its occurrence count and observed span.
+fn aggregated_event_rows(events: &[Event]) -> Vec<openkite_ui::inspector::Event> {
+    let now = openkite_engine::events::now_millis();
+    let mut aggregator = openkite_engine::events::EventAggregator::new();
+    for event in events {
+        aggregator.observe(event, now);
+    }
+    aggregator.expire(now);
+
+    aggregator
+        .rows()
+        .into_iter()
+        .filter_map(|row| {
+            let openkite_engine::projection::RowStatus::Event(status) = row.status else {
+                return None;
+            };
+            Some(openkite_ui::inspector::Event {
+                kind: if status.type_.as_deref() == Some("Warning") {
+                    "Warning"
+                } else {
+                    "Normal"
+                },
+                reason: status.reason.unwrap_or_default(),
+                message: status.message.unwrap_or_default(),
+                age: age_of_millis(status.last_seen),
+                count: status.count.unwrap_or(1).max(0) as u32,
+                span: span_of(status.first_seen, status.last_seen),
+            })
+        })
+        .collect()
 }
 
 /// Cluster-wide pressure, measured as *scheduled requests* against node allocatable.
@@ -699,6 +769,48 @@ mod tests {
             let time = Time(k8s_openapi::jiff::Timestamp::from_second(now - seconds).unwrap());
             assert_eq!(age_of(Some(&time)), expected);
         }
+    }
+
+    #[test]
+    fn repeated_events_reach_the_view_as_one_counted_row() {
+        let now = openkite_engine::events::now_millis();
+        let events: Vec<Event> = (0..3)
+            .map(|index| Event {
+                metadata: k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta {
+                    name: Some(format!("cache-2f1a-uvwxy.{index:04}")),
+                    namespace: Some("demo".to_owned()),
+                    uid: Some(format!("ev-backoff-{index}")),
+                    ..Default::default()
+                },
+                type_: Some("Warning".to_owned()),
+                reason: Some("BackOff".to_owned()),
+                message: Some("Back-off restarting failed container app".to_owned()),
+                count: Some(1),
+                involved_object: k8s_openapi::api::core::v1::ObjectReference {
+                    kind: Some("Pod".to_owned()),
+                    name: Some("cache-2f1a-uvwxy".to_owned()),
+                    namespace: Some("demo".to_owned()),
+                    uid: Some("pod-uid".to_owned()),
+                    ..Default::default()
+                },
+                first_timestamp: Some(Time(
+                    k8s_openapi::jiff::Timestamp::from_millisecond((now - 120_000) as i64)
+                        .expect("timestamp"),
+                )),
+                last_timestamp: Some(Time(
+                    k8s_openapi::jiff::Timestamp::from_millisecond((now - index * 30_000) as i64)
+                        .expect("timestamp"),
+                )),
+                ..Event::default()
+            })
+            .collect();
+
+        let rows = aggregated_event_rows(&events);
+        assert_eq!(rows.len(), 1, "one cause, one row");
+        assert_eq!(rows[0].count, 3);
+        assert_eq!(rows[0].kind, "Warning");
+        assert_eq!(rows[0].span, "2m", "first to last observation");
+        assert_eq!(rows[0].age, "0s");
     }
 
     #[test]

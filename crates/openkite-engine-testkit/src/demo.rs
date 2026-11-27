@@ -1,6 +1,7 @@
 //! A seeded cluster used by both the fixture-backed web shell and the tests that assert
 //! on it: the same objects a reviewer sees in a preview are the ones the checks read.
 
+use k8s_openapi::jiff::Timestamp;
 use serde_json::{json, Value};
 
 use crate::{ResourceDef, Scenario};
@@ -131,6 +132,7 @@ pub fn scenario() -> Scenario {
                 "metadata": {
                     "name": name,
                     "namespace": NAMESPACE,
+                    "uid": pod_uid(index),
                     "creationTimestamp": "2026-01-04T09:10:00Z",
                     "labels": {"app": workload},
                 },
@@ -160,37 +162,79 @@ pub fn scenario() -> Scenario {
         );
     }
 
-    for (name, reason, message) in [
-        (
-            "migration-9a8b-zabcd.17f0",
-            "BackOff",
-            "back-off restarting failed container app",
-        ),
-        (
-            "frontend-8c4d-pqrst.17f1",
-            "FailedScheduling",
-            "0/2 nodes are available: insufficient cpu",
-        ),
-    ] {
+    // Events from the last few minutes. The kubelet re-emits one back-off per retry, so three
+    // raw Events for one pod must reach the list as a single row carrying their counts; the
+    // scheduling failure stays separate because its cause is different.
+    for (index, minutes) in [(0usize, 4), (1, 2), (2, 0)] {
         scenario = scenario.add(
             &kinds.events,
             json!({
                 "apiVersion": "v1",
                 "kind": "Event",
-                "metadata": {"name": name, "namespace": NAMESPACE},
-                "type": if reason == "BackOff" { "Warning" } else { "Normal" },
-                "reason": reason,
-                "message": message,
-                "involvedObject": {"kind": "Pod", "namespace": NAMESPACE, "name": name},
-                "lastTimestamp": "2026-01-04T09:12:00Z",
+                "metadata": {
+                    "name": format!("cache-2f1a-uvwxy.{index:04}"),
+                    "namespace": NAMESPACE,
+                    "uid": format!("ev-backoff-{index}"),
+                },
+                "type": "Warning",
+                "reason": "BackOff",
+                "message": "Back-off restarting failed container app in pod cache-2f1a-uvwxy_demo",
+                "count": index as i32 + 1,
+                "firstTimestamp": minutes_ago(9),
+                "lastTimestamp": minutes_ago(minutes),
+                "involvedObject": {
+                    "apiVersion": "v1",
+                    "kind": "Pod",
+                    "namespace": NAMESPACE,
+                    "name": "cache-2f1a-uvwxy",
+                    "uid": pod_uid(4),
+                },
             }),
         );
     }
+
+    scenario = scenario.add(
+        &kinds.events,
+        json!({
+            "apiVersion": "v1",
+            "kind": "Event",
+            "metadata": {
+                "name": "frontend-8c4d-pqrst.17f1",
+                "namespace": NAMESPACE,
+                "uid": "ev-scheduling-0",
+            },
+            "type": "Normal",
+            "reason": "FailedScheduling",
+            "message": "0/2 nodes are available: insufficient cpu",
+            "count": 1,
+            "firstTimestamp": minutes_ago(3),
+            "lastTimestamp": minutes_ago(3),
+            "involvedObject": {
+                "apiVersion": "v1",
+                "kind": "Pod",
+                "namespace": NAMESPACE,
+                "name": "frontend-8c4d-pqrst",
+                "uid": pod_uid(3),
+            },
+        }),
+    );
 
     scenario.add(
         &kinds.applications,
         application("checkout", "Synced", "Healthy"),
     )
+}
+
+/// Deterministic pod uid, so events can point at a pod the fixture also seeds.
+fn pod_uid(index: usize) -> String {
+    format!("00000000-0000-4000-8000-{index:012}")
+}
+
+/// RFC3339 timestamp `minutes` before the moment the fixture boots, so a seeded event is
+/// always inside the aggregation window.
+fn minutes_ago(minutes: u64) -> String {
+    let then = Timestamp::now() - std::time::Duration::from_secs(minutes * 60);
+    then.to_string()
 }
 
 /// One ArgoCD application as the console's Argo panel reads it.

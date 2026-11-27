@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use axum::{
-    extract::State,
+    extract::{Query, State},
     http::{header, StatusCode},
     response::{Html, IntoResponse},
     routing::get,
@@ -46,6 +46,7 @@ pub fn router(live: Arc<Live>) -> Router {
         .route("/healthz", get(healthz))
         .route("/", get(overview))
         .route("/table", get(table))
+        .route("/events", get(events))
         .route("/styles/console.css", get(styles))
         .fallback(not_found)
         .with_state(AppState { live })
@@ -94,6 +95,24 @@ async fn table(State(state): State<AppState>) -> impl IntoResponse {
     let cluster = state.live.cluster();
     let permissions = state.live.permissions("", "pods", None).await;
     Html(render_table(rows, connection, cluster, permissions))
+}
+
+/// Events page query: `?uid=<object uid>` scopes the list to one involved object, the same
+/// scope the per-object Events tab asks the apiserver for.
+#[derive(serde::Deserialize)]
+struct EventsQuery {
+    uid: Option<String>,
+}
+
+async fn events(
+    State(state): State<AppState>,
+    Query(query): Query<EventsQuery>,
+) -> impl IntoResponse {
+    let uid = query.uid.filter(|uid| !uid.is_empty());
+    let rows = state.live.events(uid.as_deref()).await;
+    let connection = state.live.connection();
+    let cluster = state.live.cluster();
+    Html(render_events(rows, connection, cluster, uid))
 }
 
 async fn not_found() -> impl IntoResponse {
@@ -209,6 +228,61 @@ fn TablePage(props: TablePageProps) -> Element {
     }
 }
 
+#[derive(Props, Clone, PartialEq)]
+struct EventsPageProps {
+    rows: Vec<openkite_ui::inspector::Event>,
+    cluster: String,
+    connection: Connection,
+    object_uid: Option<String>,
+}
+
+#[allow(non_snake_case)]
+fn EventsPage(props: EventsPageProps) -> Element {
+    let subtitle = match &props.object_uid {
+        Some(uid) => format!("Events involving object {uid} in {}", props.cluster),
+        None => format!("All events in {}", props.cluster),
+    };
+    let counts = Counts::new().with("events", props.rows.len());
+    rsx! {
+        AppShell {
+            counts,
+            active_path: "/events".to_string(),
+            cluster: props.cluster.clone(),
+            connection: props.connection,
+            children: rsx! {
+                div { class: "page-head",
+                    div {
+                        h1 { "Events" }
+                        p { "{subtitle}" }
+                    }
+                }
+                if props.rows.is_empty() {
+                    p { class: "empty-hint", "No events in the last 15 minutes." }
+                }
+                ul { class: "ev-list",
+                    for event in props.rows.iter() {
+                        li { class: if event.kind == "Warning" { "ev warn" } else { "ev" },
+                            span { class: "dot" }
+                            span { class: "ev-reason mono", "{event.reason}" }
+                            if event.count > 1 {
+                                span { class: "ev-count muted mono", "x{event.count}" }
+                            }
+                            span { class: "ev-msg", "{event.message}" }
+                            span { class: "muted mono",
+                                if event.span.is_empty() {
+                                    "{event.age}"
+                                } else {
+                                    "{event.span} / {event.age}"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+        }
+    }
+}
+
 /// Renders a page component to a full HTML document, patching the icon sprite's
 /// hrefs the same way `openkite-ui`'s `dump_*` examples do.
 fn html_document(title: &str, body_inner: String) -> String {
@@ -250,6 +324,25 @@ fn render_table(
     );
     dom.rebuild_in_place();
     html_document("openkite · Pods", dioxus_ssr::render(&dom))
+}
+
+fn render_events(
+    rows: Vec<openkite_ui::inspector::Event>,
+    connection: Connection,
+    cluster: String,
+    object_uid: Option<String>,
+) -> String {
+    let mut dom = VirtualDom::new_with_props(
+        EventsPage,
+        EventsPageProps {
+            rows,
+            cluster,
+            connection,
+            object_uid,
+        },
+    );
+    dom.rebuild_in_place();
+    html_document("openkite · Events", dioxus_ssr::render(&dom))
 }
 
 fn not_found_html() -> String {
