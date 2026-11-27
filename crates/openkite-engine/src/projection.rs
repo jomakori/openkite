@@ -70,6 +70,12 @@ pub struct EventStatusRow {
     pub involved_kind: Option<String>,
     pub involved_name: Option<String>,
     pub involved_namespace: Option<String>,
+    /// The involved object's uid, the identity the per-object tab lists by.
+    pub involved_uid: Option<String>,
+    pub message: Option<String>,
+    /// First and last observation of this cause, milliseconds since the Unix epoch.
+    pub first_seen: Option<u64>,
+    pub last_seen: Option<u64>,
 }
 
 /// Secret-specific status scalars: never the key values themselves.
@@ -253,6 +259,16 @@ pub fn project_node(node: &Node) -> Row {
 
 /// Projects an Event into its row: type, reason, count, and the involved object.
 pub fn project_event(event: &Event) -> Row {
+    let last_seen = crate::events::time_millis(event.last_timestamp.as_ref())
+        .or_else(|| {
+            event
+                .event_time
+                .as_ref()
+                .and_then(crate::events::micro_millis)
+        })
+        .or_else(|| crate::events::time_millis(event.metadata.creation_timestamp.as_ref()));
+    let first_seen = crate::events::time_millis(event.first_timestamp.as_ref()).or(last_seen);
+
     Row {
         meta: row_meta(&event.metadata, "Event"),
         status: RowStatus::Event(EventStatusRow {
@@ -262,6 +278,10 @@ pub fn project_event(event: &Event) -> Row {
             involved_kind: event.involved_object.kind.clone(),
             involved_name: event.involved_object.name.clone(),
             involved_namespace: event.involved_object.namespace.clone(),
+            involved_uid: event.involved_object.uid.clone(),
+            message: event.message.clone(),
+            first_seen,
+            last_seen,
         }),
     }
 }

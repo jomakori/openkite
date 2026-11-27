@@ -101,3 +101,26 @@ async fn unknown_paths_404() {
         "404 page should link home: {html}"
     );
 }
+
+#[tokio::test]
+async fn events_renders_the_console_shell() {
+    let response = test_router()
+        .oneshot(
+            Request::get("/events")
+                .body(axum::body::Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let body = String::from_utf8(body.to_vec()).unwrap();
+    assert!(body.contains("console.css"), "{body}");
+    assert!(body.contains("frost-dark"), "{body}");
+    assert!(body.contains("Events"), "{body}");
+    assert!(
+        body.contains("No events in the last 15 minutes"),
+        "the empty state states the aggregation window: {body}"
+    );
+}

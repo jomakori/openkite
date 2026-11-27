@@ -8,6 +8,7 @@ pub mod context;
 pub mod discovery;
 pub mod driver;
 pub mod error;
+pub mod events;
 pub mod exec;
 pub mod governor;
 pub mod informer;

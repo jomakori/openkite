@@ -330,6 +330,10 @@ pub struct Event {
     pub reason: String,
     pub message: String,
     pub age: String,
+    /// Occurrences collapsed into this row; `1` renders no badge.
+    pub count: u32,
+    /// First to last observation, e.g. `2m-40s`; empty when the row has no span.
+    pub span: String,
 }
 
 /// One linked instance in the Resources panel.

@@ -136,12 +136,16 @@ fn data() -> InspectorData {
                 reason: "Scheduled".to_string(),
                 message: "Successfully assigned prod/api-7d9c4f8b6-2xqzt to node-3".to_string(),
                 age: "3d".to_string(),
+                count: 1,
+                span: String::new(),
             },
             Event {
                 kind: "Warning",
                 reason: "BackOff".to_string(),
                 message: "Back-off restarting failed container api".to_string(),
                 age: "2h".to_string(),
+                count: 41,
+                span: "40s".to_string(),
             },
         ],
         resources: vec![

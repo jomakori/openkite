@@ -659,6 +659,7 @@ fn field_value(item: &Value, key: &str) -> Option<String> {
         "namespace" => field(item, "namespace"),
         other => item
             .pointer(&format!("/metadata/{other}"))
+            .or_else(|| item.pointer(&format!("/{}", other.replace('.', "/"))))
             .and_then(Value::as_str)
             .map(str::to_owned),
     }

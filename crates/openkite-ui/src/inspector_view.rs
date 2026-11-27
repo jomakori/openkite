@@ -221,15 +221,24 @@ fn events_panel(data: &InspectorData) -> Element {
     rsx! {
         div { "data-panel": "events",
             if data.events.is_empty() {
-                p { class: "empty-hint", "No events in the last hour." }
+                p { class: "empty-hint", "No events in the last 15 minutes." }
             }
             ul { class: "ev-list",
                 for event in data.events.iter() {
                     li { class: if event.kind == "Warning" { "ev warn" } else { "ev" },
                         span { class: "dot" }
                         span { class: "ev-reason mono", "{event.reason}" }
+                        if event.count > 1 {
+                            span { class: "ev-count muted mono", "x{event.count}" }
+                        }
                         span { class: "ev-msg", "{event.message}" }
-                        span { class: "muted mono", "{event.age}" }
+                        span { class: "muted mono",
+                            if event.span.is_empty() {
+                                "{event.age}"
+                            } else {
+                                "{event.span} / {event.age}"
+                            }
+                        }
                     }
                 }
             }

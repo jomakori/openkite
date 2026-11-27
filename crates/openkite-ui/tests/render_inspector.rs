@@ -256,12 +256,16 @@ fn events_panel_marks_warnings() {
                 reason: "Scheduled".to_string(),
                 message: "Assigned to node-a".to_string(),
                 age: "2m".to_string(),
+                count: 1,
+                span: String::new(),
             },
             Event {
                 kind: "Warning",
                 reason: "BackOff".to_string(),
                 message: "Back-off restarting failed container".to_string(),
                 age: "40s".to_string(),
+                count: 12,
+                span: "2m".to_string(),
             },
         ],
         ..InspectorData::default()

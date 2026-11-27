@@ -2,13 +2,14 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
 
+use k8s_openapi::api::core::v1::Event;
 use serde::Serialize;
 use serde_json::Value;
 use tokio::sync::mpsc;
 use tokio::time::MissedTickBehavior;
 
+use crate::events::{now_millis, EventAggregator};
 use crate::informer::InformerEvent;
 use crate::interest::InterestClass;
 use crate::projection::Row;
@@ -19,11 +20,14 @@ pub const CHANNEL_CAPACITY: usize = 8192;
 /// Bound on frames buffered between a coalescer and its frame consumer.
 const FRAME_CHANNEL_CAPACITY: usize = 64;
 
-/// One projected update entering the coalescer: a reset, an upserted row, or a delete by uid.
+/// One projected update entering the coalescer: a reset, an upserted row, a raw event to
+/// aggregate, or a delete by uid.
 #[derive(Debug, Clone)]
 pub enum CoalesceInput {
     Reset,
     Upsert(Box<Row>),
+    /// A raw Event, aggregated by reason/object/message before it reaches a frame.
+    Event(Box<Event>),
     Delete(String),
 }
 
@@ -100,6 +104,19 @@ pub fn forward(
     }
 }
 
+/// Forwards a raw Event watch event for aggregation, never blocking. Unparsable objects are
+/// dropped with a debug log rather than failing the subscription.
+pub fn forward_event(event: InformerEvent, input: &CoalescerInput) {
+    match event {
+        InformerEvent::Reset => input.push(CoalesceInput::Reset),
+        InformerEvent::Upsert(value) => match serde_json::from_value::<Event>(value) {
+            Ok(event) => input.push(CoalesceInput::Event(Box::new(event))),
+            Err(error) => tracing::debug!(%error, "skipping unparsable event"),
+        },
+        InformerEvent::Delete(uid) => tracing::trace!(uid, "ignoring raw event deletion"),
+    }
+}
+
 /// Spawns the coalescing loop for one subscription class; returns the input handle and frame stream.
 pub fn spawn(class: InterestClass) -> (CoalescerInput, mpsc::Receiver<Frame>) {
     let (input, rx) = CoalescerInput::bounded();
@@ -116,6 +133,8 @@ struct CoalesceState {
     reset: bool,
     rows: HashMap<String, Row>,
     deletes: HashSet<String>,
+    /// Raw events collapse here before they ever reach a frame.
+    events: EventAggregator,
 }
 
 impl CoalesceState {
@@ -130,6 +149,12 @@ impl CoalesceState {
                 let uid = row.meta.uid.clone();
                 self.deletes.remove(&uid);
                 self.rows.insert(uid, *row);
+            }
+            CoalesceInput::Event(event) => {
+                let row = self.events.observe(&event, now_millis());
+                let uid = row.meta.uid.clone();
+                self.deletes.remove(&uid);
+                self.rows.insert(uid, row);
             }
             CoalesceInput::Delete(uid) => {
                 self.rows.remove(&uid);
@@ -157,6 +182,11 @@ impl CoalesceState {
                 counts: FrameCounts::default(),
                 health: FrameHealth { overflowed },
             });
+        }
+
+        for uid in self.events.expire(now_millis()) {
+            self.rows.remove(&uid);
+            self.deletes.insert(uid);
         }
 
         if self.rows.is_empty() && self.deletes.is_empty() {
@@ -209,12 +239,4 @@ async fn run(
             }
         }
     }
-}
-
-/// Current wall-clock time as milliseconds since the Unix epoch.
-fn now_millis() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_millis() as u64)
-        .unwrap_or(0)
 }
