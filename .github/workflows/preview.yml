@@ -80,6 +80,35 @@ jobs:
           echo "OPENKITE_CONTEXT=$(kubectl config current-context)" >> "$GITHUB_ENV"
       - name: Assert cluster access
         run: kubectl auth can-i list namespaces
+      - name: Wait for the staging image
+        # Staging builds and pushes ghcr.io/jomakori/openkite:pr-<n>-<sha7>
+        # on the same PR events, with no ordering between the two workflows.
+        # Poll the registry so Tilt never races an image that hasn't landed.
+        run: |
+          set -euo pipefail
+          sha7="${OPENKITE_SHA7:0:7}"
+          image="ghcr.io/jomakori/openkite:pr-${OPENKITE_PR}-${sha7}"
+          timeout_s=1200
+          start=$(date +%s)
+          attempt=0
+          while true; do
+            attempt=$((attempt + 1))
+            if docker manifest inspect "$image" >/dev/null 2>&1; then
+              echo "Found ${image} after ${attempt} attempt(s)."
+              break
+            fi
+            elapsed=$(( $(date +%s) - start ))
+            if [ "$elapsed" -ge "$timeout_s" ]; then
+              msg="Staging image ${image} did not appear after ${elapsed}s"
+              msg="${msg} (budget ${timeout_s}s, ${attempt} attempts)."
+              msg="${msg} The Staging workflow for pr-${OPENKITE_PR} likely"
+              msg="${msg} failed or never ran for sha ${OPENKITE_SHA7};"
+              msg="${msg} check that run before retrying the preview label."
+              echo "::error::${msg}" >&2
+              exit 1
+            fi
+            sleep 15
+          done
       - name: Deploy the preview
         run: tilt ci
 
