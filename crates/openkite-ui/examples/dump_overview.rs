@@ -4,7 +4,7 @@ use dioxus::prelude::*;
 use openkite_ui::overview::{
     ArgoRow, BoardAction, CapacityGauge, EventRow, NodeRow, OverviewData, OverviewLayout, WidgetId,
 };
-use openkite_ui::overview_view::Overview;
+use openkite_ui::overview_view::{MetricDetail, Overview, UsageGauges, UsagePanelShell};
 use openkite_ui::shell::{AppShell, Connection, Counts};
 
 fn data() -> OverviewData {
@@ -187,20 +187,95 @@ fn Page(props: PageProps) -> Element {
     }
 }
 
+/// The three usage-panel appearances on one sheet: open gauges, collapsed, and
+/// a gauge's metric detail. Renders the real components, so the review
+/// screenshot cannot drift from what the board draws.
+#[allow(non_snake_case)]
+fn UsageStates() -> Element {
+    let gauges = vec![("CPU", 42usize, "cpu"), ("Memory", 68usize, "mem")];
+    let nodes = vec![
+        ("prod-east-1-node-2".to_string(), 71u8),
+        ("prod-east-1-node-1".to_string(), 38u8),
+        ("prod-east-1-node-3".to_string(), 22u8),
+    ];
+    let trailing = || {
+        rsx! {
+            button {
+                r#type: "button",
+                class: "link-back",
+                "View all"
+                svg { class: "icon", "aria-hidden": "true", use { href: "#i-arrow" } }
+            }
+        }
+    };
+    rsx! {
+        div { class: "app", style: "padding:24px;max-width:480px;display:grid;gap:20px",
+            div { class: "insp-eyebrow", "Expanded: both gauges, each a button" }
+            UsagePanelShell {
+                open: true,
+                trailing: trailing(),
+                on_toggle: move |_| {},
+                UsageGauges { gauges: gauges.clone(), on_open: move |_| {} }
+            }
+            div { class: "insp-eyebrow", "Collapsed: panel folds, the workload list does not" }
+            UsagePanelShell {
+                open: false,
+                trailing: trailing(),
+                on_toggle: move |_| {},
+                UsageGauges { gauges: gauges.clone(), on_open: move |_| {} }
+            }
+            div { class: "insp-eyebrow", "CPU gauge activated: metric detail" }
+            UsagePanelShell {
+                open: true,
+                trailing: trailing(),
+                on_toggle: move |_| {},
+                MetricDetail {
+                    series: "cpu",
+                    pct: 42,
+                    contributors: nodes.clone(),
+                    more: 2,
+                    on_back: move |_| {},
+                }
+            }
+        }
+    }
+}
+
+fn page(title: &str, theme: &str, body: String, css: &str, sprite: &str) -> String {
+    format!(
+        "<!doctype html><html lang=\"en\" data-theme=\"{theme}\"><head><meta charset=\"utf-8\">\
+         <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\
+         <title>{title}</title><style>{css}</style></head>\
+         <body>{sprite}{body}</body></html>"
+    )
+}
+
 fn main() {
     let Some(out) = std::env::args().nth(1) else {
-        eprintln!("usage: dump_overview <out.html> [idle|editing]");
+        eprintln!("usage: dump_overview <out.html> [idle|editing|usage|usage-dark]");
         std::process::exit(2);
     };
+    let mode = std::env::args().nth(2).unwrap_or_default();
     let mut layout = OverviewLayout::default();
-    if std::env::args().nth(2).as_deref() == Some("editing") {
+    if mode == "editing" {
         layout.editing = true;
         layout.hide(WidgetId::Argo);
     }
 
-    let mut dom = VirtualDom::new_with_props(Page, PageProps { layout });
-    dom.rebuild_in_place();
-    let mut body = dioxus_ssr::render(&dom);
+    let (body, theme, title) = if mode.starts_with("usage") {
+        let mut dom = VirtualDom::new(UsageStates);
+        dom.rebuild_in_place();
+        let theme = if mode.ends_with("dark") {
+            "dark"
+        } else {
+            "light"
+        };
+        (dioxus_ssr::render(&dom), theme, "OpenKite — usage panel")
+    } else {
+        let mut dom = VirtualDom::new_with_props(Page, PageProps { layout });
+        dom.rebuild_in_place();
+        (dioxus_ssr::render(&dom), "", "OpenKite — overview")
+    };
 
     let crate_dir = env!("CARGO_MANIFEST_DIR");
     let css = std::fs::read_to_string(format!("{crate_dir}/assets/console.css"))
@@ -210,15 +285,11 @@ fn main() {
             &format!("url(\"file://{crate_dir}/assets/fonts/"),
         );
     let sprite = std::fs::read_to_string(format!("{crate_dir}/assets/icons.svg")).unwrap();
+    let mut body = body;
     body = body.replace(&format!("{crate_dir}/assets/icons.svg#"), "#");
     body = body.replace(&format!("{crate_dir}#"), "#");
 
-    let html = format!(
-        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">\
-         <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\
-         <title>OpenKite — overview</title><style>{css}</style></head>\
-         <body>{sprite}{body}</body></html>"
-    );
+    let html = page(title, theme, body, &css, &sprite);
     std::fs::write(&out, html).unwrap();
     println!("wrote {out}");
 }

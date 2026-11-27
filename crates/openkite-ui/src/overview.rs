@@ -182,6 +182,65 @@ pub enum Group {
     },
 }
 
+/// Expanded state of the Usage panel, plus the metric series whose detail it
+/// shows. The panel owns this itself; the workload list's tree toggle lives on
+/// `crate::table::TableState`, so neither one moves the other.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct UsagePanel {
+    open: bool,
+    metric: Option<&'static str>,
+}
+
+impl Default for UsagePanel {
+    fn default() -> Self {
+        Self {
+            open: true,
+            metric: None,
+        }
+    }
+}
+
+impl UsagePanel {
+    /// Whether the panel body is showing.
+    pub fn is_open(&self) -> bool {
+        self.open
+    }
+
+    /// `data-open` / `aria-expanded` value for the markup.
+    pub fn state(&self) -> &'static str {
+        if self.open {
+            "true"
+        } else {
+            "false"
+        }
+    }
+
+    pub fn toggle(&mut self) {
+        self.open = !self.open;
+    }
+
+    /// The series whose metric detail is open. Collapsing the panel keeps the
+    /// choice, so reopening lands back on the same detail.
+    pub fn metric(&self) -> Option<&'static str> {
+        self.metric
+    }
+
+    /// Show the detail for `series`; an open panel stays open.
+    pub fn open_metric(&mut self, series: &'static str) {
+        self.metric = Some(series);
+        self.open = true;
+    }
+
+    pub fn close_metric(&mut self) {
+        self.metric = None;
+    }
+
+    /// True when the body should render the metric detail instead of the gauges.
+    pub fn shows_detail(&self) -> bool {
+        self.open && self.metric.is_some()
+    }
+}
+
 /// Board layout: order, visibility, per-widget size and lane, restart threshold.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct OverviewLayout {
@@ -644,5 +703,71 @@ impl OverviewData {
         self.restarts.sort_by(|a, b| b.restarts.cmp(&a.restarts));
         self.pods_by_status = statuses.into_iter().collect();
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::table::{Row, TableState};
+
+    #[test]
+    fn the_usage_panel_starts_open_on_its_gauges() {
+        let panel = UsagePanel::default();
+        assert!(panel.is_open());
+        assert_eq!(panel.state(), "true");
+        assert_eq!(panel.metric(), None);
+        assert!(!panel.shows_detail());
+    }
+
+    #[test]
+    fn activating_a_gauge_opens_that_series_and_back_returns_to_the_gauges() {
+        let mut panel = UsagePanel::default();
+        panel.open_metric("cpu");
+        assert_eq!(panel.metric(), Some("cpu"));
+        assert!(panel.shows_detail());
+        panel.open_metric("mem");
+        assert_eq!(panel.metric(), Some("mem"));
+        panel.close_metric();
+        assert_eq!(panel.metric(), None);
+        assert!(!panel.shows_detail());
+    }
+
+    #[test]
+    fn activating_a_gauge_reopens_a_collapsed_panel() {
+        let mut panel = UsagePanel::default();
+        panel.toggle();
+        assert!(!panel.is_open());
+        panel.open_metric("cpu");
+        assert!(panel.is_open());
+        assert!(panel.shows_detail());
+    }
+
+    #[test]
+    fn collapsing_the_usage_panel_leaves_the_workload_tree_alone() {
+        let mut panel = UsagePanel::default();
+        let mut tree = TableState::default();
+        let rows = [Row::new("pods", "pods").with_kids(vec![Row::new("pod", "api-0")])];
+
+        tree.toggle_expand_all(&rows);
+        assert!(tree.all_expanded(&rows));
+        assert!(
+            panel.is_open(),
+            "expanding the tree collapsed the usage panel"
+        );
+
+        panel.toggle();
+        assert!(!panel.is_open());
+        assert!(
+            tree.all_expanded(&rows),
+            "collapsing the usage panel moved the workload tree"
+        );
+
+        panel.open_metric("cpu");
+        assert!(
+            tree.all_expanded(&rows),
+            "opening a metric detail moved the workload tree"
+        );
+        assert!(panel.is_open());
     }
 }

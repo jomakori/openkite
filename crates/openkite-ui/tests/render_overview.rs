@@ -354,3 +354,66 @@ fn the_everywhere_widgets_cover_the_data_they_claim() {
     assert!(html.contains("18.4 / 32 cores"), "{html}");
     assert!(html.contains("Failing pods"), "{html}");
 }
+
+#[test]
+fn usage_gauges_are_buttons_that_open_their_own_series_detail() {
+    let html = render(layout(), data());
+    assert!(
+        html.contains("class=\"meter\"") && html.contains("data-metric=\"cpu\""),
+        "CPU gauge is not a series button: {html}"
+    );
+    assert!(
+        html.contains("aria-label=\"CPU usage, 42%. Opens the CPU detail.\""),
+        "CPU gauge does not name the detail it opens: {html}"
+    );
+    assert!(
+        html.contains("data-metric=\"mem\"")
+            && html.contains("aria-label=\"Memory usage, 61%. Opens the Memory detail.\""),
+        "Memory gauge is not a series button: {html}"
+    );
+    assert!(
+        !html.contains("metric-detail"),
+        "the detail must not render until a gauge is activated: {html}"
+    );
+}
+
+#[test]
+fn the_usage_panel_has_its_own_expand_control_with_tools_at_the_trailing_edge() {
+    let html = render(layout(), data());
+    let panel_at = html
+        .find("data-od-id=\"overview-usage\"")
+        .unwrap_or_else(|| panic!("no usage panel: {html}"));
+    let body_at = panel_at
+        + html[panel_at..]
+            .find("panel-body")
+            .unwrap_or_else(|| panic!("no usage panel body: {html}"));
+    let head = &html[panel_at..body_at];
+    let toggle_at = head
+        .find("class=\"sum-toggle\"")
+        .unwrap_or_else(|| panic!("no panel expand control: {html}"));
+    let tool_at = head
+        .find("class=\"link-back\"")
+        .unwrap_or_else(|| panic!("no trailing tool: {html}"));
+
+    assert!(
+        html.contains("data-open=\"true\""),
+        "panel is not open by default: {html}"
+    );
+    assert!(
+        head.contains("data-sum=\"usage\"") && head.contains("aria-expanded=\"true\""),
+        "panel toggle does not carry its own expanded state: {html}"
+    );
+    assert!(
+        toggle_at < tool_at,
+        "tools must trail the title in the panel head: {html}"
+    );
+    assert!(
+        !head.contains("data-state"),
+        "the panel must not borrow the workload tree's control: {html}"
+    );
+    assert_eq!(
+        html.matches("aria-expanded").count(),
+        1,
+        "only the panel owns an expand control now, not each gauge: {html}"
+    );
+}
