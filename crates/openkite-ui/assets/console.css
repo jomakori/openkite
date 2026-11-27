@@ -986,6 +986,23 @@ button:focus-visible,input:focus-visible,[tabindex]:focus-visible{
 .meter-head .mono{font-family:var(--font-mono);font-size:11px;color:var(--muted)}
 .meter-track{height:6px;border-radius:99px;background:color-mix(in oklab,var(--border) 80%, transparent);overflow:hidden}
 .meter-fill{display:block;height:100%;border-radius:99px;background:var(--accent)}
+.meter{
+  display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;
+  gap:0;min-width:0;min-height:0;padding:9px 10px;
+  border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);
+  text-align:left;transition:border-color 0.15s ease,box-shadow 0.15s ease;
+}
+.meter:hover{border-color:color-mix(in oklab,var(--accent) 45%, var(--border));box-shadow:var(--shadow-hover)}
+.meter:active{transform:translateY(1px)}
+.meter .meter-head{margin-bottom:6px}
+.metric-detail{display:flex;flex-direction:column;gap:6px;min-width:0}
+.metric-detail-head{display:flex;align-items:center;gap:8px}
+.metric-detail-head h4{margin:0;font-size:12px;font-weight:600}
+.metric-detail-val{margin-left:auto;color:var(--muted)}
+.metric-back{width:28px;height:28px;min-width:28px;min-height:28px;padding:0;color:var(--muted)}
+.metric-back:hover{color:var(--fg);background:color-mix(in oklab,var(--fg) 7%, transparent)}
+.metric-back .icon{width:12px;height:12px;transform:rotate(180deg)}
+@media (pointer:coarse){ .metric-back{width:44px;height:44px;min-width:44px;min-height:44px} }
 .event-list{list-style:none;margin:0;padding:0}
 .event-list li{display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid color-mix(in oklab,var(--border) 60%, transparent);min-height:48px}
 .event-list li:last-child{border-bottom:0}
@@ -1480,6 +1497,11 @@ pre.yaml .y-d{color:rgba(255,255,255,0.4)}
 .sum-toggle{min-height:44px;padding:0 6px;gap:8px;font-size:12px;font-weight:600}
 .sum-toggle .icon{width:12px;height:12px;transition:transform 0.18s ease;transform:rotate(90deg)}
 .summary-panel[data-open="false"] .sum-toggle .icon{transform:rotate(0)}
+@media (max-width:767px){
+  .summary-panel .panel-head{flex-wrap:wrap}
+  .sum-toggle{flex:1 1 auto;min-width:0}
+  .summary-panel .link-back{flex:0 0 auto}
+}
 
 
 .ov-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}
@@ -1587,7 +1609,6 @@ tr.child{cursor:pointer}
 @media (max-width:767px){ .resource-table td[data-first] .cell-value{margin-left:0} }
 
 
-.summary-panel[data-open="false"] .panel-body,.summary-panel[data-open="true"] .panel-body{display:block}
 .summary-panel[data-open="false"] .sum-graphs{display:none}
 .summary-panel[data-open="true"] .sum-circles{display:none}
 .summary-panel[data-open="false"] .range-tabs{display:none}
@@ -2728,7 +2749,7 @@ pre.yaml .y-d{color:color-mix(in oklab,var(--terminal-fg) 55%, transparent)}
 .overview-head h1{margin:0;font-size:18px;font-weight:600}
 .overview-meta{margin:0;color:var(--muted);font-size:12px}
 .overview-head .btn{margin-left:auto}
-.meter{display:flex;flex-direction:column;gap:4px;min-width:120px;flex:1}
+.meter{display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:4px;min-width:0;flex:1}
 
 /* log dock: level colours, pane head extras and the pod picker */
 .log-level.debug{color:rgba(255,255,255,0.45)}

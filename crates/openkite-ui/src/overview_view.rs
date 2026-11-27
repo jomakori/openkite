@@ -6,7 +6,7 @@
 use dioxus::prelude::*;
 
 use crate::overview::{
-    Attention, BoardAction, Group, Lane, OverviewData, OverviewLayout, Size, WidgetId,
+    Attention, BoardAction, Group, Lane, OverviewData, OverviewLayout, Size, UsagePanel, WidgetId,
 };
 
 #[derive(Props, Clone, PartialEq)]
@@ -227,7 +227,7 @@ fn body(
 ) -> Element {
     match id {
         WidgetId::Attention => attention(data, action),
-        WidgetId::Usage => usage(data),
+        WidgetId::Usage => usage(data, action),
         WidgetId::Problems => problems(data, action),
         WidgetId::Restarts => restarts(data, threshold, action),
         WidgetId::Capacity => capacity(data),
@@ -304,7 +304,7 @@ fn tile(
     }
 }
 
-fn usage(data: &OverviewData) -> Element {
+fn usage(data: &OverviewData, action: EventHandler<BoardAction>) -> Element {
     if data.pods_total == 0 {
         return panel(
             WidgetId::Usage,
@@ -312,31 +312,197 @@ fn usage(data: &OverviewData) -> Element {
             all_clear("No pods in the selected namespaces"),
         );
     }
-    let cpu = data.counts.get("cpu_pct").copied().unwrap_or(0);
-    let mem = data.counts.get("mem_pct").copied().unwrap_or(0);
     rsx! {
-        {panel(
-            WidgetId::Usage,
-            None,
-            rsx! {
-                div { class: "panel-body",
-                    div { class: "gauge-row",
-                        div { class: "meter",
-                            span { class: "meter-head", span { "CPU" } span { "{cpu}%" } }
-                            span { class: "meter-track",
-                                span { class: "meter-fill", style: "width:{cpu}%" }
-                            }
-                        }
-                        div { class: "meter",
-                            span { class: "meter-head", span { "Memory" } span { "{mem}%" } }
-                            span { class: "meter-track",
-                                span { class: "meter-fill", style: "width:{mem}%" }
-                            }
+        UsageCard { data: data.clone(), action }
+    }
+}
+
+/// Chrome for the usage panel: the title toggle that expands and collapses the
+/// body on its own, an optional trailing tool, and the body itself.
+#[component]
+pub fn UsagePanelShell(
+    open: bool,
+    trailing: Element,
+    on_toggle: EventHandler<()>,
+    children: Element,
+) -> Element {
+    let state = if open { "true" } else { "false" };
+    let label = if open {
+        "Collapse usage"
+    } else {
+        "Expand usage"
+    };
+    rsx! {
+        div { class: "panel summary-panel",
+            "data-od-id": "overview-usage",
+            "data-open": state,
+            div { class: "panel-head",
+                button {
+                    r#type: "button",
+                    class: "sum-toggle",
+                    "data-sum": "usage",
+                    "aria-expanded": state,
+                    "aria-controls": "overview-usage-body",
+                    "aria-label": "{label}",
+                    onclick: move |_| on_toggle.call(()),
+                    svg { class: "icon", "aria-hidden": "true", use { href: "#i-chevron" } }
+                    "Usage"
+                }
+                {trailing}
+            }
+            div { class: "panel-body", id: "overview-usage-body", {children} }
+        }
+    }
+}
+
+/// The usage gauges. Each one is a real `<button>`, so pointer, Enter and Space
+/// take the same path, and the label names the detail it opens.
+#[component]
+pub fn UsageGauges(
+    gauges: Vec<(&'static str, usize, &'static str)>,
+    on_open: EventHandler<&'static str>,
+) -> Element {
+    rsx! {
+        div { class: "gauge-row",
+            for (label, pct, series) in gauges {
+                button {
+                    r#type: "button",
+                    class: "meter",
+                    "data-metric": "{series}",
+                    "aria-label": "{label} usage, {pct}%. Opens the {label} detail.",
+                    onclick: move |_| on_open.call(series),
+                    span { class: "meter-head",
+                        span { "{label}" }
+                        span { class: "mono", "{pct}%" }
+                    }
+                    span { class: "meter-track", span { class: "meter-fill", style: "width:{pct}%" } }
+                }
+            }
+        }
+    }
+}
+
+/// The drill-down a gauge opens: the series level and the nodes carrying it.
+#[component]
+pub fn MetricDetail(
+    series: &'static str,
+    pct: usize,
+    contributors: Vec<(String, u8)>,
+    more: usize,
+    on_back: EventHandler<()>,
+) -> Element {
+    let label = if series == "cpu" { "CPU" } else { "Memory" };
+    rsx! {
+        div { class: "metric-detail", "data-metric": "{series}",
+            div { class: "metric-detail-head",
+                button {
+                    r#type: "button",
+                    class: "metric-back",
+                    "aria-label": "Back to usage",
+                    onclick: move |_| on_back.call(()),
+                    svg { class: "icon", "aria-hidden": "true", use { href: "#i-chevron" } }
+                }
+                h4 { "{label} usage" }
+                span { class: "mono metric-detail-val", "{pct}%" }
+            }
+            if contributors.is_empty() {
+                div { class: "empty-hint", "No node samples yet" }
+            } else {
+                div { class: "insp-eyebrow", "By node" }
+                dl { class: "kv-list",
+                    for (name, value) in contributors {
+                        div { class: "kv-row",
+                            dt { "{name}" }
+                            dd { class: "mono", "{value}%" }
                         }
                     }
                 }
+                if more > 0 {
+                    div { class: "empty-hint", "and {more} more" }
+                }
+            }
+        }
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct UsageCardProps {
+    data: OverviewData,
+    action: EventHandler<BoardAction>,
+}
+
+/// The usage panel. Panel state lives in [`UsagePanel`], which the workload
+/// tree never reads: collapsing this panel cannot fold the list, and folding
+/// the list cannot collapse this panel.
+#[component]
+fn UsageCard(props: UsageCardProps) -> Element {
+    let data = props.data;
+    let action = props.action;
+    let mut panel_state = use_signal(UsagePanel::default);
+    let cpu = data.counts.get("cpu_pct").copied().unwrap_or(0);
+    let mem = data.counts.get("mem_pct").copied().unwrap_or(0);
+    let (open, detail) = {
+        let panel = panel_state.read();
+        let detail = if panel.shows_detail() {
+            panel.metric()
+        } else {
+            None
+        };
+        (panel.is_open(), detail)
+    };
+    let mut contributors = Vec::new();
+    let mut more = 0;
+    if let Some(series) = detail {
+        let mut rows: Vec<(String, u8)> = data
+            .nodes
+            .iter()
+            .map(|node| {
+                let value = if series == "cpu" {
+                    node.cpu_pct
+                } else {
+                    node.mem_pct
+                };
+                (node.name.clone(), value)
+            })
+            .collect();
+        rows.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+        more = rows.len().saturating_sub(5);
+        rows.truncate(5);
+        contributors = rows;
+    }
+    let body = match detail {
+        Some(series) => rsx! {
+            MetricDetail {
+                series,
+                pct: if series == "cpu" { cpu } else { mem },
+                contributors,
+                more,
+                on_back: move |_| panel_state.write().close_metric(),
+            }
+        },
+        None => rsx! {
+            UsageGauges {
+                gauges: vec![("CPU", cpu, "cpu"), ("Memory", mem, "mem")],
+                on_open: move |series| panel_state.write().open_metric(series),
+            }
+        },
+    };
+    rsx! {
+        UsagePanelShell {
+            open,
+            trailing: rsx! {
+                button {
+                    r#type: "button",
+                    class: "link-back",
+                    "data-act": "usage-all",
+                    onclick: move |_| action.call(BoardAction::OpenKind("nodes")),
+                    "View all"
+                    svg { class: "icon", "aria-hidden": "true", use { href: "#i-arrow" } }
+                }
             },
-        )}
+            on_toggle: move |_| panel_state.write().toggle(),
+            {body}
+        }
     }
 }
 
