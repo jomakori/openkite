@@ -37,7 +37,7 @@ in-repo rule is the shipped one; re-grabbing means re-applying those edits.
 | File | Bytes | Live mtime (UTC) | Kind | sha256 |
 |---|---|---|---|---|
 | `brand-spec.md` | 1830 | 2026-08-15T09:09:05Z | text | `b5d819701059c1e40d36d0a8017116fbe07c53cc771a3de00ab6f5a94054bb5f` |
-| `openkite-console.css` | 30368 | 2026-10-19T06:42:53Z | code | `cd9061b4b42fc17ed573cec0ea41af5992228edfcdd7f935568f67ed3158e04e` |
+| `openkite-console.css` | 43673 | unknown — edited in-repo since the grab, see note below | code | `58c943efa1eba9a582e6f83f9f6ec27e4502abec6361c61991892ed81cc94642` |
 | `openkite-console.html` | 26614 | 2026-10-20T05:59:20Z | html | `612f8ca629a7365bd5642217d60c84e79b409e1587f18c78bb2e2d613c57aff4` |
 | `openkite-console.js` | 305637 | 2026-10-20T05:59:20Z | code | `ef854e082cc577d7471a28b72579f40741e81ef08058cf108aba1019968e3c9b` |
 | `openkite-charts.css` | 96746 | 2026-10-20T06:05:34Z | code | `0eaed301b552da72c7c21aea40c3323aeb29b59e071d3af43538a9c5a1c7a402` |
@@ -59,6 +59,12 @@ Nothing pins the fetch-time hashes; what is enforced is that
 `crates/openkite-ui/assets/console.css` reproduces from these sheets —
 `crates/openkite-ui/tests/console_css.rs` runs `build_console_css.py --check` in
 the workspace test job and fails on any difference.
+
+The sheets were edited in-repo through the design wave — the ambient gradient per
+appearance (#321), the no-`backdrop-filter` scrim (#322), the grouped appearance
+chip (#326), the usage-gauge drill-down (#329) — and #327 put them behind the
+generator, so those edits are the generator's input instead of hand-maintained
+copies that the next regeneration would delete.
 
 ## What is where
 
@@ -128,4 +134,6 @@ done
 
 If a hash above changed, the reference moved: re-derive `DESIGN.md` and
 `docs/design-surfaces.md` in the same PR, and say so in the PR body rather than
-leaving the docs citing stale lines.
+leaving the docs citing stale lines. If `openkite-console.css` is re-grabbed, diff
+its classes against the in-repo sheet first — the in-repo copy carries changes the
+project does not have yet, and a blind overwrite drops them.

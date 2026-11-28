@@ -110,10 +110,10 @@ components:
     textColor: "{colors.fg}"
     rounded: "{rounded.md}"
     typography: "{typography.table}"
-  log-panel:
+  dock:
     backgroundColor: "{colors.terminal-bg}"
     textColor: "{colors.terminal-fg}"
-    rounded: "{rounded.md}"
+    rounded: "{rounded.lg}"
     typography: "{typography.table}"
   inspector:
     backgroundColor: "{colors.surface}"
@@ -167,9 +167,11 @@ declare.
 
 Posture, in four rules:
 
-- **Translucent everywhere except the terminal.** Frosted surfaces are a
-  translucent fill plus `backdrop-filter: blur(16–40px)`. The only opaque dark
-  surface is `.log-panel` (`{colors.terminal-bg}`).
+- **Translucent everywhere, the dock included.** Frosted surfaces are a
+  translucent fill plus `backdrop-filter: blur(16–40px)`. The one dark surface is
+  the dock (`.dock`): `{colors.terminal-bg}` at 86% over a 20px blur, so it reads
+  sunk into the page without being opaque. The console has no fully opaque dark
+  fill, and the terminal style is never treated as one.
 - **One blue accent per view.** `{colors.accent}` is the only interaction
   colour. Status colours (`success` / `warn` / `danger`) are semantic and never
   decorative.
@@ -227,6 +229,14 @@ surfaces above are built for, and the default.
   its own appearance owns. A dark preset never lands in the light slot, which is
   what lets the console switch appearance without repainting in the wrong
   palette.
+- **Two retired ids resolve, they do not render.** `one-dark` and `xcode-light`
+  were dropped as presets — each was a near-duplicate of `tokyo-night` and
+  `quiet-light` (0.129 and 0.157 OKLCH apart on canvas). A config saved before
+  the swap still names them, so `theme_by_id` maps each onto its neighbour and
+  the slot heals on next save. They are aliases, not presets: they appear in no
+  picker, no `builtin_themes` entry and no render test expectation. That is the
+  only place a retired id is allowed to survive, and it is why a `rg` for them
+  still hits `crates/openkite-ui/src/settings.rs`.
 - **Preference — `system` / `light` / `dark`.** `system` resolves to whatever
   the platform reports; `light` and `dark` pin it. The `ThemeScope` wrapper
   publishes the resolved appearance as `data-appearance` and the preset as
@@ -243,8 +253,9 @@ surfaces above are built for, and the default.
   is drawn from Apple's system palette — system blue accent, system green,
   orange and red for status, neutral canvases — so the glass has the material it
   was designed against instead of a hand-picked accent beside it.
-- **The terminal stays dark.** The log dock is the one opaque surface and keeps
-  its own palette under every preset, light ones included.
+- **The terminal stays dark.** The dock is the one dark surface and keeps its own
+  palette under every preset, light ones included: `terminal-bg` at 86% over a
+  20px blur, so it reads sunk into the page rather than pasted on it as a slab.
 - **The picker is one list, not two grids.** All 24 presets sit in a single
   alphabetical list, the way a desktop theme switcher reads: a 3px accent rail,
   four palette dots (canvas, raised surface, ink, accent), the name, a `D`/`L`
@@ -342,6 +353,31 @@ through it, and the light comes from one direction.
 - **Glass yields to the system.** `prefers-reduced-transparency` drops
   `--glass-alpha` to 1 and removes the blur, falling back to `--surface-solid`;
   `prefers-contrast: more` paints chrome opaque and hands the hairline to `--fg`.
+  Both change tokens, never the surface set: glass is not a mode a user can turn
+  off, and the console carries no glass switch.
+
+## Canvas and scrims
+
+The canvas is colour, not fill, and every layer that covers content is tinted
+rather than black.
+
+- **The canvas carries a colour field.** `.app` paints `--bg` plus four radial
+  layers — accent, success, warn and glass hues at `oklch()` with 0.26–0.42 alpha.
+  The geometry is identical for every preset (760×420 at 84% −8%, 560×360 at
+  18% 108%, 620×380 at 6% −4%, 680×400 at 96% 104%); only the hues move, so a
+  palette swap retints the page instead of reshaping it. `[data-appearance]`
+  supplies the appearance-level default, `[data-theme="<id>"]` overrides it per
+  preset. The field is the `.app` background, never an overlay, so panels still
+  read as material above colour rather than as tiles on flat fill.
+- **Scrims are tinted, not black.** `--scrim-tint` is `rgba(15, 23, 42, 0.18)` in
+  light appearance and `0.32` in dark; `.sidebar-backdrop` (z-index 35) and
+  `.inspector-scrim` (z-index 65) fill a fixed inset with it over a 6px blur, so
+  the content behind stays readable as depth instead of going to grey.
+- **Without `backdrop-filter`, a scrim goes flat, not transparent.** Under
+  `@supports not (backdrop-filter: blur(1px))` and
+  `prefers-reduced-transparency: reduce`, `--scrim-tint` rises to
+  `rgba(15, 23, 42, 0.9)` and the blur is dropped. A scrim that cannot blur must
+  still separate, so it darkens.
 
 ## Elevation & Depth
 
@@ -368,16 +404,18 @@ the elevation set is.
 
 - `--r-sm` (6px) — controls: buttons, chips, search fields, inputs, log meta.
 - `--r-md` (8px) — surfaces: panels, table wrap, cards, inspector, toast.
-- `--r-pill` (999px) — pills and namespace chips. The reference writes the
-  `999px` literal at `.chip` / `.pill`; `--r-pill` is the repo's formalisation
-  of it, and is the value the contract test pins.
+- `--r-pill` (999px) — pills and namespace chips. The token block names it, and
+  both the reference and the shipped sheet write the `999px` literal at `.chip`
+  and `.pill`; there is no `--r-pill` custom property in `:root` yet, so a pill
+  radius is spelled `999px` until the sheet promotes it.
 
 Nothing else gets a radius. A radius outside this set is a defect, not a style.
 
 ## Components
 
-Each entry names the selectors the console stylesheet must define, unless marked
-*(reference-only)*; the reference anchor for the same shape is the vendored
+Each entry names the selectors the console stylesheet defines, unless marked
+*(reference-only)*; every name below exists in
+`crates/openkite-ui/assets/console.css`. The reference anchor for the same shape is the vendored
 `docs/reference/opendesign-console/openkite-console.css`. Values come from `colors:` / `rounded:` / `spacing:`
 above, never from a new literal.
 
@@ -398,25 +436,50 @@ above, never from a new literal.
   `62%`-toward-`fg` text — do not re-pick tint percentages per view.
 - **Panels** — `.panel`: frosted content surface, `surface` fill, `border`, `md`
   radius, `shadow-rest`, 18px blur, 16px padding.
-- **Resource table** — `.table-wrap` / `.resource-table`, mono 12px;
-  `.table-header` is uppercase 10px sans with `0.075em` tracking;
-  `.resource-name` is mono with a 14px `subtle` icon; `.health-dots` and
-  `.dot.ok` / `.dot.warn` / `.dot.err` carry inline state.
-- **Log panel** — `.log-panel`, the terminal anchor: `terminal-bg` fill,
-  `terminal-fg` text, mono 12px, `md` radius, `shadow-terminal`, 268px max
-  height, 44px header actions.
+- **Resource table** — `.table-wrap` / `.resource-table`, mono 12px; the header
+  row is `thead th`, uppercase 10px sans with `0.075em` tracking, and `.th-sort`
+  carries the sort affordance; `.resource-name` is mono with a 14px `subtle`
+  icon; `.health-dots` and `.dot.ok` / `.dot.warn` / `.dot.err` carry inline
+  state.
+- **Log dock** — `.dock`: fixed above the view at `left: 264px`, `right: 12px`,
+  `bottom: 12px`, height `min(340px, 46vh)`, `lg` radius, `terminal-bg` at 86%
+  over a 20px `saturate(1.25)` blur, `shadow-terminal`; parked by
+  `translateY(calc(100% + 24px))` and revealed by `.dock.open`. `.dock-bar` is
+  the 44px chrome row (`.dock-tabs` / `.dock-tab` / `.dock-toggle` /
+  `.dock-actions`); the panes inside are `.log-pane` / `.log-body` for logs and
+  `.term` / `.term-out` / `.term-prompt` for the shell; `.dock-note` is the
+  empty state.
 - **Inspector** — `.inspector`: slide-over from the right, `min(420px, 100%)`,
   `--glass` fill + 30px blur, `--glass-shade` plus the lateral `--glass-drop`, `.kv-list` key/value rows,
   `.inspector-actions` footer.
+- **Usage panel** — `.usage`: a `surface` card in the overview column, `md`
+  radius, 12px padding, 12px gap, `border` edge, headed by `.meter-head` with a
+  collapse toggle that owns `aria-expanded` against `overview-usage-body`.
+  Gauges sit in `.gauge-row` (`repeat(auto-fit, minmax(112px, 1fr))`); `.gauge`
+  is an 84px SVG dial (`.gauge.compact` 56px) with `.g-val` / `.g-label` /
+  `.g-sub`, and each gauge is a button that opens `.metric-detail` — the drill-down
+  is the same surface, not a new panel, and `.metric-back` returns.
+- **Bulk-select bar** — `.bulk-bar`: fixed to the bottom of the view, hidden until
+  `.bulk-bar.active`, carrying `.sel-count` and the actions. `.col-check` is the
+  tri-state header checkbox, `.row-check` the per-row one, and `tr.selected`
+  keeps the row tint so a selection survives scrolling.
+- **Settings pane** — `.set-pane` behind `.set-scrim`, opened from the topbar's
+  `.theme-toggle`: `.pane-head` / `.pane-body` (the only scrolling region),
+  `.set-group` sections with `.set-head`, and the `.seg` segmented track for
+  appearance and density. The picker is one flat `.theme-list` of `.theme-row`s:
+  a `.theme-rail` accent, `.theme-dots` / `.theme-dot`, `.theme-name`, the
+  `.theme-slot` `D`/`L` chip and `.theme-mode`.
 - **Toast** — `.toast`: bottom-anchored at 80px, 220–340px wide, `fg` fill with
   white text, `md` radius, `shadow-hover`. It reads as a system message, which is
   why it is the only light surface that inverts to `fg`.
-- **Argo card / card status / bottom nav** *(reference-only — outside this
-  contract)* — reference `docs/reference/opendesign-console/openkite-console.css` `.app-grid`, `.app-card`,
-  `.card-status` with `synced` / `outofsync` / `degraded` / `progressing`,
-  `.card-swipe-actions`, `.tag`, `.source-icon`, and `.bottom-nav` /
-  `.bottom-tab`. If they land, the status band and swipe tray must consume the
-  tokens above, not new values.
+- **Argo card / card status** *(reference-only — outside this contract)* — the
+  reference `docs/reference/opendesign-console/openkite-console.css` `.app-grid`,
+  `.app-card`, `.card-status` with `synced` / `outofsync` / `degraded` /
+  `progressing`, `.card-swipe-actions`, `.tag`, `.source-icon`. The shipped Argo
+  surface is the application table (`.argo-hero` / `.argo-tabs` / `.argo-table`);
+  if the card grid lands, the status band and swipe tray must consume the tokens
+  above, not new values. `.bottom-nav` / `.bottom-tab` are already defined in the
+  sheet for the deferred touch layout.
 
 Where this contract and the reference differ, this contract is normative — it is
 what the console ships. The known deltas are deliberate: `.btn` padding (16px vs
@@ -453,8 +516,8 @@ consumed by CSS rules rather than by a `components:` entry. Semantic tokens
 - **Do** keep one accent per view — a second blue is a defect.
 - **Do** keep every interactive target at 44px, including the log header's icon
   buttons.
-- **Don't** give the terminal a light variant; the opaque dark anchor is the
-  brand.
+- **Don't** give the terminal a light variant; the dark anchor is the brand. The
+  dock is translucent, so it tints with the preset — it never gains a light fill.
 - **Don't** use `argo` outside the Argo CD plugin zone, or `brand` outside the
   kite mark.
 - **Don't** widen the radius set, the elevation set, or the blur set — each has
@@ -538,11 +601,23 @@ carries two), terminal is one, and the render test in
 `crates/openkite-ui/tests/render_settings.rs` fails if a definition drops to a
 single blur.
 
-The console crate's design test is the enforcement point, and it does not exist
-yet: when it lands it must pin the vendored reference by SHA-256, derive the
-class and token vocabulary from `docs/reference/opendesign-console/openkite-console.css`, and fail when the
-shipped stylesheet is missing a name from this file or adds a value that is not
-here. The pinned hashes are in `docs/design-surfaces.md` § Reference contract.
+Enforcement is split across what actually runs. `crates/openkite-ui/src/settings.rs`
+holds the contrast floor — body ink ≥ 4.5:1 and muted ink ≥ 3.0:1 against each of
+the 24 presets' canvases — and `crates/openkite-ui/tests/render_settings.rs` holds
+the material: every glass surface must consume `--glass-blur`, the
+`prefers-contrast: more` block must exist, and each elevation tier must keep its
+layer count. `crates/openkite-ui/assets/build_console_css.py` generates the sheet
+from the same tokens, so a value cannot live in this file and nowhere else.
+
+What is *not* enforced yet is the vocabulary: nothing compares this file's class
+names against `console.css`, which is how two reference-only selectors survived
+here long after the sheet retired them. That check belongs in a design
+test that derives the class and token vocabulary from
+`docs/reference/opendesign-console/openkite-console.css` and fails when the sheet
+is missing a name from this file or adds a value that is not here. Until it
+lands, `docs/design-surfaces.md` § Retired vocabulary is the manual gate. The
+vendored reference's sizes and SHA-256 manifest are in
+`docs/reference/opendesign-console/README.md`.
 
 To re-fetch the reference project instead of using the vendored copy, see
 `docs/reference/opendesign-console/README.md`.
