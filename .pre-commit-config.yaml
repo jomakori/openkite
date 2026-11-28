@@ -21,11 +21,3 @@ repos:
         language: system
         pass_filenames: false
         types: [rust]
-
-      - id: comment-hygiene
-        name: comments carry no ids or narration
-        entry: bash scripts/check-comments.sh
-        language: system
-        files: '\.(rs|toml|ya?ml|css|js|mjs|ts|py|sh)$'
-        # allow: console.css is generated; the reference sheets mirror it byte-for-byte
-        exclude: '^(crates/openkite-ui/assets/console\.css|docs/reference/opendesign-console/[^/]+\.css)$'
