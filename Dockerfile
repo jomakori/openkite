@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM rust:1.90-bookworm AS build
+FROM rust:1.100-bookworm AS build
 ARG OPENKITE_VERSION=dev
 ENV OPENKITE_VERSION=${OPENKITE_VERSION}
 WORKDIR /src
