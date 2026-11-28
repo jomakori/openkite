@@ -229,6 +229,14 @@ surfaces above are built for, and the default.
   its own appearance owns. A dark preset never lands in the light slot, which is
   what lets the console switch appearance without repainting in the wrong
   palette.
+- **Two retired ids resolve, they do not render.** `one-dark` and `xcode-light`
+  were dropped as presets — each was a near-duplicate of `tokyo-night` and
+  `quiet-light` (0.129 and 0.157 OKLCH apart on canvas). A config saved before
+  the swap still names them, so `theme_by_id` maps each onto its neighbour and
+  the slot heals on next save. They are aliases, not presets: they appear in no
+  picker, no `builtin_themes` entry and no render test expectation. That is the
+  only place a retired id is allowed to survive, and it is why a `rg` for them
+  still hits `crates/openkite-ui/src/settings.rs`.
 - **Preference — `system` / `light` / `dark`.** `system` resolves to whatever
   the platform reports; `light` and `dark` pin it. The `ThemeScope` wrapper
   publishes the resolved appearance as `data-appearance` and the preset as
