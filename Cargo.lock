@@ -4005,6 +4005,7 @@ dependencies = [
  "futures-util",
  "k8s-openapi",
  "kube",
+ "openkite-api",
  "openkite-engine-testkit",
  "serde",
  "serde_json",
