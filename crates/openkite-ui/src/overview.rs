@@ -707,9 +707,9 @@ impl OverviewData {
                 self.restarts.push(entry);
             }
         }
-        self.problems.sort_by(|a, b| b.restarts.cmp(&a.restarts));
+        self.problems.sort_by_key(|p| std::cmp::Reverse(p.restarts));
         self.restarts.retain(|p| p.restarts >= threshold);
-        self.restarts.sort_by(|a, b| b.restarts.cmp(&a.restarts));
+        self.restarts.sort_by_key(|p| std::cmp::Reverse(p.restarts));
         self.pods_by_status = statuses.into_iter().collect();
         self
     }
