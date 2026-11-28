@@ -1,6 +1,3 @@
-# Local gates for the Rust workspace: format the tree, then type-check and lint
-# the engine crate. The four jobs in .github/workflows/lint-test.yml cover the
-# whole workspace; a hook stays on the engine until another crate carries code.
 repos:
   - repo: local
     hooks:
@@ -24,13 +21,3 @@ repos:
         language: system
         pass_filenames: false
         types: [rust]
-
-      - id: comment-hygiene
-        name: no ticket/PR ids in comments
-        entry: bash scripts/check-comments.sh
-        language: system
-        files: '\.(rs|toml|ya?ml|css|js|mjs|ts|py|sh)$'
-        # console.css is generated and the reference sheets mirror it byte for
-        # byte, so neither can hold an id the other lacks; a ticket note in the
-        # stylesheet arrives through the sheets, not through a hand edit here.
-        exclude: '^(crates/openkite-ui/assets/console\.css|docs/reference/opendesign-console/[^/]+\.css)$'

@@ -1,11 +1,6 @@
 name: Chocolatey
 
-# Publishes the openkite Chocolatey package to the GitHub Packages NuGet feed
-# whenever a release is published, and verifies the install in the same job —
-# community.chocolatey.org needs its own API key and human review, so it is
-# not wired up here. release.yml queues it through workflow_dispatch, because a
-# release created with GITHUB_TOKEN does not fire the release event.
-
+# allow: GITHUB_TOKEN-created releases don't fire the release event, so release.yml dispatches this
 on:
   release:
     types: [published]

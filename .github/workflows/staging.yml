@@ -1,13 +1,8 @@
 name: Staging
 
-# One build per pull request, versioned pr-<number>, so release can promote the
-# image instead of rebuilding it. Applying the `staging` label additionally hands
-# the per-commit tag to the staging ApplicationSet, which is what runs the env.
-
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled]
-    # Docs, comments and workflow prose change no binary: skip the image build.
     paths:
       - 'crates/**'
       - 'Cargo.toml'
@@ -73,8 +68,6 @@ jobs:
           push: true
           build-args: |
             OPENKITE_VERSION=${{ needs.resolve-version.outputs.token }}
-          # Both tags carry weight: the constant one names the artifact, the
-          # sha-tagged one is what makes the ApplicationSet roll on a new push.
           tags: |
             ghcr.io/jomakori/openkite:${{ env.IMAGE_TAG }}
             ghcr.io/jomakori/openkite:${{ env.IMAGE_SHA_TAG }}

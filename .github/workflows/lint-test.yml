@@ -1,8 +1,7 @@
 name: lint-test
 
 on:
-  # `labeled`/`unlabeled` are load-bearing: the default activity types would leave
-  # a pull request with its pre-label result after someone adds the staging label.
+  # allow: pull_request omits labeled/unlabeled by default, so without them a PR keeps its pre-label result
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
   merge_group:
@@ -75,9 +74,6 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           BASE: ${{ github.event.pull_request.base.sha }}
-          # Anything that can change the binary or the image: a crate, a manifest,
-          # the toolchain, the Dockerfile or the Tiltfile. Docs, workflows and
-          # packaging metadata are lint-only, per the build-trigger rule.
           CODE_PATHS: ^(crates/|Cargo\.(toml|lock)$|rust-toolchain|Dockerfile|Tiltfile)
         run: |
           set -euo pipefail
@@ -152,8 +148,6 @@ jobs:
             exit 1
           fi
 
-  # The single check branch protection requires for the cheap gates. Every job
-  # listed here must run unconditionally: a skipped dependency counts as a fail.
   run-checks:
     name: Run Checks
     needs: [check-formatting, lint-code, detect-changes, require-label, guard-boundary]
@@ -168,8 +162,7 @@ jobs:
           RESULTS: ${{ toJSON(needs) }}
         run: |
           set -euo pipefail
-          # A cancelled job only occurs when the run itself was cancelled, so a
-          # superseded pull request must not leave a failing gate on its old commit.
+          # allow: a cancelled job means the run itself was cancelled, so a superseded PR keeps no failing gate
           failing="$(printf '%s' "$RESULTS" \
             | jq -r 'to_entries[] | select(.value.result != "success" and .value.result != "cancelled") | "\(.key)=\(.value.result)"')"
           if [ -n "$failing" ]; then
