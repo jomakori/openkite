@@ -1,15 +1,14 @@
-/* OpenKite — workloads, menu popup, dock tools, dialogs */
 .sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
-.muted{color:rgba(255,255,255,0.5)}
+.muted{color:var(--muted)}
 .err{color:var(--log-error)}
 
-/* Menu button + popup menu */
+
 @media (max-width:1024px){ .menu-toggle{display:inline-flex} }
 .menu-scrim{position:fixed;inset:0;z-index:90;background:rgba(15,23,42,0.22);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);border-radius:0;min-width:0;min-height:0;cursor:default}
 .menu-pop{
   position:fixed;top:60px;left:12px;z-index:95;width:min(280px,calc(100vw - 24px));max-height:calc(100dvh - 76px);overflow-y:auto;
-  padding:6px;background:var(--surface-solid);border:1px solid var(--border);border-radius:var(--r-md);
-  box-shadow:var(--shadow-terminal);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+  padding:6px;background:oklch(var(--glass) / calc(var(--glass-alpha) + .06));border:1px solid var(--glass-hair);border-radius:var(--r-md);
+  box-shadow:inset 0 1px 0 var(--glass-edge), var(--glass-shade);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
   animation:popIn 0.16s ease;
 }
 .menu-group{padding:10px 10px 4px;font-size:10.5px;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted)}
@@ -22,7 +21,7 @@
 .menu-item.active .icon{color:var(--accent)}
 @keyframes popIn{from{opacity:0;transform:translateY(-6px) scale(.98)}to{opacity:1;transform:none}}
 
-/* Resource table */
+
 .resource-table th{padding:0 8px}
 .th-sort{min-width:0;min-height:44px;width:100%;justify-content:flex-start;gap:4px;padding:0 6px;font:inherit;font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);border-radius:var(--r-sm)}
 .th-sort:hover{background:color-mix(in oklab,var(--fg) 6%, transparent);color:var(--fg)}
@@ -46,7 +45,7 @@
 .btn-danger:active{transform:translateY(1px)}
 .btn-danger .icon{color:white}
 
-/* Row action menu */
+
 .row-menu{position:fixed;z-index:80;min-width:176px;padding:6px;background:var(--surface-solid);border:1px solid var(--border);border-radius:var(--r-md);box-shadow:var(--shadow-terminal);animation:popIn 0.14s ease}
 .rm-item{width:100%;justify-content:flex-start;gap:10px;padding:0 12px;font-size:13px;color:var(--fg);border-radius:var(--r-sm)}
 .rm-item .icon{width:15px;height:15px;color:var(--muted)}
@@ -55,7 +54,7 @@
 .rm-item.danger .icon{color:inherit}
 .rm-item.danger:hover{background:color-mix(in oklab,var(--danger) 12%, var(--mix))}
 
-/* Inspector */
+
 .inspector-title{display:flex;flex-direction:column;min-width:0;line-height:1.3}
 .inspector-title h2{overflow-wrap:anywhere;font-family:var(--font-mono);font-size:13px}
 .inspector-title span{font-size:11px;color:var(--muted)}
@@ -83,9 +82,9 @@
 .muted-note{margin:0;color:var(--muted);font-size:12px}
 .mono{font-family:var(--font-mono);font-size:11.5px}
 
-/* Dialog */
+
 .dlg-scrim{position:fixed;inset:0;z-index:120;display:grid;place-items:center;padding:16px;background:rgba(15,23,42,0.34);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
-.dlg{width:min(400px,100%);padding:20px;background:var(--surface-solid);border:1px solid var(--border);border-radius:var(--r-md);box-shadow:var(--shadow-terminal);animation:popIn 0.16s ease}
+.dlg{width:min(400px,100%);padding:20px;background:oklch(var(--glass) / calc(var(--glass-alpha) + .04));border:1px solid var(--glass-hair);border-radius:var(--r-md);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);box-shadow:inset 0 1px 0 var(--glass-edge), var(--glass-shade);animation:popIn 0.16s ease}
 .dlg h3{margin:0 0 10px;font-size:15px;font-weight:600;letter-spacing:-0.01em}
 .dlg-body p{margin:0 0 4px;color:var(--muted);line-height:1.6;overflow-wrap:anywhere}
 .dlg-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
@@ -93,7 +92,7 @@
 .field input,.field select{min-height:44px;padding:0 12px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface-solid);color:var(--fg);font:inherit;font-size:13px}
 .field input:focus-visible,.field select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 
-/* Dock: log tools, terminal */
+
 .log-pane{display:flex;flex-direction:column;overflow:hidden}
 .log-pane .log-body{flex:1;min-height:0;overflow:auto}
 .log-tools{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.08)}
@@ -115,14 +114,14 @@
 .term-out .cmd{color:var(--log-method)}
 
 @media (max-width:767px){
-  /* Calm top bar: menu, cluster pill, refresh */
+  
   .topbar{gap:8px;padding:6px 10px;min-height:56px}
   .topbar-extra,.dock-toggle{display:none}
   .topbar-actions{gap:0}
   .breadcrumbs{flex:1;min-width:0}
   .crumb-cluster{max-width:100%;overflow:hidden;text-overflow:ellipsis}
   .menu-pop{top:58px;left:8px;width:calc(100vw - 16px)}
-  /* Pod list: name + status + actions */
+  
   .resource-table tbody tr{padding:0 4px 0 14px}
   .resource-table td.col-check{display:none}
   .resource-table td.col-act{display:flex;flex:0 0 auto;width:auto}
@@ -132,7 +131,7 @@
   .bulk-bar{display:none}
   .footer-hint{display:none}
   .panel-footer{justify-content:center}
-  /* Dock: tabs on their own row */
+  
   .dock-bar{flex-wrap:wrap;padding:0 4px 0 6px}
   .dock-tabs{flex:1 1 100%}
   .dock-actions{margin-left:auto}
@@ -143,26 +142,12 @@
   body.dock-open .main{padding-bottom:calc(74px + min(62vh,500px))}
 }
 
-/* ===== Dock v2: tabs, split panes, handle ===== */
+
 :root{--dock-h:min(340px,46vh)}
 .dock{height:var(--dock-h)}
 body.dock-open .main{padding-bottom:var(--dock-h)}
 .main{padding-bottom:64px}
 body.dock-open .main{padding-bottom:calc(var(--dock-h) + 16px)}
-
-.dock-handle{
-  position:fixed;right:20px;bottom:0;z-index:54;min-height:44px;padding:0 14px;gap:8px;
-  background:var(--terminal-bg);color:white;border-radius:var(--r-md) var(--r-md) 0 0;
-  box-shadow:var(--shadow-terminal);font-size:12px;font-weight:500;letter-spacing:0.02em;
-  transition:bottom 0.28s cubic-bezier(.2,.8,.2,1), background 0.15s ease;
-}
-.dock-handle:hover{background:color-mix(in oklab,var(--terminal-bg) 88%, white)}
-.dock-handle:active{transform:translateY(1px)}
-.dock-handle .icon{width:15px;height:15px;color:var(--log-method)}
-.dock-handle kbd{font-family:var(--font-mono);font-size:10.5px;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,0.12);color:rgba(255,255,255,0.85)}
-.dock-handle .chev{width:13px;height:13px;color:rgba(255,255,255,0.8);transform:rotate(-90deg);transition:transform 0.25s ease}
-.dock-handle[aria-pressed="true"] .chev{transform:rotate(90deg)}
-body.dock-open .dock-handle{bottom:var(--dock-h)}
 
 .dock-bar{flex-wrap:nowrap;gap:2px;padding:0 4px 0 4px;min-height:44px}
 .dock-tabs{display:flex;flex:1 1 0;min-width:0;gap:2px;align-items:stretch;overflow-x:auto;scrollbar-width:none;touch-action:pan-x;padding-top:2px}
@@ -219,25 +204,27 @@ body.tab-dragging{user-select:none;-webkit-user-select:none;cursor:grabbing}
 
 @media (max-width:767px){
   :root{--dock-h:min(62vh,500px)}
-  .dock{height:var(--dock-h)}
+  .dock{height:var(--dock-h);left:12px;bottom:12px}
   .dock-bar{flex-wrap:nowrap}
   .dock-tabs{flex:1 1 0}
   .dock-actions{margin-left:0}
-  .dock-handle{right:10px;bottom:74px;padding:0 12px}
-  .dock-handle kbd,.dock-handle .handle-label{display:none}
-  body.dock-open .dock-handle{bottom:calc(74px + var(--dock-h))}
+  .dock-toggle{min-height:44px}
+  .dock-tab{min-height:44px}
   .main{padding-bottom:130px}
   body.dock-open .main{padding-bottom:calc(74px + var(--dock-h) + 16px)}
   .dock-body.split{flex-direction:column}
 }
-@media (prefers-reduced-motion:reduce){ .dock-handle,.drop-hint{transition:none} }
+@media (prefers-reduced-motion:reduce){ .drop-hint{transition:none} }
 
-/* ===== Theme tokens: light default, dark via [data-theme="dark"] ===== */
-:root{--glass:1 0 0;--mix:white;--mix-text:black;--on-fg:white;color-scheme:light}
-[data-theme="dark"]{
+
+:root{--glass:0.958 0.010 265;--mix:white;--mix-text:black;--on-fg:white;color-scheme:light}
+[data-appearance="light"]{--glass:0.958 0.010 265;--mix:white;--mix-text:black;--on-fg:white;color-scheme:light}
+[data-appearance="dark"],[data-theme="dark"]{
   color-scheme:dark;
   --bg:oklch(0.185 0.012 262);
+  --fill:oklch(0.255 0.014 262 / 0.68);
   --surface:oklch(0.255 0.014 262 / 0.82);
+  --fill-hi:oklch(0.255 0.014 262 / 0.90);
   --surface-solid:oklch(0.255 0.014 262 / 0.97);
   --fg:oklch(0.94 0.006 262);
   --muted:oklch(0.76 0.014 262);
@@ -253,25 +240,30 @@ body.tab-dragging{user-select:none;-webkit-user-select:none;cursor:grabbing}
   --brand:oklch(0.74 0.11 185);
   --on-accent:oklch(0.15 0.02 250);
   --terminal-bg:oklch(0.14 0.008 264);
-  --glass:0.3 0.015 262;
+  --glass:0.300 0.012 265;
+  --glass-alpha:.50;
+  --glass-edge:color-mix(in oklab, white 34%, transparent);
+  --glass-hair:color-mix(in oklab, white 12%, transparent);
+  --glass-shade:0 16px 40px -16px rgba(0,0,0,0.72), 0 1px 2px rgba(0,0,0,0.4);
+  --glass-drop:-28px 0 72px -20px rgba(0,0,0,.60);
   --mix:oklch(0.2 0.012 262);
   --mix-text:white;
   --on-fg:oklch(0.16 0.01 262);
-  --shadow-rest:0 1px 3px rgba(0,0,0,0.3), 0 4px 12px rgba(0,0,0,0.28);
-  --shadow-hover:0 4px 16px rgba(0,0,0,0.36), 0 8px 24px rgba(0,0,0,0.3);
-  --shadow-terminal:0 8px 32px rgba(0,0,0,0.5);
+  --shadow-rest:0 1px 1px rgba(0,0,0,0.30), 0 10px 28px rgba(0,0,0,0.34), 0 28px 56px -12px rgba(0,0,0,0.42);
+  --shadow-hover:0 2px 2px rgba(0,0,0,0.34), 0 14px 36px rgba(0,0,0,0.42), 0 34px 64px -12px rgba(0,0,0,0.5);
+  --shadow-terminal:0 18px 56px rgba(0,0,0,0.6);
 }
-[data-theme="dark"] .app{background:
+[data-appearance="dark"] .app,[data-theme="dark"] .app{background:
   radial-gradient(760px 420px at 84% -8%, oklch(0.3 0.05 258 / 0.4), transparent 70%),
   radial-gradient(560px 360px at 18% 108%, oklch(0.28 0.05 185 / 0.28), transparent 72%),
-  var(--bg)}
-[data-theme="dark"] .btn-primary{color:var(--on-accent)}
-[data-theme="dark"] .dock,[data-theme="dark"] .dock-handle{box-shadow:0 -4px 24px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.08)}
+  var(--bg);background-attachment:fixed}
+[data-appearance="dark"] .btn-primary,[data-theme="dark"] .btn-primary{color:var(--on-accent)}
+[data-theme="dark"] .dock{box-shadow:inset 0 1px 0 rgba(255,255,255,0.10), var(--shadow-terminal)}
 [data-theme="dark"] .log-level.warn{color:var(--warn)}
 [data-theme="dark"] .menu-item.active{background:color-mix(in oklab,var(--accent) 22%, var(--mix))}
 [data-theme="dark"] .brand-word{color:var(--fg)}
 
-/* Theme toggle button */
+
 .theme-toggle .sun{display:none}
 [data-theme="dark"] .theme-toggle .sun{display:block}
 [data-theme="dark"] .theme-toggle .moon{display:none}
@@ -281,7 +273,7 @@ body.tab-dragging{user-select:none;-webkit-user-select:none;cursor:grabbing}
 [aria-pressed="true"] > .switch::after{transform:translateX(14px)}
 .sidebar-footer .theme-toggle{min-width:44px}
 
-/* Sidebar groups */
+
 .nav-group{width:100%;min-height:36px;justify-content:space-between;padding:0 12px;border-radius:var(--r-sm);font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted)}
 .nav-group:hover{background:color-mix(in oklab,var(--fg) 6%, transparent);color:var(--fg)}
 .nav-group .icon{width:12px;height:12px;transition:transform 0.18s ease;transform:rotate(90deg)}
@@ -291,7 +283,7 @@ body.tab-dragging{user-select:none;-webkit-user-select:none;cursor:grabbing}
 .nav-section{margin-top:6px}
 @media (pointer:coarse){ .nav-group{min-height:44px} }
 
-/* Inspector: quick actions, tabs, panels */
+
 .inspector{width:min(460px,100%)}
 .qa-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
 .qa{min-height:44px;padding:0 12px;gap:7px;font-size:12px;font-weight:500;color:var(--fg);background:var(--surface-solid);border:1px solid var(--border);border-radius:var(--r-sm);box-shadow:var(--shadow-rest)}
@@ -303,7 +295,7 @@ body.tab-dragging{user-select:none;-webkit-user-select:none;cursor:grabbing}
 .qa.primary:hover{background:color-mix(in oklab,var(--accent) 86%, var(--mix-text))}
 .qa.danger{color:color-mix(in oklab,var(--danger) 70%, var(--mix-text))}
 .qa.danger .icon{color:inherit}
-.insp-tabs{display:flex;gap:2px;margin:0 0 16px;border-bottom:1px solid var(--border)}
+.insp-tabs{display:flex;gap:2px;margin:0 0 16px;border-bottom:1px solid var(--glass-hair)}
 .insp-tab{min-height:44px;padding:0 12px;font-size:12px;font-weight:500;color:var(--muted);border-radius:var(--r-sm) var(--r-sm) 0 0;border-bottom:2px solid transparent}
 .insp-tab:hover{color:var(--fg);background:color-mix(in oklab,var(--fg) 5%, transparent)}
 .insp-tab[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--accent)}
@@ -316,7 +308,7 @@ body.tab-dragging{user-select:none;-webkit-user-select:none;cursor:grabbing}
 .usage{display:flex;flex-direction:column;gap:12px;padding:12px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface)}
 .usage .meter-head{margin-bottom:5px}
 .ctr-card{border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);margin-bottom:10px;overflow:hidden}
-.ctr-card-head{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--border)}
+.ctr-card-head{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--glass-hair)}
 .ctr-card-head .ctr-name{flex:1;min-width:0;font-weight:500}
 .ctr-card .kv-list{border:0;border-radius:0;background:transparent}
 .ctr-card-actions{display:flex;gap:6px;padding:8px 12px;border-top:1px solid var(--border)}
@@ -338,14 +330,3 @@ pre.yaml .y-d{color:rgba(255,255,255,0.4)}
   .inspector{width:100%}
   .qa-row{gap:6px}
 }
-
-/* Dock handle: icon only, with an open-tab count and a chevron when open */
-.dock-handle{width:48px;min-width:48px;padding:0;gap:0;border-radius:var(--r-md) var(--r-md) 0 0}
-.dock-handle .handle-label,.dock-handle kbd{display:none}
-.dock-handle .icon{width:18px;height:18px}
-.dock-handle .ic-down{display:none;transform:rotate(90deg);color:rgba(255,255,255,0.85)}
-.dock-handle[aria-pressed="true"] .ic-dock{display:none}
-.dock-handle[aria-pressed="true"] .ic-down{display:block}
-.handle-badge{position:absolute;top:2px;right:2px;min-width:16px;height:16px;padding:0 4px;border-radius:99px;background:var(--accent);color:var(--on-accent);font-family:var(--font-sans);font-size:10px;font-weight:600;line-height:16px;text-align:center}
-.dock-handle[aria-pressed="true"] .handle-badge{display:none}
-@media (max-width:767px){ .dock-handle{right:10px} }
