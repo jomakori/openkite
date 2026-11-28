@@ -132,6 +132,23 @@ jobs:
             echo "image=pr-${pr}-${head:0:7}"
           } >> "$GITHUB_OUTPUT"
 
+      # resolve-version tags before this job knows whether there is anything to
+      # publish. A merge that changed no build input still bumps svu, so the tag
+      # has to go back or the next real release skips past the version it never
+      # shipped.
+      - name: Withdraw the tag when there is nothing to publish
+        if: steps.find.outputs.skip == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: v${{ needs.resolve-version.outputs.version }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if gh api "repos/$REPO/git/ref/tags/$TAG" >/dev/null 2>&1; then
+            gh api -X DELETE "repos/$REPO/git/refs/tags/$TAG"
+            echo "Withdrew $TAG: no build to publish." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
   publish:
     name: Publish Release
     needs: [resolve-version, locate-build]
