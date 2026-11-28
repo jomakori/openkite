@@ -29,17 +29,9 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Doppler CLI
-        uses: dopplerhq/cli-action@v4.0.1
-
-      - name: Fetch Doppler Secrets
-        id: doppler
-        uses: dopplerhq/secrets-fetch-action@v2.0.0
-        with:
-          doppler-token: ${{ secrets.DOPPLER_TOKEN }}
-          inject-env-vars: true
-
       - name: Install svu
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release download -R caarlos0/svu -p 'svu_*_linux_amd64.tar.gz' -D "$RUNNER_TEMP/svu" --clobber
           tar -xzf "$RUNNER_TEMP"/svu/*.tar.gz -C /usr/local/bin svu
@@ -47,6 +39,8 @@ jobs:
 
       - name: Tag the next version
         id: tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           current="$(svu current)"
@@ -70,6 +64,7 @@ jobs:
         id: find
         if: steps.tag.outputs.version != ''
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: v${{ steps.tag.outputs.version }}
           REPO: ${{ github.repository }}
         run: |
@@ -113,6 +108,7 @@ jobs:
       - name: Withdraw the tag when there is nothing to publish
         if: steps.find.outputs.skip == 'true'
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: v${{ steps.tag.outputs.version }}
           REPO: ${{ github.repository }}
         run: |
@@ -130,7 +126,7 @@ jobs:
           merge-multiple: true
           path: dist
           run-id: ${{ steps.find.outputs.run_id }}
-          github-token: ${{ steps.doppler.outputs.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Package the binaries
         if: steps.find.outputs.run_id != ''
@@ -157,6 +153,8 @@ jobs:
 
       - name: Confirm the pull request image exists
         if: steps.find.outputs.run_id != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           echo "$GITHUB_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
@@ -169,6 +167,8 @@ jobs:
       - name: Create the release with generated notes
         id: release
         if: steps.find.outputs.run_id != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           tag="v${{ steps.tag.outputs.version }}"
@@ -180,6 +180,8 @@ jobs:
 
       - name: Upload the release assets
         if: steps.release.outputs.published == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           tag="v${{ steps.tag.outputs.version }}"
@@ -197,18 +199,21 @@ jobs:
       - name: Queue the Flatpak bundle
         if: steps.release.outputs.published == 'true'
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: v${{ steps.tag.outputs.version }}
         run: gh workflow run flatpak.yml --ref main -f tag="$TAG"
 
       - name: Queue the Chocolatey package
         if: steps.release.outputs.published == 'true'
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: v${{ steps.tag.outputs.version }}
         run: gh workflow run chocolatey.yml --ref main -f tag="$TAG"
 
       - name: Delete the pull request artifacts
         if: steps.release.outputs.published == 'true'
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           PR: ${{ steps.find.outputs.pr }}
         run: |
@@ -231,18 +236,25 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 10
     steps:
-      - name: Fetch Doppler Secrets
-        id: doppler
-        uses: dopplerhq/secrets-fetch-action@v2.0.0
-        with:
-          doppler-token: ${{ secrets.DOPPLER_TOKEN }}
+      - name: Install Doppler CLI
+        uses: dopplerhq/cli-action@v4.0.1
+
+      - name: Fetch the GitOps token
+        id: pat
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+        run: |
+          set -euo pipefail
+          token="$(doppler secrets get GITHUB_TOKEN --plain --project devops --config ci)"
+          echo "::add-mask::$token"
+          echo "token=$token" >> "$GITHUB_OUTPUT"
 
       - name: Checkout the GitOps repo
         uses: actions/checkout@v7
         with:
           repository: jomakori/gke_GitOps
           ref: main
-          token: ${{ steps.doppler.outputs.GITHUB_TOKEN }}
+          token: ${{ steps.pat.outputs.token }}
           path: gitops
 
       - name: Pin the production tag
