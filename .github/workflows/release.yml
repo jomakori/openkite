@@ -8,7 +8,9 @@ name: Release
 # tag pushed with GITHUB_TOKEN does not trigger another workflow, so the Flatpak and
 # Chocolatey files are queued here through workflow_dispatch, which is the one event
 # that exemption does not cover. locate-build resolves the merged pull request from
-# the tag, so a commit pushed straight to main releases nothing.
+# the tag, so a commit pushed straight to main releases nothing. The last job moves
+# the prod pin in gke_GitOps with yq and pushes it, which is what puts the release
+# on prod; there is no separate bump workflow to poll or dispatch.
 
 on:
   push:
@@ -224,27 +226,51 @@ jobs:
           TAG: v${{ needs.resolve-version.outputs.version }}
         run: gh workflow run chocolatey.yml --ref main -f tag="$TAG"
 
-  dispatch-gitops-pin:
-    name: Dispatch GitOps Pin Bump
+  bump-prod-pin:
+    name: Bump the prod pin
     needs: [resolve-version, publish]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Install the Doppler cli
         uses: dopplerhq/cli-action@v4
-      # The pin bump in gke_GitOps already polls for releases every six hours; queueing
-      # it here is what puts the release on prod in minutes instead of at the next tick.
-      # The poll stays as the safety net for the runs this dispatch cannot reach.
-      - name: Queue the prod pin bump
+
+      - name: Fetch the GitOps token
+        id: pat
         env:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+        run: |
+          set -euo pipefail
+          # main requires the full check set and the automatic token never bypasses it
+          # (GH006), so the pin push needs the admin classic token.
+          token="$(doppler secrets get GITHUB_TOKEN --plain --project devops --config ci)"
+          echo "::add-mask::$token"
+          echo "token=$token" >> "$GITHUB_OUTPUT"
+
+      - name: Check out the GitOps repo
+        uses: actions/checkout@v7
+        with:
+          repository: jomakori/gke_GitOps
+          ref: main
+          token: ${{ steps.pat.outputs.token }}
+          path: gitops
+
+      - name: Move the pin
+        env:
           TAG: v${{ needs.resolve-version.outputs.version }}
         run: |
           set -euo pipefail
-          token="$(doppler secrets get GITHUB_TOKEN --plain --project devops --config ci)"
-          echo "::add-mask::$token"
-          GH_TOKEN="$token" gh workflow run openkite-pin-bump.yaml -R jomakori/gke_GitOps --ref main
-          echo "Queued the pin bump for $TAG." >> "$GITHUB_STEP_SUMMARY"
+          python3 .github/scripts/pin_prod_tag.py gitops/apps/helm/values.yaml openkite "$TAG"
+          cd gitops
+          if git diff --quiet; then
+            echo "Pin already at ${TAG}; nothing to move."
+            exit 0
+          fi
+          git -c user.name="openkite-release[bot]" \
+              -c user.email="openkite-release@users.noreply.github.com" \
+              commit -am "chore(apps): pin openkite prod to ${TAG}"
+          git push origin HEAD:main
+          echo "Prod pinned to ${TAG}." >> "$GITHUB_STEP_SUMMARY"
 
   clean-up-artifacts:
     name: Clean Up Artifacts
