@@ -1,6 +1,5 @@
 # OpenDesign reference — vendored
 
-<<<<<<< HEAD
 The OpenKite console mockup, copied from the OpenDesign project so the design
 system can be graded **in-repo** and regenerated without network access.
 `DESIGN.md` and `docs/design-surfaces.md` cite line numbers into the
@@ -20,21 +19,6 @@ The sheets keep the mockup's values as their base and have since been extended
 with the console's own rules (the fill/radius rungs, the Liquid Glass layer, the
 settings pane, the ambient field). Where they differ from a fresh grab, the
 in-repo rule is the shipped one; re-grabbing means re-applying those edits.
-=======
-The OpenKite console mockup, copied byte-for-byte from the OpenDesign project so
-the design system can be graded **in-repo** and regenerated without network
-access. `DESIGN.md` cites line numbers into the `openkite-console.css` / `.html`
-copies in this directory.
-
-**Treat these files as read-only.** Every line reference in `DESIGN.md` is into
-these bytes; an edit silently invalidates them. Update by re-grabbing (below) and
-re-deriving the docs.
-
-The mockup is the design source of truth: it is re-fetched from OpenDesign and
-re-derived into the docs, never hand-edited to match what the app happens to
-render — and `openkite-console.css` is currently the exception that proves the
-rule, see **Drift** below.
->>>>>>> 9791f5b (docs: retire the rebuild-in-progress claims and the dead pointers (OKT-274))
 
 ## Source
 
