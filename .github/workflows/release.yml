@@ -1,14 +1,20 @@
 name: Release
 
-# One workflow per release, run only when a human dispatches it: a merge to main
-# never tags. svu derives the next version from the commits since the last tag and
-# pushes it; the binaries come from the successful lint-test run of the pull
-# request that merged, so nothing is built twice; the image Staging built for that
-# pull request is retagged, not rebuilt. A tag pushed with GITHUB_TOKEN does not
-# trigger another workflow, so the Flatpak and Chocolatey files are queued here
-# through workflow_dispatch, which is the one event that exemption does not cover.
+# One workflow per release, run automatically when a pull request merges to main,
+# and dispatchable by hand for the merge that did not release. svu derives the next
+# version from the commits since the last tag and pushes it; the binaries come from
+# the successful lint-test run of the pull request that merged, so nothing is built
+# twice; the image Staging built for that pull request is retagged, not rebuilt. A
+# tag pushed with GITHUB_TOKEN does not trigger another workflow, so the Flatpak and
+# Chocolatey files are queued here through workflow_dispatch, which is the one event
+# that exemption does not cover. locate-build resolves the merged pull request from
+# the tag, so a commit pushed straight to main releases nothing. The last job moves
+# the prod pin in gke_GitOps with yq and pushes it, which is what puts the release
+# on prod; there is no separate bump workflow to poll or dispatch.
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -219,6 +225,52 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: v${{ needs.resolve-version.outputs.version }}
         run: gh workflow run chocolatey.yml --ref main -f tag="$TAG"
+
+  bump-prod-pin:
+    name: Bump the prod pin
+    needs: [resolve-version, publish]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Install the Doppler cli
+        uses: dopplerhq/cli-action@v4
+
+      - name: Fetch the GitOps token
+        id: pat
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+        run: |
+          set -euo pipefail
+          # main requires the full check set and the automatic token never bypasses it
+          # (GH006), so the pin push needs the admin classic token.
+          token="$(doppler secrets get GITHUB_TOKEN --plain --project devops --config ci)"
+          echo "::add-mask::$token"
+          echo "token=$token" >> "$GITHUB_OUTPUT"
+
+      - name: Check out the GitOps repo
+        uses: actions/checkout@v7
+        with:
+          repository: jomakori/gke_GitOps
+          ref: main
+          token: ${{ steps.pat.outputs.token }}
+          path: gitops
+
+      - name: Move the pin
+        env:
+          TAG: v${{ needs.resolve-version.outputs.version }}
+        run: |
+          set -euo pipefail
+          cd gitops
+          yq -i '.openkite.environments.production.tag = strenv(TAG)' apps/helm/values.yaml
+          if git diff --quiet; then
+            echo "Pin already at ${TAG}; nothing to move."
+            exit 0
+          fi
+          git -c user.name="openkite-release[bot]" \
+              -c user.email="openkite-release@users.noreply.github.com" \
+              commit -am "chore(apps): pin openkite prod to ${TAG}"
+          git push origin HEAD:main
+          echo "Prod pinned to ${TAG}." >> "$GITHUB_STEP_SUMMARY"
 
   clean-up-artifacts:
     name: Clean Up Artifacts
