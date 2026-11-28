@@ -134,6 +134,6 @@ done
 
 If a hash above changed, the reference moved: re-derive `DESIGN.md` and
 `docs/design-surfaces.md` in the same PR, and say so in the PR body rather than
-leaving the docs citing stale lines. If `openkite-console.css` is re-grabbed, run
-the class diff in § Drift first — the in-repo copy carries changes the project does
-not have yet, and a blind overwrite drops them.
+leaving the docs citing stale lines. If `openkite-console.css` is re-grabbed, diff
+its classes against the in-repo sheet first — the in-repo copy carries changes the
+project does not have yet, and a blind overwrite drops them.
