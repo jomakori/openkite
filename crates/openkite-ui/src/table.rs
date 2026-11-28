@@ -112,7 +112,13 @@ pub const TREND_COLUMN: Column = Column {
 pub fn trend_kinds(kind: &str) -> bool {
     matches!(
         kind,
-        "pods" | "nodes" | "deployments" | "statefulsets" | "daemonsets" | "replicasets" | "namespaces"
+        "pods"
+            | "nodes"
+            | "deployments"
+            | "statefulsets"
+            | "daemonsets"
+            | "replicasets"
+            | "namespaces"
     )
 }
 
@@ -541,7 +547,8 @@ pub fn effect_for(part: RowPart) -> RowEffect {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::TableState;
+    use super::TREND_COLUMN;
 
     #[test]
     fn the_trend_column_follows_age_and_obeys_the_picker() {

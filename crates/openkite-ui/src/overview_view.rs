@@ -402,7 +402,11 @@ pub fn MetricDetail(
 ) -> Element {
     let label = if series == "cpu" { "CPU" } else { "Memory" };
     let window = metrics.series(series).cloned().unwrap_or_default();
-    let colour = if series == "cpu" { "var(--accent)" } else { "var(--violet)" };
+    let colour = if series == "cpu" {
+        "var(--accent)"
+    } else {
+        "var(--violet)"
+    };
     rsx! {
         div { class: "metric-detail", "data-metric": "{series}",
             div { class: "metric-detail-head",

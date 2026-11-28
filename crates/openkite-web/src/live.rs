@@ -13,11 +13,9 @@ use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
 use kube::api::{Api, ListParams};
 use kube::core::{ApiResource, DynamicObject, GroupVersionKind};
 use openkite_engine::Engine;
+use openkite_ui::metrics::{ChartFeed, MetricSource, MetricsView, Series, SourceProbe, SAMPLE_CAP};
 use openkite_ui::overview::{
     ArgoRow, CapacityGauge, EventRow, NodeRow, OverviewData, OverviewLayout,
-};
-use openkite_ui::metrics::{
-    ChartFeed, MetricSource, MetricsView, Series, SourceProbe, SAMPLE_CAP,
 };
 use openkite_ui::shell::{Connection, Counts};
 use openkite_ui::table::Row;
@@ -103,17 +101,16 @@ impl Live {
 
         // One round-trip window for all six lists: `join!` keeps a slow kind from
         // stacking its timeout on top of the others.
-        let (pods, nodes_raw, namespaces_raw, events_raw, deployments, argo, pod_usage, node_usage) =
-            tokio::join!(
-                timed(list_all::<Pod>(client.clone())),
-                timed(list_all::<Node>(client.clone())),
-                timed(list_all::<Namespace>(client.clone())),
-                timed(list_all::<Event>(client.clone())),
-                timed(list_all::<Deployment>(client.clone())),
-                timed(fetch_argo_apps(client.clone())),
-                timed(fetch_pod_usage(client.clone())),
-                timed(fetch_node_usage(client.clone())),
-            );
+        let (pods, nodes_raw, namespaces_raw, events_raw, deployments, argo, pod_usage, node_usage) = tokio::join!(
+            timed(list_all::<Pod>(client.clone())),
+            timed(list_all::<Node>(client.clone())),
+            timed(list_all::<Namespace>(client.clone())),
+            timed(list_all::<Event>(client.clone())),
+            timed(list_all::<Deployment>(client.clone())),
+            timed(fetch_argo_apps(client.clone())),
+            timed(fetch_pod_usage(client.clone())),
+            timed(fetch_node_usage(client.clone())),
+        );
         let pods = pods.unwrap_or_default();
         let nodes_raw = nodes_raw.unwrap_or_default();
         let namespaces_raw = namespaces_raw.unwrap_or_default();
@@ -216,7 +213,11 @@ impl Live {
             timed(list_all::<Pod>(client.clone())),
             timed(fetch_pod_usage(client)),
         );
-        pod_rows(&pods.unwrap_or_default(), &usage.unwrap_or_default(), trends)
+        pod_rows(
+            &pods.unwrap_or_default(),
+            &usage.unwrap_or_default(),
+            trends,
+        )
     }
 }
 
@@ -289,7 +290,9 @@ static TRENDS: LazyLock<Mutex<BTreeMap<String, ChartFeed>>> = LazyLock::new(Defa
 /// pauses its feed instead of plotting a line nobody sees, which is the ticket's
 /// requirement stated as code rather than as an intention.
 fn feed_trend(row_id: &str, pct: u8, visible: bool) -> Option<Series> {
-    let mut feeds = TRENDS.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut feeds = TRENDS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let feed = feeds
         .entry(row_id.to_string())
         .or_insert_with(|| ChartFeed::new(SAMPLE_CAP));
@@ -310,15 +313,19 @@ struct Usage {
 /// The API is optional on a cluster, so a missing API is an error the caller turns into
 /// "no source" rather than a failure of the page.
 async fn fetch_pod_usage(client: kube::Client) -> Result<Usage, kube::Error> {
-    let resource =
-        ApiResource::from_gvk_with_plural(&GroupVersionKind::gvk("metrics.k8s.io", "v1beta1", "PodMetrics"), "pods");
+    let resource = ApiResource::from_gvk_with_plural(
+        &GroupVersionKind::gvk("metrics.k8s.io", "v1beta1", "PodMetrics"),
+        "pods",
+    );
     let items = Api::<DynamicObject>::all_with(client, &resource)
         .list(&ListParams::default())
         .await?
         .items;
     let mut usage = Usage::default();
     for item in &items {
-        let Some(key) = metric_key(item) else { continue };
+        let Some(key) = metric_key(item) else {
+            continue;
+        };
         let containers = item
             .data
             .pointer("/containers")
@@ -355,7 +362,9 @@ async fn fetch_node_usage(client: kube::Client) -> Result<Usage, kube::Error> {
         .items;
     let mut usage = Usage::default();
     for item in &items {
-        let Some(name) = item.metadata.name.clone() else { continue };
+        let Some(name) = item.metadata.name.clone() else {
+            continue;
+        };
         let cpu = item
             .data
             .pointer("/usage/cpu")
@@ -683,7 +692,10 @@ fn metrics_view(
         probe.observe(
             pod.metadata.namespace.as_deref().unwrap_or_default(),
             pod.metadata.name.as_deref().unwrap_or_default(),
-            pod.status.as_ref().and_then(|status| status.phase.as_deref()) == Some("Running"),
+            pod.status
+                .as_ref()
+                .and_then(|status| status.phase.as_deref())
+                == Some("Running"),
         );
     }
     let source = if usage_answered {

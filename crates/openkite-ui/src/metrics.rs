@@ -208,7 +208,7 @@ impl Series {
     /// 10% headroom over the window peak so the line never touches the top edge.
     pub fn geometry(&self, w: f64, h: f64) -> Option<Spark> {
         let top = (self.peak() as f64) * 1.1;
-        Some(self.geometry_over(w, h, if top <= 0.0 { 1.0 } else { top })?)
+        self.geometry_over(w, h, if top <= 0.0 { 1.0 } else { top })
     }
 
     /// Path data plotted against a fixed scale top (0-100 for a chart whose threshold
@@ -411,7 +411,10 @@ mod tests {
         assert!(spark.line.starts_with("M0.0 "));
         assert!(spark.area.ends_with("L0.0 22.0 Z"));
         // 100% on a 10%-headroom scale never reaches the 2px inset.
-        assert!(spark.line.contains("2.0"), "peak sits at the inset: {spark:?}");
+        assert!(
+            spark.line.contains("2.0"),
+            "peak sits at the inset: {spark:?}"
+        );
     }
 
     #[test]

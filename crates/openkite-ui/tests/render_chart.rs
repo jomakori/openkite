@@ -73,7 +73,10 @@ fn a_row_sparkline_draws_its_window_and_marks_a_high_reading() {
     assert!(html.contains("91%"), "{html}");
     // The line is a real path, not a placeholder.
     assert!(html.contains("class=\"line\""), "{html}");
-    assert!(html.contains(" d=\"M") || html.contains(" d=\"0.0"), "{html}");
+    assert!(
+        html.contains(" d=\"M") || html.contains(" d=\"0.0"),
+        "{html}"
+    );
 }
 
 #[test]

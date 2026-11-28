@@ -159,7 +159,10 @@ pub fn WorkloadChart(props: WorkloadChartProps) -> Element {
     let tick = props.threshold.warn;
     let now = props.latest();
     let caption = if props.sub.is_empty() {
-        format!("last {} samples", props.series.first().map(|s| s.data.len()).unwrap_or(0))
+        format!(
+            "last {} samples",
+            props.series.first().map(|s| s.data.len()).unwrap_or(0)
+        )
     } else {
         props.sub.clone()
     };
