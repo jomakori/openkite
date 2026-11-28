@@ -1,14 +1,18 @@
 name: Release
 
-# One workflow per release, run only when a human dispatches it: a merge to main
-# never tags. svu derives the next version from the commits since the last tag and
-# pushes it; the binaries come from the successful lint-test run of the pull
-# request that merged, so nothing is built twice; the image Staging built for that
-# pull request is retagged, not rebuilt. A tag pushed with GITHUB_TOKEN does not
-# trigger another workflow, so the Flatpak and Chocolatey files are queued here
-# through workflow_dispatch, which is the one event that exemption does not cover.
+# One workflow per release, run automatically when a pull request merges to main,
+# and dispatchable by hand for the merge that did not release. svu derives the next
+# version from the commits since the last tag and pushes it; the binaries come from
+# the successful lint-test run of the pull request that merged, so nothing is built
+# twice; the image Staging built for that pull request is retagged, not rebuilt. A
+# tag pushed with GITHUB_TOKEN does not trigger another workflow, so the Flatpak and
+# Chocolatey files are queued here through workflow_dispatch, which is the one event
+# that exemption does not cover. locate-build resolves the merged pull request from
+# the tag, so a commit pushed straight to main releases nothing.
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -219,6 +223,28 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: v${{ needs.resolve-version.outputs.version }}
         run: gh workflow run chocolatey.yml --ref main -f tag="$TAG"
+
+  dispatch-gitops-pin:
+    name: Dispatch GitOps Pin Bump
+    needs: [resolve-version, publish]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Install the Doppler cli
+        uses: dopplerhq/cli-action@v4
+      # The pin bump in gke_GitOps already polls for releases every six hours; queueing
+      # it here is what puts the release on prod in minutes instead of at the next tick.
+      # The poll stays as the safety net for the runs this dispatch cannot reach.
+      - name: Queue the prod pin bump
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+          TAG: v${{ needs.resolve-version.outputs.version }}
+        run: |
+          set -euo pipefail
+          token="$(doppler secrets get GITHUB_TOKEN --plain --project devops --config ci)"
+          echo "::add-mask::$token"
+          GH_TOKEN="$token" gh workflow run openkite-pin-bump.yaml -R jomakori/gke_GitOps --ref main
+          echo "Queued the pin bump for $TAG." >> "$GITHUB_STEP_SUMMARY"
 
   clean-up-artifacts:
     name: Clean Up Artifacts
