@@ -1,11 +1,6 @@
 name: Flatpak
 
-# Builds and attaches the Flatpak bundle to an already-published release. A
-# separate file from release.yml: that workflow ships the native tarballs,
-# this one ships the sandboxed bundle, and both must be free to change on
-# their own schedule. release.yml queues it through workflow_dispatch, because a
-# release created with GITHUB_TOKEN does not fire the release event.
-
+# allow: GITHUB_TOKEN-created releases don't fire the release event, so release.yml dispatches this
 on:
   release:
     types: [published]

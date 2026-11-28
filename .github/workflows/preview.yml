@@ -1,9 +1,5 @@
 name: Preview
 
-# Label-gated ephemeral environment: Tilt renders the GitOps umbrella chart at
-# pr<N> coordinates and tears it down when the label leaves or the PR closes.
-# The image itself is built by Staging; this workflow only deploys the tag.
-
 on:
   pull_request:
     types: [labeled, unlabeled, synchronize, closed]
@@ -30,7 +26,6 @@ jobs:
       TILT_VERSION: v0.37.7
       OPENKITE_PR: ${{ github.event.pull_request.number }}
       OPENKITE_DEV_LOOP: '0'
-      # CI promotes the image staging built for this commit instead of rebuilding.
       OPENKITE_SHA7: ${{ github.event.pull_request.head.sha }}
       OPENKITE_CHART: gke_GitOps/apps/helm
     steps:
@@ -81,9 +76,7 @@ jobs:
       - name: Assert cluster access
         run: kubectl auth can-i list namespaces
       - name: Wait for the staging image
-        # Staging builds and pushes ghcr.io/jomakori/openkite:pr-<n>-<sha7>
-        # on the same PR events, with no ordering between the two workflows.
-        # Poll the registry so Tilt never races an image that hasn't landed.
+        # allow: Staging and Preview fire on the same PR events with no ordering guarantee
         run: |
           set -euo pipefail
           sha7="${OPENKITE_SHA7:0:7}"

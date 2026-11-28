@@ -1,17 +1,5 @@
 name: Release
 
-# One workflow per release, run automatically when a pull request merges to main,
-# and dispatchable by hand for the merge that did not release. svu derives the next
-# version from the commits since the last tag and pushes it; the binaries come from
-# the successful lint-test run of the pull request that merged, so nothing is built
-# twice; the image Staging built for that pull request is retagged, not rebuilt. A
-# tag pushed with GITHUB_TOKEN does not trigger another workflow, so the Flatpak and
-# Chocolatey files are queued here through workflow_dispatch, which is the one event
-# that exemption does not cover. locate-build resolves the merged pull request from
-# the tag, so a commit pushed straight to main releases nothing. The last job moves
-# the prod pin in gke_GitOps with yq and pushes it, which is what puts the release
-# on prod; there is no separate bump workflow to poll or dispatch.
-
 on:
   push:
     branches: [main]
@@ -28,35 +16,43 @@ permissions:
   pull-requests: read
 
 jobs:
-  resolve-version:
-    name: Resolve Version
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
+  build:
+    name: Build Release
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
     outputs:
       version: ${{ steps.tag.outputs.version }}
+      published: ${{ steps.release.outputs.published }}
     steps:
-      - name: Check out the full history and tags
+      - name: Checkout
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+
+      - name: Install Doppler CLI
+        uses: dopplerhq/cli-action@v4.0.1
+
+      - name: Fetch Doppler Secrets
+        id: doppler
+        uses: dopplerhq/secrets-fetch-action@v2.0.0
+        with:
+          doppler-token: ${{ secrets.DOPPLER_TOKEN }}
+          inject-env-vars: true
+
       - name: Install svu
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release download -R caarlos0/svu -p 'svu_*_linux_amd64.tar.gz' -D "$RUNNER_TEMP/svu" --clobber
           tar -xzf "$RUNNER_TEMP"/svu/*.tar.gz -C /usr/local/bin svu
           svu --version
+
       - name: Tag the next version
         id: tag
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           current="$(svu current)"
           next="$(svu next)"
           echo "current=$current next=$next" >> "$GITHUB_STEP_SUMMARY"
           if [ "$current" = "$next" ]; then
-            # An earlier run may have tagged the version and died before publishing it.
             if git rev-parse -q --verify "refs/tags/$current" >/dev/null \
               && ! gh release view "$current" >/dev/null 2>&1; then
               echo "Resuming unpublished $current." >> "$GITHUB_STEP_SUMMARY"
@@ -70,25 +66,11 @@ jobs:
           git push origin "$next"
           echo "version=${next#v}" >> "$GITHUB_OUTPUT"
 
-  locate-build:
-    name: Locate Build
-    needs: resolve-version
-    if: needs.resolve-version.outputs.version != ''
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    outputs:
-      skip: ${{ steps.find.outputs.skip }}
-      run_id: ${{ steps.find.outputs.run_id }}
-      pr: ${{ steps.find.outputs.pr }}
-      image: ${{ steps.find.outputs.image }}
-    steps:
       - name: Find the pull request build for this commit
         id: find
+        if: steps.tag.outputs.version != ''
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # The tagged commit, not the dispatch commit: a resumed release publishes
-          # the build that was made for the version being tagged.
-          TAG: v${{ needs.resolve-version.outputs.version }}
+          TAG: v${{ steps.tag.outputs.version }}
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
@@ -100,7 +82,6 @@ jobs:
             exit 0
           fi
           head="$(gh api "repos/$REPO/pulls/$pr" --jq '.head.sha')"
-          # lint-test builds the release binaries; Staging only builds the image.
           run_id="$(gh api \
             "repos/$REPO/actions/workflows/lint-test.yml/runs?head_sha=$head&status=success&per_page=1" \
             --jq '.workflow_runs[0].id // empty')"
@@ -112,14 +93,11 @@ jobs:
           binaries="$(gh api "repos/$REPO/actions/runs/$run_id/artifacts?per_page=100" \
             --jq '[.artifacts[] | select(.name | startswith("openkite-dist-"))] | length')"
           if [ "$binaries" = '0' ]; then
-            # Build Binaries is skipped only when the pull request changed no build
-            # input. A successful build with nothing left to download means the
-            # artifacts expired or were cleaned up, and a release must say so
-            # instead of silently publishing nothing.
             built="$(gh api "repos/$REPO/actions/runs/$run_id/jobs?per_page=100" \
               --jq '[.jobs[] | select(.name | startswith("Build Binaries")) | .conclusion] | unique | join(",")')"
             if [ "$built" = 'success' ]; then
-              echo "::error::Run $run_id built the binaries but carries no openkite-dist artifacts: they expired or were deleted. Re-run lint-test for $head."
+              echo "::error::Run $run_id built the binaries but carries no openkite-dist artifacts:" \
+                "they expired or were deleted. Re-run lint-test for $head."
               exit 1
             fi
             echo 'skip=true' >> "$GITHUB_OUTPUT"
@@ -132,31 +110,33 @@ jobs:
             echo "image=pr-${pr}-${head:0:7}"
           } >> "$GITHUB_OUTPUT"
 
-  publish:
-    name: Publish Release
-    needs: [resolve-version, locate-build]
-    if: needs.locate-build.outputs.skip != 'true'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    steps:
-      - name: Check out the release commit
-        uses: actions/checkout@v7
-        with:
-          # gh release create --verify-tag reads the tag from a local clone.
-          fetch-depth: 0
-          fetch-tags: true
+      - name: Withdraw the tag when there is nothing to publish
+        if: steps.find.outputs.skip == 'true'
+        env:
+          TAG: v${{ steps.tag.outputs.version }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if gh api "repos/$REPO/git/ref/tags/$TAG" >/dev/null 2>&1; then
+            gh api -X DELETE "repos/$REPO/git/refs/tags/$TAG"
+            echo "Withdrew $TAG: no build to publish." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Download the binaries built for the pull request
+        if: steps.find.outputs.run_id != ''
         uses: actions/download-artifact@v8
         with:
           pattern: openkite-dist-*
           merge-multiple: true
           path: dist
-          run-id: ${{ needs.locate-build.outputs.run_id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ steps.find.outputs.run_id }}
+          github-token: ${{ steps.doppler.outputs.GITHUB_TOKEN }}
+
       - name: Package the binaries
+        if: steps.find.outputs.run_id != ''
         shell: bash
         env:
-          VERSION: v${{ needs.resolve-version.outputs.version }}
+          VERSION: v${{ steps.tag.outputs.version }}
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -174,115 +154,63 @@ jobs:
           fi
           (cd out && sha256sum ./*.tar.gz > checksums.txt)
           ls -lh out
+
       - name: Confirm the pull request image exists
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        if: steps.find.outputs.run_id != ''
         run: |
           set -euo pipefail
-          echo "$GH_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          source="ghcr.io/jomakori/openkite:${{ needs.locate-build.outputs.image }}"
+          echo "$GITHUB_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          source="ghcr.io/jomakori/openkite:${{ steps.find.outputs.image }}"
           if ! docker buildx imagetools inspect "$source" >/dev/null 2>&1; then
             echo "::error::$source is missing: Staging never built an image for this pull request."
             exit 1
           fi
+
       - name: Create the release with generated notes
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        id: release
+        if: steps.find.outputs.run_id != ''
         run: |
-          tag="v${{ needs.resolve-version.outputs.version }}"
+          set -euo pipefail
+          tag="v${{ steps.tag.outputs.version }}"
           gh release create "$tag" \
             --title "$tag" \
             --generate-notes \
             --verify-tag
+          echo "published=true" >> "$GITHUB_OUTPUT"
+
       - name: Upload the release assets
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        if: steps.release.outputs.published == 'true'
         run: |
           set -euo pipefail
-          tag="v${{ needs.resolve-version.outputs.version }}"
+          tag="v${{ steps.tag.outputs.version }}"
           gh release upload "$tag" out/* --clobber
+
       - name: Retag the pull request image as the release
+        if: steps.release.outputs.published == 'true'
         run: |
           set -euo pipefail
-          source="ghcr.io/jomakori/openkite:${{ needs.locate-build.outputs.image }}"
-          tag="ghcr.io/jomakori/openkite:v${{ needs.resolve-version.outputs.version }}"
+          source="ghcr.io/jomakori/openkite:${{ steps.find.outputs.image }}"
+          tag="ghcr.io/jomakori/openkite:v${{ steps.tag.outputs.version }}"
           docker buildx imagetools create -t "$tag" -t ghcr.io/jomakori/openkite:latest "$source"
           docker buildx imagetools inspect "$tag"
 
-  dispatch-packages:
-    name: Dispatch Packages
-    needs: [resolve-version, publish]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
       - name: Queue the Flatpak bundle
+        if: steps.release.outputs.published == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: v${{ needs.resolve-version.outputs.version }}
+          TAG: v${{ steps.tag.outputs.version }}
         run: gh workflow run flatpak.yml --ref main -f tag="$TAG"
+
       - name: Queue the Chocolatey package
+        if: steps.release.outputs.published == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: v${{ needs.resolve-version.outputs.version }}
+          TAG: v${{ steps.tag.outputs.version }}
         run: gh workflow run chocolatey.yml --ref main -f tag="$TAG"
 
-  bump-prod-pin:
-    name: Bump the prod pin
-    needs: [resolve-version, publish]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - name: Install the Doppler cli
-        uses: dopplerhq/cli-action@v4
-
-      - name: Fetch the GitOps token
-        id: pat
-        env:
-          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
-        run: |
-          set -euo pipefail
-          # main requires the full check set and the automatic token never bypasses it
-          # (GH006), so the pin push needs the admin classic token.
-          token="$(doppler secrets get GITHUB_TOKEN --plain --project devops --config ci)"
-          echo "::add-mask::$token"
-          echo "token=$token" >> "$GITHUB_OUTPUT"
-
-      - name: Check out the GitOps repo
-        uses: actions/checkout@v7
-        with:
-          repository: jomakori/gke_GitOps
-          ref: main
-          token: ${{ steps.pat.outputs.token }}
-          path: gitops
-
-      - name: Move the pin
-        env:
-          TAG: v${{ needs.resolve-version.outputs.version }}
-        run: |
-          set -euo pipefail
-          cd gitops
-          yq -i '.openkite.environments.production.tag = strenv(TAG)' apps/helm/values.yaml
-          if git diff --quiet; then
-            echo "Pin already at ${TAG}; nothing to move."
-            exit 0
-          fi
-          git -c user.name="openkite-release[bot]" \
-              -c user.email="openkite-release@users.noreply.github.com" \
-              commit -am "chore(apps): pin openkite prod to ${TAG}"
-          git push origin HEAD:main
-          echo "Prod pinned to ${TAG}." >> "$GITHUB_STEP_SUMMARY"
-
-  clean-up-artifacts:
-    name: Clean Up Artifacts
-    needs: [locate-build, publish]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
       - name: Delete the pull request artifacts
+        if: steps.release.outputs.published == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
-          PR: ${{ needs.locate-build.outputs.pr }}
+          PR: ${{ steps.find.outputs.pr }}
         run: |
           set -euo pipefail
           head="$(gh api "repos/$REPO/pulls/$PR" --jq '.head.sha')"
@@ -295,3 +223,41 @@ jobs:
                   echo "deleted artifact $artifact from run $run"
                 done
             done
+
+  deploy:
+    name: Deploy Release
+    needs: build
+    if: needs.build.outputs.published == 'true'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - name: Fetch Doppler Secrets
+        id: doppler
+        uses: dopplerhq/secrets-fetch-action@v2.0.0
+        with:
+          doppler-token: ${{ secrets.DOPPLER_TOKEN }}
+
+      - name: Checkout the GitOps repo
+        uses: actions/checkout@v7
+        with:
+          repository: jomakori/gke_GitOps
+          ref: main
+          token: ${{ steps.doppler.outputs.GITHUB_TOKEN }}
+          path: gitops
+
+      - name: Pin the production tag
+        env:
+          TAG: v${{ needs.build.outputs.version }}
+        run: |
+          set -euo pipefail
+          yq -i '.openkite.environments.production.tag = strenv(TAG)' gitops/apps/helm/values.yaml
+          cd gitops
+          if git diff --quiet; then
+            echo "Pin already at ${TAG}; nothing to move."
+            exit 0
+          fi
+          git -c user.name="openkite-release[bot]" \
+              -c user.email="openkite-release@users.noreply.github.com" \
+              commit -q -am "chore(apps): pin openkite prod to ${TAG}"
+          git push -q origin HEAD:main
+          echo "Prod pinned to ${TAG}." >> "$GITHUB_STEP_SUMMARY"

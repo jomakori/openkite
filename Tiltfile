@@ -19,8 +19,6 @@ if pr != '':
 
     values = []
     if dev_loop:
-        # The pod builds the binary it runs, so the tag is local to this loop and
-        # Tilt owns the image: a sync recompiles inside the container.
         tag = 'dev'
         values = ['tilt-dev-values.yaml']
         docker_build_with_restart(
@@ -37,8 +35,6 @@ if pr != '':
             ignore=['./target', './.git'],
         )
     else:
-        # CI promotes the image staging already built for this commit; nothing is
-        # rebuilt here, so the preview runs exactly what the pull request built.
         if sha7 == '':
             fail('Set OPENKITE_SHA7 to the 7-character head sha so the preview can pull the staging image.')
         tag = 'pr-' + pr + '-' + sha7
@@ -55,8 +51,7 @@ if pr != '':
         '--set=openkite.environments.staging.dopplerConfig=svc_openagent',
     ]
 
-    # Helm silently ignores a value key the chart revision does not know, which would
-    # place this preview at production coordinates.
+    # allow: Helm ignores value keys the chart revision doesn't know, which would place the preview at production coords
     parts = ['helm', 'template', 'openkite-preview-' + pr, chart]
     for path in values:
         parts += ['-f', path]
@@ -67,8 +62,7 @@ if pr != '':
             fail('The chart did not render ' + needle + '. It is stale or the values moved; refusing to install.')
 
     if dev_loop:
-        # The cache mount only exists because this loop needs it, so the assertion
-        # above cannot see it: a chart that dropped the seam would still deploy.
+        # allow: the cache mount exists only for the dev loop, so the chart-render assertion above can't see it
         if 'cargo-cache' not in rendered:
             fail('The chart did not render the cargo-cache volume. The dev loop needs the emptyDir seam.')
 
