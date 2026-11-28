@@ -28,6 +28,8 @@ pub mod settings_view;
 pub mod table;
 pub mod table_columns;
 pub mod table_view;
+pub mod terminal;
+pub mod terminal_view;
 
 pub use inspector::{
     action_bar, actions_for, default_schema, has_tab, tab_ids, tabs_for, Container, Detail, Event,
@@ -55,3 +57,5 @@ pub use settings::{
 pub use settings_view::{SettingsSheet, SettingsSheetProps, ThemeScope, ThemeScopeProps};
 pub use table::{columns, Column, Density, Row, RowEffect, RowPart, Sort, SortDir, TableState};
 pub use table_view::{ResourceTable, ResourceTableProps};
+pub use terminal::{TerminalChunk, TerminalSession, TerminalStatus};
+pub use terminal_view::{Terminal, TerminalProps};
