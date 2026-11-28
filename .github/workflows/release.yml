@@ -260,8 +260,8 @@ jobs:
           TAG: v${{ needs.resolve-version.outputs.version }}
         run: |
           set -euo pipefail
-          python3 .github/scripts/pin_prod_tag.py gitops/apps/helm/values.yaml openkite "$TAG"
           cd gitops
+          yq -i '.openkite.environments.production.tag = strenv(TAG)' apps/helm/values.yaml
           if git diff --quiet; then
             echo "Pin already at ${TAG}; nothing to move."
             exit 0
