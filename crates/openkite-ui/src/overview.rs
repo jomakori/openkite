@@ -579,6 +579,9 @@ pub struct OverviewData {
     pub events: Vec<EventRow>,
     pub namespaces: Vec<(String, usize)>,
     pub capacity: Vec<CapacityGauge>,
+    /// Source, band and windowed samples the usage charts draw from. Empty until a
+    /// caller attaches one, which is what a cluster without metrics-server looks like.
+    pub metrics: crate::metrics::MetricsView,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -668,6 +671,12 @@ impl OverviewData {
             counts: counts.as_map().clone(),
             ..OverviewData::default()
         }
+    }
+
+    /// Attaches the metrics window the usage charts draw from.
+    pub fn with_metrics(mut self, metrics: crate::metrics::MetricsView) -> Self {
+        self.metrics = metrics;
+        self
     }
 
     /// Sorts pod rows into the problems and restarts lists.

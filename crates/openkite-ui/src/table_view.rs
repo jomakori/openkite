@@ -7,6 +7,8 @@
 use dioxus::prelude::*;
 
 use crate::access::{DeniedPanel, Permissions};
+use crate::chart::Sparkline;
+use crate::metrics::Threshold;
 
 use crate::nav::icon_for;
 use crate::table::{
@@ -42,6 +44,9 @@ pub struct ResourceTableProps {
     /// with the reason, and a denied delete removes the bulk action.
     #[props(default)]
     pub permissions: Permissions,
+    /// Bands a trend reading is marked against. Defaults to the reference gauges' 70/85.
+    #[props(default)]
+    pub threshold: Threshold,
 }
 
 /// Direction glyph for a column, empty when it is not the active sort column.
@@ -54,9 +59,16 @@ pub fn sort_mark(sort: &Sort, column: &str) -> &'static str {
 }
 
 /// Body cell for a column: the prototype renders kind-specific cells rather than raw text.
-fn cell_body(row: &Row, column: &str) -> Element {
+fn cell_body(row: &Row, column: &str, threshold: Threshold) -> Element {
     let value = row.cell(column);
     match column {
+        "trend" => rsx! {
+            Sparkline {
+                series: row.trend.clone().unwrap_or_default(),
+                threshold,
+                label: "Trend",
+            }
+        },
         "ns" => rsx! {
             span { class: "cell-value",
                 span { class: "namespace",
@@ -114,7 +126,13 @@ pub fn ResourceTable(props: ResourceTableProps) -> Element {
     let state = props.state.clone();
     let visible: Vec<Row> = state.visible(&props.rows).into_iter().cloned().collect();
     let total = props.rows.len();
-    let cols = state.visible_columns(&props.kind);
+    // A trend column appears only when the rows actually carry readings, so a cluster
+    // without metrics-server shows no empty column.
+    let cols = if props.rows.iter().any(|row| row.trend.is_some()) {
+        state.columns_with_trend(&props.kind)
+    } else {
+        state.visible_columns(&props.kind)
+    };
     let height = state.density.row_height();
     let icon = icon_for(&props.kind);
     let on_scroll = props.on_scroll;
@@ -375,6 +393,7 @@ pub fn ResourceTable(props: ResourceTableProps) -> Element {
                                 state: state.clone(),
                                 on_open: open,
                                 on_state: emit,
+                                threshold: props.threshold,
                             }
                         }
                     }
@@ -405,10 +424,13 @@ pub struct RowViewProps {
     pub state: TableState,
     pub on_open: EventHandler<String>,
     pub on_state: EventHandler<TableState>,
+    #[props(default)]
+    pub threshold: Threshold,
 }
 
 #[allow(non_snake_case)]
 fn RowView(props: RowViewProps) -> Element {
+    let threshold = props.threshold;
     let row = props.row.clone();
     let state = props.state.clone();
     let selected = state.selected.contains(&row.id);
@@ -519,7 +541,7 @@ fn RowView(props: RowViewProps) -> Element {
             for col in props.cols.iter() {
                 td {
                     "data-label": "{col.1}",
-                    {cell_body(&row, col.0)}
+                    {cell_body(&row, col.0, threshold)}
                 }
             }
             td { class: "col-act", "data-label": "Actions",
@@ -561,7 +583,7 @@ fn RowView(props: RowViewProps) -> Element {
                         }
                     }
                     for col in props.cols.iter() {
-                        td { "data-label": "{col.1}", {cell_body(&kid, col.0)} }
+                        td { "data-label": "{col.1}", {cell_body(&kid, col.0, threshold)} }
                     }
                     td { class: "col-act" }
                 }

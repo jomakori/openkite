@@ -13,11 +13,11 @@ pub const SAMPLE_CAP: usize = 60;
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum MetricSource {
     /// `metrics.k8s.io` answers: CPU and memory for nodes and pods.
-    #[default]
     MetricsServer,
     /// No metrics API, but Prometheus is scraping: the series are a query away.
     Prometheus,
     /// Neither answered. Charts render their empty state instead of a flat line.
+    #[default]
     Absent,
 }
 
@@ -66,6 +66,44 @@ impl MetricSource {
                 "Metrics unavailable — install metrics-server or point the console at Prometheus"
             }
         }
+    }
+}
+
+/// The metrics a surface draws with: which source answered, the band it judges by, and
+/// the window of aggregate samples for each metric. This is what the overview board
+/// carries so its charts need no second fetch.
+#[derive(Clone, PartialEq, Eq, Debug, Default)]
+pub struct MetricsView {
+    pub source: MetricSource,
+    pub threshold: Threshold,
+    pub cpu: Series,
+    pub mem: Series,
+}
+
+impl MetricsView {
+    /// The window for a metric key (`"cpu"` or `"mem"`), if the key is known.
+    pub fn series(&self, metric: &str) -> Option<&Series> {
+        match metric {
+            "cpu" => Some(&self.cpu),
+            "mem" => Some(&self.mem),
+            _ => None,
+        }
+    }
+
+    /// Offers one reading to a metric's window; unknown keys are dropped.
+    pub fn offer(&mut self, metric: &str, pct: u8) {
+        match metric {
+            "cpu" => self.cpu.push(pct),
+            "mem" => self.mem.push(pct),
+            _ => {}
+        }
+    }
+
+    /// Tone of a metric's latest reading.
+    pub fn tone(&self, metric: &str) -> Tone {
+        self.series(metric)
+            .map(|series| series.tone(self.threshold))
+            .unwrap_or_default()
     }
 }
 
@@ -405,6 +443,21 @@ mod tests {
         assert!(feed.offer(55));
         assert_eq!(feed.series().samples(), &[40, 55]);
         assert_eq!(feed.skipped(), 5);
+    }
+
+    #[test]
+    fn a_view_feeds_each_metric_its_own_window() {
+        let mut view = MetricsView::default();
+        assert_eq!(view.source, MetricSource::Absent);
+        view.offer("cpu", 30);
+        view.offer("cpu", 88);
+        view.offer("mem", 12);
+        view.offer("gpu", 99);
+        assert_eq!(view.series("cpu").unwrap().samples(), &[30, 88]);
+        assert_eq!(view.series("mem").unwrap().samples(), &[12]);
+        assert_eq!(view.tone("cpu"), Tone::Crit);
+        assert_eq!(view.tone("mem"), Tone::Normal);
+        assert!(view.series("gpu").is_none());
     }
 
     #[test]

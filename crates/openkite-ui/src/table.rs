@@ -23,6 +23,9 @@ pub struct Row {
     pub cells: BTreeMap<String, String>,
     /// Child rows shown when the row is expanded (Deployment -> ReplicaSets, ...).
     pub kids: Vec<Row>,
+    /// Recent readings for the trend column. `None` on a row whose surface has no
+    /// metrics, which is what keeps the column off a list nothing measured.
+    pub trend: Option<crate::metrics::Series>,
 }
 
 impl Row {
@@ -33,7 +36,14 @@ impl Row {
             namespace: None,
             cells: BTreeMap::new(),
             kids: Vec::new(),
+            trend: None,
         }
+    }
+
+    /// Attaches the reading history the trend column draws.
+    pub fn with_trend(mut self, trend: crate::metrics::Series) -> Self {
+        self.trend = Some(trend);
+        self
     }
 
     pub fn with_namespace(mut self, namespace: impl Into<String>) -> Self {
@@ -88,6 +98,22 @@ pub fn columns(kind: &str) -> &'static [Column] {
         .find(|(name, _)| *name == kind)
         .map(|(_, cols)| *cols)
         .unwrap_or(DEFAULT_COLUMNS)
+}
+
+/// The trend column a measured list carries. Deliberately not part of the generated
+/// column table: the prototype injects it after `age` the same way, and a list whose
+/// rows carry no readings must not render an empty column.
+pub const TREND_COLUMN: Column = Column {
+    id: "trend",
+    label: "Trend",
+};
+
+/// Kinds the prototype gives a trend column.
+pub fn trend_kinds(kind: &str) -> bool {
+    matches!(
+        kind,
+        "pods" | "nodes" | "deployments" | "statefulsets" | "daemonsets" | "replicasets" | "namespaces"
+    )
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -228,6 +254,26 @@ impl TableState {
             .filter(|(index, col)| *index == 0 || !self.hidden.contains(col.id))
             .map(|(_, col)| *col)
             .collect()
+    }
+
+    /// Columns for a measured list: the kind's own set with the trend column after
+    /// `age`, unless it is hidden. Hiding it is how a list stops asking for readings,
+    /// so the column picker doubles as the pause control.
+    pub fn columns_with_trend(&self, kind: &str) -> Vec<Column> {
+        let mut cols = self.visible_columns(kind);
+        if !trend_kinds(kind)
+            || self.hidden.contains(TREND_COLUMN.id)
+            || cols.iter().any(|col| col.id == TREND_COLUMN.id)
+        {
+            return cols;
+        }
+        let at = cols
+            .iter()
+            .position(|col| col.id == "age")
+            .map(|index| index + 1)
+            .unwrap_or(cols.len());
+        cols.insert(at, TREND_COLUMN);
+        cols
     }
 
     pub fn toggle_hidden(&mut self, column: &str) {
@@ -495,6 +541,29 @@ pub fn effect_for(part: RowPart) -> RowEffect {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    #[test]
+    fn the_trend_column_follows_age_and_obeys_the_picker() {
+        let state = TableState::default();
+        let cols = state.columns_with_trend("pods");
+        let age = cols.iter().position(|col| col.id == "age").unwrap();
+        assert_eq!(cols[age + 1].id, TREND_COLUMN.id);
+
+        let mut hidden = TableState::default();
+        hidden.toggle_hidden(TREND_COLUMN.id);
+        assert!(!hidden
+            .columns_with_trend("pods")
+            .iter()
+            .any(|col| col.id == TREND_COLUMN.id));
+
+        // A kind the prototype never measures keeps its own columns.
+        assert!(!TableState::default()
+            .columns_with_trend("events")
+            .iter()
+            .any(|col| col.id == TREND_COLUMN.id));
+    }
+
     use super::*;
 
     fn sample_rows(count: usize) -> Vec<Row> {

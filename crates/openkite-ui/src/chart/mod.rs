@@ -157,6 +157,7 @@ pub fn WorkloadChart(props: WorkloadChartProps) -> Element {
         "ready"
     };
     let tick = props.threshold.warn;
+    let now = props.latest();
     let caption = if props.sub.is_empty() {
         format!("last {} samples", props.series.first().map(|s| s.data.len()).unwrap_or(0))
     } else {
@@ -174,6 +175,15 @@ pub fn WorkloadChart(props: WorkloadChartProps) -> Element {
             figcaption {
                 span { class: "ct", "{props.title}" }
                 span { class: "cs",
+                    if let Some((pct, tone)) = now {
+                        span {
+                            class: "chart-now",
+                            "data-tone": tone.id(),
+                            "data-now": "{pct}",
+                            style: "color: {tone_color(tone)}",
+                            "{pct}%"
+                        }
+                    }
                     span { class: "chart-src", "data-source": props.source.id(), "{props.source.label()}" }
                     span { class: "chart-sub", "{caption}" }
                 }
