@@ -38,6 +38,7 @@ async fn overview_renders_the_console_shell() {
     let body = response.into_body().collect().await.unwrap().to_bytes();
     let html = String::from_utf8(body.to_vec()).unwrap();
     assert!(html.contains("console.css"));
+    assert!(html.contains("charts.css"));
     assert!(html.contains("frost-dark"));
     assert!(html.contains("Cluster overview"));
 }
@@ -57,6 +58,7 @@ async fn table_renders_the_console_shell() {
     let body = response.into_body().collect().await.unwrap().to_bytes();
     let html = String::from_utf8(body.to_vec()).unwrap();
     assert!(html.contains("console.css"));
+    assert!(html.contains("charts.css"));
     assert!(html.contains("frost-dark"));
     assert!(html.contains("Pods"));
 }
@@ -80,6 +82,25 @@ async fn styles_serve_the_console_stylesheet() {
     let body = response.into_body().collect().await.unwrap().to_bytes();
     let css = String::from_utf8(body.to_vec()).unwrap();
     assert!(css.contains("--shadow-terminal"));
+}
+
+#[tokio::test]
+async fn charts_stylesheet_is_served_beside_the_console_sheet() {
+    let response = test_router()
+        .oneshot(
+            Request::get("/styles/charts.css")
+                .body(axum::body::Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let css = String::from_utf8(body.to_vec()).unwrap();
+    // The chart sheet is the one that carries the threshold mark, not the console sheet.
+    assert!(css.contains(".trend-cell"));
+    assert!(css.contains("data-tone=\"warn\""));
 }
 
 #[tokio::test]
