@@ -28,6 +28,9 @@ const BUILD_VERSION: &str = match option_env!("OPENKITE_VERSION") {
 
 /// Console stylesheet, served verbatim at `/styles/console.css`.
 const CONSOLE_CSS: &str = include_str!("../../openkite-ui/assets/console.css");
+/// Chart stylesheet, served at `/styles/charts.css`. It lives beside the chart component
+/// rather than in the shared console sheet, and only adds the states the console lacks.
+const CHARTS_CSS: &str = include_str!("../../openkite-ui/src/chart/chart.css");
 /// Icon sprite the shell markup references by fragment id (`#i-name`).
 const ICONS_SVG: &str = include_str!("../../openkite-ui/assets/icons.svg");
 /// Absolute path the `asset!` macro bakes into icon hrefs at compile time inside
@@ -48,6 +51,7 @@ pub fn router(live: Arc<Live>) -> Router {
         .route("/table", get(table))
         .route("/events", get(events))
         .route("/styles/console.css", get(styles))
+        .route("/styles/charts.css", get(chart_styles))
         .fallback(not_found)
         .with_state(AppState { live })
 }
@@ -82,6 +86,10 @@ async fn styles() -> impl IntoResponse {
     ([(header::CONTENT_TYPE, "text/css")], CONSOLE_CSS)
 }
 
+async fn chart_styles() -> impl IntoResponse {
+    ([(header::CONTENT_TYPE, "text/css")], CHARTS_CSS)
+}
+
 async fn overview(State(state): State<AppState>) -> impl IntoResponse {
     let data = state.live.overview().await;
     let connection = state.live.connection();
@@ -90,7 +98,9 @@ async fn overview(State(state): State<AppState>) -> impl IntoResponse {
 }
 
 async fn table(State(state): State<AppState>) -> impl IntoResponse {
-    let rows = state.live.table().await;
+    // The pods page renders the trend column by default, so this fetch asks for readings;
+    // hiding the column stops the drawing, and the feed pauses with it.
+    let rows = state.live.table(true).await;
     let connection = state.live.connection();
     let cluster = state.live.cluster();
     let permissions = state.live.permissions("", "pods", None).await;
@@ -290,7 +300,7 @@ fn html_document(title: &str, body_inner: String) -> String {
     body = body.replace(&format!("{UI_CRATE_DIR}/assets/icons.svg#"), "#");
     body = body.replace(&format!("{UI_CRATE_DIR}#"), "#");
     format!(
-        "<!doctype html>\n<html lang=\"en\" data-appearance=\"dark\" data-theme=\"frost-dark\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>{title}</title>\n<link rel=\"stylesheet\" href=\"/styles/console.css\">\n</head>\n<body>\n{ICONS_SVG}\n{body}\n</body>\n</html>\n"
+        "<!doctype html>\n<html lang=\"en\" data-appearance=\"dark\" data-theme=\"frost-dark\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>{title}</title>\n<link rel=\"stylesheet\" href=\"/styles/console.css\">\n<link rel=\"stylesheet\" href=\"/styles/charts.css\">\n</head>\n<body>\n{ICONS_SVG}\n{body}\n</body>\n</html>\n"
     )
 }
 

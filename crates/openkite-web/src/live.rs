@@ -3,7 +3,8 @@
 //! Every list call gets its own timeout and turns a failure into an empty result for that
 //! slice, so one flaky query degrades a widget instead of failing the whole page.
 
-use std::sync::Arc;
+use std::collections::BTreeMap;
+use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
 
 use k8s_openapi::api::apps::v1::Deployment;
@@ -12,6 +13,7 @@ use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
 use kube::api::{Api, ListParams};
 use kube::core::{ApiResource, DynamicObject, GroupVersionKind};
 use openkite_engine::Engine;
+use openkite_ui::metrics::{ChartFeed, MetricSource, MetricsView, Series, SourceProbe, SAMPLE_CAP};
 use openkite_ui::overview::{
     ArgoRow, CapacityGauge, EventRow, NodeRow, OverviewData, OverviewLayout,
 };
@@ -99,13 +101,15 @@ impl Live {
 
         // One round-trip window for all six lists: `join!` keeps a slow kind from
         // stacking its timeout on top of the others.
-        let (pods, nodes_raw, namespaces_raw, events_raw, deployments, argo) = tokio::join!(
+        let (pods, nodes_raw, namespaces_raw, events_raw, deployments, argo, pod_usage, node_usage) = tokio::join!(
             timed(list_all::<Pod>(client.clone())),
             timed(list_all::<Node>(client.clone())),
             timed(list_all::<Namespace>(client.clone())),
             timed(list_all::<Event>(client.clone())),
             timed(list_all::<Deployment>(client.clone())),
             timed(fetch_argo_apps(client.clone())),
+            timed(fetch_pod_usage(client.clone())),
+            timed(fetch_node_usage(client.clone())),
         );
         let pods = pods.unwrap_or_default();
         let nodes_raw = nodes_raw.unwrap_or_default();
@@ -113,6 +117,10 @@ impl Live {
         let events_raw = events_raw.unwrap_or_default();
         let deployments = deployments.unwrap_or_default();
         let argo = argo.unwrap_or_default();
+        let pod_usage_answered = pod_usage.is_some();
+        let node_usage_answered = node_usage.is_some();
+        let pod_usage = pod_usage.unwrap_or_default();
+        let node_usage = node_usage.unwrap_or_default();
 
         let pressure = Pressure::read(&nodes_raw, &pods);
         let counts = Counts::new()
@@ -126,7 +134,14 @@ impl Live {
 
         let threshold = OverviewLayout::default().threshold;
         let mut data = OverviewData::from_counts(engine.context(), &counts)
-            .with_pods(pod_rows(&pods), threshold);
+            .with_pods(pod_rows(&pods, &pod_usage, false), threshold)
+            .with_metrics(metrics_view(
+                &pods,
+                &nodes_raw,
+                &node_usage,
+                &pressure,
+                pod_usage_answered || node_usage_answered,
+            ));
         data.nodes = node_rows(&nodes_raw, &pods);
         data.argo = argo;
         data.events = event_rows(&events_raw);
@@ -189,14 +204,20 @@ impl Live {
         }
     }
 
-    pub async fn table(&self) -> Vec<Row> {
+    pub async fn table(&self, trends: bool) -> Vec<Row> {
         let Live::Connected(engine) = self else {
             return Vec::new();
         };
-        let pods = timed(list_all::<Pod>(engine.client()))
-            .await
-            .unwrap_or_default();
-        pod_rows(&pods)
+        let client = engine.client();
+        let (pods, usage) = tokio::join!(
+            timed(list_all::<Pod>(client.clone())),
+            timed(fetch_pod_usage(client)),
+        );
+        pod_rows(
+            &pods.unwrap_or_default(),
+            &usage.unwrap_or_default(),
+            trends,
+        )
     }
 }
 
@@ -258,6 +279,129 @@ async fn fetch_argo_apps(client: kube::Client) -> Result<Vec<ArgoRow>, kube::Err
 }
 
 /// Walks a dotted path into a `DynamicObject`'s free-form data and reads a string leaf.
+/// Where a trend column keeps its history: one feed per row id, so a row's line survives
+/// page loads for as long as the process lives. A feed that was told its surface is
+/// hidden records nothing until it is shown again.
+static TRENDS: LazyLock<Mutex<BTreeMap<String, ChartFeed>>> = LazyLock::new(Default::default);
+
+/// Offers one reading to a row's feed and returns the window to draw.
+///
+/// `visible` is the caller's answer to "is the trend column on screen". A hidden column
+/// pauses its feed instead of plotting a line nobody sees, which is the ticket's
+/// requirement stated as code rather than as an intention.
+fn feed_trend(row_id: &str, pct: u8, visible: bool) -> Option<Series> {
+    let mut feeds = TRENDS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let feed = feeds
+        .entry(row_id.to_string())
+        .or_insert_with(|| ChartFeed::new(SAMPLE_CAP));
+    feed.set_visible(visible);
+    feed.offer(pct);
+    Some(feed.series().clone())
+}
+
+/// Live usage as the metrics API reports it, keyed `namespace/name`.
+#[derive(Default)]
+struct Usage {
+    cpu: BTreeMap<String, f64>,
+    mem: BTreeMap<String, f64>,
+}
+
+/// CPU and memory per pod from `metrics.k8s.io/v1beta1/PodMetrics`.
+///
+/// The API is optional on a cluster, so a missing API is an error the caller turns into
+/// "no source" rather than a failure of the page.
+async fn fetch_pod_usage(client: kube::Client) -> Result<Usage, kube::Error> {
+    let resource = ApiResource::from_gvk_with_plural(
+        &GroupVersionKind::gvk("metrics.k8s.io", "v1beta1", "PodMetrics"),
+        "pods",
+    );
+    let items = Api::<DynamicObject>::all_with(client, &resource)
+        .list(&ListParams::default())
+        .await?
+        .items;
+    let mut usage = Usage::default();
+    for item in &items {
+        let Some(key) = metric_key(item) else {
+            continue;
+        };
+        let containers = item
+            .data
+            .pointer("/containers")
+            .and_then(|value| value.as_array());
+        let mut cpu = 0.0;
+        let mut mem = 0.0;
+        for container in containers.into_iter().flatten() {
+            cpu += container
+                .pointer("/usage/cpu")
+                .and_then(|value| value.as_str())
+                .and_then(parse_quantity)
+                .unwrap_or(0.0);
+            mem += container
+                .pointer("/usage/memory")
+                .and_then(|value| value.as_str())
+                .and_then(parse_quantity)
+                .unwrap_or(0.0);
+        }
+        usage.cpu.insert(key.clone(), cpu);
+        usage.mem.insert(key, mem);
+    }
+    Ok(usage)
+}
+
+/// Cluster-wide usage from `NodeMetrics`, for the overview's aggregate charts.
+async fn fetch_node_usage(client: kube::Client) -> Result<Usage, kube::Error> {
+    let resource = ApiResource::from_gvk_with_plural(
+        &GroupVersionKind::gvk("metrics.k8s.io", "v1beta1", "NodeMetrics"),
+        "nodes",
+    );
+    let items = Api::<DynamicObject>::all_with(client, &resource)
+        .list(&ListParams::default())
+        .await?
+        .items;
+    let mut usage = Usage::default();
+    for item in &items {
+        let Some(name) = item.metadata.name.clone() else {
+            continue;
+        };
+        let cpu = item
+            .data
+            .pointer("/usage/cpu")
+            .and_then(|value| value.as_str())
+            .and_then(parse_quantity)
+            .unwrap_or(0.0);
+        let mem = item
+            .data
+            .pointer("/usage/memory")
+            .and_then(|value| value.as_str())
+            .and_then(parse_quantity)
+            .unwrap_or(0.0);
+        usage.cpu.insert(name.clone(), cpu);
+        usage.mem.insert(name, mem);
+    }
+    Ok(usage)
+}
+
+/// `namespace/name` for a namespaced metrics item; `None` when the item says neither.
+fn metric_key(item: &DynamicObject) -> Option<String> {
+    let name = item.metadata.name.clone()?;
+    Some(match item.metadata.namespace.clone() {
+        Some(namespace) => format!("{namespace}/{name}"),
+        None => name,
+    })
+}
+
+/// What a pod's usage is measured against: the request it reserved for that resource, so
+/// `100%` means "using exactly what it asked for". A pod with no request has no scale and
+/// gets no trend rather than a made-up one.
+fn usage_pct(used: f64, reserved: f64) -> Option<u8> {
+    if reserved <= 0.0 {
+        return None;
+    }
+    Some(((used / reserved) * 100.0).round().clamp(0.0, 999.0) as u8)
+}
+
 fn dynamic_str(item: &DynamicObject, path: &[&str]) -> Option<String> {
     let mut value = &item.data;
     for key in path {
@@ -268,7 +412,7 @@ fn dynamic_str(item: &DynamicObject, path: &[&str]) -> Option<String> {
 
 /// Pod rows for both the overview board and the pods table. Columns mirror
 /// `crates/openkite-ui/src/table_columns.rs`'s `pods` entry; no new columns invented.
-fn pod_rows(pods: &[Pod]) -> Vec<Row> {
+fn pod_rows(pods: &[Pod], usage: &Usage, visible: bool) -> Vec<Row> {
     pods.iter()
         .map(|pod| {
             let name = pod.metadata.name.clone().unwrap_or_default();
@@ -312,7 +456,13 @@ fn pod_rows(pods: &[Pod]) -> Vec<Row> {
                 .map(|owner| format!("{}/{}", owner.kind, owner.name))
                 .unwrap_or_default();
 
-            Row::new(format!("pod/{namespace}/{name}"), name.clone())
+            let key = format!("{namespace}/{name}");
+            let pct = usage
+                .cpu
+                .get(&key)
+                .copied()
+                .and_then(|used| usage_pct(used, pod_cpu_request(pod)));
+            let mut row = Row::new(format!("pod/{namespace}/{name}"), name.clone())
                 .with_namespace(namespace)
                 .with_cell("status", status)
                 .with_cell("ready", format!("{ready_count}/{total}"))
@@ -320,7 +470,15 @@ fn pod_rows(pods: &[Pod]) -> Vec<Row> {
                 .with_cell("ctrl", controller)
                 .with_cell("node", node)
                 .with_cell("qos", qos)
-                .with_cell("age", age_of(pod.metadata.creation_timestamp.as_ref()))
+                .with_cell("age", age_of(pod.metadata.creation_timestamp.as_ref()));
+            // A hidden trend column pauses the feed instead of collecting samples no one
+            // draws; a pod without usage keeps no history at all.
+            if let Some(series) = feed_trend(&key, pct.unwrap_or(0), visible && pct.is_some()) {
+                if visible && pct.is_some() {
+                    row = row.with_trend(series);
+                }
+            }
+            row
         })
         .collect()
 }
@@ -519,6 +677,67 @@ fn aggregated_event_rows(events: &[Event]) -> Vec<openkite_ui::inspector::Event>
 /// lists already in hand — no `metrics-server` round trip. Live CPU/memory *usage* would
 /// need `metrics.k8s.io`, which this slice deliberately does not query (see the ticket
 /// report), so the usage meters and capacity gauges both speak in requests.
+/// What the overview's charts draw from: the source that answered, the default band, and
+/// one window per aggregate metric with this refresh appended. The windows live as long as
+/// the process, so a second visit to the board has a second point to join.
+fn metrics_view(
+    pods: &[Pod],
+    nodes: &[Node],
+    node_usage: &Usage,
+    pressure: &Pressure,
+    usage_answered: bool,
+) -> MetricsView {
+    let mut probe = SourceProbe::default();
+    for pod in pods {
+        probe.observe(
+            pod.metadata.namespace.as_deref().unwrap_or_default(),
+            pod.metadata.name.as_deref().unwrap_or_default(),
+            pod.status
+                .as_ref()
+                .and_then(|status| status.phase.as_deref())
+                == Some("Running"),
+        );
+    }
+    let source = if usage_answered {
+        MetricSource::MetricsServer
+    } else {
+        probe.detect()
+    };
+    let mut view = MetricsView {
+        source,
+        ..MetricsView::default()
+    };
+    let cpu = aggregate_pct(nodes, node_usage, "cpu").unwrap_or_else(|| pressure.cpu_pct());
+    let mem = aggregate_pct(nodes, node_usage, "memory").unwrap_or_else(|| pressure.mem_pct());
+    view.offer("cpu", cpu);
+    view.offer("mem", mem);
+    view
+}
+
+/// Cluster usage as a share of allocatable, from `NodeMetrics` and the node list. `None`
+/// when the cluster reports no allocatable total, which leaves the caller's fallback in
+/// charge rather than plotting a fabricated zero.
+fn aggregate_pct(nodes: &[Node], usage: &Usage, key: &str) -> Option<u8> {
+    let mut used = 0.0;
+    let mut total = 0.0;
+    for node in nodes {
+        let name = node.metadata.name.as_deref().unwrap_or_default();
+        total += node
+            .status
+            .as_ref()
+            .and_then(|status| status.allocatable.as_ref())
+            .and_then(|entries| entries.get(key))
+            .and_then(|quantity| parse_quantity(&quantity.0))
+            .unwrap_or(0.0);
+        let by_node = if key == "cpu" { &usage.cpu } else { &usage.mem };
+        used += by_node.get(name).copied().unwrap_or(0.0);
+    }
+    if total <= 0.0 {
+        return None;
+    }
+    Some(((used / total) * 100.0).round().clamp(0.0, 100.0) as u8)
+}
+
 struct Pressure {
     cpu_used: f64,
     cpu_total: f64,

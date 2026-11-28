@@ -11,12 +11,14 @@ pub use nav::{
 };
 pub use shell::{AppShell, AppShellProps, Connection, Counts};
 
+pub mod chart;
 pub mod inspector;
 pub mod inspector_view;
 pub mod logs;
 pub mod logs_view;
 pub mod manifest_edit;
 pub mod manifest_edit_view;
+pub mod metrics;
 pub mod overview;
 pub mod overview_view;
 pub mod palette;

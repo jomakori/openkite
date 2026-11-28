@@ -5,6 +5,9 @@
 
 use dioxus::prelude::*;
 
+use crate::chart::{WorkloadChart, WorkloadSeries};
+use crate::metrics::{MetricsView, Threshold};
+
 use crate::overview::{
     Attention, BoardAction, Group, Lane, OverviewData, OverviewLayout, Size, UsagePanel, WidgetId,
 };
@@ -390,8 +393,20 @@ pub fn MetricDetail(
     contributors: Vec<(String, u8)>,
     more: usize,
     on_back: EventHandler<()>,
+    /// Source and window the chart under the reading draws from.
+    #[props(default)]
+    metrics: MetricsView,
+    /// Band the chart marks and the reading is judged by.
+    #[props(default)]
+    threshold: Threshold,
 ) -> Element {
     let label = if series == "cpu" { "CPU" } else { "Memory" };
+    let window = metrics.series(series).cloned().unwrap_or_default();
+    let colour = if series == "cpu" {
+        "var(--accent)"
+    } else {
+        "var(--violet)"
+    };
     rsx! {
         div { class: "metric-detail", "data-metric": "{series}",
             div { class: "metric-detail-head",
@@ -404,6 +419,14 @@ pub fn MetricDetail(
                 }
                 h4 { "{label} usage" }
                 span { class: "mono metric-detail-val", "{pct}%" }
+            }
+            WorkloadChart {
+                title: "{label} over the last minute",
+                sub: String::new(),
+                series: vec![WorkloadSeries::new(label, colour, window)],
+                source: metrics.source,
+                threshold,
+                visible: true,
             }
             if contributors.is_empty() {
                 div { class: "empty-hint", "No node samples yet" }
@@ -478,6 +501,8 @@ fn UsageCard(props: UsageCardProps) -> Element {
                 contributors,
                 more,
                 on_back: move |_| panel_state.write().close_metric(),
+                metrics: data.metrics.clone(),
+                threshold: data.metrics.threshold,
             }
         },
         None => rsx! {
