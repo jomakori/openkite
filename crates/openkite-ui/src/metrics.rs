@@ -169,10 +169,14 @@ impl Series {
     /// nothing to draw. Geometry matches the reference sheet: a 2 px inset and a
     /// 10% headroom over the window peak so the line never touches the top edge.
     pub fn geometry(&self, w: f64, h: f64) -> Option<Spark> {
-        let Some(last) = self.samples.last() else {
-            return None;
-        };
-        let top = (self.peak().max(*last) as f64) * 1.1;
+        let top = (self.peak() as f64) * 1.1;
+        Some(self.geometry_over(w, h, if top <= 0.0 { 1.0 } else { top })?)
+    }
+
+    /// Path data plotted against a fixed scale top (0-100 for a chart whose threshold
+    /// line has to sit at its own percentage rather than at the window peak).
+    pub fn geometry_over(&self, w: f64, h: f64, top: f64) -> Option<Spark> {
+        let last = self.samples.last()?;
         let top = if top <= 0.0 { 1.0 } else { top };
         let y = |value: u8| -> f64 { h - 2.0 - (value as f64) / top * (h - 4.0) };
         let points: Vec<String> = if self.samples.len() == 1 {

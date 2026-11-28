@@ -1,0 +1,83 @@
+/* Metric chart states. Chart chrome (.chart-card, .chart-svg, .spark, .legend) comes from
+   the vendored reference sheet; this file adds only what the prototype lacks: the
+   threshold mark, the source chip, and the paused/empty states a chart falls back to. */
+
+.trend-cell .spark-val {
+  font-variant-numeric: tabular-nums;
+}
+
+/* A reading over the band is marked by colour, not by weight: the row stays scannable. */
+.trend-cell[data-tone="warn"] {
+  color: var(--warn);
+}
+
+.trend-cell[data-tone="crit"] {
+  color: var(--danger);
+}
+
+.trend-cell[data-tone="crit"] .spark-val {
+  font-weight: 600;
+}
+
+.spark-empty {
+  color: var(--muted);
+}
+
+.chart-card .cs {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chart-src {
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.chart-src[data-source="absent"] {
+  color: var(--warn);
+  border-color: color-mix(in oklab, var(--warn) 35%, transparent);
+}
+
+.chart-sub {
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-card[data-state="unavailable"] {
+  border-style: dashed;
+}
+
+.chart-empty,
+.chart-paused {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  justify-content: center;
+  min-height: 96px;
+  padding: 8px 4px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.chart-empty-title {
+  color: var(--fg);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.chart-empty-hint {
+  max-width: 34ch;
+  margin: 0 auto;
+  line-height: 1.35;
+}
+
+.chart-paused {
+  border: 1px dashed var(--border);
+  border-radius: var(--r-sm);
+  font-style: italic;
+}

@@ -11,6 +11,7 @@ pub use nav::{
 };
 pub use shell::{AppShell, AppShellProps, Connection, Counts};
 
+pub mod chart;
 pub mod inspector;
 pub mod inspector_view;
 pub mod logs;
