@@ -10,33 +10,55 @@
 ## What is it?
 
 OpenKite is a Kubernetes IDE in Rust: a Dioxus 0.7 console over a kube-rs engine,
-served as a desktop window and as a browser host from the same crates.
+served as a browser host today and as a desktop window from the same crates.
 
-## Status — rebuild in progress
+## Status
 
-v1 was retired: its crates, end-to-end suites, packaging and release workflows are
-gone, and the repository holds a v2 workspace skeleton instead — six crates
-(`engine`, `api`, `ui`, `desktop`, `web`, `cli`) that the rebuild fills in.
+v1 was retired and the v2 workspace replaced it: six crates — `engine`, `api`,
+`ui`, `desktop`, `web`, `engine-testkit` — that the rebuild has since filled in.
 
-The browser shell is real but thin: `openkite-web` serves a placeholder page and a
-`/healthz` endpoint, and every release tag builds an arm64 image that the cluster
-runs. Everything else in the workspace is still a stub.
+The browser host is the working product. `openkite-web` server-renders the console
+at `/` (plus `/table`, `/events` and `/styles/console.css`) over the engine's demo
+fixtures, exposes `/healthz`, and honours `PORT`. The console is the real thing:
+workload table with selection and bulk actions, log dock, resource inspector, nav
+tree, command palette, overview with capacity meters and the usage drill-down, and
+the settings pane with 24 presets, plus the YAML manifest editor. The Argo CD
+application view is specified and styled ahead of the live cluster wiring.
 
-## Running the shell
+The engine holds the cluster side: informer caches, refcounted interest, coalesced
+update batches, pod exec, port-forward and log streaming, plus the workload actions.
+Its conformance suite runs against a kind cluster and diffs exec behaviour against
+`kubectl`.
+
+`openkite-desktop` is the remaining stub — the native window over the in-process
+engine channel is the next milestone; until it lands the web host is the only way to
+run the console.
+
+## Running it
 
 ```bash
-cargo run -p openkite-web          # http://localhost:8080, PORT overrides
+cargo run -p openkite-web            # http://localhost:8080, PORT overrides
+cargo test --workspace               # what CI runs, minus the volume benchmark
 ```
 
-Releases are cut by pushing a `v*` tag: the `Release` workflow builds the
-`linux/arm64` image, pushes `ghcr.io/jomakori/openkite:<tag>` (and `:latest`), and
-opens the GitHub release.
+The container build compiles `openkite-web` with the `fixtures` feature, so the
+image serves the demo cluster without needing a kubeconfig.
+
+## Releases
+
+Releases are dispatched, not tagged by hand: `Release` derives the next version
+with `svu`, pushes the tag, and retags the image the pull request's `Staging` run
+already built rather than rebuilding it. `Flatpak` and `Chocolatey` are queued from
+the same dispatch. Every pull request also gets a `Preview` deployment on the dev
+cluster.
 
 ## Documentation
 
 - [DESIGN.md](DESIGN.md) — the token contract the console is styled from
 - [docs/design-surfaces.md](docs/design-surfaces.md) — which surface consumes which
-  tokens, and the reference lines it is graded against
+  tokens, and the reference vocabulary it is graded against
+- [docs/architecture.md](docs/architecture.md) — crates, the collection model, the
+  deferral list
 - [CONTRIBUTING.md](CONTRIBUTING.md) — the workspace map, the crate boundary rule,
   the CI gates
 

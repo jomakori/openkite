@@ -13,9 +13,10 @@ single deployment rollout produces thousands of watch events per second. Multi-c
 is the one parity item deliberately deferred, and §6 says why. It is
 one Rust workspace — a single `cargo` tree of six crates — built around one
 collection engine and one Dioxus console. That console is rendered twice: by a
-desktop shell that hosts it in a native webview over an in-process channel, and
-by a browser shell that server-renders it and streams the same frames over a
-WebSocket. The engine's defining decision is what it refuses to watch: collection
+desktop shell that hosts it in a native webview over an in-process channel — the
+crate is still a placeholder — and by a browser shell that server-renders it today
+and streams the same frames over a WebSocket once the delta path is wired. The
+engine's defining decision is what it refuses to watch: collection
 is a budgeted, demand-driven subscription problem, not a poll loop over every
 kind on the cluster.
 
@@ -35,6 +36,7 @@ and a debug panel says so instead of degrading silently).
 | `openkite-ui` | The console: Dioxus surfaces, rendered by either shell, with `web` / `desktop` crate features selecting the renderer. |
 | `openkite-desktop` | The native shell: webview window, engine over an in-process channel. |
 | `openkite-web` | The browser shell: axum server, server-rendered console, WebSocket delta stream. |
+| `openkite-engine-testkit` | Test-only: a mock API server and fixtures (pods, events, discovery documents) that the engine, UI and web tests run against. Not a dependency of any shipped shell. |
 
 Data flows one way, engine → api → ui → shell. Shells are thin: they own a
 window, a session and a transport, and nothing about Kubernetes. The UI owns
@@ -49,10 +51,10 @@ The boundary rule is mechanical, not stylistic:
 
 CI enforces the first clause: the `Guard the crate boundary` job in
 `.github/workflows/lint-test.yml` fails when `cargo tree -p openkite-engine`
-lists either crate. The rule exists because the engine runs headless in the CLI
-and in tests on machines with no webview stack, and because a typed wire contract
-is the hedge that keeps the UI framework decision reversible at exactly one crate
-boundary.
+lists either crate. The rule exists because the engine runs headless in the web
+host, the conformance and volume suites, and the tests that run on machines with
+no webview stack, and because a typed wire contract is the hedge that keeps the UI
+framework decision reversible at exactly one crate boundary.
 
 ## 3. Collection model
 
@@ -130,9 +132,12 @@ one full relist and one `reset` frame; each informer resyncs every 10 minutes
 default for tables and counts, which is 10–50× fewer bytes than full objects.
 
 There is one wire contract and no second fetch path. Desktop receives the frames
-over an in-process channel, the browser over a WebSocket; both see the same
-`Delta` type from `openkite-api`. That is the structural reason desktop and web
-behaviour cannot drift.
+over an in-process channel and the browser shell streams them over a WebSocket;
+both see the same `Delta` type from `openkite-api`. That is the structural reason
+desktop and web behaviour cannot drift. The frame type and the engine's coalescer
+are built and tested; the browser shell's live frame path is the piece still to
+wire — today `openkite-web` server-renders the console from the engine's fixtures
+in the same binary the cluster deploys.
 
 ## 5. Discovery and catalogue
 
@@ -171,10 +176,14 @@ class plus registry entries; that is how "full Kubernetes coverage" becomes a
 300-file maintenance bill and why a new kind on a user's cluster is only visible
 through the CRD path. OpenKite keeps one path and varies only data.
 
-Coverage is a gate, not a promise: CI checks that every kind in the discovery
-snapshot resolves to a nav route (an exclusion needs a written reason), and that
-the row interaction contract holds for every kind in the same snapshot. A new CRD
-on a user's cluster appears in the sidebar the first time they connect.
+Coverage is meant to be a gate, not a promise: the check every kind in the
+discovery snapshot resolves to a nav route (an exclusion needs a written reason),
+and that the row interaction contract holds for every kind in the same snapshot, is
+specified but not yet in CI — what runs today is the discovery fixture suite in
+`crates/openkite-engine-testkit/tests/discovery.rs` plus the render tests for the
+shell and table. A new CRD on a user's cluster is expected to appear in the
+sidebar the first time they connect; until the gate lands, that is design intent
+rather than an assertion.
 
 ## 6. What is deliberately deferred
 
@@ -193,3 +202,13 @@ Two surfaces in the coverage table are also not deferrals but new design with no
 prototype counterpart — the permission/denied/disconnected/stale states (§3 row
 19) and the collection-budget debug panel (§3 row 20) — and are specified as gaps
 rather than inherited from the reference.
+
+## 7. Where the workspace stands
+
+The collection model in §3, the frame contract in §4 and the discovery path in §5
+are implemented in `openkite-engine` and covered by the engine's unit, fixture and
+conformance suites. The console is built: every surface in
+`docs/design-surfaces.md` is styled by `crates/openkite-ui/assets/console.css` and
+rendered by `openkite-ui`, and the browser shell serves it. `openkite-desktop` is
+still a placeholder, and the browser shell's delta stream is the next transport
+step — see §4.
