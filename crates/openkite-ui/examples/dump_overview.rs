@@ -8,7 +8,7 @@ use openkite_ui::overview_view::{MetricDetail, Overview, UsageGauges, UsagePanel
 use openkite_ui::shell::{AppShell, Connection, Counts};
 
 fn data() -> OverviewData {
-    let pods = vec![
+    let pods = [
         ("api-7d9c4f8b6-2xqzt", "prod", "Running", "0"),
         ("api-7d9c4f8b6-9wq4m", "prod", "Running", "2"),
         ("worker-6b8f7d5c4-zz2lt", "prod", "Pending", "4"),

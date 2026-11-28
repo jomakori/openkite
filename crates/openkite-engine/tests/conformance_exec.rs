@@ -375,7 +375,7 @@ async fn resized_size(session: &mut PodExecSession, width: u16, height: u16) -> 
 
     text.lines()
         .map(str::trim)
-        .filter(|line| {
+        .rfind(|line| {
             let mut parts = line.split_whitespace();
             matches!(
                 (parts.next(), parts.next(), parts.next()),
@@ -383,7 +383,6 @@ async fn resized_size(session: &mut PodExecSession, width: u16, height: u16) -> 
                     if rows.parse::<u16>().is_ok() && columns.parse::<u16>().is_ok()
             )
         })
-        .next_back()
         .unwrap_or("")
         .to_owned()
 }
