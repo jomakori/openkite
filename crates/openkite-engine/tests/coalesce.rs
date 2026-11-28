@@ -74,7 +74,7 @@ async fn event_to_frame_p99_latency_is_bounded() {
     );
     latencies.sort();
     let p99_index = ((latencies.len() as f64) * 0.99).ceil() as usize;
-    let p99 = latencies[p99_index.min(latencies.len() - 1).max(0)];
+    let p99 = latencies[p99_index.min(latencies.len() - 1)];
     assert!(
         p99 <= Duration::from_millis(300),
         "p99 event-to-frame latency {p99:?} exceeds 300ms"
